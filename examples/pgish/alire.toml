@@ -1,5 +1,5 @@
-name = "flyology_postgres_introspection_server_example"
-description = "Bounded Postgres introspection server example for Flyology"
+name = "flyology_pgish"
+description = "A small read-only Postgres-like server built on Flyology"
 version = "0.1.0-dev"
 
 authors = ["Yurii Rashkovskii"]
@@ -9,9 +9,9 @@ licenses = "MIT OR Apache-2.0"
 tags = ["example", "postgres", "server", "introspection"]
 
 executables = [
-  "flyology_postgres_server_example",
-  "introspection_extended_client",
-  "introspection_server_tests",
+  "flyology_pgish",
+  "pgish_extended_client",
+  "pgish_tests",
 ]
 
 [[depends-on]]

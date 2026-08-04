@@ -1,6 +1,6 @@
 with Ada.Characters.Handling;
 
-package body Introspection_SQL is
+package body Pgish_SQL is
 
    use Ada.Characters.Handling;
 
@@ -459,4 +459,4 @@ package body Introspection_SQL is
       return Result;
    end Parse;
 
-end Introspection_SQL;
+end Pgish_SQL;

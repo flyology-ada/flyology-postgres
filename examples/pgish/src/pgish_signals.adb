@@ -1,4 +1,4 @@
-package body Introspection_Signals is
+package body Pgish_Signals is
 
    protected body Signals is
       procedure Stop_Term is
@@ -23,4 +23,4 @@ package body Introspection_Signals is
    function Stop_Requested return Boolean is (Signals.Stop_Requested);
    function Server_Complete return Boolean is (Signals.Server_Complete);
 
-end Introspection_Signals;
+end Pgish_Signals;

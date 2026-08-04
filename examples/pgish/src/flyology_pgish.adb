@@ -12,18 +12,18 @@ with Flyology.IO.Sockets;
 with Flyology.Postgres;
 with Flyology.Postgres.Server;
 with GNAT.OS_Lib;
-with Introspection_Handler;
-with Introspection_Signals;
-with Introspection_SQL;
-with Introspection_State;
+with Pgish_Handler;
+with Pgish_Signals;
+with Pgish_SQL;
+with Pgish_State;
 
-procedure Flyology_Postgres_Server_Example is
+procedure Flyology_Pgish is
 
    package Sockets renames Flyology.IO.Sockets;
-   package SQL renames Introspection_SQL;
+   package SQL renames Pgish_SQL;
 
    type Parsed_Configuration is record
-      Settings : Introspection_State.Configuration;
+      Settings : Pgish_State.Configuration;
       Help     : Boolean := False;
    end record;
 
@@ -31,20 +31,20 @@ procedure Flyology_Postgres_Server_Example is
       Result : Parsed_Configuration;
       Host : SQL.Name_Text := SQL.Make_Text
         (Ada.Environment_Variables.Value
-           ("FLYOLOGY_POSTGRES_EXAMPLE_HOST", "127.0.0.1"),
+           ("FLYOLOGY_PGISH_HOST", "127.0.0.1"),
          SQL.Maximum_Name_Length);
       Port : Natural := Natural'Value
         (Ada.Environment_Variables.Value
-           ("FLYOLOGY_POSTGRES_EXAMPLE_PORT", "55432"));
+           ("FLYOLOGY_PGISH_PORT", "55432"));
       Repository : SQL.Text (1_024) := SQL.Make_Text
         (Ada.Environment_Variables.Value
-           ("FLYOLOGY_POSTGRES_EXAMPLE_REPO",
+           ("FLYOLOGY_PGISH_REPO",
             Ada.Directories.Current_Directory),
          1_024);
       Task_Mode : SQL.Name_Text := SQL.Make_Text
         (Ada.Characters.Handling.To_Lower
            (Ada.Environment_Variables.Value
-              ("FLYOLOGY_POSTGRES_EXAMPLE_TASK_MODE", "lightweight")),
+              ("FLYOLOGY_PGISH_TASK_MODE", "lightweight")),
          SQL.Maximum_Name_Length);
       Index : Positive := 1;
 
@@ -107,10 +107,10 @@ procedure Flyology_Postgres_Server_Example is
    Options : constant Parsed_Configuration := Read_Configuration;
 
    package Example_Server is new Flyology.Postgres.Server
-     (Handler_Context       => Introspection_State.Server_State,
-      Authenticate          => Introspection_Handler.Authenticate,
-      Lookup_SCRAM_Verifier => Introspection_Handler.Lookup_SCRAM_Verifier,
-      Handle                => Introspection_Handler.Handle,
+     (Handler_Context       => Pgish_State.Server_State,
+      Authenticate          => Pgish_Handler.Authenticate,
+      Lookup_SCRAM_Verifier => Pgish_Handler.Lookup_SCRAM_Verifier,
+      Handle                => Pgish_Handler.Handle,
       Authentication        => Flyology.Postgres.Trust,
       Handler_Model         =>
         (if SQL.Image (Options.Settings.Task_Mode) = "lightweight"
@@ -119,9 +119,9 @@ procedure Flyology_Postgres_Server_Example is
       Command_Timeout       => 300.0,
       Write_Timeout         => 10.0);
 
-   Context  : aliased Introspection_State.Server_State;
+   Context  : aliased Pgish_State.Server_State;
    Server   : aliased Example_Server.Server
-     (Capacity => Introspection_State.Maximum_Sessions);
+     (Capacity => Pgish_State.Maximum_Sessions);
    Listener : Sockets.Socket_Type;
 
    task Shutdown_Watcher is
@@ -131,8 +131,8 @@ procedure Flyology_Postgres_Server_Example is
    task body Shutdown_Watcher is
    begin
       loop
-         exit when Introspection_Signals.Server_Complete;
-         if Introspection_Signals.Stop_Requested then
+         exit when Pgish_Signals.Server_Complete;
+         if Pgish_Signals.Stop_Requested then
             Example_Server.Request_Shutdown (Server);
             exit;
          end if;
@@ -143,21 +143,21 @@ procedure Flyology_Postgres_Server_Example is
    procedure Usage is
    begin
       Ada.Text_IO.Put_Line
-        ("usage: flyology_postgres_server_example " &
+        ("usage: flyology_pgish " &
          "[--host NUMERIC_IP] [--port PORT] [--repo PATH] " &
          "[--task-mode lightweight|native]");
       Ada.Text_IO.Put_Line
-        ("environment: FLYOLOGY_POSTGRES_EXAMPLE_HOST, " &
-         "FLYOLOGY_POSTGRES_EXAMPLE_PORT, FLYOLOGY_POSTGRES_EXAMPLE_REPO, " &
-         "FLYOLOGY_POSTGRES_EXAMPLE_TASK_MODE");
+        ("environment: FLYOLOGY_PGISH_HOST, " &
+         "FLYOLOGY_PGISH_PORT, FLYOLOGY_PGISH_REPO, " &
+         "FLYOLOGY_PGISH_TASK_MODE");
    end Usage;
 begin
    if Options.Help then
       Usage;
-      Introspection_Signals.Complete;
+      Pgish_Signals.Complete;
       return;
    end if;
-   Introspection_State.Initialize (Context, Options.Settings);
+   Pgish_State.Initialize (Context, Options.Settings);
    declare
       Address : constant Sockets.IP_Address :=
         Sockets.Parse_IP_Address (SQL.Image (Options.Settings.Host));
@@ -181,16 +181,16 @@ begin
         (Server, Listener, Context, Drain_Timeout => 2.0);
    exception
       when others =>
-         Introspection_Signals.Complete;
+         Pgish_Signals.Complete;
          raise;
    end;
-   Introspection_Signals.Complete;
+   Pgish_Signals.Complete;
 exception
    when Error : others =>
-      Introspection_Signals.Complete;
+      Pgish_Signals.Complete;
       Ada.Text_IO.Put_Line
         (Ada.Text_IO.Standard_Error,
-         "flyology_postgres_server_example: " &
+         "flyology_pgish: " &
          Ada.Exceptions.Exception_Message (Error));
       Ada.Command_Line.Set_Exit_Status (Ada.Command_Line.Failure);
-end Flyology_Postgres_Server_Example;
+end Flyology_Pgish;

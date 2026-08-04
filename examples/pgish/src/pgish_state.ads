@@ -1,17 +1,17 @@
 with Ada.Calendar;
 with Ada.Task_Identification;
-with Introspection_SQL;
+with Pgish_SQL;
 
-package Introspection_State is
+package Pgish_State is
 
    Maximum_Sessions : constant := 16;
    Maximum_Commits  : constant := 32;
 
-   subtype Name_Text is Introspection_SQL.Name_Text;
-   subtype Value_Text is Introspection_SQL.Value_Text;
-   subtype Path_Text is Introspection_SQL.Text (1_024);
+   subtype Name_Text is Pgish_SQL.Name_Text;
+   subtype Value_Text is Pgish_SQL.Value_Text;
+   subtype Path_Text is Pgish_SQL.Text (1_024);
    subtype Query_Text is
-     Introspection_SQL.Text (Introspection_SQL.Maximum_Query_Length);
+     Pgish_SQL.Text (Pgish_SQL.Maximum_Query_Length);
 
    type Configuration is record
       Host            : Name_Text;
@@ -133,4 +133,4 @@ private
       Registry     : Session_Registry;
    end record;
 
-end Introspection_State;
+end Pgish_State;

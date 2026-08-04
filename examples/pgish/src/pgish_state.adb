@@ -2,26 +2,26 @@ with Ada.Directories;
 with Ada.Text_IO;
 with GNAT.OS_Lib;
 
-package body Introspection_State is
+package body Pgish_State is
 
    use type Ada.Task_Identification.Task_Id;
 
    function Clipped_Name (Value : String) return Name_Text is
       Last : constant Natural := Natural'Min
-        (Value'Length, Introspection_SQL.Maximum_Name_Length);
+        (Value'Length, Pgish_SQL.Maximum_Name_Length);
    begin
-      return Introspection_SQL.Make_Text
+      return Pgish_SQL.Make_Text
         ((if Last = 0 then "" else Value (Value'First .. Value'First + Last - 1)),
-         Introspection_SQL.Maximum_Name_Length);
+         Pgish_SQL.Maximum_Name_Length);
    end Clipped_Name;
 
    function Clipped_Value (Value : String) return Value_Text is
       Last : constant Natural := Natural'Min
-        (Value'Length, Introspection_SQL.Maximum_Value_Length);
+        (Value'Length, Pgish_SQL.Maximum_Value_Length);
    begin
-      return Introspection_SQL.Make_Text
+      return Pgish_SQL.Make_Text
         ((if Last = 0 then "" else Value (Value'First .. Value'First + Last - 1)),
-         Introspection_SQL.Maximum_Value_Length);
+         Pgish_SQL.Maximum_Value_Length);
    end Clipped_Value;
 
    protected body Session_Registry is
@@ -133,12 +133,12 @@ package body Introspection_State is
          for Slot of Slots loop
             if Slot.Occupied and then Slot.Owner = Owner then
                Slot.Statement_Name := Clipped_Name (Name);
-               Slot.Statement_SQL := Introspection_SQL.Make_Text
-                 (SQL, Introspection_SQL.Maximum_Query_Length);
+               Slot.Statement_SQL := Pgish_SQL.Make_Text
+                 (SQL, Pgish_SQL.Maximum_Query_Length);
                if Name'Length = 0 then
                   Slot.Portal_Name := Clipped_Name ("");
-                  Slot.Portal_SQL := Introspection_SQL.Make_Text
-                    ("", Introspection_SQL.Maximum_Query_Length);
+                  Slot.Portal_SQL := Pgish_SQL.Make_Text
+                    ("", Pgish_SQL.Maximum_Query_Length);
                end if;
                return;
             end if;
@@ -151,7 +151,7 @@ package body Introspection_State is
       begin
          for Slot of Slots loop
             if Slot.Occupied and then Slot.Owner = Owner then
-               if Introspection_SQL.Image (Slot.Statement_Name) /= Statement_Name then
+               if Pgish_SQL.Image (Slot.Statement_Name) /= Statement_Name then
                   raise Constraint_Error with "unknown prepared statement";
                end if;
                Slot.Portal_Name := Clipped_Name (Portal_Name);
@@ -164,15 +164,15 @@ package body Introspection_State is
 
       function Get_SQL
         (Owner : Task_Id; Portal : Boolean; Name : String) return Query_Text is
-         SQL : Query_Text := Introspection_SQL.Make_Text
-           ("", Introspection_SQL.Maximum_Query_Length);
+         SQL : Query_Text := Pgish_SQL.Make_Text
+           ("", Pgish_SQL.Maximum_Query_Length);
       begin
          for Slot of Slots loop
             if Slot.Occupied and then Slot.Owner = Owner then
-               if Portal and then Introspection_SQL.Image (Slot.Portal_Name) = Name then
+               if Portal and then Pgish_SQL.Image (Slot.Portal_Name) = Name then
                   SQL := Slot.Portal_SQL;
                elsif not Portal
-                 and then Introspection_SQL.Image (Slot.Statement_Name) = Name
+                 and then Pgish_SQL.Image (Slot.Statement_Name) = Name
                then
                   SQL := Slot.Statement_SQL;
                end if;
@@ -187,16 +187,16 @@ package body Introspection_State is
       begin
          for Slot of Slots loop
             if Slot.Occupied and then Slot.Owner = Owner then
-               if Portal and then Introspection_SQL.Image (Slot.Portal_Name) = Name then
+               if Portal and then Pgish_SQL.Image (Slot.Portal_Name) = Name then
                   Slot.Portal_Name := Clipped_Name ("");
-                  Slot.Portal_SQL := Introspection_SQL.Make_Text
-                    ("", Introspection_SQL.Maximum_Query_Length);
+                  Slot.Portal_SQL := Pgish_SQL.Make_Text
+                    ("", Pgish_SQL.Maximum_Query_Length);
                elsif not Portal
-                 and then Introspection_SQL.Image (Slot.Statement_Name) = Name
+                 and then Pgish_SQL.Image (Slot.Statement_Name) = Name
                then
                   Slot.Statement_Name := Clipped_Name ("");
-                  Slot.Statement_SQL := Introspection_SQL.Make_Text
-                    ("", Introspection_SQL.Maximum_Query_Length);
+                  Slot.Statement_SQL := Pgish_SQL.Make_Text
+                    ("", Pgish_SQL.Maximum_Query_Length);
                end if;
                return;
             end if;
@@ -233,7 +233,7 @@ package body Introspection_State is
       Output_Name : OS.String_Access;
       Success    : Boolean := False;
       Return_Code : Integer := -1;
-      Field      : String (1 .. Introspection_SQL.Maximum_Value_Length);
+      Field      : String (1 .. Pgish_SQL.Maximum_Value_Length);
       Field_Length : Natural := 0;
       Field_Number : Positive := 1;
       Current      : Commit;
@@ -257,7 +257,7 @@ package body Introspection_State is
       begin
          Finish_Field;
          if Item.Commit_Count < Maximum_Commits
-           and then not Introspection_SQL.Is_Empty (Current.Hash)
+           and then not Pgish_SQL.Is_Empty (Current.Hash)
          then
             Item.Commit_Count := Item.Commit_Count + 1;
             Item.Commit_Data (Item.Commit_Count) := Current;
@@ -285,7 +285,7 @@ package body Introspection_State is
       declare
          Args : OS.Argument_List (1 .. 8) :=
            (new String'("-C"),
-            new String'(Introspection_SQL.Image (Item.Settings.Repository_Path)),
+            new String'(Pgish_SQL.Image (Item.Settings.Repository_Path)),
             new String'("log"),
             new String'("--no-decorate"),
             new String'("--date=iso-strict"),
@@ -372,7 +372,7 @@ package body Introspection_State is
      (Item.Settings);
 
    function Repository_Head (Item : Server_State) return String is
-     (Introspection_SQL.Image (Item.Head));
+     (Pgish_SQL.Image (Item.Head));
 
    procedure Repository_Commits
      (Item : Server_State; Values : out Commit_Array; Count : out Natural) is
@@ -447,8 +447,8 @@ package body Introspection_State is
       Value : constant Query_Text := Item.Registry.Get_SQL
         (Ada.Task_Identification.Current_Task, False, Name);
    begin
-      Found := not Introspection_SQL.Is_Empty (Value);
-      return Introspection_SQL.Image (Value);
+      Found := not Pgish_SQL.Is_Empty (Value);
+      return Pgish_SQL.Image (Value);
    end Statement_SQL;
 
    function Portal_SQL
@@ -456,8 +456,8 @@ package body Introspection_State is
       Value : constant Query_Text := Item.Registry.Get_SQL
         (Ada.Task_Identification.Current_Task, True, Name);
    begin
-      Found := not Introspection_SQL.Is_Empty (Value);
-      return Introspection_SQL.Image (Value);
+      Found := not Pgish_SQL.Is_Empty (Value);
+      return Pgish_SQL.Image (Value);
    end Portal_SQL;
 
    procedure Close_Extended
@@ -475,4 +475,4 @@ package body Introspection_State is
    function Extended_Failed (Item : Server_State) return Boolean is
      (Item.Registry.Is_Failed (Ada.Task_Identification.Current_Task));
 
-end Introspection_State;
+end Pgish_State;

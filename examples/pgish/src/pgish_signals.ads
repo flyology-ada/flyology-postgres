@@ -1,6 +1,6 @@
 with Ada.Interrupts.Names;
 
-package Introspection_Signals is
+package Pgish_Signals is
 
    procedure Complete;
    function Stop_Requested return Boolean;
@@ -18,4 +18,4 @@ private
       Finished : Boolean := False;
    end Signals;
 
-end Introspection_Signals;
+end Pgish_Signals;

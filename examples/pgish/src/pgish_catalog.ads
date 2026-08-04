@@ -1,18 +1,18 @@
-with Introspection_SQL;
-with Introspection_State;
+with Pgish_SQL;
+with Pgish_State;
 
-package Introspection_Catalog is
+package Pgish_Catalog is
 
    Undefined_Table_Error  : exception;
    Undefined_Column_Error : exception;
    Unsupported_Error      : exception;
    Resource_Limit_Error   : exception;
 
-   Maximum_Columns : constant := Introspection_SQL.Maximum_Projections;
-   Maximum_Rows    : constant := Introspection_SQL.Maximum_Result_Rows;
+   Maximum_Columns : constant := Pgish_SQL.Maximum_Projections;
+   Maximum_Rows    : constant := Pgish_SQL.Maximum_Result_Rows;
 
    type Column_Definition is record
-      Name      : Introspection_SQL.Name_Text;
+      Name      : Pgish_SQL.Name_Text;
       Type_Oid  : Natural := 25;
       Type_Size : Integer := -1;
    end record;
@@ -21,7 +21,7 @@ package Introspection_Catalog is
 
    type Cell is record
       Is_Null : Boolean := True;
-      Value   : Introspection_SQL.Value_Text;
+      Value   : Pgish_SQL.Value_Text;
    end record;
    type Cell_Array is array (Positive range 1 .. Maximum_Columns) of Cell;
 
@@ -38,15 +38,15 @@ package Introspection_Catalog is
    end record;
 
    procedure Execute
-     (State   : in out Introspection_State.Server_State;
-      Session : Introspection_State.Session_Snapshot;
-      Query   : Introspection_SQL.Query;
+     (State   : in out Pgish_State.Server_State;
+      Session : Pgish_State.Session_Snapshot;
+      Query   : Pgish_SQL.Query;
       Result  : out Result_Set);
 
    procedure Psql_Compatibility
-     (Context  : in out Introspection_State.Server_State;
+     (Context  : in out Pgish_State.Server_State;
       SQL_Text : String;
       Matched  : out Boolean;
       Result   : out Result_Set);
 
-end Introspection_Catalog;
+end Pgish_Catalog;

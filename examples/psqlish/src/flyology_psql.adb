@@ -72,10 +72,25 @@ procedure Flyology_Psql is
       & "ORDER BY schemaname, tablename;");
 
    function Describe_SQL (Table_Name : String) return String is
-     ("SELECT column_name AS column, data_type AS type, "
-      & "is_nullable AS nullable, column_default AS default "
-      & "FROM information_schema.columns WHERE table_name = "
-      & Quoted_Literal (Table_Name) & " ORDER BY ordinal_position;");
+      Dot : constant Natural := Ada.Strings.Fixed.Index
+        (Table_Name, ".", Going => Ada.Strings.Backward);
+      Schema : constant String :=
+        (if Dot = 0 then "" else Table_Name (Table_Name'First .. Dot - 1));
+      Name : constant String :=
+        (if Dot = 0
+         then Table_Name
+         else Table_Name (Dot + 1 .. Table_Name'Last));
+   begin
+      return
+        "SELECT column_name AS name, data_type AS data_type, "
+        & "is_nullable AS nullable, column_default AS default_value "
+        & "FROM information_schema.columns WHERE table_name = "
+        & Quoted_Literal (Name)
+        & (if Schema'Length = 0
+           then ""
+           else " AND table_schema = " & Quoted_Literal (Schema))
+        & " ORDER BY name;";
+   end Describe_SQL;
 
    procedure Meta_Help is
    begin

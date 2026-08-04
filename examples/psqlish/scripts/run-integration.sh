@@ -53,6 +53,15 @@ printf '%s\n' "$batch_output" | grep -q '(1000 rows)'
 printf '%s\n' "$batch_output" | grep -q '(1 row)'
 printf '%s\n' "$batch_output" | grep -q 'SELECT 1001'
 
+describe_output=$(PGHOST=127.0.0.1 PGPORT=$port PGUSER=flyology \
+  PGDATABASE=postgres PGPASSWORD=flyology-secret \
+  "$example_root/bin/flyology_psql" <<'PSQL'
+\d pg_catalog.pg_class
+\q
+PSQL
+)
+printf '%s\n' "$describe_output" | grep -q 'relname'
+
 if PGHOST=127.0.0.1 PGPORT=$port PGUSER=flyology \
   PGDATABASE=postgres PGPASSWORD=flyology-secret \
   "$example_root/bin/flyology_psql" --command 'select 1 / 0' \

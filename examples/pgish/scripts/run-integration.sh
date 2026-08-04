@@ -7,9 +7,9 @@ repository_root=$(CDPATH= cd -- "$example_root/../.." && pwd)
 postgres_prefix=$(
   "$repository_root/tests/scripts/ensure-postgres.sh"
 )
-port=${FLYOLOGY_POSTGRES_EXAMPLE_TEST_PORT:-55432}
-task_mode=${FLYOLOGY_POSTGRES_EXAMPLE_TASK_MODE:-lightweight}
-run_root=$(mktemp -d "${TMPDIR:-/tmp}/flyology-introspection.XXXXXX")
+port=${FLYOLOGY_PGISH_TEST_PORT:-55432}
+task_mode=${FLYOLOGY_PGISH_TASK_MODE:-lightweight}
+run_root=$(mktemp -d "${TMPDIR:-/tmp}/flyology-pgish.XXXXXX")
 server_log="$run_root/server.log"
 recovery_sql="$run_root/recovery.sql"
 server_pid=
@@ -23,9 +23,9 @@ cleanup () {
 }
 trap cleanup EXIT HUP INT TERM
 
-FLYOLOGY_POSTGRES_EXAMPLE_PORT=$port \
-FLYOLOGY_POSTGRES_EXAMPLE_REPO=$repository_root \
-  "$example_root/bin/flyology_postgres_server_example" \
+FLYOLOGY_PGISH_PORT=$port \
+FLYOLOGY_PGISH_REPO=$repository_root \
+  "$example_root/bin/flyology_pgish" \
   >"$server_log" 2>&1 &
 server_pid=$!
 
@@ -33,15 +33,20 @@ attempt=0
 while ! grep -q '^ready ' "$server_log"; do
   attempt=$((attempt + 1))
   if ! kill -0 "$server_pid" >/dev/null 2>&1 || [ "$attempt" -ge 200 ]; then
-    echo "introspection server did not become ready" >&2
+    echo "pgish did not become ready" >&2
     cat "$server_log" >&2
     exit 1
   fi
   sleep 0.05
 done
 
-FLYOLOGY_POSTGRES_EXAMPLE_PORT=$port \
-  "$example_root/bin/introspection_extended_client"
+FLYOLOGY_PGISH_PORT=$port \
+  "$example_root/bin/pgish_extended_client"
+
+if [ -x "$repository_root/examples/psqlish/bin/flyology_psql" ]; then
+  PGHOST=127.0.0.1 PGPORT=$port PGUSER=flyology PGDATABASE=flyology \
+    "$repository_root/examples/psqlish/scripts/run-pgish-integration.sh"
+fi
 
 psql_command () {
   "$postgres_prefix/bin/psql" \
@@ -94,4 +99,4 @@ kill -TERM "$server_pid"
 wait "$server_pid"
 server_pid=
 
-printf '%s\n' 'real psql introspection integration passed'
+printf '%s\n' 'real psql-to-pgish integration passed'

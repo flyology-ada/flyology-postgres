@@ -1,4 +1,4 @@
-package Introspection_SQL is
+package Pgish_SQL is
 
    Maximum_Query_Length : constant := 8_192;
    Maximum_Tokens       : constant := 128;
@@ -77,4 +77,4 @@ package Introspection_SQL is
 
    function Parse (SQL : String) return Query;
 
-end Introspection_SQL;
+end Pgish_SQL;

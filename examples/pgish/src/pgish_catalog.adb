@@ -7,17 +7,17 @@ with Ada.Strings.Fixed;
 with Flyology.Execution_Groups;
 with Flyology.Observability;
 
-package body Introspection_Catalog is
+package body Pgish_Catalog is
 
    use Ada.Characters.Handling;
    use type Ada.Calendar.Time;
-   use type Introspection_SQL.Comparison_Operator;
-   use type Introspection_SQL.Function_Kind;
-   use type Introspection_SQL.Projection_Kind;
-   use type Introspection_SQL.Statement_Kind;
+   use type Pgish_SQL.Comparison_Operator;
+   use type Pgish_SQL.Function_Kind;
+   use type Pgish_SQL.Projection_Kind;
+   use type Pgish_SQL.Statement_Kind;
 
-   package SQL renames Introspection_SQL;
-   package State renames Introspection_State;
+   package SQL renames Pgish_SQL;
+   package State renames Pgish_State;
    package Groups renames Flyology.Execution_Groups;
    package Observability renames Flyology.Observability;
 
@@ -341,7 +341,9 @@ package body Introspection_Catalog is
    end Add_Information_Tables;
 
    procedure Add_Information_Columns
-     (State_Value : in out State.Server_State; Result : in out Result_Set) is
+     (State_Value : in out State.Server_State;
+      Result      : in out Result_Set;
+      Only_Table  : String := "") is
       Source : Result_Set;
       Values : Cell_Array := (others => Null_Cell);
 
@@ -366,23 +368,30 @@ package body Introspection_Catalog is
       Add_Column (Result, "ordinal_position", 23, 4);
       Add_Column (Result, "is_nullable");
       Add_Column (Result, "data_type");
+      Add_Column (Result, "column_default");
       for Table of Tables loop
-         Load (SQL.Image (Table.Name));
-         for Column in 1 .. Source.Column_Count loop
-            Values := (others => Null_Cell);
-            Values (1) := Text_Cell ("flyology");
-            Values (2) := Text_Cell ("flyology");
-            Values (3) := Text_Cell (SQL.Image (Table.Name));
-            Values (4) := Text_Cell (SQL.Image (Source.Columns (Column).Name));
-            Values (5) := Text_Cell (Trim_Image (Column'Image));
-            Values (6) := Text_Cell ("YES");
-            Values (7) := Text_Cell
-              ((case Source.Columns (Column).Type_Oid is
-                 when 16 => "boolean", when 20 => "bigint",
-                 when 23 => "integer", when 1_184 => "timestamp with time zone",
-                 when others => "text"));
-            Add_Row (Result, Values);
-         end loop;
+         if Only_Table'Length = 0
+           or else Base_Name (Only_Table) = Base_Name (SQL.Image (Table.Name))
+         then
+            Load (SQL.Image (Table.Name));
+            for Column in 1 .. Source.Column_Count loop
+               Values := (others => Null_Cell);
+               Values (1) := Text_Cell ("flyology");
+               Values (2) := Text_Cell ("flyology");
+               Values (3) := Text_Cell (SQL.Image (Table.Name));
+               Values (4) := Text_Cell (SQL.Image (Source.Columns (Column).Name));
+               Values (5) := Text_Cell (Trim_Image (Column'Image));
+               Values (6) := Text_Cell ("YES");
+               Values (7) := Text_Cell
+                 ((case Source.Columns (Column).Type_Oid is
+                    when 16 => "boolean", when 20 => "bigint",
+                    when 23 => "integer",
+                    when 1_184 => "timestamp with time zone",
+                    when others => "text"));
+               Values (8) := Null_Cell;
+               Add_Row (Result, Values);
+            end loop;
+         end if;
       end loop;
    end Add_Information_Columns;
 
@@ -561,8 +570,8 @@ package body Introspection_Catalog is
                              when SQL.Current_Database_Function => SQL.Image (Session.Database_Name),
                              when SQL.Current_User_Function => SQL.Image (Session.User_Name),
                              when SQL.Version_Function =>
-                               "Flyology Postgres introspection example 0.1 " &
-                               "(PostgreSQL 18.4 compatible protocol)",
+                               "pgish 0.1 " &
+                               "(Postgres 18.4 compatible protocol)",
                              when SQL.Now_Function => Current_Time));
                      when SQL.Star_Projection => null;
                   end case;
@@ -627,9 +636,9 @@ package body Introspection_Catalog is
    end Sort;
 
    procedure Execute
-     (State   : in out Introspection_State.Server_State;
-      Session : Introspection_State.Session_Snapshot;
-      Query   : Introspection_SQL.Query;
+     (State   : in out Pgish_State.Server_State;
+      Session : Pgish_State.Session_Snapshot;
+      Query   : Pgish_SQL.Query;
       Result  : out Result_Set) is
       Source : Result_Set := (others => <>);
       Limit  : Natural;
@@ -652,7 +661,28 @@ package body Introspection_Catalog is
          return;
       end if;
       if not SQL.Is_Empty (Query.Table_Name) then
-         Load_Source (State, SQL.Image (Query.Table_Name), Source);
+         if To_Lower (SQL.Image (Query.Table_Name)) =
+           "information_schema.columns"
+         then
+            declare
+               Table_Filter : SQL.Value_Text;
+            begin
+               for Index in 1 .. Query.Predicate_Count loop
+                  if Base_Name (SQL.Image (Query.Predicates (Index).Column)) =
+                    "table_name"
+                    and then Query.Predicates (Index).Operator = SQL.Equal_To
+                  then
+                     Table_Filter := Query.Predicates (Index).Value;
+                     exit;
+                  end if;
+               end loop;
+               Source := (others => <>);
+               Add_Information_Columns
+                 (State, Source, SQL.Image (Table_Filter));
+            end;
+         else
+            Load_Source (State, SQL.Image (Query.Table_Name), Source);
+         end if;
       end if;
       Project (Source, Session, Query, Result);
       if not SQL.Is_Empty (Query.Order_Column) then
@@ -668,19 +698,34 @@ package body Introspection_Catalog is
       Matched  : out Boolean;
       Result   : out Result_Set) is
       Lower  : constant String := To_Lower (SQL_Text);
+      Psqlish_Tables : constant Boolean :=
+        Ada.Strings.Fixed.Index
+          (Lower, "from pg_catalog.pg_tables") /= 0;
       Values : Cell_Array := (others => Null_Cell);
       Source : Result_Set := (others => <>);
    begin
       Result := (others => <>);
       Matched :=
-        Ada.Strings.Fixed.Index
+        Psqlish_Tables
+        or else Ada.Strings.Fixed.Index
           (Lower, "from pg_catalog.pg_class c") /= 0
         or else Ada.Strings.Fixed.Index
           (Lower, "from pg_catalog.pg_attribute a") /= 0;
       if not Matched then
          return;
       end if;
-      if Ada.Strings.Fixed.Index
+      if Psqlish_Tables then
+         Add_Column (Result, "schema");
+         Add_Column (Result, "name");
+         Add_Column (Result, "owner");
+         for Table of Tables loop
+            Values := (others => Null_Cell);
+            Values (1) := Text_Cell ("flyology");
+            Values (2) := Text_Cell (SQL.Image (Table.Name));
+            Values (3) := Text_Cell ("flyology");
+            Add_Row (Result, Values);
+         end loop;
+      elsif Ada.Strings.Fixed.Index
         (Lower, "from pg_catalog.pg_attribute a") /= 0
       then
          for Index in Tables'Range loop
@@ -778,4 +823,4 @@ package body Introspection_Catalog is
       end if;
    end Psql_Compatibility;
 
-end Introspection_Catalog;
+end Pgish_Catalog;

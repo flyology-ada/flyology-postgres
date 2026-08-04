@@ -1,0 +1,25 @@
+with "flyology_postgres.gpr";
+with "config/flyology_pgish_config.gpr";
+
+project Flyology_Pgish is
+   for Languages use ("Ada");
+   for Source_Dirs use ("src", "config");
+   for Object_Dir use "obj/" &
+     Flyology_Pgish_Config.Build_Profile;
+   for Exec_Dir use "bin";
+   for Create_Missing_Dirs use "True";
+   for Main use
+     ("flyology_pgish.adb",
+      "pgish_extended_client.adb",
+      "pgish_tests.adb");
+
+   package Compiler is
+      for Default_Switches ("Ada") use
+        Flyology_Pgish_Config.Ada_Compiler_Switches
+        & ("-gnat2022", "-gnatwa", "-gnatwJ", "-gnatyM120", "-gnaty-S");
+   end Compiler;
+
+   package Binder is
+      for Switches ("Ada") use ("-Es");
+   end Binder;
+end Flyology_Pgish;

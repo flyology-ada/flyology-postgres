@@ -1,10 +1,10 @@
-# Flyology Postgres introspection server
+# pgish
 
-This independent nested Alire crate builds a small, read-only Postgres server
-on Flyology's production `Server` and `Server_Sessions` APIs. It is an
-educational server, not a database or a general SQL implementation.
+`pgish` is an independent nested Alire crate that builds a small, read-only
+Postgres server on Flyology's production `Server` and `Server_Sessions` APIs.
+It is an educational server, not a database or a general SQL implementation.
 
-The binary is `flyology_postgres_server_example`. It listens on
+The binary is `flyology_pgish`. It listens on
 `127.0.0.1:55432` by default, negotiates Postgres protocol 3.2, refuses TLS and
 GSS upgrades, and uses trust authentication. The loopback default is
 intentional: do not expose this example on an untrusted network.
@@ -15,9 +15,9 @@ The crate pins `flyology_postgres` through the portable `../..` path. The
 parent crate's own portable Flyology pin must resolve in the checkout layout.
 
 ```sh
-cd examples/introspection_server
+cd examples/pgish
 alr -n build
-alr -n run flyology_postgres_server_example
+alr -n run flyology_pgish
 ```
 
 Connect with a real `psql`:
@@ -36,10 +36,10 @@ win:
 
 | Environment | CLI | Default |
 | --- | --- | --- |
-| `FLYOLOGY_POSTGRES_EXAMPLE_HOST` | `--host NUMERIC_IP` | `127.0.0.1` |
-| `FLYOLOGY_POSTGRES_EXAMPLE_PORT` | `--port PORT` | `55432` |
-| `FLYOLOGY_POSTGRES_EXAMPLE_REPO` | `--repo PATH` | current directory |
-| `FLYOLOGY_POSTGRES_EXAMPLE_TASK_MODE` | `--task-mode lightweight\|native` | `lightweight` |
+| `FLYOLOGY_PGISH_HOST` | `--host NUMERIC_IP` | `127.0.0.1` |
+| `FLYOLOGY_PGISH_PORT` | `--port PORT` | `55432` |
+| `FLYOLOGY_PGISH_REPO` | `--repo PATH` | current directory |
+| `FLYOLOGY_PGISH_TASK_MODE` | `--task-mode lightweight\|native` | `lightweight` |
 
 Task mode selects the production server's per-connection handler tasks. The
 signal/shutdown watcher is always native so control-plane progress is
@@ -151,11 +151,11 @@ alr -n build
 alr -n test
 ```
 
-`introspection_server_tests` covers case and quoting, projections, predicates,
+`pgish_tests` covers case and quoting, projections, predicates,
 NULL behavior, ordering, limits, malformed/unsupported input, and catalog
 bounds. `scripts/run-integration.sh` starts the server, waits for its ready
 line, exercises Parse/Bind/Describe/Execute/Close/Sync with Flyology's typed
 client, and then uses real Postgres 18 `psql` for NULL/empty values, catalog
 meta commands, and error recovery. It sends SIGTERM and waits for deterministic
-exit. Set `FLYOLOGY_POSTGRES_EXAMPLE_SKIP_INTEGRATION=1` to run only focused
+exit. Set `FLYOLOGY_PGISH_SKIP_INTEGRATION=1` to run only focused
 tests.

@@ -3,14 +3,14 @@ with Ada.Command_Line;
 with Ada.Directories;
 with Ada.Exceptions;
 with Ada.Text_IO;
-with Introspection_Catalog;
-with Introspection_SQL;
-with Introspection_State;
+with Pgish_Catalog;
+with Pgish_SQL;
+with Pgish_State;
 
-procedure Introspection_Server_Tests is
-   package SQL renames Introspection_SQL;
-   package Catalog renames Introspection_Catalog;
-   package State renames Introspection_State;
+procedure Pgish_Tests is
+   package SQL renames Pgish_SQL;
+   package Catalog renames Pgish_Catalog;
+   package State renames Pgish_State;
 
    Failures : Natural := 0;
 
@@ -80,6 +80,35 @@ begin
        Task_Mode       =>
          SQL.Make_Text ("lightweight", SQL.Maximum_Name_Length),
        Started_At      => Ada.Calendar.Clock));
+   declare
+      Matched : Boolean;
+   begin
+      Catalog.Psql_Compatibility
+        (Context,
+         "SELECT schemaname AS schema, tablename AS name, " &
+         "tableowner AS owner FROM pg_catalog.pg_tables " &
+         "WHERE schemaname NOT IN ('pg_catalog', 'information_schema') " &
+         "ORDER BY schemaname, tablename;",
+         Matched,
+         Result);
+      Check
+        (Matched and then Result.Column_Count = 3
+         and then Result.Row_Count > 0,
+         "flyology_psql table-list query is compatible");
+   end;
+   declare
+      Query : constant SQL.Query := SQL.Parse
+        ("SELECT column_name AS name, data_type AS data_type, " &
+         "is_nullable AS nullable, column_default AS default_value " &
+         "FROM information_schema.columns " &
+         "WHERE table_name = 'flyology_server_info' " &
+         "AND table_schema = 'flyology' ORDER BY name;");
+   begin
+      Catalog.Execute (Context, Session, Query, Result);
+      Check
+        (Result.Column_Count = 4 and then Result.Row_Count = 9,
+         "filtered information_schema columns stay within result bounds");
+   end;
    State.Register_Session
      (Context, "flyology", "flyology", "tests", Accepted);
    Check (Accepted, "test session registers");
@@ -128,7 +157,7 @@ begin
    State.Remove_Session (Context);
 
    if Failures = 0 then
-      Ada.Text_IO.Put_Line ("introspection parser/executor tests passed");
+      Ada.Text_IO.Put_Line ("pgish parser/executor tests passed");
    else
       Ada.Text_IO.Put_Line
         (Ada.Text_IO.Standard_Error, Failures'Image & " tests failed");
@@ -141,4 +170,4 @@ exception
          "unexpected test exception: " &
          Ada.Exceptions.Exception_Information (Error));
       Ada.Command_Line.Set_Exit_Status (Ada.Command_Line.Failure);
-end Introspection_Server_Tests;
+end Pgish_Tests;

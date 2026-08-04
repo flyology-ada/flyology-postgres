@@ -7,7 +7,7 @@ with Flyology.Postgres.Client;
 with Flyology.Postgres.Protocol;
 with Flyology.Postgres.Transports.Sockets;
 
-procedure Introspection_Extended_Client is
+procedure Pgish_Extended_Client is
 
    package Client renames Flyology.Postgres.Client;
    package Protocol renames Flyology.Postgres.Protocol;
@@ -19,7 +19,7 @@ procedure Introspection_Extended_Client is
    function Port return Sockets.Port is
      (Sockets.Port'Value
         (Ada.Environment_Variables.Value
-           ("FLYOLOGY_POSTGRES_EXAMPLE_PORT", "55432")));
+           ("FLYOLOGY_PGISH_PORT", "55432")));
 
    Socket  : aliased Sockets.Socket_Type;
    Channel : aliased Transports.Socket_Transport (Socket'Access);
@@ -42,7 +42,7 @@ begin
      (Session,
       User             => "flyology",
       Database         => "flyology",
-      Application_Name => "introspection_extended_client",
+      Application_Name => "pgish_extended_client",
       Timeout          => 5.0);
 
    Client.Prepare_Statement
@@ -109,4 +109,4 @@ exception
         (Ada.Text_IO.Standard_Error,
          Ada.Exceptions.Exception_Information (Error));
       Ada.Command_Line.Set_Exit_Status (Ada.Command_Line.Failure);
-end Introspection_Extended_Client;
+end Pgish_Extended_Client;

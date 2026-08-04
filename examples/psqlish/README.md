@@ -2,7 +2,7 @@
 
 `flyology_psql` is a polished, intentionally incomplete `psql`-like example
 for the production `Flyology.Postgres.Client` API. It connects to ordinary
-Postgres and to `examples/introspection_server`; it is small enough to read as
+Postgres and to `examples/pgish`; it is small enough to read as
 an example and is not intended to replace `psql`.
 
 It demonstrates startup authentication, simple-query event processing,
@@ -75,7 +75,7 @@ Available meta commands:
 
 `\dt` uses `pg_catalog.pg_tables`; `\d TABLE` uses
 `information_schema.columns`. Those queries work on real Postgres and form the
-catalog-query contract for the companion introspection server.
+catalog-query contract for the companion `pgish` server.
 
 Example session:
 
@@ -145,11 +145,11 @@ repository's cached configurable real Postgres integration:
 POSTGRES_INTEGRATION=1 ./scripts/test.sh
 ```
 
-After building and starting `examples/introspection_server` at the shared
+After building and starting `examples/pgish` at the shared
 default endpoint, the coordinating integration command is:
 
 ```sh
-PGPASSWORD=flyology-secret ./scripts/run-introspection-integration.sh
+./scripts/run-pgish-integration.sh
 ```
 
 All `PG*` variables remain available if the server uses an overridden

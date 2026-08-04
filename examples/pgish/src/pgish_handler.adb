@@ -3,16 +3,16 @@ with Ada.Streams;
 with Ada.Strings;
 with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded;
-with Introspection_Catalog;
-with Introspection_SQL;
+with Pgish_Catalog;
+with Pgish_SQL;
 
-package body Introspection_Handler is
+package body Pgish_Handler is
 
    package Protocol renames Flyology.Postgres.Protocol;
    package Sessions renames Flyology.Postgres.Server_Sessions;
-   package Catalog renames Introspection_Catalog;
-   package SQL renames Introspection_SQL;
-   package State renames Introspection_State;
+   package Catalog renames Pgish_Catalog;
+   package SQL renames Pgish_SQL;
+   package State renames Pgish_State;
 
    use type Ada.Streams.Stream_Element_Offset;
    use type Protocol.Frontend_Kind;
@@ -22,7 +22,7 @@ package body Introspection_Handler is
    Timeout : constant Duration := 10.0;
 
    function Authenticate
-     (Context  : in out Introspection_State.Server_State;
+     (Context  : in out Pgish_State.Server_State;
       Startup  : Flyology.Postgres.Protocol.Startup_Information;
       Password : String) return Boolean is
       pragma Unreferenced (Password);
@@ -32,7 +32,7 @@ package body Introspection_Handler is
         (if Ada.Strings.Unbounded.Length (Startup.Database) = 0
          then User else Ada.Strings.Unbounded.To_String (Startup.Database));
    begin
-      Introspection_State.Register_Session
+      Pgish_State.Register_Session
         (Context,
          User_Name        => User,
          Database_Name    => Database,
@@ -43,7 +43,7 @@ package body Introspection_Handler is
    end Authenticate;
 
    function Lookup_SCRAM_Verifier
-     (Context : in out Introspection_State.Server_State;
+     (Context : in out Pgish_State.Server_State;
       Startup : Flyology.Postgres.Protocol.Startup_Information) return String is
       pragma Unreferenced (Context, Startup);
    begin
@@ -124,7 +124,7 @@ package body Introspection_Handler is
    end SQL_State_For;
 
    procedure Report_Error
-     (Context    : in out Introspection_State.Server_State;
+     (Context    : in out Pgish_State.Server_State;
       Client     : in out Sessions.Session;
       Occurrence : Ada.Exceptions.Exception_Occurrence;
       Simple     : Boolean) is
@@ -143,7 +143,7 @@ package body Introspection_Handler is
    end Report_Error;
 
    procedure Run_SQL
-     (Context       : in out Introspection_State.Server_State;
+     (Context       : in out Pgish_State.Server_State;
       Client        : in out Sessions.Session;
       Text          : String;
       Simple        : Boolean;
@@ -291,7 +291,7 @@ package body Introspection_Handler is
    end Decode_Execute;
 
    procedure Handle
-     (Context : in out Introspection_State.Server_State;
+     (Context : in out Pgish_State.Server_State;
       Client  : in out Flyology.Postgres.Server_Sessions.Session;
       Command : Flyology.Postgres.Protocol.Message) is
       Kind : constant Protocol.Frontend_Kind := Protocol.Kind (Command);
@@ -424,4 +424,4 @@ package body Introspection_Handler is
       end case;
    end Handle;
 
-end Introspection_Handler;
+end Pgish_Handler;
