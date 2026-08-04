@@ -56,6 +56,25 @@ procedure Postgres_Test_Server is
             begin
                if Trimmed'Length = 0 then
                   Sessions.Send_Empty_Query_Response (Client, Timeout);
+               elsif Ada.Characters.Handling.To_Lower (Trimmed) =
+                 "select pg_sleep(30)"
+               then
+                  for Attempt in 1 .. 3_000 loop
+                     pragma Unreferenced (Attempt);
+                     if Sessions.Cancellation_Requested (Client) then
+                        Sessions.Send_Error
+                          (Client,
+                           Message   =>
+                             "canceling statement due to user request",
+                           SQL_State => "57014",
+                           Timeout   => Timeout);
+                        Sessions.Send_Ready (Client, Timeout => Timeout);
+                        return;
+                     end if;
+                     delay 0.01;
+                  end loop;
+                  Sessions.Send_Command_Complete
+                    (Client, "SELECT 1", Timeout);
                elsif Is_Select (SQL) then
                   Sessions.Send_Row_Description
                     (Client,

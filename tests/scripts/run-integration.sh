@@ -83,4 +83,7 @@ if [ "$result" != "$expected" ]; then
   exit 1
 fi
 
+POSTGRES_TEST_PORT=$server_port \
+  "$tests_root/bin/postgres_test_cancellation"
+
 printf '%s\n' 'psql-to-Flyology server integration passed'

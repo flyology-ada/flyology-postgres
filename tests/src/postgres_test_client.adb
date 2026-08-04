@@ -3,12 +3,14 @@ with Ada.Text_IO;
 with Flyology;
 with Flyology.IO.Sockets;
 with Flyology.Postgres.Client;
+with Flyology.Postgres.Client_Sockets;
 with Flyology.Postgres.Protocol;
 with Flyology.Postgres.Transports.Sockets;
 
 procedure Postgres_Test_Client is
 
    package Client renames Flyology.Postgres.Client;
+   package Client_Sockets renames Flyology.Postgres.Client_Sockets;
    package Protocol renames Flyology.Postgres.Protocol;
    package Sockets renames Flyology.IO.Sockets;
    package Transports renames Flyology.Postgres.Transports.Sockets;
@@ -60,6 +62,9 @@ procedure Postgres_Test_Client is
       Channel : aliased Transports.Socket_Transport (Socket'Access);
       Session : Client.Session (Channel'Access);
       All_Good : Boolean := True;
+      Saw_Cancellation : Boolean := False;
+      Server : constant Sockets.Endpoint :=
+        Sockets.Network_Endpoint (Sockets.Loopback_IPv4, Port);
 
       procedure Check (Condition : Boolean) is
       begin
@@ -69,7 +74,7 @@ procedure Postgres_Test_Client is
       Sockets.Create_Socket (Socket);
       Sockets.Connect
         (Socket,
-         Sockets.Network_Endpoint (Sockets.Loopback_IPv4, Port),
+         Server,
          Timeout => 5.0);
       Client.Startup
         (Session,
@@ -345,6 +350,35 @@ procedure Postgres_Test_Client is
          Check (Saw_Status);
       end;
 
+      Client.Send_Query (Session, "select pg_sleep(30)", Timeout => 5.0);
+      declare
+         task Canceller is
+            pragma Task_Info (Flyology.Lightweight_Task);
+         end Canceller;
+
+         task body Canceller is
+         begin
+            delay 0.1;
+            Client_Sockets.Cancel (Session, Server, Timeout => 5.0);
+         end Canceller;
+      begin
+         loop
+            declare
+               Event : constant Client.Simple_Query_Event :=
+                 Client.Receive_Query_Event (Session, Timeout => 5.0);
+            begin
+               if Protocol.Response_Kind (Event) = Protocol.Error_Response
+               then
+                  Saw_Cancellation := Protocol.Diagnostic_SQL_State
+                    (Protocol.Diagnostic_Data (Event)) = "57014";
+               end if;
+               exit when Protocol.Response_Kind (Event) =
+                 Protocol.Ready_For_Query_Response;
+            end;
+         end loop;
+      end;
+      Check (Saw_Cancellation);
+
       Client.Send_Command
         (Session, Protocol.Make_Empty_Message ('X'), Timeout => 5.0);
       Sockets.Close_Socket (Socket);
@@ -368,7 +402,7 @@ begin
       Result.Await (Succeeded);
       if not Succeeded then
          raise Program_Error with
-           "lightweight Postgres typed simple-query integration failed";
+           "Postgres typed-query or cancellation interoperability failed";
       end if;
    end;
    Ada.Text_IO.Put_Line ("Flyology Postgres client integration passed");

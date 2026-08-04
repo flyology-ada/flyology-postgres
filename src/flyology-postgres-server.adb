@@ -1,16 +1,212 @@
 with Ada.Exceptions;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
+with Ada.Unchecked_Deallocation;
+with Flyology.Postgres.Server_Sessions.Control;
 with Flyology.Postgres.Transports.Connections;
+with Interfaces;
+with System_Random;
 
 package body Flyology.Postgres.Server is
 
    use type Protocol.Frontend_Kind;
    use type Protocol.Initial_Kind;
    use type Protocol.UInt16;
+   use type Protocol.Byte_Offset;
+   use type Protocol.Byte;
+   use type Protocol.UInt32;
+
+   package Session_Control renames Server_Sessions.Control;
+
+   package OS_Random is new System_Random
+     (Element       => Protocol.Byte,
+      Index         => Protocol.Byte_Offset,
+      Element_Array => Protocol.Byte_Array);
+
+   function Same_Credentials
+     (Left : Credentials; Right : Credentials) return Boolean is
+      Difference : Protocol.Byte := 0;
+   begin
+      for Index in Left.Secret'Range loop
+         Difference := Difference xor
+           (Left.Secret (Index) xor Right.Secret (Index));
+      end loop;
+      return Left.Process_Id = Right.Process_Id
+        and then Left.Length = Right.Length
+        and then Difference = 0;
+   end Same_Credentials;
+
+   function Matches
+     (Item       : Credentials;
+      Process_Id : Protocol.UInt32;
+      Secret     : Protocol.Byte_Array) return Boolean is
+      Difference : Protocol.Byte := 0;
+   begin
+      for Offset in Natural range 0 .. Maximum_Secret_Length - 1 loop
+         declare
+            Actual : constant Protocol.Byte :=
+              (if Offset < Secret'Length
+               then Secret
+                 (Secret'First + Protocol.Byte_Offset (Offset))
+               else 0);
+         begin
+            Difference := Difference xor
+              (Item.Secret (Item.Secret'First + Protocol.Byte_Offset (Offset))
+               xor Actual);
+         end;
+      end loop;
+      return Item.Process_Id = Process_Id
+        and then Secret'Length = Item.Length
+        and then Difference = 0;
+   end Matches;
+
+   procedure Generate
+     (Item : out Credentials; Length : Secret_Length) is
+      Data : aliased Protocol.Byte_Array :=
+        (1 .. Protocol.Byte_Offset (Maximum_Secret_Length + 4) => 0);
+   begin
+      loop
+         OS_Random.Random (Data);
+         Item.Process_Id :=
+           (Interfaces.Shift_Left (Protocol.UInt32 (Data (1)), 24)
+            or Interfaces.Shift_Left (Protocol.UInt32 (Data (2)), 16)
+            or Interfaces.Shift_Left (Protocol.UInt32 (Data (3)), 8)
+            or Protocol.UInt32 (Data (4)))
+           and 16#7FFF_FFFF#;
+         exit when Item.Process_Id /= 0;
+      end loop;
+      for Offset in Natural range 0 .. Maximum_Secret_Length - 1 loop
+         Item.Secret
+           (Item.Secret'First + Protocol.Byte_Offset (Offset)) :=
+             (if Offset < Length
+              then Protocol.Byte
+                (Data (Protocol.Byte_Offset (Offset + 5)))
+              else 0);
+      end loop;
+      Item.Length := Length;
+   end Generate;
+
+   protected body Registry is
+      procedure Try_Register
+        (Item : Credentials; Status : out Registration_Status) is
+         Free : Natural := 0;
+      begin
+         Status := Full;
+         for Index in Entries'Range loop
+            if Entries (Index).Occupied
+              and then Same_Credentials (Entries (Index).Key, Item)
+            then
+               Status := Collision;
+               return;
+            elsif not Entries (Index).Occupied and then Free = 0 then
+               Free := Index;
+            end if;
+         end loop;
+         if Free /= 0 then
+            Entries (Free) :=
+              (Occupied      => True,
+               Key           => Item,
+               Current_Token => null);
+            Status := Registered;
+         end if;
+      end Try_Register;
+
+      procedure Begin_Operation
+        (Item       : Credentials;
+         Token      : Token_Access;
+         Registered : out Boolean) is
+      begin
+         Registered := False;
+         for Slot of Entries loop
+            if Slot.Occupied and then Same_Credentials (Slot.Key, Item) then
+               Slot.Current_Token := Token;
+               Registered := True;
+               return;
+            end if;
+         end loop;
+      end Begin_Operation;
+
+      procedure End_Operation (Item : Credentials) is
+      begin
+         for Slot of Entries loop
+            if Slot.Occupied and then Same_Credentials (Slot.Key, Item) then
+               Slot.Current_Token := null;
+               return;
+            end if;
+         end loop;
+      end End_Operation;
+
+      procedure Remove (Item : Credentials) is
+      begin
+         for Slot of Entries loop
+            if Slot.Occupied and then Same_Credentials (Slot.Key, Item) then
+               Slot := (others => <>);
+               return;
+            end if;
+         end loop;
+      end Remove;
+
+      procedure Route
+        (Process_Id : Protocol.UInt32;
+         Secret     : Protocol.Byte_Array) is
+         Target : Token_Access := null;
+      begin
+         --  Scan every slot and every generated key byte. The protocol always
+         --  closes silently, and routing reveals no match result to callers.
+         for Slot of Entries loop
+            if Matches (Slot.Key, Process_Id, Secret)
+              and then Slot.Occupied
+            then
+               Target := Slot.Current_Token;
+            end if;
+         end loop;
+         if Target /= null then
+            Target.Request;
+         end if;
+      end Route;
+   end Registry;
+
+   protected body Inner_Holder is
+      procedure Install
+        (Value : Structured_Access; Stop_Already_Requested : out Boolean) is
+      begin
+         if Serve_Started then
+            raise Program_Error with "Postgres server is one-shot";
+         end if;
+         Serve_Started := True;
+         Current := Value;
+         Stop_Already_Requested := Stop_Requested;
+      end Install;
+
+      procedure Request_Stop is
+      begin
+         Stop_Requested := True;
+         if Current /= null then
+            Structured.Request_Shutdown (Current.all);
+         end if;
+      end Request_Stop;
+
+      procedure Clear (Value : Structured_Access) is
+      begin
+         if Current /= Value then
+            raise Program_Error with "Postgres server lifecycle mismatch";
+         end if;
+         Current := null;
+      end Clear;
+   end Inner_Holder;
+
+   function Worker_Capacity (Session_Count : Positive) return Positive is
+   begin
+      if Session_Count = Positive'Last then
+         raise Program_Error with
+           "Postgres server capacity leaves no cancellation worker";
+      end if;
+      return Session_Count + 1;
+   end Worker_Capacity;
 
    procedure Send_Startup_Complete
      (Client  : in out Server_Sessions.Session;
-      Startup : Protocol.Startup_Information) is
+      Startup : Protocol.Startup_Information;
+      Key     : Credentials) is
    begin
       Server_Sessions.Send_Authentication_Ok
         (Client, Timeout => Write_Timeout);
@@ -35,6 +231,14 @@ package body Flyology.Postgres.Server is
          Write_Timeout);
       Server_Sessions.Send_Parameter_Status
         (Client, "is_superuser", "off", Write_Timeout);
+      Server_Sessions.Send_Backend_Key_Data
+        (Client,
+         Process_Id => Key.Process_Id,
+         Secret_Key => Key.Secret
+           (Key.Secret'First ..
+              Key.Secret'First
+                + Protocol.Byte_Offset (Key.Length) - 1),
+         Timeout    => Write_Timeout);
       Server_Sessions.Send_Ready (Client, Timeout => Write_Timeout);
    end Send_Startup_Complete;
 
@@ -70,7 +274,7 @@ package body Flyology.Postgres.Server is
    end Admit;
 
    procedure Run_Session
-     (Context : in out Handler_Context;
+     (Context : in out Internal_Context;
       Client  : in out Server_Sessions.Session) is
       Initial : Protocol.Initial_Request :=
         Server_Sessions.Read_Initial (Client, Startup_Timeout);
@@ -89,6 +293,8 @@ package body Flyology.Postgres.Server is
       end loop;
 
       if Protocol.Kind (Initial) = Protocol.Cancel_Request then
+         Context.Router.Route
+           (Protocol.Process_Id (Initial), Protocol.Secret_Key (Initial));
          return;
       elsif Protocol.Kind (Initial) /= Protocol.Startup then
          Server_Sessions.Send_Error
@@ -114,12 +320,12 @@ package body Flyology.Postgres.Server is
             return;
          end if;
 
-         if Startup.Protocol_Minor > 0 then
+         if Startup.Protocol_Minor > 2 then
             Server_Sessions.Send_Negotiate_Protocol
-              (Client, Latest_Minor => 0, Timeout => Write_Timeout);
+              (Client, Latest_Minor => 2, Timeout => Write_Timeout);
          end if;
 
-         if not Admit (Context, Client, Startup) then
+         if not Admit (Context.Application.all, Client, Startup) then
             Server_Sessions.Send_Error
               (Client,
                Message   => "password authentication failed",
@@ -129,18 +335,71 @@ package body Flyology.Postgres.Server is
             return;
          end if;
 
-         Send_Startup_Complete (Client, Startup);
-      end;
-
-      loop
          declare
-            Command : constant Protocol.Message :=
-              Server_Sessions.Read_Command (Client, Command_Timeout);
+            Key_Length : constant Secret_Length :=
+              (if Startup.Protocol_Minor >= 2 then 32 else 4);
+            Key        : Credentials;
+            Status     : Registration_Status;
          begin
-            Handle (Context, Client, Command);
-            exit when Protocol.Kind (Command) = Protocol.Terminate_Command;
+            loop
+               Generate (Key, Key_Length);
+               Context.Router.Try_Register (Key, Status);
+               exit when Status = Registered;
+               if Status = Full then
+                  Server_Sessions.Send_Error
+                    (Client,
+                     Message   => "too many Postgres sessions",
+                     SQL_State => "53300",
+                     Severity  => "FATAL",
+                     Timeout   => Write_Timeout);
+                  return;
+               end if;
+            end loop;
+
+            begin
+               Send_Startup_Complete (Client, Startup, Key);
+
+               loop
+                  declare
+                     Command : constant Protocol.Message :=
+                       Server_Sessions.Read_Command
+                         (Client, Command_Timeout);
+                     Operation_Stop : aliased Flyology.Cancellation.Token;
+                     Registered : Boolean;
+                  begin
+                     Context.Router.Begin_Operation
+                       (Key,
+                        Operation_Stop'Unchecked_Access,
+                        Registered);
+                     if not Registered then
+                        raise Program_Error with
+                          "Postgres cancellation registration disappeared";
+                     end if;
+                     Session_Control.Set_Operation_Cancellation
+                       (Client, Operation_Stop'Unchecked_Access);
+                     begin
+                        Handle (Context.Application.all, Client, Command);
+                     exception
+                        when others =>
+                           Session_Control.Clear_Operation_Cancellation
+                             (Client);
+                           Context.Router.End_Operation (Key);
+                           raise;
+                     end;
+                     Session_Control.Clear_Operation_Cancellation (Client);
+                     Context.Router.End_Operation (Key);
+                     exit when Protocol.Kind (Command) =
+                       Protocol.Terminate_Command;
+                  end;
+               end loop;
+            exception
+               when others =>
+                  Context.Router.Remove (Key);
+                  raise;
+            end;
+            Context.Router.Remove (Key);
          end;
-      end loop;
+      end;
    exception
       when Error : Protocol.Protocol_Error =>
          begin
@@ -169,7 +428,7 @@ package body Flyology.Postgres.Server is
    end Run_Session;
 
    procedure Process_Connection
-     (Context      : in out Handler_Context;
+     (Context      : in out Internal_Context;
       Connection   : in out Flyology.IO.Connections.Connection;
       Peer         : Flyology.IO.Sockets.Endpoint;
       Cancellation : not null access Flyology.Cancellation.Token) is
@@ -178,6 +437,7 @@ package body Flyology.Postgres.Server is
         (Connection'Unchecked_Access, Cancellation);
       Client : Server_Sessions.Session (Channel'Access);
    begin
+      Session_Control.Set_Shutdown_Cancellation (Client, Cancellation);
       Run_Session (Context, Client);
    end Process_Connection;
 
@@ -186,14 +446,39 @@ package body Flyology.Postgres.Server is
       Listener      : in out Flyology.IO.Sockets.Socket_Type;
       Context       : aliased in out Handler_Context;
       Drain_Timeout : Duration := Flyology.IO.Infinite) is
+      Wrapped : aliased Internal_Context :=
+        (Application => Context'Unchecked_Access,
+         Router      => Item.Router'Unchecked_Access);
+      Inner : Structured_Access :=
+        new Structured.Server
+          (Capacity => Worker_Capacity (Item.Capacity));
+      Stop_Already_Requested : Boolean;
+      Installed : Boolean := False;
+      procedure Free is new Ada.Unchecked_Deallocation
+        (Structured.Server, Structured_Access);
    begin
+      Item.Inner.Install (Inner, Stop_Already_Requested);
+      Installed := True;
+      if Stop_Already_Requested then
+         Structured.Request_Shutdown (Inner.all);
+      end if;
       Structured.Serve
-        (Item.Inner, Listener, Context, Drain_Timeout => Drain_Timeout);
+        (Inner.all, Listener, Wrapped, Drain_Timeout => Drain_Timeout);
+      Item.Inner.Clear (Inner);
+      Installed := False;
+      Free (Inner);
+   exception
+      when others =>
+         if Installed then
+            Item.Inner.Clear (Inner);
+         end if;
+         Free (Inner);
+         raise;
    end Serve;
 
    procedure Request_Shutdown (Item : in out Server) is
    begin
-      Structured.Request_Shutdown (Item.Inner);
+      Item.Inner.Request_Stop;
    end Request_Shutdown;
 
 end Flyology.Postgres.Server;

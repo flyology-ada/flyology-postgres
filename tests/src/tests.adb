@@ -187,7 +187,6 @@ procedure Tests is
    end Test_Proved_Wire_Core;
 
    procedure Test_Variable_Cancellation_Key is
-      Contents : Flyology.Bytes.Unbounded_Bytes;
       Secret   : constant Protocol.Byte_Array (1 .. 8) :=
         (1 => 16#10#,
          2 => 16#20#,
@@ -197,13 +196,17 @@ procedure Tests is
          6 => 16#60#,
          7 => 16#70#,
          8 => 16#80#);
+      Packet : constant Protocol.Byte_Array :=
+        Protocol.Encode_Cancel_Request (42, Secret);
+      Cursor : Protocol.Byte_Offset := Packet'First;
    begin
-      Protocol.Append_U32 (Contents, 80_877_102);
-      Protocol.Append_U32 (Contents, 42);
-      Protocol.Append_Bytes (Contents, Secret);
+      Assert
+        (Protocol.Read_U32 (Packet, Cursor) =
+           Protocol.UInt32 (Packet'Length),
+         "CancelRequest length covers the complete initial packet");
       declare
          Initial : constant Protocol.Initial_Request :=
-           Protocol.Decode_Initial (Flyology.Bytes.To_Array (Contents));
+           Protocol.Decode_Initial (Packet (Cursor .. Packet'Last));
          Decoded_Secret : constant Protocol.Byte_Array :=
            Protocol.Secret_Key (Initial);
       begin
@@ -218,6 +221,24 @@ procedure Tests is
             "variable cancellation key round-trips");
       end;
    end Test_Variable_Cancellation_Key;
+
+   procedure Test_Invalid_Cancellation_Key_Length is
+      Too_Short : constant Protocol.Byte_Array (1 .. 3) := (others => 0);
+      Rejected  : Boolean := False;
+   begin
+      begin
+         declare
+            Ignored : constant Protocol.Byte_Array :=
+              Protocol.Encode_Cancel_Request (1, Too_Short);
+         begin
+            Assert (Ignored'Length = 0, "unreachable cancellation packet");
+         end;
+      exception
+         when Protocol.Protocol_Error =>
+            Rejected := True;
+      end;
+      Assert (Rejected, "cancellation keys shorter than four bytes fail");
+   end Test_Invalid_Cancellation_Key_Length;
 
    procedure Test_Malformed_Startup is
       Packet : constant Protocol.Byte_Array :=
@@ -503,6 +524,7 @@ begin
    Test_Malformed_String;
    Test_Proved_Wire_Core;
    Test_Variable_Cancellation_Key;
+   Test_Invalid_Cancellation_Key_Length;
    Test_Malformed_Startup;
    Test_Typed_Row_Messages;
    Test_Typed_Query_Events;

@@ -41,20 +41,82 @@ package Flyology.Postgres.Server is
    procedure Request_Shutdown (Item : in out Server);
 
 private
+   Maximum_Secret_Length : constant := 32;
+   subtype Secret_Length is Natural range 4 .. Maximum_Secret_Length;
+   subtype Secret_Key is Protocol.Byte_Array
+     (1 .. Protocol.Byte_Offset (Maximum_Secret_Length));
+
+   type Credentials is record
+      Process_Id : Protocol.UInt32 := 0;
+      Secret     : Secret_Key := (others => 0);
+      Length     : Secret_Length := 4;
+   end record;
+
+   type Token_Access is access all Flyology.Cancellation.Token;
+   type Route_Entry is record
+      Occupied      : Boolean := False;
+      Key           : Credentials;
+      Current_Token : Token_Access := null;
+   end record;
+   type Entry_Array is array (Positive range <>) of Route_Entry;
+
+   type Registration_Status is (Registered, Collision, Full);
+
+   protected type Registry (Capacity : Positive) is
+      procedure Try_Register
+        (Item : Credentials; Status : out Registration_Status);
+      procedure Begin_Operation
+        (Item       : Credentials;
+         Token      : Token_Access;
+         Registered : out Boolean);
+      procedure End_Operation (Item : Credentials);
+      procedure Remove (Item : Credentials);
+      procedure Route
+        (Process_Id : Protocol.UInt32;
+         Secret     : Protocol.Byte_Array);
+   private
+      Entries : Entry_Array (1 .. Capacity);
+   end Registry;
+
+   procedure Generate
+     (Item : out Credentials; Length : Secret_Length);
+
+   type Handler_Context_Access is access all Handler_Context;
+   type Registry_Access is access all Registry;
+
+   type Internal_Context is limited record
+      Application : Handler_Context_Access;
+      Router      : Registry_Access;
+   end record;
+
    procedure Process_Connection
-     (Context      : in out Handler_Context;
+     (Context      : in out Internal_Context;
       Connection   : in out Flyology.IO.Connections.Connection;
       Peer         : Flyology.IO.Sockets.Endpoint;
       Cancellation : not null access Flyology.Cancellation.Token);
 
    package Structured is new Flyology.IO.Structured_Servers
-     (Handler_Context => Handler_Context,
+     (Handler_Context => Internal_Context,
       Handle          => Process_Connection,
       Handler_Model   => Handler_Model,
       Handler_CPU     => Handler_CPU);
 
+   type Structured_Access is access Structured.Server;
+
+   protected type Inner_Holder is
+      procedure Install
+        (Value : Structured_Access; Stop_Already_Requested : out Boolean);
+      procedure Request_Stop;
+      procedure Clear (Value : Structured_Access);
+   private
+      Current        : Structured_Access := null;
+      Stop_Requested : Boolean := False;
+      Serve_Started  : Boolean := False;
+   end Inner_Holder;
+
    type Server (Capacity : Positive) is limited record
-      Inner : aliased Structured.Server (Capacity);
+      Router : aliased Registry (Capacity);
+      Inner  : Inner_Holder;
    end record;
 
 end Flyology.Postgres.Server;

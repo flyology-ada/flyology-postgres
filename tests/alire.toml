@@ -9,7 +9,7 @@ licenses = "MIT OR Apache-2.0"
 website = "https://github.com/flyology-ada/flyology-postgres"
 tags = ["testing", "postgres", "protocol"]
 
-executables = ["tests", "postgres_test_server", "postgres_test_client"]
+executables = ["tests", "postgres_test_server", "postgres_test_client", "postgres_test_cancellation"]
 
 [[depends-on]]
 flyology_postgres = "*"

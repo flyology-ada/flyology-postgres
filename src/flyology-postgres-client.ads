@@ -24,6 +24,13 @@ package Flyology.Postgres.Client is
       Timeout : Duration := 30.0);
    procedure Send_Query
      (Item : in out Session; SQL : String; Timeout : Duration := 30.0);
+   --  Send a cancellation packet on a caller-opened distinct transport.
+   --  The server replies only by closing that transport; callers must close it
+   --  after this procedure returns and keep reading the active query session.
+   procedure Send_Cancel_Request
+     (Item                 : Session;
+      Cancellation_Channel : in out Transports.Transport'Class;
+      Timeout              : Duration := 30.0);
    function Receive_Message
      (Item : in out Session; Timeout : Duration := 30.0)
       return Protocol.Message;

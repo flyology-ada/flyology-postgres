@@ -161,6 +161,8 @@ package Flyology.Postgres.Protocol is
       Protocol_Major   : UInt16 := 3;
       Protocol_Minor   : UInt16 := 0) return Byte_Array;
    function Encode_SSL_Request return Byte_Array;
+   function Encode_Cancel_Request
+     (Process_Id : UInt32; Secret_Key : Byte_Array) return Byte_Array;
 
    procedure Append_U16
      (Target : in out Flyology.Bytes.Unbounded_Bytes; Value : UInt16);

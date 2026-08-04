@@ -386,4 +386,10 @@ package body Flyology.Postgres.Server_Sessions is
       end;
    end Password_Text;
 
+   function Cancellation_Requested (Item : Session) return Boolean is
+     ((Item.Operation_Cancellation /= null
+       and then Item.Operation_Cancellation.Requested)
+      or else (Item.Shutdown_Cancellation /= null
+               and then Item.Shutdown_Cancellation.Requested));
+
 end Flyology.Postgres.Server_Sessions;

@@ -7,7 +7,10 @@ project Tests is
    for Create_Missing_Dirs use "True";
    for Exec_Dir use "bin";
    for Main use
-     ("tests.adb", "postgres_test_server.adb", "postgres_test_client.adb");
+     ("tests.adb",
+      "postgres_test_server.adb",
+      "postgres_test_client.adb",
+      "postgres_test_cancellation.adb");
 
    package Compiler is
       for Default_Switches ("Ada") use

@@ -1,3 +1,4 @@
+with Flyology.Cancellation;
 with Flyology.Postgres.Protocol;
 with Flyology.Postgres.Transports;
 
@@ -89,9 +90,17 @@ package Flyology.Postgres.Server_Sessions is
    function Query_Text (Command : Protocol.Message) return String;
    function Password_Text (Command : Protocol.Message) return String;
 
+   --  True when the current handler operation was cancelled by a matching
+   --  Postgres CancelRequest or by forced structured-server shutdown.
+   function Cancellation_Requested (Item : Session) return Boolean;
+
 private
+   type Token_Access is access all Flyology.Cancellation.Token;
+
    type Session
-     (Channel : not null access Transports.Transport'Class) is limited
-   null record;
+     (Channel : not null access Transports.Transport'Class) is limited record
+      Operation_Cancellation : Token_Access := null;
+      Shutdown_Cancellation  : Token_Access := null;
+   end record;
 
 end Flyology.Postgres.Server_Sessions;

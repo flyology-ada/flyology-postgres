@@ -770,4 +770,18 @@ package body Flyology.Postgres.Protocol is
       return Flyology.Bytes.To_Array (Packet);
    end Encode_SSL_Request;
 
+   function Encode_Cancel_Request
+     (Process_Id : UInt32; Secret_Key : Byte_Array) return Byte_Array is
+      Packet : Flyology.Bytes.Unbounded_Bytes;
+   begin
+      Require
+        (Secret_Key'Length in 4 .. 256,
+         "a cancellation secret key must contain 4 through 256 bytes");
+      Append_U32 (Packet, UInt32 (Secret_Key'Length + 12));
+      Append_U32 (Packet, Wire.Cancel_Request_Code);
+      Append_U32 (Packet, Process_Id);
+      Append_Bytes (Packet, Secret_Key);
+      return Flyology.Bytes.To_Array (Packet);
+   end Encode_Cancel_Request;
+
 end Flyology.Postgres.Protocol;

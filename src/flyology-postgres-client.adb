@@ -1,9 +1,11 @@
 with Flyology.Postgres.Framing;
+with System;
 
 package body Flyology.Postgres.Client is
 
    use type Protocol.Byte_Offset;
    use type Protocol.Frontend_Kind;
+   use type System.Address;
 
    function Error_Message (Value : Protocol.Message) return String is
      (Protocol.Diagnostic_Message
@@ -42,7 +44,8 @@ package body Flyology.Postgres.Client is
          Protocol.Encode_Startup
            (User             => User,
             Database         => Database,
-            Application_Name => Application_Name),
+            Application_Name => Application_Name,
+            Protocol_Minor   => 2),
          Timeout);
 
       loop
@@ -71,6 +74,10 @@ package body Flyology.Postgres.Client is
                      end case;
                   end;
                when 'K' =>
+                  if Contents'Length not in 8 .. 260 then
+                     raise Protocol.Protocol_Error with
+                       "invalid BackendKeyData secret length";
+                  end if;
                   declare
                      Cursor : Protocol.Byte_Offset := Contents'First;
                   begin
@@ -144,6 +151,27 @@ package body Flyology.Postgres.Client is
            ('Q', Flyology.Bytes.To_Array (Contents)),
          Timeout);
    end Send_Query;
+
+   procedure Send_Cancel_Request
+     (Item                 : Session;
+      Cancellation_Channel : in out Transports.Transport'Class;
+      Timeout              : Duration := 30.0) is
+      Secret : constant Protocol.Byte_Array :=
+        Flyology.Bytes.To_Array (Item.Secret);
+   begin
+      if not Item.Started or else Secret'Length not in 4 .. 256 then
+         raise Program_Error with
+           "Postgres session has no backend cancellation key";
+      end if;
+      if Cancellation_Channel'Address = Item.Channel.all'Address then
+         raise Program_Error with
+           "CancelRequest requires a distinct Postgres transport";
+      end if;
+      Framing.Write_Packet
+        (Cancellation_Channel,
+         Protocol.Encode_Cancel_Request (Item.Pid, Secret),
+         Timeout);
+   end Send_Cancel_Request;
 
    function Receive_Message
      (Item : in out Session; Timeout : Duration := 30.0)
