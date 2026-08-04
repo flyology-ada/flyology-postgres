@@ -12,6 +12,40 @@ package body Flyology.Postgres.Client is
    use type System.Address;
    use type Protocol.Backend_Message_Kind;
 
+   procedure Reset_Copy (Item : in out Session) is
+   begin
+      Item.Current_Copy_Origin := No_Copy;
+      Item.Copy_Send_Open := False;
+      Item.Copy_Receive_Open := False;
+      Item.Copy_Sync_Pending := False;
+   end Reset_Copy;
+
+   procedure Enter_Copy
+     (Item         : in out Session;
+      Response     : Protocol.Backend_Message_Kind;
+      Origin       : Copy_Origin;
+      Sync_Pending : Boolean := False) is
+   begin
+      Item.Current_Copy_Origin := Origin;
+      Item.Copy_Sync_Pending := Sync_Pending;
+      case Response is
+         when Protocol.Copy_In_Response =>
+            Item.Current_State := Copy_In_Active;
+            Item.Copy_Send_Open := True;
+            Item.Copy_Receive_Open := False;
+         when Protocol.Copy_Out_Response =>
+            Item.Current_State := Copy_Out_Active;
+            Item.Copy_Send_Open := False;
+            Item.Copy_Receive_Open := True;
+         when Protocol.Copy_Both_Response =>
+            Item.Current_State := Copy_Both_Active;
+            Item.Copy_Send_Open := True;
+            Item.Copy_Receive_Open := True;
+         when others =>
+            raise Program_Error with "response does not start COPY";
+      end case;
+   end Enter_Copy;
+
    function Error_Message (Value : Protocol.Message) return String is
      (Protocol.Diagnostic_Message
         (Protocol.Diagnostic_Data (Protocol.Decode_Backend (Value))));
@@ -290,6 +324,14 @@ package body Flyology.Postgres.Client is
          raise Program_Error with
            "Postgres session is awaiting ReadyForQuery";
       end if;
+      if Protocol.Kind (Command) in Protocol.Copy_Data |
+         Protocol.Copy_Done | Protocol.Copy_Fail
+        and then (Item.Current_State not in
+                    Copy_In_Active | Copy_Both_Active
+                  or else not Item.Copy_Send_Open)
+      then
+         raise Program_Error with "no writable Postgres COPY stream is active";
+      end if;
       Framing.Write_Message (Item.Channel.all, Command, Timeout);
       case Protocol.Kind (Command) is
          when Protocol.Query =>
@@ -309,12 +351,25 @@ package body Flyology.Postgres.Client is
             end if;
          when Protocol.Sync =>
             Item.Current_State := Awaiting_Ready;
+            if Item.Current_Copy_Origin = Extended_Copy then
+               Item.Copy_Sync_Pending := True;
+            end if;
+         when Protocol.Copy_Data =>
+            null;
+         when Protocol.Copy_Done | Protocol.Copy_Fail =>
+            Item.Copy_Send_Open := False;
+            if Item.Current_State /= Copy_Both_Active
+              or else not Item.Copy_Receive_Open
+            then
+               Item.Current_State := Copy_Completion_Active;
+            end if;
          when Protocol.Terminate_Command =>
             Item.Current_State := Closed;
             Item.Has_Row_Description := False;
             Item.Described_Columns := 0;
             Item.Bound_In_Cycle := False;
             Item.Portal_Is_Suspended := False;
+            Reset_Copy (Item);
          when others =>
             null;
       end case;
@@ -368,29 +423,97 @@ package body Flyology.Postgres.Client is
       Response : constant Protocol.Message :=
         Framing.Read_Message (Item.Channel.all, Timeout);
    begin
-      if Protocol.Code (Response) = 'E'
-        and then Item.Current_State = Extended_Query_Active
-      then
-         declare
-            Ignored : constant Protocol.Backend_Message :=
-              Protocol.Decode_Backend (Response);
-         begin
+      case Protocol.Code (Response) is
+         when 'G' | 'H' | 'W' =>
+            declare
+               Decoded : constant Protocol.Backend_Message :=
+                 Protocol.Decode_Backend (Response);
+            begin
+               if Item.Current_State = Simple_Query_Active then
+                  Enter_Copy
+                    (Item,
+                     Protocol.Response_Kind (Decoded),
+                     Origin => Simple_Copy);
+               elsif Item.Current_State in
+                 Extended_Query_Active | Awaiting_Ready
+               then
+                  Enter_Copy
+                    (Item,
+                     Protocol.Response_Kind (Decoded),
+                     Origin       => Extended_Copy,
+                     Sync_Pending => Item.Current_State = Awaiting_Ready);
+               end if;
+            end;
+         when 'c' =>
+            declare
+               Ignored : constant Protocol.Backend_Message :=
+                 Protocol.Decode_Backend (Response);
+            begin
+               null;
+            end;
+            if Item.Current_Copy_Origin /= No_Copy
+              and then Item.Copy_Receive_Open
+            then
+               Item.Copy_Receive_Open := False;
+               if not Item.Copy_Send_Open then
+                  Item.Current_State := Copy_Completion_Active;
+               end if;
+            end if;
+         when 'C' =>
+            if Item.Current_Copy_Origin /= No_Copy then
+               declare
+                  Ignored : constant Protocol.Backend_Message :=
+                    Protocol.Decode_Backend (Response);
+               begin
+                  null;
+               end;
+               if Item.Current_Copy_Origin = Simple_Copy then
+                  Item.Current_State := Simple_Query_Active;
+                  Reset_Copy (Item);
+               elsif Item.Copy_Sync_Pending then
+                  Item.Current_State := Awaiting_Ready;
+               else
+                  Item.Current_State := Extended_Query_Active;
+                  Reset_Copy (Item);
+               end if;
+            end if;
+         when 'E' =>
+            declare
+               Ignored : constant Protocol.Backend_Message :=
+                 Protocol.Decode_Backend (Response);
+            begin
+               null;
+            end;
+            if Item.Current_Copy_Origin = Simple_Copy then
+               Item.Copy_Send_Open := False;
+               Item.Copy_Receive_Open := False;
+               Item.Current_State := Copy_Completion_Active;
+            elsif Item.Current_Copy_Origin = Extended_Copy then
+               if Item.Copy_Sync_Pending then
+                  Item.Current_State := Awaiting_Ready;
+               else
+                  Item.Current_State := Recovery_Required;
+                  Reset_Copy (Item);
+               end if;
+            elsif Item.Current_State = Extended_Query_Active then
+               Item.Current_State := Recovery_Required;
+            end if;
+         when 'Z' =>
+            declare
+               Ignored : constant Protocol.Backend_Message :=
+                 Protocol.Decode_Backend (Response);
+            begin
+               null;
+            end;
+            Item.Current_State := Ready;
+            Item.Has_Row_Description := False;
+            Item.Described_Columns := 0;
+            Item.Bound_In_Cycle := False;
+            Item.Portal_Is_Suspended := False;
+            Reset_Copy (Item);
+         when others =>
             null;
-         end;
-         Item.Current_State := Recovery_Required;
-      elsif Protocol.Code (Response) = 'Z' then
-         declare
-            Ignored : constant Protocol.Backend_Message :=
-              Protocol.Decode_Backend (Response);
-         begin
-            null;
-         end;
-         Item.Current_State := Ready;
-         Item.Has_Row_Description := False;
-         Item.Described_Columns := 0;
-         Item.Bound_In_Cycle := False;
-         Item.Portal_Is_Suspended := False;
-      end if;
+      end case;
       return Response;
    end Receive_Message;
 
@@ -439,6 +562,19 @@ package body Flyology.Postgres.Client is
             Item.Current_State := Ready;
             Item.Has_Row_Description := False;
             Item.Described_Columns := 0;
+
+         when Protocol.Copy_In_Response |
+              Protocol.Copy_Out_Response |
+              Protocol.Copy_Both_Response =>
+            Enter_Copy
+              (Item,
+               Protocol.Response_Kind (Response),
+               Origin => Simple_Copy);
+
+         when Protocol.Copy_Data_Response |
+              Protocol.Copy_Done_Response =>
+            raise Protocol.Protocol_Error with
+              "received COPY stream data before a COPY response";
 
          when Protocol.Notice_Response |
               Protocol.Parameter_Status_Response |
@@ -600,11 +736,19 @@ package body Flyology.Postgres.Client is
    begin
       if Item.Current_State not in Ready |
          Extended_Query_Active |
+         Copy_Out_Active |
+         Copy_Completion_Active |
          Recovery_Required
       then
          raise Program_Error with
            "cannot synchronize while Postgres session state is "
            & Item.Current_State'Image;
+      end if;
+      if Item.Current_State in Copy_Out_Active | Copy_Completion_Active
+        and then Item.Current_Copy_Origin /= Extended_Copy
+      then
+         raise Program_Error with
+           "simple-query COPY does not use an explicit Sync";
       end if;
       Send_Command (Item, Protocol.Make_Sync_Message, Timeout);
    end Synchronize;
@@ -670,6 +814,19 @@ package body Flyology.Postgres.Client is
             Item.Described_Columns := 0;
             Item.Bound_In_Cycle := False;
             Item.Portal_Is_Suspended := False;
+            Reset_Copy (Item);
+         when Protocol.Copy_In_Response |
+              Protocol.Copy_Out_Response |
+              Protocol.Copy_Both_Response =>
+            Enter_Copy
+              (Item,
+               Protocol.Response_Kind (Response),
+               Origin       => Extended_Copy,
+               Sync_Pending => Sync_Pending);
+         when Protocol.Copy_Data_Response |
+              Protocol.Copy_Done_Response =>
+            raise Protocol.Protocol_Error with
+              "received COPY stream data before a COPY response";
          when Protocol.Parse_Complete_Response |
               Protocol.Bind_Complete_Response |
               Protocol.Close_Complete_Response |
@@ -681,6 +838,125 @@ package body Flyology.Postgres.Client is
       end case;
       return Response;
    end Receive_Extended_Event;
+
+   procedure Send_Copy_Data
+     (Item    : in out Session;
+      Data    : Protocol.Byte_Array;
+      Timeout : Duration := 30.0) is
+   begin
+      Send_Command
+        (Item, Protocol.Make_Copy_Data_Message (Data), Timeout);
+   end Send_Copy_Data;
+
+   procedure Finish_Copy
+     (Item : in out Session; Timeout : Duration := 30.0) is
+   begin
+      Send_Command (Item, Protocol.Make_Copy_Done_Message, Timeout);
+   end Finish_Copy;
+
+   procedure Abort_Copy
+     (Item    : in out Session;
+      Reason  : String;
+      Timeout : Duration := 30.0) is
+   begin
+      Send_Command
+        (Item, Protocol.Make_Copy_Fail_Message (Reason), Timeout);
+   end Abort_Copy;
+
+   function Receive_Copy_Event
+     (Item : in out Session; Timeout : Duration := 30.0) return Copy_Event is
+      Response : Protocol.Backend_Message;
+   begin
+      if Item.Current_Copy_Origin = No_Copy
+        or else Item.Current_State not in
+          Copy_In_Active | Copy_Out_Active | Copy_Both_Active |
+          Copy_Completion_Active | Awaiting_Ready
+      then
+         raise Program_Error with "no Postgres COPY operation is active";
+      end if;
+
+      Response := Protocol.Decode_Backend
+        (Framing.Read_Message (Item.Channel.all, Timeout));
+      case Protocol.Response_Kind (Response) is
+         when Protocol.Copy_Data_Response =>
+            if not Item.Copy_Receive_Open then
+               raise Protocol.Protocol_Error with
+                 "received CopyData on a non-readable COPY stream";
+            end if;
+
+         when Protocol.Copy_Done_Response =>
+            if not Item.Copy_Receive_Open then
+               raise Protocol.Protocol_Error with
+                 "received duplicate or unexpected CopyDone";
+            end if;
+            Item.Copy_Receive_Open := False;
+            if not Item.Copy_Send_Open then
+               Item.Current_State := Copy_Completion_Active;
+            end if;
+
+         when Protocol.Command_Complete_Response =>
+            if Item.Copy_Send_Open or else Item.Copy_Receive_Open then
+               raise Protocol.Protocol_Error with
+                 "COPY completed while a stream direction remained open";
+            end if;
+            if Item.Current_Copy_Origin = Simple_Copy then
+               Item.Current_State := Simple_Query_Active;
+               Reset_Copy (Item);
+            elsif Item.Copy_Sync_Pending then
+               Item.Current_State := Awaiting_Ready;
+            else
+               Item.Current_State := Extended_Query_Active;
+               Reset_Copy (Item);
+            end if;
+
+         when Protocol.Error_Response =>
+            Item.Copy_Send_Open := False;
+            Item.Copy_Receive_Open := False;
+            if Item.Current_Copy_Origin = Simple_Copy then
+               Item.Current_State := Copy_Completion_Active;
+            elsif Item.Copy_Sync_Pending then
+               Item.Current_State := Awaiting_Ready;
+            else
+               Item.Current_State := Recovery_Required;
+               Reset_Copy (Item);
+            end if;
+
+         when Protocol.Ready_For_Query_Response =>
+            if Item.Current_Copy_Origin = Extended_Copy
+              and then not Item.Copy_Sync_Pending
+            then
+               raise Protocol.Protocol_Error with
+                 "received ReadyForQuery before extended COPY Sync";
+            end if;
+            Item.Current_State := Ready;
+            Item.Has_Row_Description := False;
+            Item.Described_Columns := 0;
+            Item.Bound_In_Cycle := False;
+            Item.Portal_Is_Suspended := False;
+            Reset_Copy (Item);
+
+         when Protocol.Notice_Response |
+              Protocol.Parameter_Status_Response =>
+            null;
+
+         when Protocol.Copy_In_Response |
+              Protocol.Copy_Out_Response |
+              Protocol.Copy_Both_Response |
+              Protocol.Row_Description_Response |
+              Protocol.Data_Row_Response |
+              Protocol.Empty_Query_Response |
+              Protocol.Parse_Complete_Response |
+              Protocol.Bind_Complete_Response |
+              Protocol.Close_Complete_Response |
+              Protocol.Parameter_Description_Response |
+              Protocol.No_Data_Response |
+              Protocol.Portal_Suspended_Response |
+              Protocol.Unknown_Response =>
+            raise Protocol.Protocol_Error with
+              "unexpected backend message during COPY";
+      end case;
+      return Response;
+   end Receive_Copy_Event;
 
    function Is_Ready (Item : Session) return Boolean is
      (Item.Current_State = Ready);

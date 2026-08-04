@@ -2,6 +2,7 @@ with Ada.Environment_Variables;
 with Ada.Exceptions;
 with Ada.Text_IO;
 with Flyology;
+with Flyology.Bytes;
 with Flyology.IO.Sockets;
 with Flyology.Postgres.Client;
 with Flyology.Postgres.Client_Sockets;
@@ -17,6 +18,7 @@ procedure Postgres_Test_Client is
    package Transports renames Flyology.Postgres.Transports.Sockets;
 
    use type Protocol.Backend_Message_Kind;
+   use type Protocol.Byte_Offset;
    use type Protocol.Field_Format;
    use type Protocol.Transaction_Status;
    use type Protocol.UInt32;
@@ -74,6 +76,10 @@ procedure Postgres_Test_Client is
       begin
          All_Good := All_Good and Condition;
       end Check;
+
+      function Bytes (Value : String) return Protocol.Byte_Array is
+        (Flyology.Bytes.To_Array
+           (Flyology.Bytes.From_Byte_String (Value)));
    begin
       Sockets.Create_Socket (Socket);
       Sockets.Connect
@@ -607,6 +613,337 @@ procedure Postgres_Test_Client is
            (Protocol.Response_Kind (Event) =
               Protocol.Ready_For_Query_Response
             and then Client.State (Session) = Client.Ready);
+      end;
+
+      --  Real COPY interoperability. Each Receive_Copy_Event owns exactly one
+      --  backend frame, so the session never collects the stream.
+      Client.Send_Query
+        (Session,
+         "create temporary table flyology_copy_test "
+         & "(left_value text, right_value text); "
+         & "create temporary table flyology_copy_int (value integer)",
+         Timeout => 5.0);
+      loop
+         declare
+            Event : constant Client.Simple_Query_Event :=
+              Client.Receive_Query_Event (Session, Timeout => 5.0);
+         begin
+            Check
+              (Protocol.Response_Kind (Event) /= Protocol.Error_Response);
+            exit when Protocol.Response_Kind (Event) =
+              Protocol.Ready_For_Query_Response;
+         end;
+      end loop;
+
+      Client.Send_Query
+        (Session,
+         "copy flyology_copy_test from stdin (format text)",
+         Timeout => 5.0);
+      declare
+         Started : constant Client.Simple_Query_Event :=
+           Client.Receive_Query_Event (Session, Timeout => 5.0);
+         Formats : constant Protocol.Copy_Format_Description :=
+           Protocol.Copy_Formats (Started);
+      begin
+         Check
+           (Protocol.Response_Kind (Started) = Protocol.Copy_In_Response
+            and then Protocol.Overall_Format (Formats) =
+              Protocol.Text_Format
+            and then Protocol.Copy_Column_Count (Formats) = 2);
+      end;
+      Client.Send_Copy_Data
+        (Session,
+         Bytes ("alpha" & ASCII.HT & ASCII.LF),
+         Timeout => 5.0);
+      Client.Send_Copy_Data
+        (Session,
+         Bytes ("\N" & ASCII.HT & "omega" & ASCII.LF),
+         Timeout => 5.0);
+      Client.Finish_Copy (Session, Timeout => 5.0);
+      declare
+         Completed : constant Client.Copy_Event :=
+           Client.Receive_Copy_Event (Session, Timeout => 5.0);
+         Ready_Event : constant Client.Simple_Query_Event :=
+           Client.Receive_Query_Event (Session, Timeout => 5.0);
+      begin
+         Check
+           (Protocol.Response_Kind (Completed) =
+              Protocol.Command_Complete_Response
+            and then Protocol.Completion_Tag (Completed) = "COPY 2"
+            and then Protocol.Response_Kind (Ready_Event) =
+              Protocol.Ready_For_Query_Response);
+      end;
+
+      Client.Send_Query
+        (Session,
+         "copy flyology_copy_test to stdout (format text)",
+         Timeout => 5.0);
+      declare
+         Started : constant Client.Simple_Query_Event :=
+           Client.Receive_Query_Event (Session, Timeout => 5.0);
+         Chunks  : Natural := 0;
+         Bytes   : Flyology.Bytes.Unbounded_Bytes;
+      begin
+         Check
+           (Protocol.Response_Kind (Started) = Protocol.Copy_Out_Response);
+         loop
+            declare
+               Event : constant Client.Copy_Event :=
+                 Client.Receive_Copy_Event (Session, Timeout => 5.0);
+            begin
+               if Protocol.Response_Kind (Event) =
+                 Protocol.Copy_Data_Response
+               then
+                  Chunks := Chunks + 1;
+                  Flyology.Bytes.Append (Bytes, Protocol.Copy_Data (Event));
+               end if;
+               exit when Protocol.Response_Kind (Event) =
+                 Protocol.Command_Complete_Response;
+            end;
+         end loop;
+         Check
+           (Chunks >= 2
+            and then Flyology.Bytes.To_Byte_String (Bytes) =
+              "alpha" & ASCII.HT & ASCII.LF
+              & "\N" & ASCII.HT & "omega" & ASCII.LF);
+      end;
+      declare
+         Ready_Event : constant Client.Simple_Query_Event :=
+           Client.Receive_Query_Event (Session, Timeout => 5.0);
+      begin
+         Check
+           (Protocol.Response_Kind (Ready_Event) =
+              Protocol.Ready_For_Query_Response);
+      end;
+
+      Client.Send_Query
+        (Session,
+         "copy flyology_copy_test to stdout (format binary)",
+         Timeout => 5.0);
+      declare
+         Started : constant Client.Simple_Query_Event :=
+           Client.Receive_Query_Event (Session, Timeout => 5.0);
+         Formats : constant Protocol.Copy_Format_Description :=
+           Protocol.Copy_Formats (Started);
+         Chunks : Natural := 0;
+         Saw_Signature : Boolean := False;
+      begin
+         Check
+           (Protocol.Overall_Format (Formats) = Protocol.Binary_Format
+            and then Protocol.Copy_Column_Format (Formats, 1) =
+              Protocol.Binary_Format);
+         loop
+            declare
+               Event : constant Client.Copy_Event :=
+                 Client.Receive_Copy_Event (Session, Timeout => 5.0);
+            begin
+               if Protocol.Response_Kind (Event) =
+                 Protocol.Copy_Data_Response
+               then
+                  Chunks := Chunks + 1;
+                  declare
+                     Data : constant Protocol.Byte_Array :=
+                       Protocol.Copy_Data (Event);
+                  begin
+                     Saw_Signature := Saw_Signature or else
+                       (Data'Length >= 11
+                        and then Character'Val (Data (Data'First)) = 'P'
+                        and then Character'Val
+                          (Data (Data'First + Protocol.Byte_Offset (1))) =
+                            'G');
+                  end;
+               end if;
+               exit when Protocol.Response_Kind (Event) =
+                 Protocol.Command_Complete_Response;
+            end;
+         end loop;
+         Check (Chunks >= 2 and then Saw_Signature);
+      end;
+      declare
+         Ready_Event : constant Client.Simple_Query_Event :=
+           Client.Receive_Query_Event (Session, Timeout => 5.0);
+         pragma Unreferenced (Ready_Event);
+      begin
+         null;
+      end;
+
+      Client.Prepare_Statement
+        (Session,
+         "copy_out_extended",
+         "copy flyology_copy_test to stdout (format text)",
+         Timeout => 5.0);
+      Client.Bind_Portal
+        (Session, "copy_out_portal", "copy_out_extended", Timeout => 5.0);
+      Client.Execute_Portal
+        (Session, "copy_out_portal", Timeout => 5.0);
+      Client.Synchronize (Session, Timeout => 5.0);
+      loop
+         declare
+            Event : constant Client.Extended_Query_Event :=
+              Client.Receive_Extended_Event (Session, Timeout => 5.0);
+         begin
+            exit when Protocol.Response_Kind (Event) =
+              Protocol.Copy_Out_Response;
+            Check
+              (Protocol.Response_Kind (Event) /= Protocol.Error_Response);
+         end;
+      end loop;
+      declare
+         Chunks : Natural := 0;
+      begin
+         loop
+            declare
+               Event : constant Client.Copy_Event :=
+                 Client.Receive_Copy_Event (Session, Timeout => 5.0);
+            begin
+               if Protocol.Response_Kind (Event) =
+                 Protocol.Copy_Data_Response
+               then
+                  Chunks := Chunks + 1;
+               end if;
+               exit when Protocol.Response_Kind (Event) =
+                 Protocol.Ready_For_Query_Response;
+            end;
+         end loop;
+         Check (Chunks >= 2 and then Client.Is_Ready (Session));
+      end;
+
+      Client.Prepare_Statement
+        (Session,
+         "copy_in_extended",
+         "copy flyology_copy_test from stdin (format text)",
+         Timeout => 5.0);
+      Client.Bind_Portal
+        (Session, "copy_in_portal", "copy_in_extended", Timeout => 5.0);
+      Client.Execute_Portal
+        (Session, "copy_in_portal", Timeout => 5.0);
+      Client.Flush (Session, Timeout => 5.0);
+      loop
+         declare
+            Event : constant Client.Extended_Query_Event :=
+              Client.Receive_Extended_Event (Session, Timeout => 5.0);
+         begin
+            exit when Protocol.Response_Kind (Event) =
+              Protocol.Copy_In_Response;
+            Check
+              (Protocol.Response_Kind (Event) /= Protocol.Error_Response);
+         end;
+      end loop;
+      Client.Send_Copy_Data
+        (Session, Bytes ("extended" & ASCII.HT & ASCII.LF), 5.0);
+      Client.Finish_Copy (Session, Timeout => 5.0);
+      Client.Synchronize (Session, Timeout => 5.0);
+      loop
+         declare
+            Event : constant Client.Copy_Event :=
+              Client.Receive_Copy_Event (Session, Timeout => 5.0);
+         begin
+            Check
+              (Protocol.Response_Kind (Event) /= Protocol.Error_Response);
+            exit when Protocol.Response_Kind (Event) =
+              Protocol.Ready_For_Query_Response;
+         end;
+      end loop;
+      Check (Client.Is_Ready (Session));
+
+      Client.Send_Query
+        (Session,
+         "copy flyology_copy_test from stdin",
+         Timeout => 5.0);
+      declare
+         Started : constant Client.Simple_Query_Event :=
+           Client.Receive_Query_Event (Session, Timeout => 5.0);
+         pragma Unreferenced (Started);
+      begin
+         Client.Abort_Copy (Session, "integration abort", Timeout => 5.0);
+      end;
+      declare
+         Saw_Abort_Error : Boolean := False;
+      begin
+         loop
+            declare
+               Event : constant Client.Copy_Event :=
+                 Client.Receive_Copy_Event (Session, Timeout => 5.0);
+            begin
+               Saw_Abort_Error := Saw_Abort_Error or else
+                 Protocol.Response_Kind (Event) = Protocol.Error_Response;
+               exit when Protocol.Response_Kind (Event) =
+                 Protocol.Ready_For_Query_Response;
+            end;
+         end loop;
+         Check (Saw_Abort_Error and then Client.Is_Ready (Session));
+      end;
+
+      Client.Send_Query
+        (Session, "copy flyology_copy_int from stdin", Timeout => 5.0);
+      declare
+         Started : constant Client.Simple_Query_Event :=
+           Client.Receive_Query_Event (Session, Timeout => 5.0);
+         pragma Unreferenced (Started);
+      begin
+         Client.Send_Copy_Data
+           (Session,
+            Bytes ("not-an-integer" & ASCII.LF),
+            Timeout => 5.0);
+         Client.Finish_Copy (Session, Timeout => 5.0);
+      end;
+      declare
+         Saw_Data_Error : Boolean := False;
+      begin
+         loop
+            declare
+               Event : constant Client.Copy_Event :=
+                 Client.Receive_Copy_Event (Session, Timeout => 5.0);
+            begin
+               Saw_Data_Error := Saw_Data_Error or else
+                 (Protocol.Response_Kind (Event) = Protocol.Error_Response
+                  and then Protocol.Diagnostic_SQL_State
+                    (Protocol.Diagnostic_Data (Event)) = "22P02");
+               exit when Protocol.Response_Kind (Event) =
+                 Protocol.Ready_For_Query_Response;
+            end;
+         end loop;
+         Check (Saw_Data_Error and then Client.Is_Ready (Session));
+      end;
+
+      Client.Send_Query
+        (Session,
+         "copy (select n from generate_series(1, 100000000) n) "
+         & "to stdout",
+         Timeout => 5.0);
+      declare
+         Started : constant Client.Simple_Query_Event :=
+           Client.Receive_Query_Event (Session, Timeout => 5.0);
+         pragma Unreferenced (Started);
+         Saw_Copy_Cancellation : Boolean := False;
+      begin
+         --  Consume one frame, then cancel synchronously while COPY OUT is
+         --  known to be streaming. One-frame calls give the application this
+         --  explicit cancellation and fairness point.
+         declare
+            First : constant Client.Copy_Event :=
+              Client.Receive_Copy_Event (Session, Timeout => 5.0);
+         begin
+            Check
+              (Protocol.Response_Kind (First) =
+                 Protocol.Copy_Data_Response);
+         end;
+         Client_Sockets.Cancel (Session, Server, Timeout => 5.0);
+         loop
+            declare
+               Event : constant Client.Copy_Event :=
+                 Client.Receive_Copy_Event (Session, Timeout => 5.0);
+            begin
+               if Protocol.Response_Kind (Event) = Protocol.Error_Response
+               then
+                  Saw_Copy_Cancellation := Protocol.Diagnostic_SQL_State
+                    (Protocol.Diagnostic_Data (Event)) = "57014";
+               end if;
+               exit when Protocol.Response_Kind (Event) =
+                 Protocol.Ready_For_Query_Response;
+            end;
+         end loop;
+         Check (Saw_Copy_Cancellation and then Client.Is_Ready (Session));
       end;
 
       Client.Send_Query (Session, "select pg_sleep(30)", Timeout => 5.0);

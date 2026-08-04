@@ -4,6 +4,7 @@ with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Text_IO;
 with Flyology;
+with Flyology.Bytes;
 with Flyology.IO.Sockets;
 with Flyology.Postgres;
 with Flyology.Postgres.Protocol;
@@ -18,6 +19,7 @@ procedure Postgres_Test_Server is
    package Sockets renames Flyology.IO.Sockets;
 
    use type Protocol.Frontend_Kind;
+   use type Protocol.Frontend_Copy_Kind;
 
    type Context is limited record
       Verifier : Unbounded_String := To_Unbounded_String
@@ -53,6 +55,18 @@ procedure Postgres_Test_Server is
       return Lower'Length >= 6
         and then Lower (Lower'First .. Lower'First + 5) = "select";
    end Is_Select;
+
+   function Is_Copy (SQL : String; Direction : String) return Boolean is
+      Lower : constant String := Ada.Characters.Handling.To_Lower
+        (Ada.Strings.Fixed.Trim (SQL, Ada.Strings.Both));
+   begin
+      return Lower'Length >= 4
+        and then Lower (Lower'First .. Lower'First + 3) = "copy"
+        and then Ada.Strings.Fixed.Index (Lower, Direction) /= 0;
+   end Is_Copy;
+
+   function Bytes (Value : String) return Protocol.Byte_Array is
+     (Flyology.Bytes.To_Array (Flyology.Bytes.From_Byte_String (Value)));
 
    procedure Handle
      (State   : in out Context;
@@ -101,6 +115,65 @@ procedure Postgres_Test_Server is
                   end loop;
                   Sessions.Send_Command_Complete
                     (Client, "SELECT 1", Timeout);
+               elsif Is_Copy (SQL, "to stdout") then
+                  Sessions.Send_Copy_Out_Response
+                    (Client,
+                     Overall_Format => Protocol.Text_Format,
+                     Column_Formats =>
+                       (Protocol.Text_Format, Protocol.Text_Format),
+                     Timeout => Timeout);
+                  Sessions.Send_Copy_Data
+                    (Client, Bytes ("one" & ASCII.HT & ASCII.LF), Timeout);
+                  Sessions.Send_Copy_Data
+                    (Client,
+                     Bytes ("\N" & ASCII.HT & "two" & ASCII.LF),
+                     Timeout);
+                  Sessions.Send_Copy_Done (Client, Timeout);
+                  Sessions.Send_Command_Complete
+                    (Client, "COPY 2", Timeout);
+               elsif Is_Copy (SQL, "from stdin") then
+                  Sessions.Send_Copy_In_Response
+                    (Client,
+                     Overall_Format => Protocol.Text_Format,
+                     Column_Formats =>
+                       (Protocol.Text_Format, Protocol.Text_Format),
+                     Timeout => Timeout);
+                  declare
+                     Chunks : Natural := 0;
+                     Done   : Boolean := False;
+                     Failed : Boolean := False;
+                  begin
+                     while not Done loop
+                        declare
+                           Copy_Command : constant
+                             Protocol.Frontend_Copy_Message :=
+                               Sessions.Read_Copy_Command (Client, Timeout);
+                        begin
+                           case Protocol.Copy_Kind (Copy_Command) is
+                              when Protocol.Frontend_Copy_Data =>
+                                 Chunks := Chunks + 1;
+                              when Protocol.Frontend_Copy_Done =>
+                                 Done := True;
+                              when Protocol.Frontend_Copy_Fail =>
+                                 Done := True;
+                                 Failed := True;
+                           end case;
+                        end;
+                     end loop;
+                     Ada.Text_IO.Put_Line
+                       ("frontend COPY chunks" & Chunks'Image);
+                     Ada.Text_IO.Flush;
+                     if Failed then
+                        Sessions.Send_Error
+                          (Client,
+                           "client aborted COPY",
+                           SQL_State => "57014",
+                           Timeout => Timeout);
+                     else
+                        Sessions.Send_Command_Complete
+                          (Client, "COPY 2", Timeout);
+                     end if;
+                  end;
                elsif Is_Select (SQL) then
                   Sessions.Send_Row_Description
                     (Client,

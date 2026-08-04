@@ -9,11 +9,12 @@ protocol over Flyology I/O. It provides both:
 
 The current development baseline implements protocol 3.2 framing and startup,
 typed streaming simple- and extended-query results, prepared statements and
-portals, trust, cleartext-password, and SCRAM-SHA-256 authentication, and raw dispatch
-of every normal frontend command. It interoperates in both directions with Postgres
-18.4: the test client connects to a real Postgres SCRAM server, and `psql` connects to
-the Flyology SCRAM test server. Cancellation uses the official separate-connection
-flow in both directions.
+portals, streaming `COPY IN`, `COPY OUT`, and `COPY BOTH`, trust,
+cleartext-password, and SCRAM-SHA-256 authentication, and raw dispatch of every
+normal frontend command. It interoperates in both directions with Postgres 18.4:
+the test client connects to a real Postgres SCRAM server, and `psql` connects to
+the Flyology SCRAM test server. Cancellation uses the official
+separate-connection flow in both directions.
 
 ## Development setup
 
@@ -47,7 +48,8 @@ Unknown future tags are preserved as `Unknown` messages rather than discarded.
 `Decode_Backend` adds an owned typed view of `RowDescription`, `DataRow`,
 `CommandComplete`, `EmptyQueryResponse`, `ErrorResponse`, `NoticeResponse`,
 `ParameterStatus`, `ParseComplete`, `BindComplete`, `CloseComplete`,
-`ParameterDescription`, `NoData`, `PortalSuspended`, and `ReadyForQuery`.
+`ParameterDescription`, `NoData`, `PortalSuspended`, all three COPY responses,
+`CopyData`, `CopyDone`, and `ReadyForQuery`.
 `Original_Message` retains the raw lower-level message. Row descriptions expose every
 per-field protocol value, and parameter descriptions retain every parameter OID. Data
 rows expose
@@ -56,7 +58,8 @@ value. Diagnostic fields are addressable by their protocol code, so future field
 retained as well as the standard severity, SQLSTATE, and message fields.
 
 Typed frontend constructors encode `Parse`, `Bind`, `Describe`, `Execute`, `Close`,
-`Flush`, and `Sync`. Empty names select unnamed statements or portals. Parse accepts
+`Flush`, `Sync`, `CopyData`, `CopyDone`, and `CopyFail`. Empty names select unnamed
+statements or portals. Parse accepts
 parameter OIDs, including zero for an unspecified type. Each Bind value is built with
 `Text_Parameter`, `Binary_Parameter`, or `Null_Parameter`, so its format stays attached
 to its bytes. Bind uses PostgreSQL's zero-, one-, or per-parameter format-code forms,
@@ -73,15 +76,15 @@ completion; an empty query produces an empty-query event; and errors and notices
 returned as typed diagnostics. A final ready event carries the idle, in-transaction,
 or failed-transaction state. Multiple statements naturally produce multiple event
 sequences before that final ready event. `Send_Command` plus `Receive_Message` remain
-the raw lower-level API for COPY, direct extended-protocol control, and custom state
-machines.
+the raw lower-level API for direct protocol control and custom state machines.
 
 The task-friendly extended path consists of `Prepare_Statement`, `Bind_Portal`,
 `Describe_Statement`, `Describe_Portal`, `Execute_Portal`, `Resume_Portal`,
 `Close_Statement`, `Close_Portal`, `Flush`, `Synchronize`, and repeated
 `Receive_Extended_Event` calls. Commands can be pipelined before Sync, and Flush
-forces pending output without ending the cycle. `State` exposes ready, active simple
-or extended query, recovery-required, and awaiting-ready states. Invalid local
+forces pending output without ending the cycle. `State` exposes ready, active simple,
+extended, and COPY operations, COPY completion, recovery-required, and awaiting-ready
+states. Invalid local
 ordering, such as Execute before Bind or Resume before `PortalSuspended`, is rejected
 before writing. After an extended `ErrorResponse`, only Sync (or termination) is
 accepted; the session becomes reusable only after the corresponding `ReadyForQuery`.
@@ -151,6 +154,46 @@ loop
 end loop;
 ```
 
+### Streaming COPY
+
+A `CopyInResponse`, `CopyOutResponse`, or `CopyBothResponse` is returned by the
+same simple- or extended-query receive call that started the operation. Its
+`Copy_Format_Description` retains the overall text/binary code and every
+per-column code. `State` then reports `Copy_In_Active`, `Copy_Out_Active`, or
+`Copy_Both_Active`.
+
+For a writable direction, call `Send_Copy_Data` once per bounded chunk and then
+`Finish_Copy`; `Abort_Copy` sends `CopyFail` with a server-visible reason. For a
+readable direction, each `Receive_Copy_Event` returns one `CopyData` frame.
+`CopyDone`, `CommandComplete`, errors, notices, parameter status, and
+`ReadyForQuery` are also returned individually. No API in this path collects a
+COPY stream.
+
+```ada
+Client.Send_Query (Session, "copy measurements from stdin (format text)");
+declare
+   Started : constant Client.Simple_Query_Event :=
+     Client.Receive_Query_Event (Session);
+begin
+   --  Inspect Protocol.Copy_Formats (Started), then stream bounded chunks.
+   Client.Send_Copy_Data (Session, First_Chunk);
+   Client.Send_Copy_Data (Session, Second_Chunk);
+   Client.Finish_Copy (Session);
+end;
+
+--  Receive CommandComplete as a Copy_Event, then the simple-query
+--  ReadyForQuery as a Simple_Query_Event.
+```
+
+For simple-query COPY, graceful `CommandComplete` returns to
+`Simple_Query_Active` until the final query event; an error or client abort keeps
+the COPY receiver active through `ReadyForQuery` so recovery cannot be skipped.
+For extended COPY, `Sync` is mandatory. COPY OUT may pipeline `Sync` after
+`Execute`; COPY IN and the writable half of COPY BOTH send it after local
+`CopyDone`/`CopyFail`. A server error without an already pending `Sync` enters
+`Recovery_Required`, matching other extended-query operations. Cancellation is
+reported as the server's normal error and recovery sequence.
+
 Startup retains variable-length `BackendKeyData`. To cancel,
 `Client.Send_Cancel_Request` writes those credentials to a caller-opened distinct
 transport, while `Flyology.Postgres.Client_Sockets.Cancel` opens, sends on, and closes
@@ -166,6 +209,13 @@ as a `Protocol.Message` and writes responses through
 array overloads accept arbitrary field and column counts. `Make_Field_Description`,
 `Text_Column`, `Binary_Column`, and `Null_Column` build their values; the original
 one-column string and NULL helpers remain available for concise handlers.
+
+COPY handlers use `Send_Copy_In_Response`, `Send_Copy_Out_Response`, or
+`Send_Copy_Both_Response`, followed by bounded `Send_Copy_Data` calls and
+`Send_Copy_Done`. `Read_Copy_Command` strictly dispatches one client
+`CopyData`, `CopyDone`, or `CopyFail` frame at a time; accessors expose the chunk
+or failure reason while `Original_Message` preserves the raw command. This lets
+custom handlers apply backpressure and stream directly to application storage.
 
 A handler can poll
 `Server_Sessions.Cancellation_Requested`; it becomes true for a matching cancellation
@@ -213,16 +263,29 @@ Two transport adapters are included:
   Applications that require encrypted cancellation should wait for the transport
   upgrade support noted above; the current libpq cancellation API reuses the original
   connection's encryption and host-verification requirements.
+- Flyology lightweight tasks are cooperatively scheduled. A COPY OUT socket that is
+  continuously readable may not suspend the receiving lightweight task, so a delayed
+  canceller on the same execution group can be starved. Issue cancellation from an
+  independently scheduled task, or add an explicit Flyology fairness/yield point in
+  a long-running receive loop. The one-frame-per-call API naturally returns control
+  to the application after every `CopyData`, where it can yield, inspect its own
+  cancellation state, or send a cancellation request. The integration test
+  deterministically consumes one COPY frame, synchronously sends the separate-
+  connection cancellation, and verifies SQLSTATE `57014` plus `ReadyForQuery`
+  recovery.
 - SCRAM nonces contain 18 bytes from the operating system cryptographic random source.
   Iteration counts are accepted from 4,096 through 1,000,000, SCRAM messages are
   bounded to 4 KiB, proofs and signatures use constant-time comparison, and sensitive
   derived intermediates are wiped where the compiler-supported mechanism permits.
-- The library supplies framing, authentication flow, command dispatch, and common
-  response constructors. SQL execution, prepared-statement/portal state, transaction
-  state, COPY semantics, and result type metadata belong to the application handler.
+- The library supplies framing, authentication flow, COPY/query state machines,
+  command dispatch, and common response constructors. SQL execution,
+  prepared-statement/portal state, transaction state, interpretation of COPY
+  contents, and result type metadata belong to the application handler.
 - Frames are bounded to 16 MiB to prevent unbounded allocation from an untrusted length
+  field; a COPY chunk is one frame with at most 16 MiB minus the four-byte length
   field. Typed decoding also rejects impossible counts, invalid or truncated lengths,
   missing terminators, invalid format or transaction-state values, and trailing bytes.
+  Large COPY values must be split across frames by the sender.
 
 The implementation follows the current official
 [message-flow](https://www.postgresql.org/docs/current/protocol-flow.html) and
@@ -257,8 +320,8 @@ protocol facade. `Flyology.Postgres.SCRAM_Core` adds bounded PBKDF2-HMAC-SHA-256
 digest hashing/XOR, and wipe glue over the proved `hmac_ada` primitives. GNATprove
 verifies arbitrary-bound array indexing, endian encoding and decoding, total
 status-returning cursor reads, bounded byte views, frame-length conversions,
-extended-protocol format-count validity, earliest-NUL search, initial/startup packet
-structure, protocol 3.2
+extended-protocol format-count validity, exact COPY-response lengths and format-code
+validity, earliest-NUL search, initial/startup packet structure, protocol 3.2
 variable cancellation keys, exact source correspondence for recognized startup
 parameters and special requests, SCRAM core bounds, loop termination, and the
 packages' functional
@@ -285,8 +348,8 @@ alr gnatprove \
   -j0 --level=1 --output=oneline --output-header -f
 ```
 
-The current GNATprove FSF 16.1.0 result on the combined source is 286 of 286
-checks proved: 252 wire-core checks and 34 SCRAM-core checks. The wire core adds
+The current GNATprove FSF 16.1.0 result on the combined source is 291 of 291
+checks proved: 257 wire-core checks and 34 SCRAM-core checks. The wire core adds
 no warnings or assumptions. The SCRAM core reports five termination assumptions
 at calls into `hmac_ada`'s SHA-256 and HMAC operations because those dependency
 entry points do not expose `Always_Terminates`; no run-time or functional check
@@ -306,7 +369,11 @@ The first integration run downloads the official source archive, verifies its SH
 checksum, and builds Postgres into `tests/.cache`. Later runs reuse that installation.
 The unit suite combines typed backend decoding and malformed-message coverage with the
 RFC 7677 SCRAM-SHA-256 transcript, verifier round trips, wrong-password proof
-rejection, and malformed verifier/final-message rejection.
+rejection, and malformed verifier/final-message rejection. COPY fixtures cover all
+frontend constructors, all backend response kinds, mixed text/binary formats,
+malformed counts and codes, simple and extended transitions, abort/recovery, and
+bidirectional streaming. `COPY BOTH` uses an exact protocol fixture because a real
+server exercise would require replication setup.
 
 The integration suite starts an isolated real SCRAM server for the Ada client, verifies
 typed query streaming and cancellation of `pg_sleep`, then starts the Flyology SCRAM
@@ -316,9 +383,14 @@ multiple statements and result sets, command-only and empty queries, notices,
 parameter status, errors, and recovery. The extended real-server flow covers named
 and unnamed statements and portals, multiple parameter OIDs, text/binary/NULL values,
 statement and portal Describe, mixed result formats, streamed rows, max-row
-`PortalSuspended` and resume, Close, Flush, Sync, and mandatory error recovery. The
+`PortalSuspended` and resume, Close, Flush, Sync, and mandatory error recovery. It
+also covers simple and extended `COPY TO STDOUT`/`COPY FROM STDIN`, text and binary
+output, multiple chunks, NULL versus empty text, `CopyFail`, malformed input, and
+post-error reuse, plus synchronous separate-connection cancellation during an active
+COPY OUT stream. The
 `psql` direction verifies that the Flyology server emits a multi-column, multi-row
-result with both NULL and empty text, then uses PostgreSQL 18's named prepared-
+result with both NULL and empty text, performs `\copy` in both directions through
+the streaming server helpers, then uses PostgreSQL 18's named prepared-
 statement commands and asserts raw dispatch of Parse, Bind, Describe, Execute, Close,
 and Sync. It also rejects both a wrong password and an unknown user through real
 SCRAM exchanges. Server-side tests cover correct, incorrect, stale, duplicate, and

@@ -1,5 +1,6 @@
 with Flyology.Bytes;
 with Flyology.Postgres.Framing;
+with Flyology.Postgres.Wire;
 
 package body Flyology.Postgres.Server_Sessions is
 
@@ -65,6 +66,13 @@ package body Flyology.Postgres.Server_Sessions is
    begin
       return Framing.Read_Message (Item.Channel.all, Timeout);
    end Read_Command;
+
+   function Read_Copy_Command
+     (Item : in out Session; Timeout : Duration)
+      return Protocol.Frontend_Copy_Message is
+   begin
+      return Protocol.Decode_Frontend_Copy (Read_Command (Item, Timeout));
+   end Read_Copy_Command;
 
    procedure Send
      (Item    : in out Session;
@@ -377,6 +385,81 @@ package body Flyology.Postgres.Server_Sessions is
       Send_Data_Row
         (Item, Values => (1 => Protocol.Null_Column), Timeout => Timeout);
    end Send_Null_Data_Row;
+
+   procedure Send_Copy_Response
+     (Item           : in out Session;
+      Code           : Character;
+      Overall_Format : Protocol.Field_Format;
+      Column_Formats : Protocol.Field_Format_Array;
+      Timeout        : Duration) is
+      Contents : Flyology.Bytes.Unbounded_Bytes;
+   begin
+      if Column_Formats'Length > Natural (Protocol.UInt16'Last) then
+         raise Protocol.Protocol_Error with
+           "COPY response has too many columns";
+      end if;
+      Require_Room
+        (Contents,
+         Natural
+           (Wire.Copy_Response_Payload_Length
+              (Protocol.UInt16 (Column_Formats'Length))),
+         "COPY response");
+      Protocol.Append_Byte
+        (Contents,
+         (if Overall_Format = Protocol.Text_Format then 0 else 1));
+      Protocol.Append_U16
+        (Contents, Protocol.UInt16 (Column_Formats'Length));
+      for Format of Column_Formats loop
+         Protocol.Append_U16
+           (Contents,
+            (if Format = Protocol.Text_Format then 0 else 1));
+      end loop;
+      Send_Built (Item, Code, Contents, Timeout);
+   end Send_Copy_Response;
+
+   procedure Send_Copy_In_Response
+     (Item           : in out Session;
+      Overall_Format : Protocol.Field_Format;
+      Column_Formats : Protocol.Field_Format_Array;
+      Timeout        : Duration) is
+   begin
+      Send_Copy_Response
+        (Item, 'G', Overall_Format, Column_Formats, Timeout);
+   end Send_Copy_In_Response;
+
+   procedure Send_Copy_Out_Response
+     (Item           : in out Session;
+      Overall_Format : Protocol.Field_Format;
+      Column_Formats : Protocol.Field_Format_Array;
+      Timeout        : Duration) is
+   begin
+      Send_Copy_Response
+        (Item, 'H', Overall_Format, Column_Formats, Timeout);
+   end Send_Copy_Out_Response;
+
+   procedure Send_Copy_Both_Response
+     (Item           : in out Session;
+      Overall_Format : Protocol.Field_Format;
+      Column_Formats : Protocol.Field_Format_Array;
+      Timeout        : Duration) is
+   begin
+      Send_Copy_Response
+        (Item, 'W', Overall_Format, Column_Formats, Timeout);
+   end Send_Copy_Both_Response;
+
+   procedure Send_Copy_Data
+     (Item    : in out Session;
+      Data    : Protocol.Byte_Array;
+      Timeout : Duration) is
+   begin
+      Send (Item, Protocol.Make_Copy_Data_Message (Data), Timeout);
+   end Send_Copy_Data;
+
+   procedure Send_Copy_Done
+     (Item : in out Session; Timeout : Duration) is
+   begin
+      Send (Item, Protocol.Make_Copy_Done_Message, Timeout);
+   end Send_Copy_Done;
 
    function Query_Text (Command : Protocol.Message) return String is
       Contents : constant Protocol.Byte_Array := Protocol.Payload (Command);

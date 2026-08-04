@@ -110,6 +110,24 @@ is
       or else Format_Count = 1
       or else Format_Count = Value_Count);
 
+   --  A COPY response has one overall-format byte, a two-byte column count,
+   --  and exactly one two-byte format code per column.
+   function Copy_Response_Length_Is_Valid
+     (Payload_Length : Wire_Length; Column_Count : UInt16) return Boolean is
+     (Payload_Length >= 3
+      and then Natural (Column_Count) <= (Payload_Length - 3) / 2
+      and then Payload_Length - 3 = 2 * Natural (Column_Count));
+
+   function Copy_Format_Code_Is_Valid (Code : UInt16) return Boolean is
+     (Code in 0 .. 1);
+
+   function Copy_Response_Payload_Length
+     (Column_Count : UInt16) return Wire_Length is
+     (3 + 2 * Natural (Column_Count))
+   with
+     Post => Copy_Response_Length_Is_Valid
+       (Copy_Response_Payload_Length'Result, Column_Count);
+
    procedure Try_Read_Bytes
      (Data    : Byte_Array;
       Cursor  : in out Wire_Length;

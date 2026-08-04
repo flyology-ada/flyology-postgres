@@ -7,6 +7,7 @@ with Flyology.Postgres.Client;
 with Flyology.Postgres.Protocol;
 with Flyology.Postgres.SCRAM;
 with Flyology.Postgres.SCRAM_Core;
+with Flyology.Postgres.Server_Sessions;
 with Flyology.Postgres.Transports;
 with Flyology.Postgres.Wire;
 
@@ -15,6 +16,7 @@ procedure Tests is
    package Protocol renames Flyology.Postgres.Protocol;
    package SCRAM_Core renames Flyology.Postgres.SCRAM_Core;
    package Client renames Flyology.Postgres.Client;
+   package Server_Sessions renames Flyology.Postgres.Server_Sessions;
    package Transports renames Flyology.Postgres.Transports;
 
    use type Protocol.Byte;
@@ -23,6 +25,7 @@ procedure Tests is
    use type Protocol.Field_Format;
    use type Protocol.Frontend_Kind;
    use type Protocol.Initial_Kind;
+   use type Protocol.Frontend_Copy_Kind;
    use type Protocol.Int16;
    use type Protocol.Int32;
    use type Protocol.Transaction_Status;
@@ -711,6 +714,406 @@ procedure Tests is
       end;
    end Test_Extended_Backend_Messages;
 
+   procedure Test_Copy_Protocol is
+      Chunk : constant Protocol.Byte_Array (1 .. 3) :=
+        (16#00#, 16#41#, 16#FF#);
+
+      function Copy_Response (Code : Character) return Protocol.Message is
+         Contents : Flyology.Bytes.Unbounded_Bytes;
+      begin
+         Protocol.Append_Byte (Contents, 1);
+         Protocol.Append_U16 (Contents, 2);
+         Protocol.Append_U16 (Contents, 0);
+         Protocol.Append_U16 (Contents, 1);
+         return Protocol.Make_Message
+           (Code, Flyology.Bytes.To_Array (Contents));
+      end Copy_Response;
+
+      function Frontend_Rejected (Item : Protocol.Message) return Boolean is
+      begin
+         declare
+            Ignored : constant Protocol.Frontend_Copy_Message :=
+              Protocol.Decode_Frontend_Copy (Item);
+            pragma Unreferenced (Ignored);
+         begin
+            return False;
+         end;
+      exception
+         when Protocol.Protocol_Error =>
+            return True;
+      end Frontend_Rejected;
+   begin
+      declare
+         Command : constant Protocol.Frontend_Copy_Message :=
+           Protocol.Decode_Frontend_Copy
+             (Protocol.Make_Copy_Data_Message (Chunk));
+      begin
+         Assert
+           (Protocol.Copy_Kind (Command) = Protocol.Frontend_Copy_Data
+            and then Protocol.Copy_Bytes (Command) = Chunk,
+            "frontend CopyData preserves one bounded chunk");
+      end;
+
+      declare
+         Command : constant Protocol.Frontend_Copy_Message :=
+           Protocol.Decode_Frontend_Copy
+             (Protocol.Make_Copy_Fail_Message ("client stopped"));
+      begin
+         Assert
+           (Protocol.Copy_Kind (Command) = Protocol.Frontend_Copy_Fail
+            and then Protocol.Copy_Failure_Reason (Command) =
+              "client stopped",
+            "frontend CopyFail preserves its reason");
+      end;
+      Assert
+        (Protocol.Copy_Kind
+           (Protocol.Decode_Frontend_Copy
+              (Protocol.Make_Copy_Done_Message)) =
+           Protocol.Frontend_Copy_Done,
+         "frontend CopyDone has a typed constructor");
+      Assert
+        (Frontend_Rejected
+           (Protocol.Make_Message ('c', (1 => 0)))
+         and then Frontend_Rejected
+           (Protocol.Make_Message
+              ('f', (1 => Protocol.Byte (Character'Pos ('x')))))
+         and then Frontend_Rejected
+           (Protocol.Make_Empty_Message ('Q')),
+         "malformed and non-COPY frontend commands are rejected");
+
+      for Code of String'("GHW") loop
+         declare
+            Response : constant Protocol.Backend_Message :=
+              Protocol.Decode_Backend (Copy_Response (Code));
+            Expected : constant Protocol.Backend_Message_Kind :=
+              (case Code is
+                 when 'G' => Protocol.Copy_In_Response,
+                 when 'H' => Protocol.Copy_Out_Response,
+                 when others => Protocol.Copy_Both_Response);
+            Formats : constant Protocol.Copy_Format_Description :=
+              Protocol.Copy_Formats (Response);
+         begin
+            Assert
+              (Protocol.Response_Kind (Response) = Expected
+               and then Protocol.Overall_Format (Formats) =
+                 Protocol.Binary_Format
+               and then Protocol.Copy_Column_Count (Formats) = 2
+               and then Protocol.Copy_Column_Format (Formats, 1) =
+                 Protocol.Text_Format
+               and then Protocol.Copy_Column_Format (Formats, 2) =
+                 Protocol.Binary_Format,
+               "COPY response retains overall and per-column formats");
+         end;
+      end loop;
+
+      declare
+         Data_Event : constant Protocol.Backend_Message :=
+           Protocol.Decode_Backend (Protocol.Make_Message ('d', Chunk));
+         Done_Event : constant Protocol.Backend_Message :=
+           Protocol.Decode_Backend (Protocol.Make_Empty_Message ('c'));
+      begin
+         Assert
+           (Protocol.Response_Kind (Data_Event) = Protocol.Copy_Data_Response
+            and then Protocol.Copy_Data (Data_Event) = Chunk
+            and then Protocol.Response_Kind (Done_Event) =
+              Protocol.Copy_Done_Response,
+            "backend COPY data and completion are typed events");
+      end;
+
+      declare
+         Channel : aliased Memory_Transport;
+         Session : Server_Sessions.Session (Channel'Access);
+      begin
+         Queue (Channel, Protocol.Make_Copy_Data_Message (Chunk));
+         declare
+            Command : constant Protocol.Frontend_Copy_Message :=
+              Server_Sessions.Read_Copy_Command (Session, 1.0);
+         begin
+            Assert
+              (Protocol.Copy_Bytes (Command) = Chunk,
+               "server COPY dispatch returns one chunk at a time");
+         end;
+         Server_Sessions.Send_Copy_Out_Response
+           (Session,
+            Protocol.Text_Format,
+            (Protocol.Text_Format, Protocol.Binary_Format),
+            1.0);
+         Server_Sessions.Send_Copy_Data (Session, Chunk, 1.0);
+         Server_Sessions.Send_Copy_Done (Session, 1.0);
+         declare
+            Output : constant Protocol.Byte_Array :=
+              Flyology.Bytes.To_Array (Channel.Output);
+         begin
+            Assert
+              (Output'Length = 12 + 8 + 5
+               and then Output (1) = Protocol.Byte (Character'Pos ('H'))
+               and then Output (13) = Protocol.Byte (Character'Pos ('d'))
+               and then Output (21) = Protocol.Byte (Character'Pos ('c')),
+               "server COPY helpers emit response, chunk, and done frames");
+         end;
+      end;
+   end Test_Copy_Protocol;
+
+   procedure Test_Copy_Client_State is
+      Channel : aliased Memory_Transport;
+      Session : Client.Session (Channel'Access);
+      Authentication : Flyology.Bytes.Unbounded_Bytes;
+      Ready_Payload : constant Protocol.Byte_Array (1 .. 1) :=
+        (1 => Protocol.Byte (Character'Pos ('I')));
+      Chunk : constant Protocol.Byte_Array (1 .. 2) :=
+        (Protocol.Byte (Character'Pos ('a')),
+         Protocol.Byte (Character'Pos (ASCII.LF)));
+
+      function Copy_Response (Code : Character) return Protocol.Message is
+         Contents : Flyology.Bytes.Unbounded_Bytes;
+      begin
+         Protocol.Append_Byte (Contents, 0);
+         Protocol.Append_U16 (Contents, 1);
+         Protocol.Append_U16 (Contents, 0);
+         return Protocol.Make_Message
+           (Code, Flyology.Bytes.To_Array (Contents));
+      end Copy_Response;
+
+      function Complete return Protocol.Message is
+         Contents : Flyology.Bytes.Unbounded_Bytes;
+      begin
+         Protocol.Append_C_String (Contents, "COPY 1");
+         return Protocol.Make_Message
+           ('C', Flyology.Bytes.To_Array (Contents));
+      end Complete;
+
+      function Program_Rejected
+        (Action : not null access procedure) return Boolean is
+      begin
+         Action.all;
+         return False;
+      exception
+         when Program_Error =>
+            return True;
+      end Program_Rejected;
+   begin
+      Protocol.Append_U32 (Authentication, 0);
+      Queue
+        (Channel,
+         Protocol.Make_Message
+           ('R', Flyology.Bytes.To_Array (Authentication)));
+      Queue (Channel, Protocol.Make_Message ('Z', Ready_Payload));
+      Client.Startup (Session, User => "tester", Timeout => 1.0);
+
+      declare
+         procedure Invalid_Send is
+         begin
+            Client.Send_Copy_Data (Session, Chunk, 1.0);
+         end Invalid_Send;
+
+         procedure Invalid_Receive is
+         begin
+            declare
+               Event : constant Client.Copy_Event :=
+                 Client.Receive_Copy_Event (Session, 1.0);
+               pragma Unreferenced (Event);
+            begin
+               null;
+            end;
+         end Invalid_Receive;
+      begin
+         Assert
+           (Program_Rejected (Invalid_Send'Access)
+            and then Program_Rejected (Invalid_Receive'Access),
+            "COPY state misuse raises a normal Ada Program_Error");
+      end;
+
+      Client.Send_Query (Session, "copy t to stdout", Timeout => 1.0);
+      Queue (Channel, Copy_Response ('H'));
+      declare
+         Started : constant Client.Simple_Query_Event :=
+           Client.Receive_Query_Event (Session, 1.0);
+      begin
+         Assert
+           (Protocol.Response_Kind (Started) = Protocol.Copy_Out_Response
+            and then Client.State (Session) = Client.Copy_Out_Active,
+            "simple query enters COPY OUT");
+      end;
+      Queue (Channel, Protocol.Make_Message ('d', Chunk));
+      Queue (Channel, Protocol.Make_Empty_Message ('c'));
+      Queue (Channel, Complete);
+      Queue (Channel, Protocol.Make_Message ('Z', Ready_Payload));
+      declare
+         Data_Event : constant Client.Copy_Event :=
+           Client.Receive_Copy_Event (Session, 1.0);
+         Done_Event : constant Client.Copy_Event :=
+           Client.Receive_Copy_Event (Session, 1.0);
+         Complete_Event : constant Client.Copy_Event :=
+           Client.Receive_Copy_Event (Session, 1.0);
+         Ready_Event : constant Client.Simple_Query_Event :=
+           Client.Receive_Query_Event (Session, 1.0);
+      begin
+         Assert
+           (Protocol.Copy_Data (Data_Event) = Chunk
+            and then Protocol.Response_Kind (Done_Event) =
+              Protocol.Copy_Done_Response
+            and then Protocol.Completion_Tag (Complete_Event) = "COPY 1"
+            and then Protocol.Response_Kind (Ready_Event) =
+              Protocol.Ready_For_Query_Response
+            and then Client.Is_Ready (Session),
+            "COPY OUT streams chunks and recovers at ReadyForQuery");
+      end;
+
+      Client.Send_Query (Session, "copy t from stdin", Timeout => 1.0);
+      Queue (Channel, Copy_Response ('G'));
+      declare
+         Started : constant Client.Simple_Query_Event :=
+           Client.Receive_Query_Event (Session, 1.0);
+         pragma Unreferenced (Started);
+      begin
+         Client.Send_Copy_Data (Session, Chunk, 1.0);
+         Client.Send_Copy_Data
+           (Session, Protocol.Byte_Array'(1 .. 0 => 0), 1.0);
+         Client.Finish_Copy (Session, 1.0);
+      end;
+      Queue (Channel, Complete);
+      Queue (Channel, Protocol.Make_Message ('Z', Ready_Payload));
+      declare
+         Complete_Event : constant Client.Copy_Event :=
+           Client.Receive_Copy_Event (Session, 1.0);
+         Ready_Event : constant Client.Simple_Query_Event :=
+           Client.Receive_Query_Event (Session, 1.0);
+      begin
+         Assert
+           (Protocol.Response_Kind (Complete_Event) =
+              Protocol.Command_Complete_Response
+            and then Protocol.Response_Kind (Ready_Event) =
+              Protocol.Ready_For_Query_Response,
+            "COPY IN accepts multiple chunks and finishes gracefully");
+      end;
+
+      Client.Send_Query (Session, "copy t from stdin", Timeout => 1.0);
+      Queue (Channel, Copy_Response ('G'));
+      declare
+         Started : constant Client.Simple_Query_Event :=
+           Client.Receive_Query_Event (Session, 1.0);
+         pragma Unreferenced (Started);
+      begin
+         Client.Abort_Copy (Session, "test abort", 1.0);
+      end;
+      Queue
+        (Channel,
+         Protocol.Make_Message
+           ('E',
+            (1 => Protocol.Byte (Character'Pos ('M')),
+             2 => Protocol.Byte (Character'Pos ('x')),
+             3 => 0,
+             4 => 0)));
+      Queue (Channel, Protocol.Make_Message ('Z', Ready_Payload));
+      declare
+         Error_Event : constant Client.Copy_Event :=
+           Client.Receive_Copy_Event (Session, 1.0);
+         Ready_Event : constant Client.Copy_Event :=
+           Client.Receive_Copy_Event (Session, 1.0);
+      begin
+         Assert
+           (Protocol.Response_Kind (Error_Event) = Protocol.Error_Response
+            and then Protocol.Response_Kind (Ready_Event) =
+              Protocol.Ready_For_Query_Response
+            and then Client.Is_Ready (Session),
+            "CopyFail recovers a simple-query COPY stream");
+      end;
+
+      Client.Prepare_Statement
+        (Session, "copy_in", "copy t from stdin", Timeout => 1.0);
+      Client.Bind_Portal (Session, "", "copy_in", Timeout => 1.0);
+      Client.Execute_Portal (Session, "", Timeout => 1.0);
+      Queue (Channel, Copy_Response ('G'));
+      declare
+         Started : constant Client.Extended_Query_Event :=
+           Client.Receive_Extended_Event (Session, 1.0);
+         pragma Unreferenced (Started);
+      begin
+         Client.Send_Copy_Data (Session, Chunk, 1.0);
+         Client.Finish_Copy (Session, 1.0);
+         Client.Synchronize (Session, 1.0);
+      end;
+      Queue (Channel, Complete);
+      Queue (Channel, Protocol.Make_Message ('Z', Ready_Payload));
+      declare
+         Complete_Event : constant Client.Copy_Event :=
+           Client.Receive_Copy_Event (Session, 1.0);
+         Ready_Event : constant Client.Copy_Event :=
+           Client.Receive_Copy_Event (Session, 1.0);
+      begin
+         Assert
+           (Protocol.Response_Kind (Complete_Event) =
+              Protocol.Command_Complete_Response
+            and then Protocol.Response_Kind (Ready_Event) =
+              Protocol.Ready_For_Query_Response
+            and then Client.Is_Ready (Session),
+            "extended COPY observes Sync before ReadyForQuery");
+      end;
+
+      Client.Send_Query (Session, "copy both fixture", Timeout => 1.0);
+      Queue (Channel, Copy_Response ('W'));
+      declare
+         Started : constant Client.Simple_Query_Event :=
+           Client.Receive_Query_Event (Session, 1.0);
+         pragma Unreferenced (Started);
+      begin
+         Queue (Channel, Protocol.Make_Message ('d', Chunk));
+         Queue (Channel, Protocol.Make_Empty_Message ('c'));
+         declare
+            Data_Event : constant Client.Copy_Event :=
+              Client.Receive_Copy_Event (Session, 1.0);
+            Done_Event : constant Client.Copy_Event :=
+              Client.Receive_Copy_Event (Session, 1.0);
+            pragma Unreferenced (Data_Event, Done_Event);
+         begin
+            Assert
+              (Client.State (Session) = Client.Copy_Both_Active,
+               "COPY BOTH keeps its writable direction after backend done");
+         end;
+         Client.Send_Copy_Data (Session, Chunk, 1.0);
+         Client.Finish_Copy (Session, 1.0);
+      end;
+      Queue (Channel, Complete);
+      Queue (Channel, Protocol.Make_Message ('Z', Ready_Payload));
+      declare
+         Complete_Event : constant Client.Copy_Event :=
+           Client.Receive_Copy_Event (Session, 1.0);
+         Ready_Event : constant Client.Simple_Query_Event :=
+           Client.Receive_Query_Event (Session, 1.0);
+         pragma Unreferenced (Complete_Event, Ready_Event);
+      begin
+         Assert
+           (Client.Is_Ready (Session),
+            "COPY BOTH fixture completes without replication setup");
+      end;
+
+      Client.Send_Query (Session, "copy raw from stdin", Timeout => 1.0);
+      Queue (Channel, Copy_Response ('G'));
+      declare
+         Response : constant Protocol.Message :=
+           Client.Receive_Message (Session, 1.0);
+         pragma Unreferenced (Response);
+      begin
+         Client.Send_Command
+           (Session, Protocol.Make_Copy_Data_Message (Chunk), 1.0);
+         Client.Send_Command
+           (Session, Protocol.Make_Copy_Done_Message, 1.0);
+      end;
+      Queue (Channel, Complete);
+      Queue (Channel, Protocol.Make_Message ('Z', Ready_Payload));
+      declare
+         Complete_Message : constant Protocol.Message :=
+           Client.Receive_Message (Session, 1.0);
+         Ready_Message : constant Protocol.Message :=
+           Client.Receive_Message (Session, 1.0);
+         pragma Unreferenced (Complete_Message, Ready_Message);
+      begin
+         Assert
+           (Client.Is_Ready (Session),
+            "raw COPY commands and receives preserve state tracking");
+      end;
+   end Test_Copy_Client_State;
+
    procedure Test_Extended_Client_State is
       Channel : aliased Memory_Transport;
       Session : Client.Session (Channel'Access);
@@ -898,6 +1301,14 @@ procedure Tests is
         (1 => 0, 2 => 1);
       Parameter_Trailing : constant Protocol.Byte_Array (1 .. 3) :=
         (1 => 0, 2 => 0, 3 => 99);
+      Copy_Truncated : constant Protocol.Byte_Array (1 .. 2) :=
+        (1 => 0, 2 => 0);
+      Copy_Bad_Overall : constant Protocol.Byte_Array (1 .. 3) :=
+        (1 => 2, 2 => 0, 3 => 0);
+      Copy_Bad_Count : constant Protocol.Byte_Array (1 .. 3) :=
+        (1 => 0, 2 => 0, 3 => 1);
+      Copy_Bad_Format : constant Protocol.Byte_Array (1 .. 5) :=
+        (1 => 0, 2 => 0, 3 => 1, 4 => 0, 5 => 2);
    begin
       Assert
         (Decode_Is_Rejected ('T', Row_Count_Only),
@@ -934,6 +1345,17 @@ procedure Tests is
            (Decode_Is_Rejected (Code, Bad_Ready),
             "extended marker responses reject nonempty payloads");
       end loop;
+      for Code of String'("GHW") loop
+         Assert
+           (Decode_Is_Rejected (Code, Copy_Truncated)
+            and then Decode_Is_Rejected (Code, Copy_Bad_Overall)
+            and then Decode_Is_Rejected (Code, Copy_Bad_Count)
+            and then Decode_Is_Rejected (Code, Copy_Bad_Format),
+            "malformed COPY formats and counts are rejected");
+      end loop;
+      Assert
+        (Decode_Is_Rejected ('c', Bad_Ready),
+         "backend CopyDone rejects a nonempty payload");
    end Test_Malformed_Backend_Messages;
 
    procedure Test_RFC_7677_SCRAM_SHA_256 is
@@ -1123,6 +1545,8 @@ begin
    Test_Typed_Query_Events;
    Test_Extended_Frontend_Messages;
    Test_Extended_Backend_Messages;
+   Test_Copy_Protocol;
+   Test_Copy_Client_State;
    Test_Extended_Client_State;
    Test_Malformed_Backend_Messages;
    Test_RFC_7677_SCRAM_SHA_256;

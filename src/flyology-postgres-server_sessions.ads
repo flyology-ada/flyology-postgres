@@ -12,6 +12,9 @@ package Flyology.Postgres.Server_Sessions is
       Timeout : Duration) return Protocol.Initial_Request;
    function Read_Command
      (Item : in out Session; Timeout : Duration) return Protocol.Message;
+   function Read_Copy_Command
+     (Item : in out Session; Timeout : Duration)
+      return Protocol.Frontend_Copy_Message;
 
    procedure Send
      (Item    : in out Session;
@@ -91,6 +94,27 @@ package Flyology.Postgres.Server_Sessions is
    procedure Send_Data_Row
      (Item : in out Session; Value : String; Timeout : Duration);
    procedure Send_Null_Data_Row
+     (Item : in out Session; Timeout : Duration);
+   procedure Send_Copy_In_Response
+     (Item           : in out Session;
+      Overall_Format : Protocol.Field_Format;
+      Column_Formats : Protocol.Field_Format_Array;
+      Timeout        : Duration);
+   procedure Send_Copy_Out_Response
+     (Item           : in out Session;
+      Overall_Format : Protocol.Field_Format;
+      Column_Formats : Protocol.Field_Format_Array;
+      Timeout        : Duration);
+   procedure Send_Copy_Both_Response
+     (Item           : in out Session;
+      Overall_Format : Protocol.Field_Format;
+      Column_Formats : Protocol.Field_Format_Array;
+      Timeout        : Duration);
+   procedure Send_Copy_Data
+     (Item : in out Session;
+      Data : Protocol.Byte_Array;
+      Timeout : Duration);
+   procedure Send_Copy_Done
      (Item : in out Session; Timeout : Duration);
 
    function Query_Text (Command : Protocol.Message) return String;

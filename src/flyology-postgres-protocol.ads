@@ -91,6 +91,20 @@ package Flyology.Postgres.Protocol is
      (Object_Type : Object_Kind; Name : String) return Message;
    function Make_Flush_Message return Message;
    function Make_Sync_Message return Message;
+   function Make_Copy_Data_Message (Data : Byte_Array) return Message;
+   function Make_Copy_Done_Message return Message;
+   function Make_Copy_Fail_Message (Reason : String) return Message;
+
+   type Frontend_Copy_Kind is
+     (Frontend_Copy_Data, Frontend_Copy_Done, Frontend_Copy_Fail);
+   type Frontend_Copy_Message is private;
+   function Decode_Frontend_Copy
+     (Item : Message) return Frontend_Copy_Message;
+   function Copy_Kind
+     (Item : Frontend_Copy_Message) return Frontend_Copy_Kind;
+   function Copy_Bytes (Item : Frontend_Copy_Message) return Byte_Array;
+   function Copy_Failure_Reason (Item : Frontend_Copy_Message) return String;
+   function Original_Message (Item : Frontend_Copy_Message) return Message;
 
    type Backend_Message_Kind is
      (Row_Description_Response,
@@ -106,8 +120,21 @@ package Flyology.Postgres.Protocol is
       Parameter_Description_Response,
       No_Data_Response,
       Portal_Suspended_Response,
+      Copy_In_Response,
+      Copy_Out_Response,
+      Copy_Both_Response,
+      Copy_Data_Response,
+      Copy_Done_Response,
       Ready_For_Query_Response,
       Unknown_Response);
+
+   type Copy_Format_Description is private;
+   function Overall_Format
+     (Item : Copy_Format_Description) return Field_Format;
+   function Copy_Column_Count
+     (Item : Copy_Format_Description) return Natural;
+   function Copy_Column_Format
+     (Item : Copy_Format_Description; Index : Positive) return Field_Format;
 
    type Field_Description is private;
    type Field_Description_Array is
@@ -184,6 +211,9 @@ package Flyology.Postgres.Protocol is
    function Parameter_Data (Item : Backend_Message) return Parameter_Status;
    function Parameter_Types
      (Item : Backend_Message) return Parameter_Description;
+   function Copy_Formats
+     (Item : Backend_Message) return Copy_Format_Description;
+   function Copy_Data (Item : Backend_Message) return Byte_Array;
    function Transaction_State
      (Item : Backend_Message) return Transaction_Status;
    function Original_Message (Item : Backend_Message) return Message;
@@ -310,6 +340,26 @@ private
       Types : Oid_Vectors.Vector;
    end record;
 
+   package Format_Vectors is new Ada.Containers.Vectors
+     (Index_Type => Positive, Element_Type => Field_Format);
+
+   type Copy_Format_Description is record
+      Overall : Field_Format := Text_Format;
+      Columns : Format_Vectors.Vector;
+   end record;
+
+   type Frontend_Copy_Message
+     (Command : Frontend_Copy_Kind := Frontend_Copy_Done)
+   is record
+      Raw : Message;
+      case Command is
+         when Frontend_Copy_Fail =>
+            Failure_Value : Ada.Strings.Unbounded.Unbounded_String;
+         when Frontend_Copy_Data | Frontend_Copy_Done =>
+            null;
+      end case;
+   end record;
+
    type Backend_Message (Response : Backend_Message_Kind := Unknown_Response)
    is record
       Raw : Message;
@@ -326,6 +376,8 @@ private
             Parameter_Status_Value : Parameter_Status;
          when Parameter_Description_Response =>
             Parameter_Description_Value : Parameter_Description;
+         when Copy_In_Response | Copy_Out_Response | Copy_Both_Response =>
+            Copy_Format_Value : Copy_Format_Description;
          when Ready_For_Query_Response =>
             Transaction_Status_Value : Transaction_Status := Idle;
          when Empty_Query_Response |
@@ -334,6 +386,8 @@ private
               Close_Complete_Response |
               No_Data_Response |
               Portal_Suspended_Response |
+              Copy_Data_Response |
+              Copy_Done_Response |
               Unknown_Response =>
             null;
       end case;

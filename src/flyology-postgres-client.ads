@@ -15,6 +15,10 @@ package Flyology.Postgres.Client is
       Ready,
       Simple_Query_Active,
       Extended_Query_Active,
+      Copy_In_Active,
+      Copy_Out_Active,
+      Copy_Both_Active,
+      Copy_Completion_Active,
       Recovery_Required,
       Awaiting_Ready,
       Closed);
@@ -103,6 +107,20 @@ package Flyology.Postgres.Client is
      (Item : in out Session; Timeout : Duration := 30.0)
       return Extended_Query_Event;
 
+   subtype Copy_Event is Protocol.Backend_Message;
+   procedure Send_Copy_Data
+     (Item : in out Session;
+      Data : Protocol.Byte_Array;
+      Timeout : Duration := 30.0);
+   procedure Finish_Copy
+     (Item : in out Session; Timeout : Duration := 30.0);
+   procedure Abort_Copy
+     (Item : in out Session;
+      Reason : String;
+      Timeout : Duration := 30.0);
+   function Receive_Copy_Event
+     (Item : in out Session; Timeout : Duration := 30.0) return Copy_Event;
+
    function Is_Ready (Item : Session) return Boolean;
    function State (Item : Session) return Operation_State;
    function Backend_Process_Id (Item : Session) return Protocol.UInt32;
@@ -112,6 +130,8 @@ package Flyology.Postgres.Client is
    function SQL_State (Value : Protocol.Message) return String;
 
 private
+   type Copy_Origin is (No_Copy, Simple_Copy, Extended_Copy);
+
    type Session
      (Channel : not null access Transports.Transport'Class) is limited record
       Current_State : Operation_State := Not_Started;
@@ -119,6 +139,10 @@ private
       Described_Columns : Natural := 0;
       Bound_In_Cycle : Boolean := False;
       Portal_Is_Suspended : Boolean := False;
+      Current_Copy_Origin : Copy_Origin := No_Copy;
+      Copy_Send_Open : Boolean := False;
+      Copy_Receive_Open : Boolean := False;
+      Copy_Sync_Pending : Boolean := False;
       Pid     : Protocol.UInt32 := 0;
       Secret  : Flyology.Bytes.Unbounded_Bytes;
    end record;

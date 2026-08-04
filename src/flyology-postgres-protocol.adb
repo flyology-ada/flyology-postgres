@@ -442,6 +442,20 @@ package body Flyology.Postgres.Protocol is
    function Make_Sync_Message return Message is
      (Make_Empty_Message ('S'));
 
+   function Make_Copy_Data_Message (Data : Byte_Array) return Message is
+     (Make_Message ('d', Data));
+
+   function Make_Copy_Done_Message return Message is
+     (Make_Empty_Message ('c'));
+
+   function Make_Copy_Fail_Message (Reason : String) return Message is
+      Contents : Flyology.Bytes.Unbounded_Bytes;
+   begin
+      Require_Room (Contents, Reason'Length + 1, "CopyFail message");
+      Append_C_String (Contents, Reason);
+      return Make_Message ('f', Flyology.Bytes.To_Array (Contents));
+   end Make_Copy_Fail_Message;
+
    function Make_Field_Description
      (Name                    : String;
       Table_Oid               : UInt32 := 0;
@@ -832,6 +846,94 @@ package body Flyology.Postgres.Protocol is
       return View_To_String (Contents, View);
    end Decode_C_String_Payload;
 
+   function Decode_Frontend_Copy
+     (Item : Message) return Frontend_Copy_Message is
+      Contents : constant Byte_Array := Payload (Item);
+   begin
+      case Kind (Item) is
+         when Copy_Data =>
+            return (Command => Frontend_Copy_Data, Raw => Item);
+         when Copy_Done =>
+            Require
+              (Contents'Length = 0,
+               "frontend CopyDone must have an empty payload");
+            return (Command => Frontend_Copy_Done, Raw => Item);
+         when Copy_Fail =>
+            return
+              (Command       => Frontend_Copy_Fail,
+               Raw           => Item,
+               Failure_Value => To_Unbounded_String
+                 (Decode_C_String_Payload (Item, "CopyFail reason")));
+         when others =>
+            raise Protocol_Error with "message is not a frontend COPY command";
+      end case;
+   end Decode_Frontend_Copy;
+
+   function Copy_Kind
+     (Item : Frontend_Copy_Message) return Frontend_Copy_Kind is
+     (Item.Command);
+
+   function Copy_Bytes (Item : Frontend_Copy_Message) return Byte_Array is
+   begin
+      Require
+        (Item.Command = Frontend_Copy_Data,
+         "frontend COPY command is not CopyData");
+      return Payload (Item.Raw);
+   end Copy_Bytes;
+
+   function Copy_Failure_Reason
+     (Item : Frontend_Copy_Message) return String is
+   begin
+      Require
+        (Item.Command = Frontend_Copy_Fail,
+         "frontend COPY command is not CopyFail");
+      return To_String (Item.Failure_Value);
+   end Copy_Failure_Reason;
+
+   function Original_Message
+     (Item : Frontend_Copy_Message) return Message is (Item.Raw);
+
+   function Decode_Copy_Format_Description
+     (Item : Message; Context : String) return Copy_Format_Description is
+      Contents : constant Byte_Array := Payload (Item);
+      Cursor   : Wire.Wire_Length := 1;
+      Count    : UInt16;
+      Result   : Copy_Format_Description;
+   begin
+      Require
+        (Contents'Length >= 3,
+         Context & " is missing its format header");
+      declare
+         Code : constant UInt16 := UInt16 (Contents (Contents'First));
+      begin
+         Require
+           (Wire.Copy_Format_Code_Is_Valid (Code),
+            Context & " has an invalid overall format code");
+         Result.Overall :=
+           (if Code = 0 then Text_Format else Binary_Format);
+      end;
+      Read_U16_At (Contents, Cursor, Count, Context & " column count");
+      Require
+        (Wire.Copy_Response_Length_Is_Valid (Contents'Length, Count),
+         Context & " column count does not match its payload");
+      Result.Columns.Reserve_Capacity (Ada.Containers.Count_Type (Count));
+      for Index in 1 .. Natural (Count) loop
+         pragma Unreferenced (Index);
+         declare
+            Code : UInt16;
+         begin
+            Read_U16_At (Contents, Cursor, Code, Context & " column format");
+            Require
+              (Wire.Copy_Format_Code_Is_Valid (Code),
+               Context & " has an invalid column format code");
+            Result.Columns.Append
+              ((if Code = 0 then Text_Format else Binary_Format));
+         end;
+      end loop;
+      Require (Cursor = Contents'Length, Context & " has trailing data");
+      return Result;
+   end Decode_Copy_Format_Description;
+
    function Decode_Backend (Item : Message) return Backend_Message is
       Contents : constant Byte_Array := Payload (Item);
    begin
@@ -893,6 +995,29 @@ package body Flyology.Postgres.Protocol is
          when 's' =>
             Require_Empty_Backend_Payload (Contents, "PortalSuspended");
             return (Response => Portal_Suspended_Response, Raw => Item);
+         when 'G' =>
+            return
+              (Response          => Copy_In_Response,
+               Raw               => Item,
+               Copy_Format_Value =>
+                 Decode_Copy_Format_Description (Item, "CopyInResponse"));
+         when 'H' =>
+            return
+              (Response          => Copy_Out_Response,
+               Raw               => Item,
+               Copy_Format_Value =>
+                 Decode_Copy_Format_Description (Item, "CopyOutResponse"));
+         when 'W' =>
+            return
+              (Response          => Copy_Both_Response,
+               Raw               => Item,
+               Copy_Format_Value =>
+                 Decode_Copy_Format_Description (Item, "CopyBothResponse"));
+         when 'd' =>
+            return (Response => Copy_Data_Response, Raw => Item);
+         when 'c' =>
+            Require_Empty_Backend_Payload (Contents, "CopyDone");
+            return (Response => Copy_Done_Response, Raw => Item);
          when 'Z' =>
             Require
               (Contents'Length = 1,
@@ -970,6 +1095,40 @@ package body Flyology.Postgres.Protocol is
          "backend response is not ParameterDescription");
       return Item.Parameter_Description_Value;
    end Parameter_Types;
+
+   function Overall_Format
+     (Item : Copy_Format_Description) return Field_Format is (Item.Overall);
+
+   function Copy_Column_Count
+     (Item : Copy_Format_Description) return Natural is
+     (Natural (Item.Columns.Length));
+
+   function Copy_Column_Format
+     (Item : Copy_Format_Description; Index : Positive) return Field_Format is
+   begin
+      if Index > Copy_Column_Count (Item) then
+         raise Constraint_Error with "COPY column format index is invalid";
+      end if;
+      return Item.Columns.Element (Index);
+   end Copy_Column_Format;
+
+   function Copy_Formats
+     (Item : Backend_Message) return Copy_Format_Description is
+   begin
+      Require
+        (Item.Response in Copy_In_Response | Copy_Out_Response |
+           Copy_Both_Response,
+         "backend response is not a COPY response");
+      return Item.Copy_Format_Value;
+   end Copy_Formats;
+
+   function Copy_Data (Item : Backend_Message) return Byte_Array is
+   begin
+      Require
+        (Item.Response = Copy_Data_Response,
+         "backend response is not CopyData");
+      return Payload (Item.Raw);
+   end Copy_Data;
 
    function Transaction_State
      (Item : Backend_Message) return Transaction_Status is
