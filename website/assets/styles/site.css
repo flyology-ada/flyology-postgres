@@ -275,6 +275,7 @@ code:not(pre code) {
 }
 
 .external-link-icon {
+  display: inline-block;
   width: 0.78rem;
   height: 0.78rem;
   margin-left: 0.22rem;
