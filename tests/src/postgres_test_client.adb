@@ -1,4 +1,5 @@
 with Ada.Environment_Variables;
+with Ada.Exceptions;
 with Ada.Text_IO;
 with Flyology;
 with Flyology.IO.Sockets;
@@ -16,7 +17,10 @@ procedure Postgres_Test_Client is
    package Transports renames Flyology.Postgres.Transports.Sockets;
 
    use type Protocol.Backend_Message_Kind;
+   use type Protocol.Field_Format;
    use type Protocol.Transaction_Status;
+   use type Protocol.UInt32;
+   use type Client.Operation_State;
 
    protected Result is
       procedure Pass;
@@ -350,6 +354,261 @@ procedure Postgres_Test_Client is
          Check (Saw_Status);
       end;
 
+      declare
+         Binary_Five : constant Protocol.Byte_Array (1 .. 4) :=
+           (1 => 0, 2 => 0, 3 => 0, 4 => 5);
+         Binary_Bytea : constant Protocol.Byte_Array (1 .. 2) :=
+           (1 => 0, 2 => 16#FF#);
+         Rows : Natural := 0;
+         Saw_Parameter_Description : Boolean := False;
+         Saw_Statement_Description : Boolean := False;
+         Saw_Portal_Description : Boolean := False;
+         Saw_Suspension : Boolean := False;
+         Completed : Boolean := False;
+      begin
+         Client.Prepare_Statement
+           (Session,
+            Statement_Name  => "flyology_named",
+            SQL             =>
+              "select $1::int4 + $2::int4 as total, $3::text as label, "
+              & "$4::bytea as payload, $5::text as optional, n "
+              & "from generate_series(1, 3) n order by n",
+            Parameter_Types => (23, 23, 25, 17, 25),
+            Timeout         => 5.0);
+         Client.Describe_Statement
+           (Session, "flyology_named", Timeout => 5.0);
+         Client.Bind_Portal
+           (Session,
+            Portal_Name    => "flyology_portal",
+            Statement_Name => "flyology_named",
+            Parameters     =>
+              (Protocol.Text_Parameter ("7"),
+               Protocol.Binary_Parameter (Binary_Five),
+               Protocol.Text_Parameter ("hello"),
+               Protocol.Binary_Parameter (Binary_Bytea),
+               Protocol.Null_Parameter (Protocol.Binary_Format)),
+            Result_Formats =>
+              (Protocol.Text_Format,
+               Protocol.Binary_Format,
+               Protocol.Text_Format,
+               Protocol.Binary_Format,
+               Protocol.Text_Format),
+            Timeout => 5.0);
+         Client.Describe_Portal
+           (Session, "flyology_portal", Timeout => 5.0);
+         Client.Execute_Portal
+           (Session,
+            "flyology_portal",
+            Maximum_Rows => 2,
+            Timeout      => 5.0);
+         Client.Flush (Session, Timeout => 5.0);
+
+         loop
+            declare
+               Event : constant Client.Extended_Query_Event :=
+                 Client.Receive_Extended_Event (Session, Timeout => 5.0);
+            begin
+               case Protocol.Response_Kind (Event) is
+                  when Protocol.Parameter_Description_Response =>
+                     declare
+                        Types : constant Protocol.Parameter_Description :=
+                          Protocol.Parameter_Types (Event);
+                     begin
+                        Saw_Parameter_Description :=
+                          Protocol.Parameter_Count (Types) = 5
+                          and then Protocol.Parameter_Type_At (Types, 1) = 23
+                          and then Protocol.Parameter_Type_At (Types, 4) = 17;
+                     end;
+                  when Protocol.Row_Description_Response =>
+                     declare
+                        Description : constant Protocol.Row_Description :=
+                          Protocol.Description (Event);
+                     begin
+                        Check (Protocol.Field_Count (Description) = 5);
+                        if Protocol.Format
+                          (Protocol.Field_At (Description, 2)) =
+                            Protocol.Binary_Format
+                        then
+                           Saw_Portal_Description := True;
+                        else
+                           Saw_Statement_Description := True;
+                        end if;
+                     end;
+                  when Protocol.Data_Row_Response =>
+                     Rows := Rows + 1;
+                     declare
+                        Row : constant Protocol.Data_Row :=
+                          Protocol.Row_Data (Event);
+                     begin
+                        Check
+                          (Protocol.Column_Count (Row) = 5
+                           and then Protocol.Column_Text
+                             (Protocol.Column_At (Row, 1)) = "12"
+                           and then Protocol.Column_Text
+                             (Protocol.Column_At (Row, 2)) = "hello"
+                           and then Protocol.Column_Text
+                             (Protocol.Column_At (Row, 3)) = "\x00ff"
+                           and then Protocol.Is_Null
+                             (Protocol.Column_At (Row, 4))
+                           and then Protocol.Column_Text
+                             (Protocol.Column_At (Row, 5)) =
+                               Rows'Image (2 .. 2));
+                     end;
+                  when Protocol.Portal_Suspended_Response =>
+                     Saw_Suspension := True;
+                  when Protocol.Error_Response =>
+                     Check (False);
+                  when others =>
+                     null;
+               end case;
+               exit when Protocol.Response_Kind (Event) =
+                 Protocol.Portal_Suspended_Response;
+            end;
+         end loop;
+         Check
+           (Rows = 2
+            and then Saw_Parameter_Description
+            and then Saw_Statement_Description
+            and then Saw_Portal_Description
+            and then Saw_Suspension);
+
+         Client.Resume_Portal
+           (Session,
+            "flyology_portal",
+            Maximum_Rows => 2,
+            Timeout      => 5.0);
+         Client.Flush (Session, Timeout => 5.0);
+         loop
+            declare
+               Event : constant Client.Extended_Query_Event :=
+                 Client.Receive_Extended_Event (Session, Timeout => 5.0);
+            begin
+               if Protocol.Response_Kind (Event) = Protocol.Data_Row_Response
+               then
+                  Rows := Rows + 1;
+               elsif Protocol.Response_Kind (Event) =
+                 Protocol.Command_Complete_Response
+               then
+                  Completed := Protocol.Completion_Tag (Event) = "SELECT 1";
+               elsif Protocol.Response_Kind (Event) = Protocol.Error_Response
+               then
+                  Check (False);
+               end if;
+               exit when Protocol.Response_Kind (Event) =
+                 Protocol.Command_Complete_Response;
+            end;
+         end loop;
+         Check (Rows = 3 and then Completed);
+
+         Client.Close_Portal
+           (Session, "flyology_portal", Timeout => 5.0);
+         Client.Close_Statement
+           (Session, "flyology_named", Timeout => 5.0);
+         Client.Synchronize (Session, Timeout => 5.0);
+         declare
+            Closed : Natural := 0;
+         begin
+            loop
+               declare
+                  Event : constant Client.Extended_Query_Event :=
+                    Client.Receive_Extended_Event (Session, Timeout => 5.0);
+               begin
+                  if Protocol.Response_Kind (Event) =
+                    Protocol.Close_Complete_Response
+                  then
+                     Closed := Closed + 1;
+                  elsif Protocol.Response_Kind (Event) =
+                    Protocol.Error_Response
+                  then
+                     Check (False);
+                  end if;
+                  exit when Protocol.Response_Kind (Event) =
+                    Protocol.Ready_For_Query_Response;
+               end;
+            end loop;
+            Check
+              (Closed = 2
+               and then Client.State (Session) = Client.Ready);
+         end;
+      end;
+
+      Client.Prepare_Statement
+        (Session,
+         Statement_Name  => "",
+         SQL             => "select $1::text, $2::int4",
+         Parameter_Types => (25, 23),
+         Timeout         => 5.0);
+      Client.Bind_Portal
+        (Session,
+         Portal_Name    => "",
+         Statement_Name => "",
+         Parameters     =>
+           (Protocol.Text_Parameter ("unnamed"),
+            Protocol.Text_Parameter ("9")),
+         Timeout => 5.0);
+      Client.Describe_Portal (Session, "", Timeout => 5.0);
+      Client.Execute_Portal (Session, "", Timeout => 5.0);
+      Client.Close_Portal (Session, "", Timeout => 5.0);
+      Client.Close_Statement (Session, "", Timeout => 5.0);
+      Client.Synchronize (Session, Timeout => 5.0);
+      declare
+         Saw_Unnamed_Row : Boolean := False;
+         Closed          : Natural := 0;
+      begin
+         loop
+            declare
+               Event : constant Client.Extended_Query_Event :=
+                 Client.Receive_Extended_Event (Session, Timeout => 5.0);
+            begin
+               if Protocol.Response_Kind (Event) = Protocol.Data_Row_Response
+               then
+                  declare
+                     Row : constant Protocol.Data_Row :=
+                       Protocol.Row_Data (Event);
+                  begin
+                     Saw_Unnamed_Row :=
+                       Protocol.Column_Text (Protocol.Column_At (Row, 1)) =
+                         "unnamed"
+                       and then Protocol.Column_Text
+                         (Protocol.Column_At (Row, 2)) = "9";
+                  end;
+               elsif Protocol.Response_Kind (Event) =
+                 Protocol.Close_Complete_Response
+               then
+                  Closed := Closed + 1;
+               elsif Protocol.Response_Kind (Event) = Protocol.Error_Response
+               then
+                  Check (False);
+               end if;
+               exit when Protocol.Response_Kind (Event) =
+                 Protocol.Ready_For_Query_Response;
+            end;
+         end loop;
+         Check (Saw_Unnamed_Row and then Closed = 2);
+      end;
+
+      Client.Prepare_Statement
+        (Session, "broken", "select +", Timeout => 5.0);
+      Client.Flush (Session, Timeout => 5.0);
+      declare
+         Event : constant Client.Extended_Query_Event :=
+           Client.Receive_Extended_Event (Session, Timeout => 5.0);
+      begin
+         Check
+           (Protocol.Response_Kind (Event) = Protocol.Error_Response
+            and then Client.State (Session) = Client.Recovery_Required);
+      end;
+      Client.Synchronize (Session, Timeout => 5.0);
+      declare
+         Event : constant Client.Extended_Query_Event :=
+           Client.Receive_Extended_Event (Session, Timeout => 5.0);
+      begin
+         Check
+           (Protocol.Response_Kind (Event) =
+              Protocol.Ready_For_Query_Response
+            and then Client.State (Session) = Client.Ready);
+      end;
+
       Client.Send_Query (Session, "select pg_sleep(30)", Timeout => 5.0);
       declare
          task Canceller is
@@ -388,7 +647,10 @@ procedure Postgres_Test_Client is
          Result.Fail;
       end if;
    exception
-      when others =>
+      when Error : others =>
+         Ada.Text_IO.Put_Line
+           (Ada.Text_IO.Standard_Error,
+            Ada.Exceptions.Exception_Information (Error));
          if Sockets.Is_Open (Socket) then
             Sockets.Close_Socket (Socket);
          end if;

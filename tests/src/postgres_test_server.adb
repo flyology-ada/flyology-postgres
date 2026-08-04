@@ -61,6 +61,18 @@ procedure Postgres_Test_Server is
       pragma Unreferenced (State);
       Timeout : constant Duration := 5.0;
    begin
+      if Protocol.Kind (Command) in Protocol.Parse |
+         Protocol.Bind |
+         Protocol.Describe |
+         Protocol.Execute |
+         Protocol.Close |
+         Protocol.Flush |
+         Protocol.Sync
+      then
+         Ada.Text_IO.Put_Line
+           ("frontend " & Protocol.Kind (Command)'Image);
+         Ada.Text_IO.Flush;
+      end if;
       case Protocol.Kind (Command) is
          when Protocol.Query =>
             declare

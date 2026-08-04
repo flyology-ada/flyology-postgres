@@ -8,6 +8,7 @@ package Flyology.Postgres.Protocol is
 
    use type Interfaces.Integer_16;
    use type Interfaces.Integer_32;
+   use type Interfaces.Unsigned_32;
 
    subtype Byte is Ada.Streams.Stream_Element;
    subtype Byte_Array is Ada.Streams.Stream_Element_Array;
@@ -49,6 +50,48 @@ package Flyology.Postgres.Protocol is
    function Payload_Length (Item : Message) return Natural;
    function Encode (Item : Message) return Byte_Array;
 
+   type Object_Kind is (Statement_Object, Portal_Object);
+   subtype Row_Limit is Int32 range 0 .. Int32'Last;
+
+   type Oid_Array is array (Positive range <>) of UInt32;
+   No_Oids : constant Oid_Array (1 .. 0) := (others => 0);
+
+   type Field_Format is (Text_Format, Binary_Format);
+   type Field_Format_Array is array (Positive range <>) of Field_Format;
+   No_Formats : constant Field_Format_Array (1 .. 0) :=
+     (others => Text_Format);
+
+   type Bind_Parameter is private;
+   type Bind_Parameter_Array is
+     array (Positive range <>) of Bind_Parameter;
+   No_Parameters : constant Bind_Parameter_Array (1 .. 0);
+
+   function Null_Parameter
+     (Format : Field_Format := Text_Format) return Bind_Parameter;
+   function Text_Parameter (Value : String) return Bind_Parameter;
+   function Binary_Parameter (Value : Byte_Array) return Bind_Parameter;
+   function Is_Null (Item : Bind_Parameter) return Boolean;
+   function Parameter_Format (Item : Bind_Parameter) return Field_Format;
+   function Parameter_Bytes (Item : Bind_Parameter) return Byte_Array;
+
+   function Make_Parse_Message
+     (Statement_Name  : String;
+      SQL             : String;
+      Parameter_Types : Oid_Array := No_Oids) return Message;
+   function Make_Bind_Message
+     (Portal_Name    : String;
+      Statement_Name : String;
+      Parameters     : Bind_Parameter_Array := No_Parameters;
+      Result_Formats : Field_Format_Array := No_Formats) return Message;
+   function Make_Describe_Message
+     (Object_Type : Object_Kind; Name : String) return Message;
+   function Make_Execute_Message
+     (Portal_Name : String; Maximum_Rows : Row_Limit := 0) return Message;
+   function Make_Close_Message
+     (Object_Type : Object_Kind; Name : String) return Message;
+   function Make_Flush_Message return Message;
+   function Make_Sync_Message return Message;
+
    type Backend_Message_Kind is
      (Row_Description_Response,
       Data_Row_Response,
@@ -57,10 +100,14 @@ package Flyology.Postgres.Protocol is
       Error_Response,
       Notice_Response,
       Parameter_Status_Response,
+      Parse_Complete_Response,
+      Bind_Complete_Response,
+      Close_Complete_Response,
+      Parameter_Description_Response,
+      No_Data_Response,
+      Portal_Suspended_Response,
       Ready_For_Query_Response,
       Unknown_Response);
-
-   type Field_Format is (Text_Format, Binary_Format);
 
    type Field_Description is private;
    type Field_Description_Array is
@@ -116,6 +163,11 @@ package Flyology.Postgres.Protocol is
    function Parameter_Name (Item : Parameter_Status) return String;
    function Parameter_Value (Item : Parameter_Status) return String;
 
+   type Parameter_Description is private;
+   function Parameter_Count (Item : Parameter_Description) return Natural;
+   function Parameter_Type_At
+     (Item : Parameter_Description; Index : Positive) return UInt32;
+
    type Transaction_Status is
      (Idle, In_Transaction, Failed_Transaction);
 
@@ -130,6 +182,8 @@ package Flyology.Postgres.Protocol is
    function Completion_Tag (Item : Backend_Message) return String;
    function Diagnostic_Data (Item : Backend_Message) return Diagnostic;
    function Parameter_Data (Item : Backend_Message) return Parameter_Status;
+   function Parameter_Types
+     (Item : Backend_Message) return Parameter_Description;
    function Transaction_State
      (Item : Backend_Message) return Transaction_Status;
    function Original_Message (Item : Backend_Message) return Message;
@@ -188,6 +242,18 @@ private
       Data : Flyology.Bytes.Unbounded_Bytes;
    end record;
 
+   type Bind_Parameter is record
+      Null_Value   : Boolean := True;
+      Format_Value : Field_Format := Text_Format;
+      Bytes        : Flyology.Bytes.Unbounded_Bytes;
+   end record;
+
+   No_Parameters : constant Bind_Parameter_Array (1 .. 0) :=
+     (others =>
+        (Null_Value   => True,
+         Format_Value => Text_Format,
+         Bytes        => Flyology.Bytes.Empty));
+
    type Field_Description is record
       Name_Value                    : Ada.Strings.Unbounded.Unbounded_String;
       Table_Oid_Value               : UInt32 := 0;
@@ -237,6 +303,13 @@ private
       Value : Ada.Strings.Unbounded.Unbounded_String;
    end record;
 
+   package Oid_Vectors is new Ada.Containers.Vectors
+     (Index_Type => Positive, Element_Type => UInt32);
+
+   type Parameter_Description is record
+      Types : Oid_Vectors.Vector;
+   end record;
+
    type Backend_Message (Response : Backend_Message_Kind := Unknown_Response)
    is record
       Raw : Message;
@@ -251,9 +324,17 @@ private
             Diagnostic_Value : Diagnostic;
          when Parameter_Status_Response =>
             Parameter_Status_Value : Parameter_Status;
+         when Parameter_Description_Response =>
+            Parameter_Description_Value : Parameter_Description;
          when Ready_For_Query_Response =>
             Transaction_Status_Value : Transaction_Status := Idle;
-         when Empty_Query_Response | Unknown_Response =>
+         when Empty_Query_Response |
+              Parse_Complete_Response |
+              Bind_Complete_Response |
+              Close_Complete_Response |
+              No_Data_Response |
+              Portal_Suspended_Response |
+              Unknown_Response =>
             null;
       end case;
    end record;

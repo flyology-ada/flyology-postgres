@@ -10,6 +10,15 @@ package Flyology.Postgres.Client is
    type Session
      (Channel : not null access Transports.Transport'Class) is limited private;
 
+   type Operation_State is
+     (Not_Started,
+      Ready,
+      Simple_Query_Active,
+      Extended_Query_Active,
+      Recovery_Required,
+      Awaiting_Ready,
+      Closed);
+
    procedure Startup
      (Item             : in out Session;
       User             : String;
@@ -44,7 +53,58 @@ package Flyology.Postgres.Client is
      (Item : in out Session; Timeout : Duration := 30.0)
       return Simple_Query_Event;
 
+   procedure Prepare_Statement
+     (Item            : in out Session;
+      Statement_Name  : String;
+      SQL             : String;
+      Parameter_Types : Protocol.Oid_Array := Protocol.No_Oids;
+      Timeout         : Duration := 30.0);
+   procedure Bind_Portal
+     (Item           : in out Session;
+      Portal_Name    : String;
+      Statement_Name : String;
+      Parameters     : Protocol.Bind_Parameter_Array :=
+        Protocol.No_Parameters;
+      Result_Formats : Protocol.Field_Format_Array := Protocol.No_Formats;
+      Timeout        : Duration := 30.0);
+   procedure Describe_Statement
+     (Item           : in out Session;
+      Statement_Name : String;
+      Timeout        : Duration := 30.0);
+   procedure Describe_Portal
+     (Item        : in out Session;
+      Portal_Name : String;
+      Timeout     : Duration := 30.0);
+   procedure Execute_Portal
+      (Item         : in out Session;
+      Portal_Name  : String;
+      Maximum_Rows : Protocol.Row_Limit := 0;
+      Timeout      : Duration := 30.0);
+   procedure Resume_Portal
+      (Item         : in out Session;
+      Portal_Name  : String;
+      Maximum_Rows : Protocol.Row_Limit := 0;
+      Timeout      : Duration := 30.0);
+   procedure Close_Statement
+     (Item           : in out Session;
+      Statement_Name : String;
+      Timeout        : Duration := 30.0);
+   procedure Close_Portal
+     (Item        : in out Session;
+      Portal_Name : String;
+      Timeout     : Duration := 30.0);
+   procedure Flush
+     (Item : in out Session; Timeout : Duration := 30.0);
+   procedure Synchronize
+     (Item : in out Session; Timeout : Duration := 30.0);
+
+   subtype Extended_Query_Event is Protocol.Backend_Message;
+   function Receive_Extended_Event
+     (Item : in out Session; Timeout : Duration := 30.0)
+      return Extended_Query_Event;
+
    function Is_Ready (Item : Session) return Boolean;
+   function State (Item : Session) return Operation_State;
    function Backend_Process_Id (Item : Session) return Protocol.UInt32;
    function Backend_Secret_Key (Item : Session) return Protocol.Byte_Array;
 
@@ -54,11 +114,11 @@ package Flyology.Postgres.Client is
 private
    type Session
      (Channel : not null access Transports.Transport'Class) is limited record
-      Started : Boolean := False;
-      Ready   : Boolean := False;
-      Query_Active : Boolean := False;
+      Current_State : Operation_State := Not_Started;
       Has_Row_Description : Boolean := False;
       Described_Columns : Natural := 0;
+      Bound_In_Cycle : Boolean := False;
+      Portal_Is_Suspended : Boolean := False;
       Pid     : Protocol.UInt32 := 0;
       Secret  : Flyology.Bytes.Unbounded_Bytes;
    end record;

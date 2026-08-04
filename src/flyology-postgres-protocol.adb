@@ -29,6 +29,18 @@ package body Flyology.Postgres.Protocol is
       end if;
    end Require;
 
+   procedure Require_Room
+     (Target      : Flyology.Bytes.Unbounded_Bytes;
+      Additional  : Natural;
+      Context     : String) is
+      Current : constant Natural := Flyology.Bytes.Length (Target);
+      Limit   : constant Natural := Maximum_Message_Size - 4;
+   begin
+      Require
+        (Current <= Limit and then Additional <= Limit - Current,
+         Context & " exceeds the configured limit");
+   end Require_Room;
+
    function View_To_String
      (Source : Byte_Array; View : Wire.Byte_View) return String is
       Result : String (1 .. Natural (View.Length));
@@ -215,6 +227,221 @@ package body Flyology.Postgres.Protocol is
       return Flyology.Bytes.To_Array (Result);
    end Encode;
 
+   function Null_Parameter
+     (Format : Field_Format := Text_Format) return Bind_Parameter is
+     ((Null_Value   => True,
+       Format_Value => Format,
+       Bytes        => Flyology.Bytes.Empty));
+
+   function Text_Parameter (Value : String) return Bind_Parameter is
+   begin
+      Require
+        (Value'Length <= Maximum_Message_Size - 8,
+         "text parameter exceeds the configured limit");
+      return
+        (Null_Value   => False,
+         Format_Value => Text_Format,
+         Bytes        => Flyology.Bytes.From_Byte_String (Value));
+   end Text_Parameter;
+
+   function Binary_Parameter (Value : Byte_Array) return Bind_Parameter is
+   begin
+      Require
+        (Value'Length <= Maximum_Message_Size - 8,
+         "binary parameter exceeds the configured limit");
+      return
+        (Null_Value   => False,
+         Format_Value => Binary_Format,
+         Bytes        => Flyology.Bytes.To_Unbounded_Bytes (Value));
+   end Binary_Parameter;
+
+   function Is_Null (Item : Bind_Parameter) return Boolean is
+     (Item.Null_Value);
+
+   function Parameter_Format (Item : Bind_Parameter) return Field_Format is
+     (Item.Format_Value);
+
+   function Parameter_Bytes (Item : Bind_Parameter) return Byte_Array is
+   begin
+      Require (not Item.Null_Value, "a NULL parameter has no value bytes");
+      return Flyology.Bytes.To_Array (Item.Bytes);
+   end Parameter_Bytes;
+
+   function Format_Code (Value : Field_Format) return UInt16 is
+     (if Value = Text_Format then 0 else 1);
+
+   function Parameter_Format_Count
+     (Parameters : Bind_Parameter_Array) return Natural is
+   begin
+      if Parameters'Length = 0 then
+         return 0;
+      end if;
+      declare
+         First : constant Field_Format :=
+           Parameters (Parameters'First).Format_Value;
+      begin
+         if (for all Item of Parameters =>
+               Item.Format_Value = Text_Format)
+         then
+            return 0;
+         elsif (for all Item of Parameters => Item.Format_Value = First) then
+            return 1;
+         else
+            return Parameters'Length;
+         end if;
+      end;
+   end Parameter_Format_Count;
+
+   function Result_Format_Count
+     (Formats : Field_Format_Array) return Natural is
+   begin
+      if Formats'Length = 0
+        or else (for all Item of Formats => Item = Text_Format)
+      then
+         return 0;
+      elsif (for all Item of Formats => Item = Formats (Formats'First)) then
+         return 1;
+      else
+         return Formats'Length;
+      end if;
+   end Result_Format_Count;
+
+   function Make_Parse_Message
+     (Statement_Name  : String;
+      SQL             : String;
+      Parameter_Types : Oid_Array := No_Oids) return Message is
+      Contents : Flyology.Bytes.Unbounded_Bytes;
+   begin
+      Require
+        (Parameter_Types'Length <= Natural (UInt16'Last),
+         "Parse has too many parameter type OIDs");
+      Require_Room
+        (Contents, Statement_Name'Length + 1, "Parse message");
+      Append_C_String (Contents, Statement_Name);
+      Require_Room (Contents, SQL'Length + 1, "Parse message");
+      Append_C_String (Contents, SQL);
+      Require_Room
+        (Contents, 2 + 4 * Parameter_Types'Length, "Parse message");
+      Append_U16 (Contents, UInt16 (Parameter_Types'Length));
+      for Oid of Parameter_Types loop
+         Append_U32 (Contents, Oid);
+      end loop;
+      return Make_Message ('P', Flyology.Bytes.To_Array (Contents));
+   end Make_Parse_Message;
+
+   function Make_Bind_Message
+     (Portal_Name    : String;
+      Statement_Name : String;
+      Parameters     : Bind_Parameter_Array := No_Parameters;
+      Result_Formats : Field_Format_Array := No_Formats) return Message is
+      Contents              : Flyology.Bytes.Unbounded_Bytes;
+      Parameter_Code_Count  : Natural;
+      Result_Code_Count     : Natural;
+   begin
+      Require
+        (Parameters'Length <= Natural (UInt16'Last),
+         "Bind has too many parameters");
+      Require
+        (Result_Formats'Length <= Natural (UInt16'Last),
+         "Bind has too many result format codes");
+      Parameter_Code_Count := Parameter_Format_Count (Parameters);
+      Result_Code_Count := Result_Format_Count (Result_Formats);
+      Require
+        (Wire.Format_Count_Is_Valid
+           (UInt16 (Parameter_Code_Count), UInt16 (Parameters'Length)),
+         "Bind parameter format-code count is invalid");
+
+      Require_Room (Contents, Portal_Name'Length + 1, "Bind message");
+      Append_C_String (Contents, Portal_Name);
+      Require_Room (Contents, Statement_Name'Length + 1, "Bind message");
+      Append_C_String (Contents, Statement_Name);
+      Require_Room
+        (Contents, 2 + 2 * Parameter_Code_Count, "Bind message");
+      Append_U16 (Contents, UInt16 (Parameter_Code_Count));
+      if Parameter_Code_Count = 1 then
+         Append_U16
+           (Contents,
+            Format_Code (Parameters (Parameters'First).Format_Value));
+      elsif Parameter_Code_Count > 1 then
+         for Item of Parameters loop
+            Append_U16 (Contents, Format_Code (Item.Format_Value));
+         end loop;
+      end if;
+
+      Require_Room (Contents, 2, "Bind message");
+      Append_U16 (Contents, UInt16 (Parameters'Length));
+      for Item of Parameters loop
+         Require_Room (Contents, 4, "Bind message");
+         if Item.Null_Value then
+            Append_U32 (Contents, UInt32'Last);
+         else
+            declare
+               Bytes : constant Byte_Array :=
+                 Flyology.Bytes.To_Array (Item.Bytes);
+            begin
+               Require_Room (Contents, Bytes'Length, "Bind message");
+               Append_U32 (Contents, UInt32 (Bytes'Length));
+               Append_Bytes (Contents, Bytes);
+            end;
+         end if;
+      end loop;
+
+      Require_Room
+        (Contents, 2 + 2 * Result_Code_Count, "Bind message");
+      Append_U16 (Contents, UInt16 (Result_Code_Count));
+      if Result_Code_Count = 1 then
+         Append_U16
+           (Contents, Format_Code (Result_Formats (Result_Formats'First)));
+      elsif Result_Code_Count > 1 then
+         for Item of Result_Formats loop
+            Append_U16 (Contents, Format_Code (Item));
+         end loop;
+      end if;
+      return Make_Message ('B', Flyology.Bytes.To_Array (Contents));
+   end Make_Bind_Message;
+
+   function Make_Describe_Message
+     (Object_Type : Object_Kind; Name : String) return Message is
+      Contents : Flyology.Bytes.Unbounded_Bytes;
+   begin
+      Require_Room (Contents, Name'Length + 2, "Describe message");
+      Append_Byte
+        (Contents,
+         Byte (Character'Pos
+           (if Object_Type = Statement_Object then 'S' else 'P')));
+      Append_C_String (Contents, Name);
+      return Make_Message ('D', Flyology.Bytes.To_Array (Contents));
+   end Make_Describe_Message;
+
+   function Make_Execute_Message
+     (Portal_Name : String; Maximum_Rows : Row_Limit := 0) return Message is
+      Contents : Flyology.Bytes.Unbounded_Bytes;
+   begin
+      Require_Room (Contents, Portal_Name'Length + 5, "Execute message");
+      Append_C_String (Contents, Portal_Name);
+      Append_U32 (Contents, UInt32 (Maximum_Rows));
+      return Make_Message ('E', Flyology.Bytes.To_Array (Contents));
+   end Make_Execute_Message;
+
+   function Make_Close_Message
+     (Object_Type : Object_Kind; Name : String) return Message is
+      Contents : Flyology.Bytes.Unbounded_Bytes;
+   begin
+      Require_Room (Contents, Name'Length + 2, "Close message");
+      Append_Byte
+        (Contents,
+         Byte (Character'Pos
+           (if Object_Type = Statement_Object then 'S' else 'P')));
+      Append_C_String (Contents, Name);
+      return Make_Message ('C', Flyology.Bytes.To_Array (Contents));
+   end Make_Close_Message;
+
+   function Make_Flush_Message return Message is
+     (Make_Empty_Message ('H'));
+
+   function Make_Sync_Message return Message is
+     (Make_Empty_Message ('S'));
+
    function Make_Field_Description
      (Name                    : String;
       Table_Oid               : UInt32 := 0;
@@ -335,6 +562,19 @@ package body Flyology.Postgres.Protocol is
 
    function Parameter_Value (Item : Parameter_Status) return String is
      (To_String (Item.Value));
+
+   function Parameter_Count (Item : Parameter_Description) return Natural is
+     (Natural (Item.Types.Length));
+
+   function Parameter_Type_At
+     (Item : Parameter_Description; Index : Positive) return UInt32 is
+   begin
+      if Index > Parameter_Count (Item) then
+         raise Constraint_Error with
+           "ParameterDescription parameter index is invalid";
+      end if;
+      return Item.Types.Element (Index);
+   end Parameter_Type_At;
 
    function Signed_16 (Value : UInt16) return Int16 is
      (if Value <= UInt16 (Int16'Last)
@@ -542,6 +782,43 @@ package body Flyology.Postgres.Protocol is
          Value => To_Unbounded_String (View_To_String (Contents, Value)));
    end Decode_Parameter_Status;
 
+   function Decode_Parameter_Description
+     (Item : Message) return Parameter_Description is
+      Contents : constant Byte_Array := Payload (Item);
+      Cursor   : Wire.Wire_Length := 0;
+      Count    : UInt16;
+      Result   : Parameter_Description;
+   begin
+      Read_U16_At
+        (Contents, Cursor, Count, "ParameterDescription parameter count");
+      Require
+        (Wire.Count_Fits
+           (Contents'Length - Cursor, Count, Minimum_Item_Length => 4),
+         "ParameterDescription count exceeds its payload");
+      Result.Types.Reserve_Capacity (Ada.Containers.Count_Type (Count));
+      for Index in 1 .. Natural (Count) loop
+         pragma Unreferenced (Index);
+         declare
+            Value : UInt32;
+         begin
+            Read_U32_At
+              (Contents, Cursor, Value, "ParameterDescription type OID");
+            Result.Types.Append (Value);
+         end;
+      end loop;
+      Require
+        (Cursor = Contents'Length,
+         "ParameterDescription has trailing payload data");
+      return Result;
+   end Decode_Parameter_Description;
+
+   procedure Require_Empty_Backend_Payload
+     (Contents : Byte_Array; Context : String) is
+   begin
+      Require
+        (Contents'Length = 0, Context & " must have an empty payload");
+   end Require_Empty_Backend_Payload;
+
    function Decode_C_String_Payload
      (Item : Message; Context : String) return String is
       Contents : constant Byte_Array := Payload (Item);
@@ -559,6 +836,15 @@ package body Flyology.Postgres.Protocol is
       Contents : constant Byte_Array := Payload (Item);
    begin
       case Code (Item) is
+         when '1' =>
+            Require_Empty_Backend_Payload (Contents, "ParseComplete");
+            return (Response => Parse_Complete_Response, Raw => Item);
+         when '2' =>
+            Require_Empty_Backend_Payload (Contents, "BindComplete");
+            return (Response => Bind_Complete_Response, Raw => Item);
+         when '3' =>
+            Require_Empty_Backend_Payload (Contents, "CloseComplete");
+            return (Response => Close_Complete_Response, Raw => Item);
          when 'T' =>
             return
               (Response              => Row_Description_Response,
@@ -595,6 +881,18 @@ package body Flyology.Postgres.Protocol is
               (Response               => Parameter_Status_Response,
                Raw                    => Item,
                Parameter_Status_Value => Decode_Parameter_Status (Item));
+         when 't' =>
+            return
+              (Response                    => Parameter_Description_Response,
+               Raw                         => Item,
+               Parameter_Description_Value =>
+                 Decode_Parameter_Description (Item));
+         when 'n' =>
+            Require_Empty_Backend_Payload (Contents, "NoData");
+            return (Response => No_Data_Response, Raw => Item);
+         when 's' =>
+            Require_Empty_Backend_Payload (Contents, "PortalSuspended");
+            return (Response => Portal_Suspended_Response, Raw => Item);
          when 'Z' =>
             Require
               (Contents'Length = 1,
@@ -663,6 +961,15 @@ package body Flyology.Postgres.Protocol is
          "backend response is not ParameterStatus");
       return Item.Parameter_Status_Value;
    end Parameter_Data;
+
+   function Parameter_Types
+     (Item : Backend_Message) return Parameter_Description is
+   begin
+      Require
+        (Item.Response = Parameter_Description_Response,
+         "backend response is not ParameterDescription");
+      return Item.Parameter_Description_Value;
+   end Parameter_Types;
 
    function Transaction_State
      (Item : Backend_Message) return Transaction_Status is

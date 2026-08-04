@@ -8,11 +8,12 @@ protocol over Flyology I/O. It provides both:
   handlers.
 
 The current development baseline implements protocol 3.2 framing and startup,
-typed streaming simple-query results, trust, cleartext-password, and SCRAM-SHA-256
-authentication, and raw dispatch of every normal frontend command. It interoperates
-in both directions with Postgres 18.4: the test client connects to a real Postgres
-SCRAM server, and `psql` connects to the Flyology SCRAM test server. Cancellation uses
-the official separate-connection flow in both directions.
+typed streaming simple- and extended-query results, prepared statements and
+portals, trust, cleartext-password, and SCRAM-SHA-256 authentication, and raw dispatch
+of every normal frontend command. It interoperates in both directions with Postgres
+18.4: the test client connects to a real Postgres SCRAM server, and `psql` connects to
+the Flyology SCRAM test server. Cancellation uses the official separate-connection
+flow in both directions.
 
 ## Development setup
 
@@ -45,11 +46,23 @@ its one-byte tag and complete payload; `Kind` classifies all protocol 3 frontend
 Unknown future tags are preserved as `Unknown` messages rather than discarded.
 `Decode_Backend` adds an owned typed view of `RowDescription`, `DataRow`,
 `CommandComplete`, `EmptyQueryResponse`, `ErrorResponse`, `NoticeResponse`,
-`ParameterStatus`, and `ReadyForQuery`. `Original_Message` retains the raw lower-level
-message. Row descriptions expose every per-field protocol value. Data rows expose
+`ParameterStatus`, `ParseComplete`, `BindComplete`, `CloseComplete`,
+`ParameterDescription`, `NoData`, `PortalSuspended`, and `ReadyForQuery`.
+`Original_Message` retains the raw lower-level message. Row descriptions expose every
+per-field protocol value, and parameter descriptions retain every parameter OID. Data
+rows expose
 every column as binary-safe bytes and distinguish NULL from a present zero-length
 value. Diagnostic fields are addressable by their protocol code, so future fields are
 retained as well as the standard severity, SQLSTATE, and message fields.
+
+Typed frontend constructors encode `Parse`, `Bind`, `Describe`, `Execute`, `Close`,
+`Flush`, and `Sync`. Empty names select unnamed statements or portals. Parse accepts
+parameter OIDs, including zero for an unspecified type. Each Bind value is built with
+`Text_Parameter`, `Binary_Parameter`, or `Null_Parameter`, so its format stays attached
+to its bytes. Bind uses PostgreSQL's zero-, one-, or per-parameter format-code forms,
+supports independent result format codes, and preserves the distinction between NULL
+and an empty value. Execute accepts PostgreSQL's nonnegative signed 32-bit maximum-row
+count; zero means unlimited.
 
 `Flyology.Postgres.Client.Session` borrows a transport. `Startup` performs startup and
 authentication. `Send_Query` followed by repeated `Receive_Query_Event` calls is the
@@ -60,7 +73,55 @@ completion; an empty query produces an empty-query event; and errors and notices
 returned as typed diagnostics. A final ready event carries the idle, in-transaction,
 or failed-transaction state. Multiple statements naturally produce multiple event
 sequences before that final ready event. `Send_Command` plus `Receive_Message` remain
-the raw lower-level API for extended-query, COPY, and custom state machines.
+the raw lower-level API for COPY, direct extended-protocol control, and custom state
+machines.
+
+The task-friendly extended path consists of `Prepare_Statement`, `Bind_Portal`,
+`Describe_Statement`, `Describe_Portal`, `Execute_Portal`, `Resume_Portal`,
+`Close_Statement`, `Close_Portal`, `Flush`, `Synchronize`, and repeated
+`Receive_Extended_Event` calls. Commands can be pipelined before Sync, and Flush
+forces pending output without ending the cycle. `State` exposes ready, active simple
+or extended query, recovery-required, and awaiting-ready states. Invalid local
+ordering, such as Execute before Bind or Resume before `PortalSuspended`, is rejected
+before writing. After an extended `ErrorResponse`, only Sync (or termination) is
+accepted; the session becomes reusable only after the corresponding `ReadyForQuery`.
+A Sync already pipelined before the error satisfies the same rule.
+
+A bounded streaming extended flow is:
+
+```ada
+Client.Prepare_Statement
+  (Session, "items", "select id, value from items where id > $1", (1 => 23));
+Client.Bind_Portal
+  (Session,
+   Portal_Name    => "items_page",
+   Statement_Name => "items",
+   Parameters     => (1 => Protocol.Text_Parameter ("100")));
+Client.Describe_Portal (Session, "items_page");
+Client.Execute_Portal (Session, "items_page", Maximum_Rows => 50);
+Client.Flush (Session);
+
+loop
+   declare
+      Event : constant Client.Extended_Query_Event :=
+        Client.Receive_Extended_Event (Session);
+   begin
+      --  Consume RowDescription/DataRow events as they arrive.
+      exit when Protocol.Response_Kind (Event) in
+        Protocol.Command_Complete_Response |
+        Protocol.Portal_Suspended_Response |
+        Protocol.Error_Response;
+   end;
+end loop;
+
+--  Resume after PortalSuspended, or synchronize when finished.
+Client.Synchronize (Session);
+loop
+   exit when Protocol.Response_Kind
+     (Client.Receive_Extended_Event (Session)) =
+       Protocol.Ready_For_Query_Response;
+end loop;
+```
 
 A typical streaming loop is:
 
@@ -196,9 +257,11 @@ protocol facade. `Flyology.Postgres.SCRAM_Core` adds bounded PBKDF2-HMAC-SHA-256
 digest hashing/XOR, and wipe glue over the proved `hmac_ada` primitives. GNATprove
 verifies arbitrary-bound array indexing, endian encoding and decoding, total
 status-returning cursor reads, bounded byte views, frame-length conversions,
-earliest-NUL search, initial/startup packet structure, protocol 3.2 variable
-cancellation keys, exact source correspondence for recognized startup parameters and
-special requests, SCRAM core bounds, loop termination, and the packages' functional
+extended-protocol format-count validity, earliest-NUL search, initial/startup packet
+structure, protocol 3.2
+variable cancellation keys, exact source correspondence for recognized startup
+parameters and special requests, SCRAM core bounds, loop termination, and the
+packages' functional
 contracts.
 The Flyology transports, heap-backed owned messages, tasking, and socket adapters
 remain conventional Ada outside this boundary.
@@ -222,8 +285,8 @@ alr gnatprove \
   -j0 --level=1 --output=oneline --output-header -f
 ```
 
-The current GNATprove FSF 16.1.0 result on the combined source is 285 of 285
-checks proved: 251 wire-core checks and 34 SCRAM-core checks. The wire core adds
+The current GNATprove FSF 16.1.0 result on the combined source is 286 of 286
+checks proved: 252 wire-core checks and 34 SCRAM-core checks. The wire core adds
 no warnings or assumptions. The SCRAM core reports five termination assumptions
 at calls into `hmac_ada`'s SHA-256 and HMAC operations because those dependency
 entry points do not expose `Always_Terminates`; no run-time or functional check
@@ -250,12 +313,17 @@ typed query streaming and cancellation of `pg_sleep`, then starts the Flyology S
 protocol server and queries it with the freshly built `psql`.
 The real-server direction covers multiple columns and rows, NULL and empty values,
 multiple statements and result sets, command-only and empty queries, notices,
-parameter status, errors, and recovery. The `psql` direction verifies that the
-Flyology server emits a multi-column, multi-row result with both NULL and empty text
-and rejects both a wrong password and an unknown user through real SCRAM exchanges.
-Server-side tests cover correct, incorrect, stale, duplicate, and
-concurrent credentials, verify silent cancellation-connection close, and confirm a
-valid request stops a polling Flyology handler with SQLSTATE `57014`.
+parameter status, errors, and recovery. The extended real-server flow covers named
+and unnamed statements and portals, multiple parameter OIDs, text/binary/NULL values,
+statement and portal Describe, mixed result formats, streamed rows, max-row
+`PortalSuspended` and resume, Close, Flush, Sync, and mandatory error recovery. The
+`psql` direction verifies that the Flyology server emits a multi-column, multi-row
+result with both NULL and empty text, then uses PostgreSQL 18's named prepared-
+statement commands and asserts raw dispatch of Parse, Bind, Describe, Execute, Close,
+and Sync. It also rejects both a wrong password and an unknown user through real
+SCRAM exchanges. Server-side tests cover correct, incorrect, stale, duplicate, and
+concurrent cancellation credentials, verify silent cancellation-connection close,
+and confirm a valid request stops a polling Flyology handler with SQLSTATE `57014`.
 
 Useful environment variables:
 

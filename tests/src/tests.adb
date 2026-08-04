@@ -3,15 +3,19 @@ with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Text_IO;
 with AUnit.Assertions; use AUnit.Assertions;
 with Flyology.Bytes;
+with Flyology.Postgres.Client;
 with Flyology.Postgres.Protocol;
 with Flyology.Postgres.SCRAM;
 with Flyology.Postgres.SCRAM_Core;
+with Flyology.Postgres.Transports;
 with Flyology.Postgres.Wire;
 
 procedure Tests is
 
    package Protocol renames Flyology.Postgres.Protocol;
    package SCRAM_Core renames Flyology.Postgres.SCRAM_Core;
+   package Client renames Flyology.Postgres.Client;
+   package Transports renames Flyology.Postgres.Transports;
 
    use type Protocol.Byte;
    use type Protocol.Byte_Offset;
@@ -24,7 +28,58 @@ procedure Tests is
    use type Protocol.Transaction_Status;
    use type Protocol.UInt16;
    use type Protocol.UInt32;
+   use type Client.Operation_State;
    use type Ada.Streams.Stream_Element_Array;
+
+   type Memory_Transport is limited new Transports.Transport with record
+      Input  : Flyology.Bytes.Unbounded_Bytes;
+      Output : Flyology.Bytes.Unbounded_Bytes;
+      Next   : Natural := 1;
+   end record;
+
+   overriding procedure Receive_Exactly
+     (Item    : in out Memory_Transport;
+      Data    : out Ada.Streams.Stream_Element_Array;
+      Timeout : Duration);
+
+   overriding procedure Send_All
+     (Item    : in out Memory_Transport;
+      Data    : Ada.Streams.Stream_Element_Array;
+      Timeout : Duration);
+
+   overriding procedure Receive_Exactly
+     (Item    : in out Memory_Transport;
+      Data    : out Ada.Streams.Stream_Element_Array;
+      Timeout : Duration) is
+      pragma Unreferenced (Timeout);
+      Available : constant Protocol.Byte_Array :=
+        Flyology.Bytes.To_Array (Item.Input);
+   begin
+      if Item.Next > Available'Length + 1
+        or else Data'Length > Available'Length - Item.Next + 1
+      then
+         raise Program_Error with "memory transport input is exhausted";
+      end if;
+      for Index in Data'Range loop
+         Data (Index) := Available (Protocol.Byte_Offset (Item.Next));
+         Item.Next := Item.Next + 1;
+      end loop;
+   end Receive_Exactly;
+
+   overriding procedure Send_All
+     (Item    : in out Memory_Transport;
+      Data    : Ada.Streams.Stream_Element_Array;
+      Timeout : Duration) is
+      pragma Unreferenced (Timeout);
+   begin
+      Flyology.Bytes.Append (Item.Output, Data);
+   end Send_All;
+
+   procedure Queue
+     (Item : in out Memory_Transport; Message : Protocol.Message) is
+   begin
+      Flyology.Bytes.Append (Item.Input, Protocol.Encode (Message));
+   end Queue;
 
    procedure Test_Startup is
       Packet : constant Protocol.Byte_Array :=
@@ -179,6 +234,15 @@ procedure Tests is
          and then not Wire.Count_Fits
            (Remaining => 7, Count => 2, Minimum_Item_Length => 4),
          "proved count checks reject impossible bounded payloads");
+      Assert
+        (Wire.Format_Count_Is_Valid (Format_Count => 0, Value_Count => 3)
+         and then Wire.Format_Count_Is_Valid
+           (Format_Count => 1, Value_Count => 3)
+         and then Wire.Format_Count_Is_Valid
+           (Format_Count => 3, Value_Count => 3)
+         and then not Wire.Format_Count_Is_Valid
+           (Format_Count => 2, Value_Count => 3),
+         "proved format-count checks model Bind's legal encodings");
       Cursor := 1;
       Wire.Try_Read_Bytes
         (Data, Cursor, Count => 2, View => View, Success => Success);
@@ -465,6 +529,342 @@ procedure Tests is
          "unknown backend messages retain a raw response");
    end Test_Typed_Query_Events;
 
+   procedure Test_Extended_Frontend_Messages is
+      Binary : constant Protocol.Byte_Array (1 .. 2) :=
+        (1 => 0, 2 => 16#FF#);
+   begin
+      declare
+         Value   : constant Protocol.Message :=
+           Protocol.Make_Parse_Message
+             ("statement", "select $1::int4, $2::bytea", (23, 17));
+         Contents : constant Protocol.Byte_Array := Protocol.Payload (Value);
+         Cursor   : Protocol.Byte_Offset := Contents'First;
+      begin
+         Assert (Protocol.Kind (Value) = Protocol.Parse, "Parse is encoded");
+         Assert
+           (Protocol.Read_C_String (Contents, Cursor) = "statement"
+            and then Protocol.Read_C_String (Contents, Cursor) =
+              "select $1::int4, $2::bytea"
+            and then Protocol.Read_U16 (Contents, Cursor) = 2
+            and then Protocol.Read_U32 (Contents, Cursor) = 23
+            and then Protocol.Read_U32 (Contents, Cursor) = 17
+            and then Cursor = Contents'First + Contents'Length,
+            "Parse carries its name, SQL, and parameter OIDs");
+      end;
+
+      declare
+         Value : constant Protocol.Message :=
+           Protocol.Make_Bind_Message
+             (Portal_Name    => "portal",
+              Statement_Name => "statement",
+              Parameters     =>
+                (Protocol.Text_Parameter ("42"),
+                 Protocol.Null_Parameter (Protocol.Binary_Format),
+                 Protocol.Binary_Parameter (Binary)),
+              Result_Formats =>
+                (Protocol.Text_Format, Protocol.Binary_Format));
+         Contents : constant Protocol.Byte_Array := Protocol.Payload (Value);
+         Cursor   : Protocol.Byte_Offset := Contents'First;
+      begin
+         Assert (Protocol.Kind (Value) = Protocol.Bind, "Bind is encoded");
+         Assert
+           (Protocol.Read_C_String (Contents, Cursor) = "portal"
+            and then Protocol.Read_C_String (Contents, Cursor) = "statement"
+            and then Protocol.Read_U16 (Contents, Cursor) = 3
+            and then Protocol.Read_U16 (Contents, Cursor) = 0
+            and then Protocol.Read_U16 (Contents, Cursor) = 1
+            and then Protocol.Read_U16 (Contents, Cursor) = 1
+            and then Protocol.Read_U16 (Contents, Cursor) = 3
+            and then Protocol.Read_U32 (Contents, Cursor) = 2,
+            "Bind carries per-parameter formats and its value count");
+         Assert
+           (Contents (Cursor) = Protocol.Byte (Character'Pos ('4'))
+            and then Contents (Cursor + 1) =
+              Protocol.Byte (Character'Pos ('2')),
+            "Bind preserves text parameter bytes");
+         Cursor := Cursor + 2;
+         Assert
+           (Protocol.Read_U32 (Contents, Cursor) = Protocol.UInt32'Last
+            and then Protocol.Read_U32 (Contents, Cursor) = 2
+            and then Contents (Cursor) = 0
+            and then Contents (Cursor + 1) = 16#FF#,
+            "Bind distinguishes NULL and binary parameter values");
+         Cursor := Cursor + 2;
+         Assert
+           (Protocol.Read_U16 (Contents, Cursor) = 2
+            and then Protocol.Read_U16 (Contents, Cursor) = 0
+            and then Protocol.Read_U16 (Contents, Cursor) = 1
+            and then Cursor = Contents'First + Contents'Length,
+            "Bind carries result format codes without trailing bytes");
+      end;
+
+      declare
+         Text_Bind : constant Protocol.Byte_Array := Protocol.Payload
+           (Protocol.Make_Bind_Message
+              ("", "", (1 => Protocol.Text_Parameter ("x"))));
+         Binary_Bind : constant Protocol.Byte_Array := Protocol.Payload
+           (Protocol.Make_Bind_Message
+              ("", "", (1 => Protocol.Binary_Parameter (Binary))));
+         Text_Cursor : Protocol.Byte_Offset := Text_Bind'First;
+         Binary_Cursor : Protocol.Byte_Offset := Binary_Bind'First;
+      begin
+         Assert
+           (Protocol.Read_C_String (Text_Bind, Text_Cursor) = ""
+            and then Protocol.Read_C_String (Text_Bind, Text_Cursor) = ""
+            and then Protocol.Read_U16 (Text_Bind, Text_Cursor) = 0,
+            "all-text Bind parameters use the default format-code form");
+         Assert
+           (Protocol.Read_C_String (Binary_Bind, Binary_Cursor) = ""
+            and then Protocol.Read_C_String (Binary_Bind, Binary_Cursor) = ""
+            and then Protocol.Read_U16 (Binary_Bind, Binary_Cursor) = 1
+            and then Protocol.Read_U16 (Binary_Bind, Binary_Cursor) = 1,
+            "all-binary Bind parameters use the single format-code form");
+      end;
+
+      declare
+         Describe_Statement : constant Protocol.Byte_Array := Protocol.Payload
+           (Protocol.Make_Describe_Message
+              (Protocol.Statement_Object, "named"));
+         Describe_Portal : constant Protocol.Byte_Array := Protocol.Payload
+           (Protocol.Make_Describe_Message (Protocol.Portal_Object, ""));
+         Execute : constant Protocol.Byte_Array := Protocol.Payload
+           (Protocol.Make_Execute_Message ("portal", 25));
+         Close_Statement : constant Protocol.Byte_Array := Protocol.Payload
+           (Protocol.Make_Close_Message
+              (Protocol.Statement_Object, "named"));
+         Close_Portal : constant Protocol.Byte_Array := Protocol.Payload
+           (Protocol.Make_Close_Message (Protocol.Portal_Object, ""));
+         Cursor : Protocol.Byte_Offset := Execute'First;
+      begin
+         Assert
+           (Describe_Statement (Describe_Statement'First) =
+              Protocol.Byte (Character'Pos ('S'))
+            and then Describe_Portal (Describe_Portal'First) =
+              Protocol.Byte (Character'Pos ('P')),
+            "Describe distinguishes named statements and unnamed portals");
+         Assert
+           (Protocol.Read_C_String (Execute, Cursor) = "portal"
+            and then Protocol.Read_U32 (Execute, Cursor) = 25,
+            "Execute carries its portal and maximum row count");
+         Assert
+           (Close_Statement (Close_Statement'First) =
+              Protocol.Byte (Character'Pos ('S'))
+            and then Close_Portal (Close_Portal'First) =
+              Protocol.Byte (Character'Pos ('P')),
+            "Close distinguishes statements and portals");
+         Assert
+           (Protocol.Payload_Length (Protocol.Make_Flush_Message) = 0
+            and then Protocol.Kind (Protocol.Make_Flush_Message) =
+              Protocol.Flush
+            and then Protocol.Payload_Length (Protocol.Make_Sync_Message) = 0
+            and then Protocol.Kind (Protocol.Make_Sync_Message) =
+              Protocol.Sync,
+            "Flush and Sync use empty payloads");
+      end;
+   end Test_Extended_Frontend_Messages;
+
+   procedure Test_Extended_Backend_Messages is
+      Contents : Flyology.Bytes.Unbounded_Bytes;
+   begin
+      for Code in Character range '1' .. '3' loop
+         declare
+            Response : constant Protocol.Backend_Message :=
+              Protocol.Decode_Backend (Protocol.Make_Empty_Message (Code));
+            Expected : constant Protocol.Backend_Message_Kind :=
+              (case Code is
+                 when '1' => Protocol.Parse_Complete_Response,
+                 when '2' => Protocol.Bind_Complete_Response,
+                 when others => Protocol.Close_Complete_Response);
+         begin
+            Assert
+              (Protocol.Response_Kind (Response) = Expected,
+               "extended completion response is decoded");
+         end;
+      end loop;
+      Assert
+        (Protocol.Response_Kind
+           (Protocol.Decode_Backend (Protocol.Make_Empty_Message ('n'))) =
+           Protocol.No_Data_Response
+         and then Protocol.Response_Kind
+           (Protocol.Decode_Backend (Protocol.Make_Empty_Message ('s'))) =
+           Protocol.Portal_Suspended_Response,
+         "NoData and PortalSuspended are decoded");
+
+      Protocol.Append_U16 (Contents, 3);
+      Protocol.Append_U32 (Contents, 23);
+      Protocol.Append_U32 (Contents, 0);
+      Protocol.Append_U32 (Contents, 17);
+      declare
+         Response : constant Protocol.Backend_Message :=
+           Protocol.Decode_Backend
+             (Protocol.Make_Message
+                ('t', Flyology.Bytes.To_Array (Contents)));
+         Description : constant Protocol.Parameter_Description :=
+           Protocol.Parameter_Types (Response);
+      begin
+         Assert
+           (Protocol.Parameter_Count (Description) = 3
+            and then Protocol.Parameter_Type_At (Description, 1) = 23
+            and then Protocol.Parameter_Type_At (Description, 2) = 0
+            and then Protocol.Parameter_Type_At (Description, 3) = 17,
+            "ParameterDescription retains every parameter OID");
+      end;
+   end Test_Extended_Backend_Messages;
+
+   procedure Test_Extended_Client_State is
+      Channel : aliased Memory_Transport;
+      Session : Client.Session (Channel'Access);
+      Authentication : Flyology.Bytes.Unbounded_Bytes;
+      Ready_Payload : constant Protocol.Byte_Array (1 .. 1) :=
+        (1 => Protocol.Byte (Character'Pos ('I')));
+
+      function Rejected (Action : not null access procedure) return Boolean is
+      begin
+         Action.all;
+         return False;
+      exception
+         when Program_Error =>
+            return True;
+      end Rejected;
+   begin
+      Protocol.Append_U32 (Authentication, 0);
+      Queue
+        (Channel,
+         Protocol.Make_Message
+           ('R', Flyology.Bytes.To_Array (Authentication)));
+      Queue (Channel, Protocol.Make_Message ('Z', Ready_Payload));
+      Client.Startup (Session, User => "tester", Timeout => 1.0);
+      Assert
+        (Client.State (Session) = Client.Ready
+         and then Client.Is_Ready (Session),
+         "startup enters the ready state");
+
+      declare
+         procedure Invalid_Execute is
+         begin
+            Client.Execute_Portal (Session, "portal", Timeout => 1.0);
+         end Invalid_Execute;
+      begin
+         Assert
+           (Rejected (Invalid_Execute'Access),
+            "Execute before Bind is rejected locally");
+      end;
+
+      Client.Prepare_Statement
+        (Session, "statement", "select $1::text", Timeout => 1.0);
+      Client.Bind_Portal
+        (Session,
+         "portal",
+         "statement",
+         (1 => Protocol.Text_Parameter ("value")),
+         Timeout => 1.0);
+      Client.Execute_Portal
+        (Session, "portal", Maximum_Rows => 1, Timeout => 1.0);
+      Client.Flush (Session, Timeout => 1.0);
+      Assert
+        (Client.State (Session) = Client.Extended_Query_Active,
+         "extended commands can be pipelined through Flush");
+
+      Queue (Channel, Protocol.Make_Empty_Message ('s'));
+      declare
+         Event : constant Client.Extended_Query_Event :=
+           Client.Receive_Extended_Event (Session, Timeout => 1.0);
+      begin
+         Assert
+           (Protocol.Response_Kind (Event) =
+              Protocol.Portal_Suspended_Response,
+            "PortalSuspended enables a resume transition");
+      end;
+      Client.Resume_Portal
+        (Session, "portal", Maximum_Rows => 0, Timeout => 1.0);
+
+      Queue
+        (Channel,
+         Protocol.Make_Message
+           ('E',
+            (1 => Protocol.Byte (Character'Pos ('M')),
+             2 => Protocol.Byte (Character'Pos ('x')),
+             3 => 0,
+             4 => 0)));
+      declare
+         Event : constant Client.Extended_Query_Event :=
+           Client.Receive_Extended_Event (Session, Timeout => 1.0);
+      begin
+         Assert
+           (Protocol.Response_Kind (Event) = Protocol.Error_Response
+            and then Client.State (Session) = Client.Recovery_Required,
+            "an extended error requires recovery");
+      end;
+      declare
+         procedure Invalid_Prepare is
+         begin
+            Client.Prepare_Statement
+              (Session, "other", "select 1", Timeout => 1.0);
+         end Invalid_Prepare;
+      begin
+         Assert
+           (Rejected (Invalid_Prepare'Access),
+            "commands are rejected until extended error recovery starts");
+      end;
+      Client.Synchronize (Session, Timeout => 1.0);
+      Queue (Channel, Protocol.Make_Message ('Z', Ready_Payload));
+      declare
+         Event : constant Client.Extended_Query_Event :=
+           Client.Receive_Extended_Event (Session, Timeout => 1.0);
+      begin
+         Assert
+           (Protocol.Response_Kind (Event) = Protocol.Ready_For_Query_Response
+            and then Client.State (Session) = Client.Ready,
+            "Sync plus ReadyForQuery makes the session reusable");
+      end;
+
+      Client.Prepare_Statement
+        (Session, "bad", "select broken", Timeout => 1.0);
+      Client.Synchronize (Session, Timeout => 1.0);
+      Queue
+        (Channel,
+         Protocol.Make_Message
+           ('E',
+            (1 => Protocol.Byte (Character'Pos ('M')),
+             2 => Protocol.Byte (Character'Pos ('x')),
+             3 => 0,
+             4 => 0)));
+      Queue (Channel, Protocol.Make_Message ('Z', Ready_Payload));
+      declare
+         Error_Event : constant Client.Extended_Query_Event :=
+           Client.Receive_Extended_Event (Session, Timeout => 1.0);
+         Ready_Event : constant Client.Extended_Query_Event :=
+           Client.Receive_Extended_Event (Session, Timeout => 1.0);
+      begin
+         Assert
+           (Protocol.Response_Kind (Error_Event) = Protocol.Error_Response
+            and then Protocol.Response_Kind (Ready_Event) =
+              Protocol.Ready_For_Query_Response
+            and then Client.State (Session) = Client.Ready,
+            "a pipelined Sync is honored after an extended error");
+      end;
+
+      Client.Send_Query (Session, "select 1", Timeout => 1.0);
+      Assert
+        (Client.State (Session) = Client.Simple_Query_Active,
+         "Send_Query enters the simple-query state");
+      Queue (Channel, Protocol.Make_Message ('Z', Ready_Payload));
+      declare
+         Event : constant Client.Simple_Query_Event :=
+           Client.Receive_Query_Event (Session, Timeout => 1.0);
+      begin
+         Assert
+           (Protocol.Response_Kind (Event) = Protocol.Ready_For_Query_Response
+            and then Client.State (Session) = Client.Ready,
+            "simple-query ReadyForQuery restores the ready state");
+      end;
+      Client.Send_Command
+        (Session, Protocol.Make_Empty_Message ('X'), Timeout => 1.0);
+      Assert
+        (Client.State (Session) = Client.Closed,
+         "Terminate closes the local session state");
+   end Test_Extended_Client_State;
+
    function Decode_Is_Rejected
      (Code : Character; Contents : Protocol.Byte_Array) return Boolean is
    begin
@@ -480,6 +880,7 @@ procedure Tests is
    end Decode_Is_Rejected;
 
    procedure Test_Malformed_Backend_Messages is
+      Marker_Codes : constant String := "123ns";
       Empty : constant Protocol.Byte_Array (1 .. 0) := (others => 0);
       Row_Count_Only : constant Protocol.Byte_Array (1 .. 2) :=
         (1 => 0, 2 => 1);
@@ -493,6 +894,10 @@ procedure Tests is
         (1 => Protocol.Byte (Character'Pos ('M')),
          2 => Protocol.Byte (Character'Pos ('x')),
          3 => 0);
+      Parameter_Count_Only : constant Protocol.Byte_Array (1 .. 2) :=
+        (1 => 0, 2 => 1);
+      Parameter_Trailing : constant Protocol.Byte_Array (1 .. 3) :=
+        (1 => 0, 2 => 0, 3 => 99);
    begin
       Assert
         (Decode_Is_Rejected ('T', Row_Count_Only),
@@ -518,6 +923,17 @@ procedure Tests is
       Assert
         (Decode_Is_Rejected ('S', Empty),
          "truncated ParameterStatus messages are rejected");
+      Assert
+        (Decode_Is_Rejected ('t', Parameter_Count_Only),
+         "impossible ParameterDescription counts are rejected");
+      Assert
+        (Decode_Is_Rejected ('t', Parameter_Trailing),
+         "ParameterDescription trailing bytes are rejected");
+      for Code of Marker_Codes loop
+         Assert
+           (Decode_Is_Rejected (Code, Bad_Ready),
+            "extended marker responses reject nonempty payloads");
+      end loop;
    end Test_Malformed_Backend_Messages;
 
    procedure Test_RFC_7677_SCRAM_SHA_256 is
@@ -705,6 +1121,9 @@ begin
    Test_Malformed_Startup;
    Test_Typed_Row_Messages;
    Test_Typed_Query_Events;
+   Test_Extended_Frontend_Messages;
+   Test_Extended_Backend_Messages;
+   Test_Extended_Client_State;
    Test_Malformed_Backend_Messages;
    Test_RFC_7677_SCRAM_SHA_256;
    Test_SCRAM_Failures;

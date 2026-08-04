@@ -104,6 +104,12 @@ is
      (Minimum_Item_Length = 0
       or else Natural (Count) <= Remaining / Minimum_Item_Length);
 
+   function Format_Count_Is_Valid
+     (Format_Count : UInt16; Value_Count : UInt16) return Boolean is
+     (Format_Count = 0
+      or else Format_Count = 1
+      or else Format_Count = Value_Count);
+
    procedure Try_Read_Bytes
      (Data    : Byte_Array;
       Cursor  : in out Wire_Length;
