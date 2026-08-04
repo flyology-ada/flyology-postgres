@@ -18,6 +18,18 @@ mkdir -p "$site_output/assets" "$site_output/api"
 cp -R "$project_root/website/." "$site_output/"
 cp -R "$project_root/assets/brand" "$site_output/assets/brand"
 
+asset_version=${GITHUB_SHA:-$(git -C "$project_root" rev-parse HEAD)}
+
+for page in "$site_output/index.html" "$site_output/guide/index.html"; do
+   versioned_page="$page.versioned"
+   sed \
+      -e "s|site.css\"|site.css?v=$asset_version\"|g" \
+      -e "s|ada-highlight.js\"|ada-highlight.js?v=$asset_version\"|g" \
+      -e "s|site.js\"|site.js?v=$asset_version\"|g" \
+      "$page" > "$versioned_page"
+   mv "$versioned_page" "$page"
+done
+
 "$project_root/scripts/docs.sh"
 cp -R "$project_root/docs/api/." "$site_output/api/"
 touch "$site_output/.nojekyll"

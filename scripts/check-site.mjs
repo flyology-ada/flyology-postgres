@@ -56,7 +56,8 @@ function localReferences(html) {
 }
 
 async function validateReference(source, reference) {
-  const [rawPath, fragment] = reference.split("#", 2);
+  const [pathAndQuery, fragment] = reference.split("#", 2);
+  const [rawPath] = pathAndQuery.split("?", 1);
   const decodedPath = decodeURIComponent(rawPath || "");
 
   if (isAbsolute(decodedPath)) {
