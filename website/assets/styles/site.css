@@ -274,6 +274,13 @@ code:not(pre code) {
   transform: scaleX(1);
 }
 
+.external-link-icon {
+  width: 0.78rem;
+  height: 0.78rem;
+  margin-left: 0.22rem;
+  vertical-align: -0.08rem;
+}
+
 .nav-tools {
   display: flex;
   align-items: center;

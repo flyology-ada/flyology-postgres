@@ -190,6 +190,13 @@ dt {
   text-decoration: none;
 }
 
+.external-link-icon {
+  width: 0.74rem;
+  height: 0.74rem;
+  margin-left: 0.22rem;
+  vertical-align: -0.08rem;
+}
+
 .theme-button {
   display: inline-grid;
   width: 2.5rem;
