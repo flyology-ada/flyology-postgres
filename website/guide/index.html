@@ -87,20 +87,14 @@
           <section id="add">
             <span class="step-label">STEP 02</span>
             <h2>Add the crate to an Alire application.</h2>
-            <p>During development, use the Flyology organization index or pin a sibling checkout. The repository itself uses a sibling pin so both crates can evolve together.</p>
+            <p>Configure the Flyology organization index, then let Alire resolve Flyology and Flyology Postgres as regular dependencies.</p>
             <figure class="code-panel">
-              <figcaption>development checkout</figcaption>
+              <figcaption>Flyology organization index</figcaption>
               <button class="copy-button" type="button" data-copy>Copy</button>
               <pre><code>alr index --reset-community
 alr index --add=git+https://github.com/flyology-ada/alire-index.git \
   --name=flyology --before=community
 alr with flyology_postgres</code></pre>
-            </figure>
-            <figure class="code-panel">
-              <figcaption>sibling source checkout</figcaption>
-              <button class="copy-button" type="button" data-copy>Copy</button>
-              <pre><code>alr -n with flyology --use=../flyology
-alr build</code></pre>
             </figure>
           </section>
 

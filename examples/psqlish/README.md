@@ -15,11 +15,9 @@ In particular, do not use this client where TLS is required.
 
 ## Build
 
-The example is a nested Alire crate. Its committed pins are portable and
-relative:
-
-- `flyology_postgres` points to the repository root (`../..`);
-- `flyology` points to the usual sibling checkout (`../../../flyology`).
+The example is a nested Alire crate. Its committed `flyology_postgres` pin
+points to the repository root (`../..`) so it exercises the current checkout.
+Flyology itself is resolved normally from the Flyology organization index.
 
 From this directory:
 
@@ -28,11 +26,14 @@ alr -n build
 ./bin/psqlish --help
 ```
 
-When several worktrees build against Flyology concurrently, do not share the
-same local Flyology pin: its Alire pre-build action prepares generated runtime
-state. For local concurrent validation, make a task-specific temporary
-Flyology checkout and temporarily repin this crate and its test crate to it.
-Do not commit that temporary pin.
+Configure the Flyology organization index before building if it is not already
+present in your Alire settings:
+
+```sh
+alr index --reset-community
+alr index --add=git+https://github.com/flyology-ada/alire-index.git \
+  --name=flyology --before=community
+```
 
 ## Connection and CLI
 

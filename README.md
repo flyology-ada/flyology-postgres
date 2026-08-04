@@ -18,16 +18,19 @@ separate-connection flow in both directions.
 
 ## Development setup
 
-For fast iteration, the manifest pins Flyology to the sibling checkout:
+Configure the Flyology organization index, then build against its published
+Flyology release:
 
 ```sh
-alr -n with flyology --use=../flyology
+alr index --reset-community
+alr index --add=git+https://github.com/flyology-ada/alire-index.git \
+  --name=flyology --before=community
 alr build
 ```
 
-The checked-in manifest already contains that dependency and pin. Published
-development builds will replace the path pin with the Flyology Alire index described
-in the [Flyology guide](https://flyology.org/guide/).
+The checked-in manifest declares `flyology ~0.1.0-dev` as a regular dependency;
+Alire resolves it from that index. See the
+[Flyology guide](https://flyology.org/guide/) for runtime setup details.
 
 SCRAM uses two small dependencies with no transitive production crates:
 
@@ -261,7 +264,7 @@ Two transport adapters are included:
 - `Flyology.Postgres.Transports.Sockets` for a directly connected Flyology socket.
 
 Symbolic traceback capture with GNAT's `-Es` binder switch is supported for
-Flyology lightweight tasks by the pinned Flyology revision. Flyology commit
+Flyology lightweight tasks by the indexed Flyology release. Flyology commit
 `4a9cc29735a18f762ea241693504263e6b30fc1f` gives each fresh fiber stack an
 explicit unwind root: traceback capture includes the active fiber and stops
 before the unrelated scheduler stack. The library and tests retain `-Es`, and

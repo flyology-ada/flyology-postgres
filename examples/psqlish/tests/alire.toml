@@ -18,7 +18,6 @@ flyology = "~0.1.0-dev"
 [[pins]]
 psqlish = { path = ".." }
 flyology_postgres = { path = "../../.." }
-flyology = { path = "../../../../flyology" }
 
 [[actions]]
 type = "test"

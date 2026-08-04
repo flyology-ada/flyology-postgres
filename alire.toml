@@ -13,6 +13,3 @@ tags = ["ada", "postgres", "database", "client", "server", "protocol"]
 flyology = "~0.1.0-dev"
 system_random = "^1.0.0"
 hmac_ada = "^0.2.0"
-
-[[pins]]
-flyology = { path = "../flyology" }

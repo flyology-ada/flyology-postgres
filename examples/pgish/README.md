@@ -11,8 +11,9 @@ intentional: do not expose this example on an untrusted network.
 
 ## Build and run
 
-The crate pins `flyology_postgres` through the portable `../..` path. The
-parent crate's own portable Flyology pin must resolve in the checkout layout.
+The crate pins `flyology_postgres` through the portable `../..` path so it uses
+the current checkout. Flyology itself resolves from the configured Flyology
+organization index.
 
 ```sh
 cd examples/pgish
