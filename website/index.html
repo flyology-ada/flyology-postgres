@@ -64,30 +64,32 @@
             <div class="orbit-ring"></div>
             <img class="orbit-mark" src="assets/brand/flyology-mark-transparent.svg" alt="">
           </div>
-          <div class="model-note model-note-light">
-            <strong>Frontend</strong>
-            <span class="model-direction">Client → server</span>
-            Send queries, prepared statements, and COPY streams.
+          <div class="model-switcher" role="group" aria-label="Preview a Postgres protocol direction">
+            <button class="model-note model-note-light" type="button" data-model-sample="frontend" data-model-file="client.adb" aria-pressed="true" aria-controls="hero-code-preview">
+              <strong>Frontend</strong>
+              <span class="model-direction">Client → server</span>
+              Send queries, prepared statements, and COPY streams.
+            </button>
+            <button class="model-note model-note-native" type="button" data-model-sample="backend" data-model-file="server.adb" aria-pressed="false" aria-controls="hero-code-preview">
+              <strong>Backend</strong>
+              <span class="model-direction">Server → client</span>
+              Send rows, notices, errors, and readiness events.
+            </button>
           </div>
-          <div class="model-note model-note-native">
-            <strong>Backend</strong>
-            <span class="model-direction">Server → client</span>
-            Receive rows, notices, errors, and readiness events.
-          </div>
-          <div class="code-window">
+          <div class="code-window" id="hero-code-preview">
             <div class="code-titlebar">
               <div class="window-dots" aria-hidden="true"><span></span><span></span><span></span></div>
-              <span>query.adb</span>
+              <span data-model-filename aria-live="polite">client.adb</span>
             </div>
-            <pre><code><span class="token-keyword">Client</span>.Send_Query
-  (Session, <span class="token-string">"select id, value from items"</span>);
+            <pre class="hero-code-sample" data-model-code="frontend"><code><span class="token-keyword">Client</span>.Send_Query
+  (Session,
+   <span class="token-string">"select id, value from items"</span>,
+   Timeout => <span class="token-number">5.0</span>);</code></pre>
+            <pre class="hero-code-sample" data-model-code="backend" hidden><code><span class="token-keyword">Sessions</span>.Send_Data_Row
+  (Client, <span class="token-string">"Ada"</span>, Timeout => <span class="token-number">5.0</span>);
 
-<span class="token-keyword">loop</span>
-   Event := Client.Receive_Query_Event (Session);
-   Consume (Event);
-   <span class="token-keyword">exit when</span> Protocol.Response_Kind (Event) =
-     Protocol.Ready_For_Query_Response;
-<span class="token-keyword">end loop</span>;</code></pre>
+<span class="token-keyword">Sessions</span>.Send_Command_Complete
+  (Client, <span class="token-string">"SELECT 1"</span>, Timeout => <span class="token-number">5.0</span>);</code></pre>
           </div>
         </div>
       </section>
