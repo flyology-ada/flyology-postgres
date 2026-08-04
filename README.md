@@ -248,6 +248,14 @@ Two transport adapters are included:
 - `Flyology.Postgres.Transports.Connections` for accepted Flyology connections; and
 - `Flyology.Postgres.Transports.Sockets` for a directly connected Flyology socket.
 
+Symbolic traceback capture with GNAT's `-Es` binder switch is supported for
+Flyology lightweight tasks by the pinned Flyology revision. Flyology commit
+`4a9cc29735a18f762ea241693504263e6b30fc1f` gives each fresh fiber stack an
+explicit unwind root: traceback capture includes the active fiber and stops
+before the unrelated scheduler stack. The library and tests retain `-Es`, and
+the fast suite raises and catches an exception on a lightweight task to validate
+that capability at this dependency boundary.
+
 ## Current boundaries
 
 - Authentication supports `trust`, cleartext passwords, and SCRAM-SHA-256. MD5,
@@ -374,6 +382,9 @@ frontend constructors, all backend response kinds, mixed text/binary formats,
 malformed counts and codes, simple and extended transitions, abort/recovery, and
 bidirectional streaming. `COPY BOTH` uses an exact protocol fixture because a real
 server exercise would require replication setup.
+The fast suite also raises and catches a marked exception on a lightweight fiber,
+regressing normal Ada exception reporting and symbolic traceback capture with
+the `-Es` binder switch.
 
 The integration suite starts an isolated real SCRAM server for the Ada client, verifies
 typed query streaming and cancellation of `pg_sleep`, then starts the Flyology SCRAM

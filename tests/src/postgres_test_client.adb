@@ -621,7 +621,9 @@ procedure Postgres_Test_Client is
         (Session,
          "create temporary table flyology_copy_test "
          & "(left_value text, right_value text); "
-         & "create temporary table flyology_copy_int (value integer)",
+         & "create temporary table flyology_copy_int (value integer); "
+         & "create temporary table flyology_copy_cancel as "
+         & "select n from generate_series(1, 1000000) n",
          Timeout => 5.0);
       loop
          declare
@@ -908,8 +910,7 @@ procedure Postgres_Test_Client is
 
       Client.Send_Query
         (Session,
-         "copy (select n from generate_series(1, 100000000) n) "
-         & "to stdout",
+         "copy flyology_copy_cancel to stdout",
          Timeout => 5.0);
       declare
          Started : constant Client.Simple_Query_Event :=
@@ -917,9 +918,11 @@ procedure Postgres_Test_Client is
          pragma Unreferenced (Started);
          Saw_Copy_Cancellation : Boolean := False;
       begin
-         --  Consume one frame, then cancel synchronously while COPY OUT is
-         --  known to be streaming. One-frame calls give the application this
-         --  explicit cancellation and fairness point.
+         --  The source is populated before COPY so the response is not held
+         --  behind set-returning-function startup. Its million rows exceed
+         --  socket buffering, keeping COPY active after this first frame.
+         --  One-frame calls give the application an explicit cancellation and
+         --  fairness point.
          declare
             First : constant Client.Copy_Event :=
               Client.Receive_Copy_Event (Session, Timeout => 5.0);

@@ -4,6 +4,7 @@ set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 tests_root=$(CDPATH= cd -- "$script_dir/.." && pwd)
 
+"$tests_root/bin/postgres_test_fiber_exceptions"
 "$tests_root/bin/tests"
 
 if [ "${POSTGRES_INTEGRATION:-1}" = 1 ]; then
