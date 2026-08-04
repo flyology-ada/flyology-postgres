@@ -14,6 +14,8 @@ package Flyology.Postgres.Client is
      (Item             : in out Session;
       User             : String;
       Database         : String := "";
+      --  Password is consumed as its exact String octets. No SASLprep or
+      --  Unicode normalization is performed by this library.
       Password         : String := "";
       Application_Name : String := "flyology_postgres";
       Timeout          : Duration := 30.0);

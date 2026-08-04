@@ -4,11 +4,14 @@ with Ada.Text_IO;
 with AUnit.Assertions; use AUnit.Assertions;
 with Flyology.Bytes;
 with Flyology.Postgres.Protocol;
+with Flyology.Postgres.SCRAM;
+with Flyology.Postgres.SCRAM_Core;
 with Flyology.Postgres.Wire;
 
 procedure Tests is
 
    package Protocol renames Flyology.Postgres.Protocol;
+   package SCRAM_Core renames Flyology.Postgres.SCRAM_Core;
 
    use type Protocol.Byte;
    use type Protocol.Byte_Offset;
@@ -517,6 +520,180 @@ procedure Tests is
          "truncated ParameterStatus messages are rejected");
    end Test_Malformed_Backend_Messages;
 
+   procedure Test_RFC_7677_SCRAM_SHA_256 is
+      package SCRAM renames Flyology.Postgres.SCRAM;
+      Client_Nonce : constant String := "rOprNGfwEbeRWgbNEkqO";
+      Combined_Nonce : constant String :=
+        "rOprNGfwEbeRWgbNEkqO%hvYDpWUa2RaTCAfuxFIlj)hNlF$k0";
+      Server_First : constant String :=
+        "r=" & Combined_Nonce
+        & ",s=W22ZaJ0SNY7soEsUEjb6gQ==,i=4096";
+      Expected_Client_Final : constant String :=
+        "c=biws,r=" & Combined_Nonce
+        & ",p=dHzbZapWIk4jUhN+Ute9ytag9zjfMHgsqmmiz7AndVQ=";
+      Expected_Server_Final : constant String :=
+        "v=6rriTRBi23WpRR/wtup+mMhUZUn/dB5nLTJRsjl95G4=";
+      Bare : constant String :=
+        SCRAM.Client_First_Bare ("user", Client_Nonce);
+      Signature : SCRAM.Digest;
+      Final_Message : constant String :=
+        SCRAM.Client_Final_Message
+          ("pencil",
+           Bare,
+           Server_First,
+           Client_Nonce,
+           Signature);
+      Credential : constant SCRAM.Verifier :=
+        SCRAM.Parse_Verifier
+          (SCRAM.Make_Verifier_Raw
+             ("pencil",
+              SCRAM.Base64_Decode ("W22ZaJ0SNY7soEsUEjb6gQ==")));
+      Server_Signature : SCRAM.Digest;
+      Valid : Boolean;
+   begin
+      Assert
+        (Final_Message = Expected_Client_Final,
+         "RFC 7677 client proof matches the published vector");
+      SCRAM.Verify_Server_Final (Expected_Server_Final, Signature);
+      SCRAM.Verify_Client_Final
+        (Credential,
+         Bare,
+         Server_First,
+         Combined_Nonce,
+         Expected_Client_Final,
+         Server_Signature,
+         Valid);
+      Assert (Valid, "RFC 7677 client proof is accepted");
+      Assert
+        (SCRAM.Base64_Encode
+           (SCRAM.Byte_Array (Server_Signature)) =
+           Expected_Server_Final (3 .. Expected_Server_Final'Last),
+         "RFC 7677 server signature matches the published vector");
+      SCRAM_Core.Wipe (Signature);
+      SCRAM_Core.Wipe (Server_Signature);
+   end Test_RFC_7677_SCRAM_SHA_256;
+
+   procedure Test_SCRAM_Failures is
+      package SCRAM renames Flyology.Postgres.SCRAM;
+      Client_Nonce : constant String := "rOprNGfwEbeRWgbNEkqO";
+      Combined_Nonce : constant String := Client_Nonce & "-server";
+      Server_First : constant String :=
+        "r=" & Combined_Nonce & ",s=U2FsdGVkU2FsdA==,i=4096";
+      Bare : constant String :=
+        SCRAM.Client_First_Bare ("user", Client_Nonce);
+      Correct : constant SCRAM.Verifier :=
+        SCRAM.Parse_Verifier
+          (SCRAM.Make_Verifier_Raw
+             ("correct", SCRAM.Base64_Decode ("U2FsdGVkU2FsdA==")));
+      Signature : SCRAM.Digest;
+      Wrong_Final : constant String :=
+        SCRAM.Client_Final_Message
+          ("wrong",
+           Bare,
+           Server_First,
+           Client_Nonce,
+           Signature);
+      Wrong_Rejected : Boolean := False;
+      Malformed_Rejected : Boolean := False;
+      Verifier_Rejected : Boolean := False;
+      Nonce_Rejected : Boolean := False;
+      GS2_Rejected : Boolean := False;
+      Valid : Boolean;
+   begin
+      SCRAM.Verify_Client_Final
+        (Correct,
+         Bare,
+         Server_First,
+         Combined_Nonce,
+         Wrong_Final,
+         Signature,
+         Valid);
+      Wrong_Rejected := not Valid;
+
+      begin
+         SCRAM.Verify_Server_Final ("v=not-base64", Signature);
+      exception
+         when SCRAM.SCRAM_Error =>
+            Malformed_Rejected := True;
+      end;
+
+      begin
+         declare
+            Ignored : constant String :=
+              SCRAM.Client_Final_Message
+                ("correct",
+                 Bare,
+                 "r=unrelated-server-nonce,s=U2FsdGVkU2FsdA==,i=4096",
+                 Client_Nonce,
+                 Signature);
+            pragma Unreferenced (Ignored);
+         begin
+            null;
+         end;
+      exception
+         when SCRAM.SCRAM_Error =>
+            Nonce_Rejected := True;
+      end;
+
+      begin
+         declare
+            Ignored : constant String :=
+              SCRAM.Bare_From_Client_First
+                ("p=tls-server-end-point,,n=user,r=" & Client_Nonce);
+            pragma Unreferenced (Ignored);
+         begin
+            null;
+         end;
+      exception
+         when SCRAM.SCRAM_Error =>
+            GS2_Rejected := True;
+      end;
+
+      begin
+         declare
+            Ignored : constant SCRAM.Verifier :=
+              SCRAM.Parse_Verifier
+                ("SCRAM-SHA-256$4096:bad$bad:bad");
+            pragma Unreferenced (Ignored);
+         begin
+            null;
+         end;
+      exception
+         when SCRAM.SCRAM_Error =>
+            Verifier_Rejected := True;
+      end;
+
+      Assert (Wrong_Rejected, "wrong SCRAM passwords are rejected");
+      Assert
+        (Malformed_Rejected,
+         "malformed SCRAM server-final messages are rejected");
+      Assert
+        (Verifier_Rejected,
+         "malformed PostgreSQL SCRAM verifiers are rejected");
+      Assert (Nonce_Rejected, "mismatched server nonces are rejected");
+      Assert
+        (GS2_Rejected,
+         "unsupported channel-binding client messages are rejected");
+      SCRAM_Core.Wipe (Signature);
+   end Test_SCRAM_Failures;
+
+   procedure Test_Raw_Password_Boundary is
+      package SCRAM renames Flyology.Postgres.SCRAM;
+      Salt : constant SCRAM.Byte_Array := SCRAM.To_Bytes ("fixed salt");
+      NFC : constant String :=
+        String'(1 => Character'Val (16#C3#),
+                2 => Character'Val (16#A9#));
+      NFD : constant String :=
+        String'(1 => 'e',
+                2 => Character'Val (16#CC#),
+                3 => Character'Val (16#81#));
+   begin
+      Assert
+        (SCRAM.Make_Verifier_Raw (NFC, Salt) /=
+         SCRAM.Make_Verifier_Raw (NFD, Salt),
+         "canonically equivalent UTF-8 stays distinct without SASLprep");
+   end Test_Raw_Password_Boundary;
+
 begin
    Test_Startup;
    Test_Message;
@@ -529,5 +706,8 @@ begin
    Test_Typed_Row_Messages;
    Test_Typed_Query_Events;
    Test_Malformed_Backend_Messages;
+   Test_RFC_7677_SCRAM_SHA_256;
+   Test_SCRAM_Failures;
+   Test_Raw_Password_Boundary;
    Ada.Text_IO.Put_Line ("all Flyology Postgres unit tests passed");
 end Tests;

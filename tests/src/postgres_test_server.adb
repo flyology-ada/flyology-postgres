@@ -7,6 +7,7 @@ with Flyology;
 with Flyology.IO.Sockets;
 with Flyology.Postgres;
 with Flyology.Postgres.Protocol;
+with Flyology.Postgres.SCRAM;
 with Flyology.Postgres.Server;
 with Flyology.Postgres.Server_Sessions;
 
@@ -19,17 +20,28 @@ procedure Postgres_Test_Server is
    use type Protocol.Frontend_Kind;
 
    type Context is limited record
-      Password : Unbounded_String := To_Unbounded_String ("flyology-secret");
+      Verifier : Unbounded_String := To_Unbounded_String
+        (Flyology.Postgres.SCRAM.Make_Verifier_Raw
+           ("flyology-secret",
+            Flyology.Postgres.SCRAM.To_Bytes ("Flyology test salt")));
    end record;
 
    function Authenticate
      (State    : in out Context;
       Startup  : Protocol.Startup_Information;
       Password : String) return Boolean is
+      pragma Unreferenced (State, Startup);
+   begin
+      return Password = "flyology-secret";
+   end Authenticate;
+
+   function Lookup_SCRAM_Verifier
+     (State   : in out Context;
+      Startup : Protocol.Startup_Information) return String is
       pragma Unreferenced (Startup);
    begin
-      return Password = To_String (State.Password);
-   end Authenticate;
+      return To_String (State.Verifier);
+   end Lookup_SCRAM_Verifier;
 
    function Is_Select (SQL : String) return Boolean is
       Trimmed : constant String := Ada.Strings.Fixed.Trim
@@ -142,8 +154,9 @@ procedure Postgres_Test_Server is
    package Test_Server is new Flyology.Postgres.Server
      (Handler_Context => Context,
       Authenticate    => Authenticate,
+      Lookup_SCRAM_Verifier => Lookup_SCRAM_Verifier,
       Handle          => Handle,
-      Authentication  => Flyology.Postgres.Cleartext_Password,
+      Authentication  => Flyology.Postgres.SCRAM_SHA_256,
       Handler_Model   => Flyology.Lightweight_Task);
 
    function Port return Sockets.Port is

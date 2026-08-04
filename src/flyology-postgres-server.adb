@@ -1,6 +1,8 @@
 with Ada.Exceptions;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Unchecked_Deallocation;
+with Flyology.Postgres.SCRAM;
+with Flyology.Postgres.SCRAM_Core;
 with Flyology.Postgres.Server_Sessions.Control;
 with Flyology.Postgres.Transports.Connections;
 with Interfaces;
@@ -269,6 +271,85 @@ package body Flyology.Postgres.Server is
                  (Context,
                   Startup,
                   Server_Sessions.Password_Text (Password_Message));
+            end;
+
+         when SCRAM_SHA_256 =>
+            declare
+               Supplied : constant String :=
+                 Lookup_SCRAM_Verifier (Context, Startup);
+               Has_Credential : constant Boolean := Supplied'Length > 0;
+               --  A derived dummy credential keeps unknown users on the same
+               --  challenge path without retaining a plaintext user password.
+               Dummy : constant String :=
+                 Flyology.Postgres.SCRAM.Make_Verifier_Raw
+                   ("Flyology invalid SCRAM credential",
+                    Flyology.Postgres.SCRAM.To_Bytes
+                      ("fixed dummy salt"));
+               Credential : constant Flyology.Postgres.SCRAM.Verifier :=
+                 Flyology.Postgres.SCRAM.Parse_Verifier
+                   ((if Has_Credential then Supplied else Dummy));
+            begin
+               Server_Sessions.Send_Authentication_SASL
+                 (Client, Timeout => Write_Timeout);
+               declare
+                  Initial_Response : constant Protocol.Message :=
+                    Server_Sessions.Read_Command
+                      (Client, Timeout => Startup_Timeout);
+                  Client_First : constant String :=
+                    Server_Sessions.SASL_Initial_Response
+                      (Initial_Response);
+                  Bare : constant String :=
+                    Flyology.Postgres.SCRAM.Bare_From_Client_First
+                      (Client_First);
+                  Client_Nonce : constant String :=
+                    Flyology.Postgres.SCRAM.Nonce_From_Client_First
+                      (Client_First);
+                  Combined_Nonce : constant String :=
+                    Client_Nonce & Flyology.Postgres.SCRAM.Random_Nonce;
+                  Server_First : constant String :=
+                    Flyology.Postgres.SCRAM.Server_First_Message
+                      (Credential, Combined_Nonce);
+               begin
+                  Server_Sessions.Send_Authentication_SASL_Continue
+                    (Client, Server_First, Write_Timeout);
+                  declare
+                     Final_Response : constant Protocol.Message :=
+                       Server_Sessions.Read_Command
+                         (Client, Timeout => Startup_Timeout);
+                     Client_Final : constant String :=
+                       Server_Sessions.SASL_Response (Final_Response);
+                     Signature : Flyology.Postgres.SCRAM.Digest :=
+                       (others => 0);
+                     Proof_Valid : Boolean;
+                  begin
+                     Flyology.Postgres.SCRAM.Verify_Client_Final
+                       (Credential,
+                        Bare,
+                        Server_First,
+                        Combined_Nonce,
+                        Client_Final,
+                        Signature,
+                        Proof_Valid);
+                     if not Proof_Valid or else not Has_Credential then
+                        Flyology.Postgres.SCRAM_Core.Wipe (Signature);
+                        return False;
+                     end if;
+                     declare
+                        Server_Final : constant String :=
+                          "v=" & Flyology.Postgres.SCRAM.Base64_Encode
+                            (Flyology.Postgres.SCRAM.Byte_Array (Signature));
+                     begin
+                        Flyology.Postgres.SCRAM_Core.Wipe (Signature);
+                        Server_Sessions.Send_Authentication_SASL_Final
+                          (Client, Server_Final, Write_Timeout);
+                        return True;
+                     end;
+                  end;
+               end;
+            exception
+               when Error : Flyology.Postgres.SCRAM.SCRAM_Error =>
+                  raise Protocol.Protocol_Error with
+                    Ada.Exceptions.Exception_Message (Error);
             end;
       end case;
    end Admit;

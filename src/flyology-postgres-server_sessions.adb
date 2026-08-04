@@ -9,6 +9,7 @@ package body Flyology.Postgres.Server_Sessions is
    use type Protocol.Int16;
    use type Protocol.Int32;
    use type Protocol.UInt16;
+   use type Protocol.UInt32;
 
    Payload_Limit : constant Natural := Protocol.Maximum_Message_Size - 4;
 
@@ -102,6 +103,34 @@ package body Flyology.Postgres.Server_Sessions is
       Protocol.Append_U32 (Contents, 3);
       Send_Built (Item, 'R', Contents, Timeout);
    end Send_Authentication_Cleartext_Password;
+
+   procedure Send_Authentication_SASL
+     (Item : in out Session; Timeout : Duration) is
+      Contents : Flyology.Bytes.Unbounded_Bytes;
+   begin
+      Protocol.Append_U32 (Contents, 10);
+      Protocol.Append_C_String (Contents, "SCRAM-SHA-256");
+      Protocol.Append_Byte (Contents, 0);
+      Send_Built (Item, 'R', Contents, Timeout);
+   end Send_Authentication_SASL;
+
+   procedure Send_Authentication_SASL_Continue
+     (Item : in out Session; Data : String; Timeout : Duration) is
+      Contents : Flyology.Bytes.Unbounded_Bytes;
+   begin
+      Protocol.Append_U32 (Contents, 11);
+      Flyology.Bytes.Append_Byte_String (Contents, Data);
+      Send_Built (Item, 'R', Contents, Timeout);
+   end Send_Authentication_SASL_Continue;
+
+   procedure Send_Authentication_SASL_Final
+     (Item : in out Session; Data : String; Timeout : Duration) is
+      Contents : Flyology.Bytes.Unbounded_Bytes;
+   begin
+      Protocol.Append_U32 (Contents, 12);
+      Flyology.Bytes.Append_Byte_String (Contents, Data);
+      Send_Built (Item, 'R', Contents, Timeout);
+   end Send_Authentication_SASL_Final;
 
    procedure Send_Negotiate_Protocol
      (Item         : in out Session;
@@ -391,5 +420,58 @@ package body Flyology.Postgres.Server_Sessions is
        and then Item.Operation_Cancellation.Requested)
       or else (Item.Shutdown_Cancellation /= null
                and then Item.Shutdown_Cancellation.Requested));
+
+   function SASL_Initial_Response
+     (Command : Protocol.Message) return String is
+      Contents : constant Protocol.Byte_Array := Protocol.Payload (Command);
+      Cursor   : Protocol.Byte_Offset := Contents'First;
+   begin
+      if Protocol.Kind (Command) /= Protocol.Password_Or_SASL_Response then
+         raise Protocol.Protocol_Error with
+           "message is not a SASL initial response";
+      end if;
+      declare
+         Selected : constant String :=
+           Protocol.Read_C_String (Contents, Cursor);
+         Length : constant Protocol.UInt32 :=
+           Protocol.Read_U32 (Contents, Cursor);
+      begin
+         if Selected /= "SCRAM-SHA-256" then
+            raise Protocol.Protocol_Error with
+              "unsupported SASL mechanism selected";
+         elsif Length = Protocol.UInt32'Last
+           or else Length > Protocol.UInt32 (Protocol.Maximum_Message_Size)
+           or else Contents'Last - Cursor + 1 /= Protocol.Byte_Offset (Length)
+         then
+            raise Protocol.Protocol_Error with
+              "invalid SASL initial response length";
+         end if;
+         declare
+            Result : String (1 .. Natural (Length));
+            Position : Protocol.Byte_Offset := Cursor;
+         begin
+            for Index in Result'Range loop
+               Result (Index) := Character'Val (Contents (Position));
+               Position := Position + 1;
+            end loop;
+            return Result;
+         end;
+      end;
+   end SASL_Initial_Response;
+
+   function SASL_Response (Command : Protocol.Message) return String is
+      Contents : constant Protocol.Byte_Array := Protocol.Payload (Command);
+      Result   : String (1 .. Contents'Length);
+      Position : Protocol.Byte_Offset := Contents'First;
+   begin
+      if Protocol.Kind (Command) /= Protocol.Password_Or_SASL_Response then
+         raise Protocol.Protocol_Error with "message is not a SASL response";
+      end if;
+      for Index in Result'Range loop
+         Result (Index) := Character'Val (Contents (Position));
+         Position := Position + 1;
+      end loop;
+      return Result;
+   end SASL_Response;
 
 end Flyology.Postgres.Server_Sessions;

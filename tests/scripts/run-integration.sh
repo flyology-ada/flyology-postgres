@@ -33,7 +33,7 @@ printf '%s\n' 'flyology-secret' > "$password_file"
   --username=flyology \
   --pwfile="$password_file" \
   --auth-local=trust \
-  --auth-host=password \
+  --auth-host=scram-sha-256 \
   --no-sync \
   >/dev/null
 
@@ -85,5 +85,16 @@ fi
 
 POSTGRES_TEST_PORT=$server_port \
   "$tests_root/bin/postgres_test_cancellation"
+
+if PGPASSWORD=wrong-password \
+  "$postgres_prefix/bin/psql" \
+  -h 127.0.0.1 \
+  -p "$server_port" \
+  -U flyology \
+  -d postgres \
+  -Atc 'select 1' >/dev/null 2>&1; then
+  echo "Flyology Postgres test server accepted a wrong password" >&2
+  exit 1
+fi
 
 printf '%s\n' 'psql-to-Flyology server integration passed'

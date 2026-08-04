@@ -1,4 +1,8 @@
+with Ada.Exceptions;
+with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Flyology.Postgres.Framing;
+with Flyology.Postgres.SCRAM;
+with Flyology.Postgres.SCRAM_Core;
 with System;
 
 package body Flyology.Postgres.Client is
@@ -27,6 +31,51 @@ package body Flyology.Postgres.Client is
          Timeout);
    end Send_Password;
 
+   function Payload_Text
+     (Contents : Protocol.Byte_Array;
+      First    : Protocol.Byte_Offset) return String is
+      Result : String (1 .. Natural (Contents'Last - First + 1));
+      Cursor : Protocol.Byte_Offset := First;
+   begin
+      for Index in Result'Range loop
+         Result (Index) := Character'Val (Contents (Cursor));
+         Cursor := Cursor + 1;
+      end loop;
+      return Result;
+   end Payload_Text;
+
+   procedure Send_SASL_Initial
+     (Item     : in out Session;
+      User     : String;
+      Nonce    : String;
+      Timeout  : Duration) is
+      Response : constant String :=
+        Flyology.Postgres.SCRAM.Client_First_Message (User, Nonce);
+      Contents : Flyology.Bytes.Unbounded_Bytes;
+   begin
+      Protocol.Append_C_String
+        (Contents, Flyology.Postgres.SCRAM.Mechanism);
+      Protocol.Append_U32 (Contents, Protocol.UInt32 (Response'Length));
+      Flyology.Bytes.Append_Byte_String (Contents, Response);
+      Framing.Write_Message
+        (Item.Channel.all,
+         Protocol.Make_Message
+           ('p', Flyology.Bytes.To_Array (Contents)),
+         Timeout);
+   end Send_SASL_Initial;
+
+   procedure Send_SASL_Response
+     (Item : in out Session; Response : String; Timeout : Duration) is
+      Contents : Flyology.Bytes.Unbounded_Bytes;
+   begin
+      Flyology.Bytes.Append_Byte_String (Contents, Response);
+      Framing.Write_Message
+        (Item.Channel.all,
+         Protocol.Make_Message
+           ('p', Flyology.Bytes.To_Array (Contents)),
+         Timeout);
+   end Send_SASL_Response;
+
    procedure Startup
      (Item             : in out Session;
       User             : String;
@@ -34,6 +83,14 @@ package body Flyology.Postgres.Client is
       Password         : String := "";
       Application_Name : String := "flyology_postgres";
       Timeout          : Duration := 30.0) is
+      type SASL_Phase is
+        (No_SASL, Awaiting_Continue, Awaiting_Final, Final_Verified);
+      Phase : SASL_Phase := No_SASL;
+      Nonce : Unbounded_String;
+      Bare_Client_First : Unbounded_String;
+      Expected_Server_Signature : Flyology.Postgres.SCRAM.Digest :=
+        (others => 0);
+      Authentication_Ok : Boolean := False;
    begin
       if Item.Started then
          raise Program_Error with "Postgres session is already started";
@@ -64,9 +121,93 @@ package body Flyology.Postgres.Client is
                   begin
                      case Method is
                         when 0 =>
-                           null;
+                           if Phase in Awaiting_Continue | Awaiting_Final then
+                              raise Protocol.Protocol_Error with
+                                "AuthenticationOk arrived before SCRAM "
+                                & "completed";
+                           end if;
+                           Authentication_Ok := True;
                         when 3 =>
+                           if Phase /= No_SASL then
+                              raise Protocol.Protocol_Error with
+                                "unexpected cleartext authentication request";
+                           end if;
                            Send_Password (Item, Password, Timeout);
+                        when 10 =>
+                           if Phase /= No_SASL then
+                              raise Protocol.Protocol_Error with
+                                "duplicate SASL authentication request";
+                           end if;
+                           declare
+                              Offered : Boolean := False;
+                              Terminated : Boolean := False;
+                           begin
+                              while Cursor <= Contents'Last loop
+                                 declare
+                                    Name : constant String :=
+                                      Protocol.Read_C_String
+                                        (Contents, Cursor);
+                                 begin
+                                    if Name'Length = 0 then
+                                       Terminated := True;
+                                       exit;
+                                    elsif Name =
+                                      Flyology.Postgres.SCRAM.Mechanism
+                                    then
+                                       Offered := True;
+                                    end if;
+                                 end;
+                              end loop;
+                              if not Terminated
+                                or else Cursor <= Contents'Last
+                              then
+                                 raise Protocol.Protocol_Error with
+                                   "malformed AuthenticationSASL "
+                                   & "mechanism list";
+                              elsif not Offered then
+                                 raise Unsupported_Authentication with
+                                   "server did not offer SCRAM-SHA-256";
+                              end if;
+                           end;
+                           Nonce := To_Unbounded_String
+                             (Flyology.Postgres.SCRAM.Random_Nonce);
+                           Bare_Client_First := To_Unbounded_String
+                             (Flyology.Postgres.SCRAM.Client_First_Bare
+                                (User, To_String (Nonce)));
+                           Send_SASL_Initial
+                             (Item, User, To_String (Nonce), Timeout);
+                           Phase := Awaiting_Continue;
+                        when 11 =>
+                           if Phase /= Awaiting_Continue then
+                              raise Protocol.Protocol_Error with
+                                "unexpected AuthenticationSASLContinue";
+                           end if;
+                           declare
+                              Server_First : constant String :=
+                                Payload_Text (Contents, Cursor);
+                              Client_Final : constant String :=
+                                Flyology.Postgres.SCRAM.Client_Final_Message
+                                  (Password,
+                                   To_String (Bare_Client_First),
+                                   Server_First,
+                                   To_String (Nonce),
+                                   Expected_Server_Signature);
+                           begin
+                              Send_SASL_Response
+                                (Item, Client_Final, Timeout);
+                              Phase := Awaiting_Final;
+                           end;
+                        when 12 =>
+                           if Phase /= Awaiting_Final then
+                              raise Protocol.Protocol_Error with
+                                "unexpected AuthenticationSASLFinal";
+                           end if;
+                           Flyology.Postgres.SCRAM.Verify_Server_Final
+                             (Payload_Text (Contents, Cursor),
+                              Expected_Server_Signature);
+                           Flyology.Postgres.SCRAM_Core.Wipe
+                             (Expected_Server_Signature);
+                           Phase := Final_Verified;
                         when others =>
                            raise Unsupported_Authentication with
                              "server requested unsupported authentication"
@@ -86,6 +227,8 @@ package body Flyology.Postgres.Client is
                        (Contents (Cursor .. Contents'Last));
                   end;
                when 'E' =>
+                  Flyology.Postgres.SCRAM_Core.Wipe
+                    (Expected_Server_Signature);
                   raise Database_Error with
                     SQL_State (Response) & ": " & Error_Message (Response);
                when 'N' | 'S' =>
@@ -102,6 +245,10 @@ package body Flyology.Postgres.Client is
                   begin
                      null;
                   end;
+                  if not Authentication_Ok then
+                     raise Protocol.Protocol_Error with
+                       "ReadyForQuery arrived before AuthenticationOk";
+                  end if;
                   Item.Started := True;
                   Item.Ready := True;
                   return;
@@ -110,6 +257,16 @@ package body Flyology.Postgres.Client is
             end case;
          end;
       end loop;
+   exception
+      when Error : Flyology.Postgres.SCRAM.SCRAM_Error =>
+         Flyology.Postgres.SCRAM_Core.Wipe
+           (Expected_Server_Signature);
+         raise Protocol.Protocol_Error with
+           Ada.Exceptions.Exception_Message (Error);
+      when others =>
+         Flyology.Postgres.SCRAM_Core.Wipe
+           (Expected_Server_Signature);
+         raise;
    end Startup;
 
    procedure Send_Command

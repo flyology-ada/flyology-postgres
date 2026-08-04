@@ -26,6 +26,12 @@ package Flyology.Postgres.Server_Sessions is
      (Item : in out Session; Timeout : Duration);
    procedure Send_Authentication_Cleartext_Password
      (Item : in out Session; Timeout : Duration);
+   procedure Send_Authentication_SASL
+     (Item : in out Session; Timeout : Duration);
+   procedure Send_Authentication_SASL_Continue
+     (Item : in out Session; Data : String; Timeout : Duration);
+   procedure Send_Authentication_SASL_Final
+     (Item : in out Session; Data : String; Timeout : Duration);
    procedure Send_Negotiate_Protocol
      (Item         : in out Session;
       Latest_Minor : Protocol.UInt32;
@@ -89,6 +95,9 @@ package Flyology.Postgres.Server_Sessions is
 
    function Query_Text (Command : Protocol.Message) return String;
    function Password_Text (Command : Protocol.Message) return String;
+   function SASL_Initial_Response
+     (Command : Protocol.Message) return String;
+   function SASL_Response (Command : Protocol.Message) return String;
 
    --  True when the current handler operation was cancelled by a matching
    --  Postgres CancelRequest or by forced structured-server shutdown.
