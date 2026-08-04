@@ -97,4 +97,18 @@ if PGPASSWORD=wrong-password \
   exit 1
 fi
 
+#  The dummy input is intentionally non-secret. Using it here makes the client
+#  proof valid for the static dummy verifier; the server must still reject the
+#  unknown startup user after verification.
+if PGPASSWORD='Flyology invalid SCRAM credential' \
+  "$postgres_prefix/bin/psql" \
+  -h 127.0.0.1 \
+  -p "$server_port" \
+  -U unknown-flyology-user \
+  -d postgres \
+  -Atc 'select 1' >/dev/null 2>&1; then
+  echo "Flyology Postgres test server accepted an unknown user" >&2
+  exit 1
+fi
+
 printf '%s\n' 'psql-to-Flyology server integration passed'

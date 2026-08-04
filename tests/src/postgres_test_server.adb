@@ -38,9 +38,11 @@ procedure Postgres_Test_Server is
    function Lookup_SCRAM_Verifier
      (State   : in out Context;
       Startup : Protocol.Startup_Information) return String is
-      pragma Unreferenced (Startup);
    begin
-      return To_String (State.Verifier);
+      return
+        (if To_String (Startup.User) = "flyology"
+         then To_String (State.Verifier)
+         else "");
    end Lookup_SCRAM_Verifier;
 
    function Is_Select (SQL : String) return Boolean is

@@ -24,6 +24,15 @@ package body Flyology.Postgres.Server is
       Index         => Protocol.Byte_Offset,
       Element_Array => Protocol.Byte_Array);
 
+   --  Precomputed from a non-secret dummy password and salt. Keep this as
+   --  verifier text so known and unknown users take the same per-attempt
+   --  Parse_Verifier and constant-time proof-verification path without
+   --  attacker-controlled PBKDF2 work on the server.
+   Dummy_SCRAM_Verifier : constant String :=
+     "SCRAM-SHA-256$4096:Zml4ZWQgZHVtbXkgc2FsdA==$"
+     & "6noiwI8hQdf8Z+HCRIbshx1qqrjQPi1wyxZ1+7fQdIM=:"
+     & "KctKYif+hWsn2f75oSuDVm9zGdZUQ4iWXqV1PDhONRs=";
+
    function Same_Credentials
      (Left : Credentials; Right : Credentials) return Boolean is
       Difference : Protocol.Byte := 0;
@@ -278,16 +287,11 @@ package body Flyology.Postgres.Server is
                Supplied : constant String :=
                  Lookup_SCRAM_Verifier (Context, Startup);
                Has_Credential : constant Boolean := Supplied'Length > 0;
-               --  A derived dummy credential keeps unknown users on the same
-               --  challenge path without retaining a plaintext user password.
-               Dummy : constant String :=
-                 Flyology.Postgres.SCRAM.Make_Verifier_Raw
-                   ("Flyology invalid SCRAM credential",
-                    Flyology.Postgres.SCRAM.To_Bytes
-                      ("fixed dummy salt"));
                Credential : constant Flyology.Postgres.SCRAM.Verifier :=
                  Flyology.Postgres.SCRAM.Parse_Verifier
-                   ((if Has_Credential then Supplied else Dummy));
+                   ((if Has_Credential
+                     then Supplied
+                     else Dummy_SCRAM_Verifier));
             begin
                Server_Sessions.Send_Authentication_SASL
                  (Client, Timeout => Write_Timeout);

@@ -121,8 +121,11 @@ behavior: the cancellation connection closes silently with no response.
 For `SCRAM_SHA_256`, `Lookup_SCRAM_Verifier` returns the exact PostgreSQL credential
 form `SCRAM-SHA-256$<iterations>:<salt>$<StoredKey>:<ServerKey>`, or an empty string
 for an unknown/uncredentialed user. The server never requests, receives, or retains
-that user's plaintext password. Unknown users take the same derived dummy-credential
-challenge path before authentication fails.
+that user's plaintext password. Unknown users are challenged with a static precomputed
+dummy verifier: real and dummy verifier text follows the same per-attempt parsing and
+constant-time proof-verification path, with no PBKDF2 derivation on the server's
+username-controlled authentication path. Unknown users are rejected after proof
+verification regardless of the supplied password.
 
 This adds one required generic formal to every `Flyology.Postgres.Server`
 instantiation, including trust and cleartext instances. Existing instances should add
@@ -249,7 +252,7 @@ The real-server direction covers multiple columns and rows, NULL and empty value
 multiple statements and result sets, command-only and empty queries, notices,
 parameter status, errors, and recovery. The `psql` direction verifies that the
 Flyology server emits a multi-column, multi-row result with both NULL and empty text
-and rejects a wrong password.
+and rejects both a wrong password and an unknown user through real SCRAM exchanges.
 Server-side tests cover correct, incorrect, stale, duplicate, and
 concurrent credentials, verify silent cancellation-connection close, and confirm a
 valid request stops a polling Flyology handler with SQLSTATE `57014`.
