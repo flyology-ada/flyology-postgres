@@ -1,0 +1,24 @@
+name = "flyology_psqlish"
+description = "A small, bounded psql-like client built on Flyology Postgres"
+version = "0.1.0-dev"
+
+authors = ["Yurii Rashkovskii"]
+maintainers = ["Yurii Rashkovskii <yrashk@gmail.com>"]
+maintainers-logins = ["yrashk"]
+licenses = "MIT OR Apache-2.0"
+website = "https://github.com/flyology-ada/flyology-postgres"
+tags = ["example", "postgres", "client", "repl"]
+
+executables = ["flyology_psql"]
+
+[[depends-on]]
+flyology_postgres = "*"
+flyology = "~0.1.0-dev"
+
+[[pins]]
+flyology_postgres = { path = "../.." }
+flyology = { path = "../../../flyology" }
+
+[[actions]]
+type = "test"
+command = ["./scripts/test.sh"]

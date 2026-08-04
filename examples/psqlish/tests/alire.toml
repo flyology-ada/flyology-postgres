@@ -1,0 +1,25 @@
+name = "flyology_psqlish_tests"
+description = "Deterministic fixtures for the flyology_psql example"
+version = "0.1.0-dev"
+
+authors = ["Yurii Rashkovskii"]
+maintainers = ["Yurii Rashkovskii <yrashk@gmail.com>"]
+maintainers-logins = ["yrashk"]
+licenses = "MIT OR Apache-2.0"
+tags = ["testing", "postgres", "example"]
+
+executables = ["fixture_tests"]
+
+[[depends-on]]
+flyology_psqlish = "*"
+flyology_postgres = "*"
+flyology = "~0.1.0-dev"
+
+[[pins]]
+flyology_psqlish = { path = ".." }
+flyology_postgres = { path = "../../.." }
+flyology = { path = "../../../../flyology" }
+
+[[actions]]
+type = "test"
+command = ["./scripts/test.sh"]

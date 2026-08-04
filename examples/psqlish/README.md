@@ -1,0 +1,156 @@
+# flyology_psql
+
+`flyology_psql` is a polished, intentionally incomplete `psql`-like example
+for the production `Flyology.Postgres.Client` API. It connects to ordinary
+Postgres and to `examples/introspection_server`; it is small enough to read as
+an example and is not intended to replace `psql`.
+
+It demonstrates startup authentication, simple-query event processing,
+multiple result sets, bounded display buffering, recovery after SQL errors,
+and a multiline REPL. Trust, cleartext-password, and SCRAM-SHA-256 startup are
+provided by the library. TLS, COPY streaming, variables, files, pager support,
+and the extended-query protocol are deliberately out of scope. In particular,
+do not use this client where TLS is required.
+
+## Build
+
+The example is a nested Alire crate. Its committed pins are portable and
+relative:
+
+- `flyology_postgres` points to the repository root (`../..`);
+- `flyology` points to the usual sibling checkout (`../../../flyology`).
+
+From this directory:
+
+```sh
+alr -n build
+./bin/flyology_psql --help
+```
+
+When several worktrees build against Flyology concurrently, do not share the
+same local Flyology pin: its Alire pre-build action prepares generated runtime
+state. For local concurrent validation, make a task-specific temporary
+Flyology checkout and temporarily repin this crate and its test crate to it.
+Do not commit that temporary pin.
+
+## Connection and CLI
+
+Defaults are `127.0.0.1:55432`, user `flyology`, database `flyology`.
+`PGHOST`, `PGPORT`, `PGUSER`, `PGDATABASE`, and `PGPASSWORD` override those
+defaults; `--host`, `--port`, `--username`, and `--dbname` then override the
+environment. Host names and numeric IPv4/IPv6 addresses are resolved through
+Flyology's DNS API. The password is passed directly to startup and is never
+printed. This example deliberately has no password-valued CLI option, which
+keeps it out of process listings and shell history.
+
+Use `--command` (or `-c`) for scripts:
+
+```sh
+PGPASSWORD=flyology-secret ./bin/flyology_psql \
+  --command "select 1 as n, null::text as missing, ''::text as empty"
+```
+
+The process exits nonzero after a server SQL error, option error, startup
+failure, protocol error, or transport failure. A SQL error is still drained
+through `ReadyForQuery`, so an interactive connection remains reusable.
+
+## REPL
+
+SQL is accumulated across lines until the last non-whitespace byte is a
+semicolon. Multiple statements in one submission produce multiple independent
+tables and command tags. EOF submits a pending buffer and exits; `\q` exits
+when entered at a fresh prompt.
+
+Available meta commands:
+
+```text
+\?                 help
+\q                 quit
+\dt                list non-system tables
+\d [TABLE]         describe TABLE, or list tables without an argument
+\x on|off          expanded output
+\timing on|off     elapsed time
+\pset null VALUE   change the NULL marker (VALUE may be empty)
+```
+
+`\dt` uses `pg_catalog.pg_tables`; `\d TABLE` uses
+`information_schema.columns`. Those queries work on real Postgres and form the
+catalog-query contract for the companion introspection server.
+
+Example session:
+
+```text
+flyology_psql 0.1.0-dev (TLS and COPY are not implemented; \? for help)
+flyology=> select 7 as n, null::text as missing, ''::text as empty;
++---+---------+-------+
+| n | missing | empty |
++===+=========+=======+
+| 7 | NULL    |       |
++---+---------+-------+
+(1 row)
+SELECT 1
+flyology=> \timing on
+Timing is on
+flyology=> select 1 / 0;
+ERROR [22012]: division by zero
+Time: 0.431000000 ms
+flyology=> select 'still ready' as state;
+```
+
+Actual timings vary.
+
+## Display and memory behavior
+
+The formatter has configurable limits rather than universal hard caps. This
+client configures explicit limits of 1,000 buffered rows, 1 MiB of retained
+cell/header bytes per display batch, and 80 output bytes per cell. These values are
+kept next to the client wiring in `flyology_psql.adb`, so another consumer can
+choose its own policy.
+
+The client can display more than 1,000 rows. When a row or byte boundary is
+reached, it renders that batch, releases it, repeats the headers, and continues
+receiving the same result. Alignment is therefore consistent within a batch,
+not across an unlimited result. Total output is not capped; the backend command
+tag (for example `SELECT 1001`) retains the server's total. Thus the connection
+reaches `ReadyForQuery` without accumulating an unbounded result. Long cells
+end in `...` and a truncation summary is printed. A single backend frame is
+still bounded by the parent library's protocol frame limit.
+
+Text-format fields retain their UTF-8 bytes. ASCII line-breaking and control
+bytes are escaped so borders remain intact; display width is byte-oriented,
+not Unicode-column-aware. Binary-format fields are visibly encoded as `\x`
+followed by hexadecimal bytes. NULL uses a configurable marker and remains
+distinct from an empty string. A column is right-aligned only when every
+displayed non-NULL value looks numeric.
+
+Notices and errors include severity and SQLSTATE. Parameter-status events that
+occur during a query are printed as `PARAMETER name = value`. Empty queries,
+command-only responses, multiple statements, and errors followed by
+`ReadyForQuery` all have explicit handling.
+
+## Tests and integration
+
+The nested test crate covers alignment, NULL versus empty, binary encoding,
+cell and row truncation, multiple-result state reset, expanded output, and
+option parsing. Its executable output is checked exactly by a shell fixture:
+
+```sh
+./scripts/test.sh
+```
+
+The default test is deterministic and does not require a server. To add the
+repository's cached configurable real Postgres integration:
+
+```sh
+POSTGRES_INTEGRATION=1 ./scripts/test.sh
+```
+
+After building and starting `examples/introspection_server` at the shared
+default endpoint, the coordinating integration command is:
+
+```sh
+PGPASSWORD=flyology-secret ./scripts/run-introspection-integration.sh
+```
+
+All `PG*` variables remain available if the server uses an overridden
+endpoint or credentials.
