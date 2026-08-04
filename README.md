@@ -8,13 +8,15 @@ protocol over Flyology I/O. It provides both:
   handlers.
 
 The current development baseline implements protocol 3.2 framing and startup,
+verified TLS for clients and servers,
 typed streaming simple- and extended-query results, prepared statements and
 portals, streaming `COPY IN`, `COPY OUT`, and `COPY BOTH`, trust,
 cleartext-password, and SCRAM-SHA-256 authentication, and raw dispatch of every
-normal frontend command. It interoperates in both directions with Postgres 18.4:
-the test client connects to a real Postgres SCRAM server, and `psql` connects to
-the Flyology SCRAM test server. Cancellation uses the official
-separate-connection flow in both directions.
+normal frontend command. It interoperates over verified TLS in both directions with
+Postgres 18.4: the test client connects to a real Postgres TLS/SCRAM server, and
+`psql` connects with `sslmode=verify-full` to the Flyology TLS/SCRAM test server.
+Cancellation uses the official encrypted separate-connection flow in both
+directions.
 
 ## Development setup
 
@@ -39,19 +41,22 @@ SCRAM uses two small dependencies with no transitive production crates:
 - `system_random ^1.0.0` obtains nonce bytes directly from `getentropy` on Unix-like
   systems and `BCryptGenRandom` on Windows.
 
-No OpenSSL, TLS, or general-purpose cryptography framework is added.
+TLS uses Flyology's provider-neutral, ownership-preserving upgrade API. The
+shipped Flyology OpenSSL 3 provider is loaded at run time, so this crate adds no
+link-time OpenSSL dependency and applications may supply another provider.
 
 ## Examples
 
 - [`psqlish`](examples/psqlish/README.md) is a compact, polished
   `psql`-like client with a multiline REPL, catalog commands, bounded table
-  rendering, and real Postgres authentication.
+  rendering, verified TLS, and real Postgres authentication.
 - [`pgish`](examples/pgish/README.md) is a small read-only Postgres-like server
   with a bounded SQL subset and virtual Flyology, session, repository, runtime,
-  settings, and catalog tables.
+  settings, and catalog tables. Certificate/key configuration enables required
+  TLS.
 
-Both are independent nested Alire crates. They share a loopback default so
-`psqlish` and real `psql` can be used directly against `pgish`.
+Both are independent nested Alire crates. Their integration suite uses an
+ephemeral CA so `psqlish` and real `psql` exercise verified TLS against `pgish`.
 
 ## API outline
 
@@ -82,8 +87,12 @@ supports independent result format codes, and preserves the distinction between 
 and an empty value. Execute accepts Postgres's nonnegative signed 32-bit maximum-row
 count; zero means unlimited.
 
-`Flyology.Postgres.Client.Session` borrows a transport. `Startup` performs startup and
-authentication. `Send_Query` followed by repeated `Receive_Query_Event` calls is the
+`Flyology.Postgres.Client.Session` borrows a transport. `Startup` performs plaintext
+startup and authentication. `Startup_TLS` first sends the exact Postgres
+`SSLRequest`, requires an `S` response without downgrade fallback, upgrades the same
+transport, verifies the server chain and DNS name through the selected Flyology TLS
+provider, and only then sends credentials. `Send_Query` followed by repeated
+`Receive_Query_Event` calls is the
 high-level simple-query path. It returns one owned event at a time rather than
 accumulating an unbounded result: each result set is a row description, zero or more
 data rows, and a command completion; command-only statements produce a command
@@ -213,7 +222,9 @@ Startup retains variable-length `BackendKeyData`. To cancel,
 `Client.Send_Cancel_Request` writes those credentials to a caller-opened distinct
 transport, while `Flyology.Postgres.Client_Sockets.Cancel` opens, sends on, and closes
 a separate socket. Neither API reads a reply, and the transport-level API rejects the
-active session transport by identity.
+active session transport by identity. `Client_Sockets.Cancel_TLS` performs the same
+flow after a required, verified TLS upgrade using the original server name and TLS
+policy.
 
 `Flyology.Postgres.Server` is generic over an application context, the existing
 trust/cleartext authentication callback, a SCRAM verifier lookup callback, and a
@@ -258,10 +269,19 @@ instantiation, including trust and cleartext instances. Existing instances shoul
 a `Lookup_SCRAM_Verifier` function; returning `""` is sufficient when the selected
 mode is not SCRAM. The behavior of `Trust` and `Cleartext_Password` is unchanged.
 
-Two transport adapters are included:
+Three transport adapters are included:
 
-- `Flyology.Postgres.Transports.Connections` for accepted Flyology connections; and
-- `Flyology.Postgres.Transports.Sockets` for a directly connected Flyology socket.
+- `Flyology.Postgres.Transports.Connections` for accepted Flyology connections;
+- `Flyology.Postgres.Transports.Sockets` for a directly connected plaintext Flyology
+  socket; and
+- `Flyology.Postgres.Transports.TLS_Sockets` for a socket that is upgraded in place
+  after PostgreSQL accepts TLS and thereafter owns the encrypted connection.
+
+The generic server's `Serve_TLS` accepts a configured provider and either
+`TLS_Allowed` or `TLS_Required`; required mode rejects direct plaintext startup.
+The original `Serve` remains an explicit plaintext API. `Client_Sockets.Cancel_TLS`
+uses a new verified TLS connection for the official separate-connection cancellation
+flow.
 
 Symbolic traceback capture with GNAT's `-Es` binder switch is supported for
 Flyology lightweight tasks by the indexed Flyology release. Flyology commit
@@ -276,16 +296,15 @@ that capability at this dependency boundary.
 - Authentication supports `trust`, cleartext passwords, and SCRAM-SHA-256. MD5,
   GSSAPI, SSPI, certificate authentication, and SCRAM-SHA-256-PLUS are not
   implemented.
-- TLS is intentionally deferred until Flyology can upgrade an accepted connection
-  without losing connection ownership or buffered-byte safety. The server answers an
-  `SSLRequest` with `N`; the client currently starts in plaintext without requesting
-  TLS.
-- Cleartext-password authentication must only be used on a trusted test or private
-  network until TLS is available.
-- Cancellation connections are currently plaintext because TLS itself is deferred.
-  Applications that require encrypted cancellation should wait for the transport
-  upgrade support noted above; the current libpq cancellation API reuses the original
-  connection's encryption and host-verification requirements.
+- TLS clients always verify the peer chain and DNS name because Flyology's shipped
+  provider intentionally has no insecure client mode. The server does not yet request
+  client certificates.
+- `Startup` and `Cancel` remain explicit plaintext APIs for trusted test or private
+  networks. Use `Startup_TLS`, `Serve_TLS`, and `Cancel_TLS` when encryption is
+  required. Cleartext-password authentication is safe only on an authenticated TLS
+  connection or a comparably trusted transport.
+- SCRAM-SHA-256 accepts the standard `n,,` and `y,,` GS2 headers. Actual channel
+  binding (`SCRAM-SHA-256-PLUS` and `p=tls-server-end-point`) remains unsupported.
 - Flyology lightweight tasks are cooperatively scheduled. A COPY OUT socket that is
   continuously readable may not suspend the receiving lightweight task, so a delayed
   canceller on the same execution group can be starved. Issue cancellation from an
@@ -345,7 +364,8 @@ verifies arbitrary-bound array indexing, endian encoding and decoding, total
 status-returning cursor reads, bounded byte views, frame-length conversions,
 extended-protocol format-count validity, exact COPY-response lengths and format-code
 validity, earliest-NUL search, initial/startup packet structure, protocol 3.2
-variable cancellation keys, exact source correspondence for recognized startup
+variable cancellation keys, SSLRequest classification, exact source correspondence
+for recognized startup
 parameters and special requests, SCRAM core bounds, loop termination, and the
 packages' functional
 contracts.

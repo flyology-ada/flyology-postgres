@@ -374,13 +374,17 @@ package body Flyology.Postgres.SCRAM is
    procedure Parse_Client_First
      (Message : String;
       Bare    : out Unbounded_String;
-      Nonce   : out Unbounded_String) is
+      Nonce   : out Unbounded_String;
+      Channel_Binding : out Unbounded_String) is
    begin
       if Message'Length > Maximum_Message_Length or else Message'Length < 8
-        or else Message (Message'First .. Message'First + 2) /= "n,,"
+        or else Message (Message'First .. Message'First + 2)
+          not in "n,," | "y,,"
       then
          Fail ("unsupported SCRAM GS2 header");
       end if;
+      Channel_Binding := To_Unbounded_String
+        ((if Message (Message'First) = 'n' then "biws" else "eSws"));
       declare
          Bare_Text : constant String :=
            Message (Message'First + 3 .. Message'Last);
@@ -411,18 +415,26 @@ package body Flyology.Postgres.SCRAM is
    end Parse_Client_First;
 
    function Bare_From_Client_First (Message : String) return String is
-      Bare, Nonce : Unbounded_String;
+      Bare, Nonce, Channel_Binding : Unbounded_String;
    begin
-      Parse_Client_First (Message, Bare, Nonce);
+      Parse_Client_First (Message, Bare, Nonce, Channel_Binding);
       return To_String (Bare);
    end Bare_From_Client_First;
 
    function Nonce_From_Client_First (Message : String) return String is
-      Bare, Nonce : Unbounded_String;
+      Bare, Nonce, Channel_Binding : Unbounded_String;
    begin
-      Parse_Client_First (Message, Bare, Nonce);
+      Parse_Client_First (Message, Bare, Nonce, Channel_Binding);
       return To_String (Nonce);
    end Nonce_From_Client_First;
+
+   function Channel_Binding_From_Client_First
+     (Message : String) return String is
+      Bare, Nonce, Channel_Binding : Unbounded_String;
+   begin
+      Parse_Client_First (Message, Bare, Nonce, Channel_Binding);
+      return To_String (Channel_Binding);
+   end Channel_Binding_From_Client_First;
 
    function Server_First_Message
      (Credential     : Verifier;
@@ -558,7 +570,8 @@ package body Flyology.Postgres.SCRAM is
       Combined_Nonce    : String;
       Client_Final      : String;
       Server_Signature  : out Digest;
-      Valid             : out Boolean) is
+      Valid             : out Boolean;
+      Channel_Binding   : String := "biws") is
       Cursor : Natural := Client_Final'First;
    begin
       Server_Signature := (others => 0);
@@ -577,7 +590,7 @@ package body Flyology.Postgres.SCRAM is
          P : constant String := Attribute_Value (P_Token, 'p');
          Proof_Data : constant Byte_Array := Base64_Decode (P);
       begin
-         if C /= "biws" or else R /= Combined_Nonce
+         if C /= Channel_Binding or else R /= Combined_Nonce
            or else Cursor <= Client_Final'Last
            or else Proof_Data'Length /= Digest'Length
          then

@@ -6,4 +6,6 @@ package Flyology.Postgres is
    type Authentication_Method is
      (Trust, Cleartext_Password, SCRAM_SHA_256);
 
+   type TLS_Policy is (TLS_Disabled, TLS_Allowed, TLS_Required);
+
 end Flyology.Postgres;

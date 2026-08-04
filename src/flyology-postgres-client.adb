@@ -7,6 +7,7 @@ with System;
 
 package body Flyology.Postgres.Client is
 
+   use type Protocol.Byte;
    use type Protocol.Byte_Offset;
    use type Protocol.Frontend_Kind;
    use type System.Address;
@@ -111,13 +112,13 @@ package body Flyology.Postgres.Client is
          Timeout);
    end Send_SASL_Response;
 
-   procedure Startup
+   procedure Complete_Startup
      (Item             : in out Session;
       User             : String;
-      Database         : String := "";
-      Password         : String := "";
-      Application_Name : String := "flyology_postgres";
-      Timeout          : Duration := 30.0) is
+      Database         : String;
+      Password         : String;
+      Application_Name : String;
+      Timeout          : Duration) is
       type SASL_Phase is
         (No_SASL, Awaiting_Continue, Awaiting_Final, Final_Verified);
       Phase : SASL_Phase := No_SASL;
@@ -301,7 +302,59 @@ package body Flyology.Postgres.Client is
          Flyology.Postgres.SCRAM_Core.Wipe
            (Expected_Server_Signature);
          raise;
+   end Complete_Startup;
+
+   procedure Startup
+     (Item             : in out Session;
+      User             : String;
+      Database         : String := "";
+      Password         : String := "";
+      Application_Name : String := "flyology_postgres";
+      Timeout          : Duration := 30.0) is
+   begin
+      Complete_Startup
+        (Item, User, Database, Password, Application_Name, Timeout);
    end Startup;
+
+   procedure Startup_TLS
+     (Item             : in out Session;
+      Backend          : in out Flyology.IO.TLS.Provider'Class;
+      Server_Name      : String;
+      User             : String;
+      Database         : String := "";
+      Password         : String := "";
+      Application_Name : String := "flyology_postgres";
+      Timeout          : Duration := 30.0) is
+      Response : Protocol.Byte_Array (1 .. 1);
+   begin
+      if Item.Current_State /= Not_Started then
+         raise Program_Error with "Postgres session is already started";
+      elsif Server_Name'Length = 0 then
+         raise Program_Error with "Postgres TLS requires a server name";
+      elsif Item.Channel.all not in
+        Transports.TLS_Upgradable_Transport'Class
+      then
+         raise Program_Error with
+           "Postgres transport does not support TLS upgrade";
+      end if;
+
+      Framing.Write_Packet
+        (Item.Channel.all, Protocol.Encode_SSL_Request, Timeout);
+      Item.Channel.Receive_Exactly (Response, Timeout);
+      if Response (Response'First) /=
+        Protocol.Byte (Character'Pos ('S'))
+      then
+         raise TLS_Not_Available with "Postgres server refused TLS";
+      end if;
+
+      Transports.Upgrade_TLS
+        (Transports.TLS_Upgradable_Transport'Class (Item.Channel.all),
+         Backend,
+         Server_Name,
+         Timeout);
+      Complete_Startup
+        (Item, User, Database, Password, Application_Name, Timeout);
+   end Startup_TLS;
 
    procedure Send_Command
      (Item    : in out Session;

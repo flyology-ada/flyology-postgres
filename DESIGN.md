@@ -245,4 +245,4 @@ path or dashed-flow transforms that describe protocol behavior.
 - **Don't** use faux-Victorian ornament to reference Ada Lovelace.
 - **Don't** use glassmorphism, gradient text, decorative colored side stripes, or repeated icon cards.
 - **Don't** use violet and teal as decorative substitutes for one another.
-- **Don't** imply TLS support, unsupported authentication mechanisms, unbounded buffering, or universal Postgres compatibility.
+- **Don't** imply certificate authentication, SCRAM-SHA-256-PLUS, unbounded buffering, or universal Postgres compatibility.

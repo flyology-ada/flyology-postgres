@@ -79,6 +79,7 @@ begin
          SQL.Make_Text (Ada.Directories.Current_Directory, 1_024),
        Task_Mode       =>
          SQL.Make_Text ("lightweight", SQL.Maximum_Name_Length),
+       TLS_Enabled     => False,
        Started_At      => Ada.Calendar.Clock));
    declare
       Matched : Boolean;

@@ -2,13 +2,18 @@ with Ada.Strings.Unbounded;
 
 package Psqlish.Options is
 
+   type SSL_Mode is (Disable, Verify_Full);
+
    type Configuration is record
-      Host     : Ada.Strings.Unbounded.Unbounded_String;
-      Port     : Positive := 55_432;
-      User     : Ada.Strings.Unbounded.Unbounded_String;
-      Database : Ada.Strings.Unbounded.Unbounded_String;
-      Password : Ada.Strings.Unbounded.Unbounded_String;
-      Command  : Ada.Strings.Unbounded.Unbounded_String;
+      Host          : Ada.Strings.Unbounded.Unbounded_String;
+      Host_Address  : Ada.Strings.Unbounded.Unbounded_String;
+      Port          : Positive := 55_432;
+      User          : Ada.Strings.Unbounded.Unbounded_String;
+      Database      : Ada.Strings.Unbounded.Unbounded_String;
+      Password      : Ada.Strings.Unbounded.Unbounded_String;
+      TLS_Mode      : SSL_Mode := Disable;
+      SSL_Root_Cert : Ada.Strings.Unbounded.Unbounded_String;
+      Command       : Ada.Strings.Unbounded.Unbounded_String;
       Has_Command : Boolean := False;
       Show_Help    : Boolean := False;
       Show_Version : Boolean := False;

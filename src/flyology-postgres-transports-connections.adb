@@ -1,3 +1,5 @@
+with Flyology.IO.Connections.TLS;
+
 package body Flyology.Postgres.Transports.Connections is
 
    overriding procedure Receive_Exactly
@@ -17,5 +19,20 @@ package body Flyology.Postgres.Transports.Connections is
       Item.Channel.Send_All
         (Data, Timeout => Timeout, Token => Item.Token);
    end Send_All;
+
+   overriding procedure Upgrade_TLS
+     (Item        : in out Connection_Transport;
+      Backend     : in out Flyology.IO.TLS.Provider'Class;
+      Server_Name : String;
+      Timeout     : Duration) is
+   begin
+      Flyology.IO.Connections.TLS.Upgrade
+        (Item.Channel.all,
+         Backend,
+         Flyology.IO.TLS.Client,
+         Server_Name,
+         Timeout => Timeout,
+         Token   => Item.Token);
+   end Upgrade_TLS;
 
 end Flyology.Postgres.Transports.Connections;

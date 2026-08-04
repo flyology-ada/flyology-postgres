@@ -12,6 +12,13 @@ task_mode=${FLYOLOGY_PGISH_TASK_MODE:-lightweight}
 run_root=$(mktemp -d "${TMPDIR:-/tmp}/flyology-pgish.XXXXXX")
 server_log="$run_root/server.log"
 recovery_sql="$run_root/recovery.sql"
+tls_dir="$run_root/tls"
+ca_key="$tls_dir/ca-key.pem"
+ca_cert="$tls_dir/ca-cert.pem"
+server_key="$tls_dir/server-key.pem"
+server_request="$tls_dir/server.csr"
+server_cert="$tls_dir/server-cert.pem"
+server_extensions="$tls_dir/server-ext.cnf"
 server_pid=
 
 cleanup () {
@@ -23,8 +30,28 @@ cleanup () {
 }
 trap cleanup EXIT HUP INT TERM
 
+mkdir -p "$tls_dir"
+openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 1 \
+  -subj '/CN=pgish Test CA' \
+  -keyout "$ca_key" -out "$ca_cert" >/dev/null 2>&1
+openssl req -new -newkey rsa:2048 -nodes -sha256 \
+  -subj '/CN=localhost' \
+  -keyout "$server_key" -out "$server_request" >/dev/null 2>&1
+printf '%s\n' \
+  'subjectAltName=DNS:localhost' \
+  'extendedKeyUsage=serverAuth' \
+  > "$server_extensions"
+openssl x509 -req -sha256 -days 1 \
+  -in "$server_request" \
+  -CA "$ca_cert" -CAkey "$ca_key" -CAcreateserial \
+  -extfile "$server_extensions" \
+  -out "$server_cert" >/dev/null 2>&1
+chmod 600 "$server_key"
+
 FLYOLOGY_PGISH_PORT=$port \
 FLYOLOGY_PGISH_REPO=$repository_root \
+FLYOLOGY_PGISH_TLS_CERT=$server_cert \
+FLYOLOGY_PGISH_TLS_KEY=$server_key \
   "$example_root/bin/flyology_pgish" \
   >"$server_log" 2>&1 &
 server_pid=$!
@@ -41,18 +68,29 @@ while ! grep -q '^ready ' "$server_log"; do
 done
 
 FLYOLOGY_PGISH_PORT=$port \
+FLYOLOGY_PGISH_TLS_CA=$ca_cert \
+FLYOLOGY_PGISH_TLS_SERVER_NAME=localhost \
   "$example_root/bin/pgish_extended_client"
 
 if [ -x "$repository_root/examples/psqlish/bin/psqlish" ]; then
-  PGHOST=127.0.0.1 PGPORT=$port PGUSER=flyology PGDATABASE=flyology \
+  PGHOST=localhost PGHOSTADDR=127.0.0.1 PGPORT=$port \
+    PGUSER=flyology PGDATABASE=flyology PGSSLMODE=verify-full \
+    PGSSLROOTCERT=$ca_cert \
     "$repository_root/examples/psqlish/scripts/run-pgish-integration.sh"
 fi
 
 psql_command () {
   "$postgres_prefix/bin/psql" \
-    -h 127.0.0.1 -p "$port" -U flyology -d flyology \
+    "host=localhost hostaddr=127.0.0.1 port=$port user=flyology dbname=flyology sslmode=verify-full sslrootcert=$ca_cert" \
     -v ON_ERROR_STOP=1 "$@"
 }
+
+if "$postgres_prefix/bin/psql" \
+  "host=localhost hostaddr=127.0.0.1 port=$port user=flyology dbname=flyology sslmode=disable" \
+  -Atc 'select 1' >/dev/null 2>&1; then
+  echo "pgish accepted plaintext while TLS was required" >&2
+  exit 1
+fi
 
 actual=$(psql_command -Atc \
   "SELECT table_name FROM information_schema.tables WHERE table_schema = 'flyology' ORDER BY table_name LIMIT 3")

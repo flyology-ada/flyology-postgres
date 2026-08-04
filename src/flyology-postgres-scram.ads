@@ -28,6 +28,8 @@ package Flyology.Postgres.SCRAM is
    function Client_First_Message (User, Nonce : String) return String;
    function Bare_From_Client_First (Message : String) return String;
    function Nonce_From_Client_First (Message : String) return String;
+   function Channel_Binding_From_Client_First
+     (Message : String) return String;
 
    function Server_First_Message
      (Credential     : Verifier;
@@ -50,7 +52,8 @@ package Flyology.Postgres.SCRAM is
       Combined_Nonce    : String;
       Client_Final      : String;
       Server_Signature  : out Digest;
-      Valid             : out Boolean);
+      Valid             : out Boolean;
+      Channel_Binding   : String := "biws");
 
    function To_Bytes (Value : String) return Byte_Array;
    function To_String (Value : Byte_Array) return String;

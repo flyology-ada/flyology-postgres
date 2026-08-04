@@ -3,6 +3,7 @@ with Flyology.IO;
 with Flyology.IO.Connections;
 with Flyology.IO.Sockets;
 with Flyology.IO.Structured_Servers;
+with Flyology.IO.TLS;
 with Flyology.Postgres.Protocol;
 with Flyology.Postgres.Server_Sessions;
 with System.Multiprocessors;
@@ -44,6 +45,17 @@ package Flyology.Postgres.Server is
      (Item          : aliased in out Server;
       Listener      : in out Flyology.IO.Sockets.Socket_Type;
       Context       : aliased in out Handler_Context;
+      Drain_Timeout : Duration := Flyology.IO.Infinite);
+
+   --  Serve with PostgreSQL direct TLS negotiation. Allowed accepts both TLS
+   --  and plaintext startup; Required rejects plaintext startup. Disabled is
+   --  invalid here and is represented by the ordinary Serve overload.
+   procedure Serve_TLS
+     (Item          : aliased in out Server;
+      Listener      : in out Flyology.IO.Sockets.Socket_Type;
+      Context       : aliased in out Handler_Context;
+      Backend       : aliased in out Flyology.IO.TLS.Provider'Class;
+      Policy        : TLS_Policy := TLS_Required;
       Drain_Timeout : Duration := Flyology.IO.Infinite);
 
    procedure Request_Shutdown (Item : in out Server);
@@ -91,10 +103,13 @@ private
 
    type Handler_Context_Access is access all Handler_Context;
    type Registry_Access is access all Registry;
+   type TLS_Provider_Access is access all Flyology.IO.TLS.Provider'Class;
 
    type Internal_Context is limited record
       Application : Handler_Context_Access;
       Router      : Registry_Access;
+      TLS_Backend : TLS_Provider_Access := null;
+      TLS_Mode    : TLS_Policy := TLS_Disabled;
    end record;
 
    procedure Process_Connection

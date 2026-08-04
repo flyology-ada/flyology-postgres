@@ -89,6 +89,13 @@ package body Flyology.Postgres.Server_Sessions is
         (Item.Channel.all, Protocol.Byte (Character'Pos ('N')), Timeout);
    end Refuse_TLS;
 
+   procedure Accept_TLS
+     (Item : in out Session; Timeout : Duration) is
+   begin
+      Framing.Write_Byte
+        (Item.Channel.all, Protocol.Byte (Character'Pos ('S')), Timeout);
+   end Accept_TLS;
+
    procedure Refuse_GSS
      (Item : in out Session; Timeout : Duration) is
    begin

@@ -113,6 +113,19 @@ procedure Tests is
          "startup application name round-trips");
    end Test_Startup;
 
+   procedure Test_SSL_Request is
+      Packet  : constant Protocol.Byte_Array := Protocol.Encode_SSL_Request;
+      Cursor  : Protocol.Byte_Offset := Packet'First;
+      Length  : constant Protocol.UInt32 := Protocol.Read_U32 (Packet, Cursor);
+      Initial : constant Protocol.Initial_Request :=
+        Protocol.Decode_Initial (Packet (Cursor .. Packet'Last));
+   begin
+      Assert (Length = 8, "SSLRequest has the required eight-byte length");
+      Assert
+        (Protocol.Kind (Initial) = Protocol.SSL_Request,
+         "SSLRequest round-trips through initial packet decoding");
+   end Test_SSL_Request;
+
    procedure Test_Message is
       Contents : Flyology.Bytes.Unbounded_Bytes;
    begin
@@ -1436,6 +1449,7 @@ procedure Tests is
       Verifier_Rejected : Boolean := False;
       Nonce_Rejected : Boolean := False;
       GS2_Rejected : Boolean := False;
+      Y_Header_Accepted : Boolean := False;
       Valid : Boolean;
    begin
       SCRAM.Verify_Client_Final
@@ -1472,6 +1486,12 @@ procedure Tests is
          when SCRAM.SCRAM_Error =>
             Nonce_Rejected := True;
       end;
+
+      Y_Header_Accepted :=
+        SCRAM.Bare_From_Client_First
+          ("y,,n=user,r=" & Client_Nonce) = "n=user,r=" & Client_Nonce
+        and then SCRAM.Channel_Binding_From_Client_First
+          ("y,,n=user,r=" & Client_Nonce) = "eSws";
 
       begin
          declare
@@ -1512,6 +1532,9 @@ procedure Tests is
       Assert
         (GS2_Rejected,
          "unsupported channel-binding client messages are rejected");
+      Assert
+        (Y_Header_Accepted,
+         "non-binding clients that support channel binding are accepted");
       SCRAM_Core.Wipe (Signature);
    end Test_SCRAM_Failures;
 
@@ -1534,6 +1557,7 @@ procedure Tests is
 
 begin
    Test_Startup;
+   Test_SSL_Request;
    Test_Message;
    Test_All_Frontend_Commands;
    Test_Malformed_String;

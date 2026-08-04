@@ -1,5 +1,6 @@
 with Ada.Command_Line;
 with Ada.Containers.Vectors;
+with Ada.Environment_Variables;
 with Ada.Exceptions;
 with Ada.Real_Time;
 with Ada.Strings;
@@ -8,9 +9,10 @@ with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Text_IO;
 with Flyology.IO.DNS;
 with Flyology.IO.Sockets;
+with Flyology.IO.TLS.OpenSSL;
 with Flyology.Postgres.Client;
 with Flyology.Postgres.Protocol;
-with Flyology.Postgres.Transports.Sockets;
+with Flyology.Postgres.Transports.TLS_Sockets;
 with Psqlish;
 with Psqlish.Display;
 with Psqlish.Input;
@@ -22,13 +24,15 @@ procedure Psqlish_Main is
    package DNS renames Flyology.IO.DNS;
    package Protocol renames Flyology.Postgres.Protocol;
    package Sockets renames Flyology.IO.Sockets;
-   package Transports renames Flyology.Postgres.Transports.Sockets;
+   package OpenSSL renames Flyology.IO.TLS.OpenSSL;
+   package Transports renames Flyology.Postgres.Transports.TLS_Sockets;
    package Display renames Psqlish.Display;
 
    use type Ada.Real_Time.Time;
    use type Display.Column;
    use type Protocol.Backend_Message_Kind;
    use type Protocol.Field_Format;
+   use type Psqlish.Options.SSL_Mode;
 
    package Format_Vectors is new Ada.Containers.Vectors
      (Index_Type => Positive, Element_Type => Protocol.Field_Format);
@@ -396,12 +400,17 @@ procedure Psqlish_Main is
    end Execute_Query;
 
    procedure Run (Configuration : Psqlish.Options.Configuration) is
+      Connect_Host : constant String :=
+        (if Length (Configuration.Host_Address) = 0
+         then To_String (Configuration.Host)
+         else To_String (Configuration.Host_Address));
       Addresses : constant DNS.Address_Array :=
-        DNS.Resolve (To_String (Configuration.Host), Timeout => 5.0);
+        DNS.Resolve (Connect_Host, Timeout => 5.0);
       Server : constant Sockets.Endpoint := Sockets.Network_Endpoint
         (Addresses (Addresses'First), Sockets.Port (Configuration.Port));
+      Backend : OpenSSL.OpenSSL_Provider;
       Socket  : aliased Sockets.Socket_Type;
-      Channel : aliased Transports.Socket_Transport (Socket'Access);
+      Channel : aliased Transports.TLS_Socket_Transport (Socket'Access);
       Session : Client.Session (Channel'Access);
       View    : Display.Result_State;
       Timing  : Boolean := False;
@@ -410,20 +419,40 @@ procedure Psqlish_Main is
       Display.Configure_Limits (View, Client_Display_Limits);
       Sockets.Create_Socket (Socket, Family => Server.Family);
       Sockets.Connect (Socket, Server, Timeout => 5.0);
-      Client.Startup
-        (Session,
-         User             => To_String (Configuration.User),
-         Database         => To_String (Configuration.Database),
-         Password         => To_String (Configuration.Password),
-         Application_Name => "psqlish",
-         Timeout          => Query_Timeout);
+      if Configuration.TLS_Mode = Psqlish.Options.Verify_Full then
+         OpenSSL.Initialize_Client
+           (Backend,
+            CA_File => To_String (Configuration.SSL_Root_Cert),
+            Library_Directory => Ada.Environment_Variables.Value
+              ("FLYOLOGY_OPENSSL_LIBRARY_DIR", ""));
+         Client.Startup_TLS
+           (Session,
+            Backend,
+            Server_Name      => To_String (Configuration.Host),
+            User             => To_String (Configuration.User),
+            Database         => To_String (Configuration.Database),
+            Password         => To_String (Configuration.Password),
+            Application_Name => "psqlish",
+            Timeout          => Query_Timeout);
+      else
+         Client.Startup
+           (Session,
+            User             => To_String (Configuration.User),
+            Database         => To_String (Configuration.Database),
+            Password         => To_String (Configuration.Password),
+            Application_Name => "psqlish",
+            Timeout          => Query_Timeout);
+      end if;
       if Configuration.Has_Command then
          Success := Execute_Query
            (Session, To_String (Configuration.Command), View, Timing => False);
       else
          Ada.Text_IO.Put_Line
            ("psqlish " & Psqlish.Version
-            & " (TLS and COPY are not implemented; \? for help)");
+            & " (TLS "
+            & (if Configuration.TLS_Mode = Psqlish.Options.Verify_Full
+               then "verify-full" else "disabled")
+            & "; COPY is not implemented; \? for help)");
          Psqlish.Input.Initialize;
          declare
             Buffer : Unbounded_String;

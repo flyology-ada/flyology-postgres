@@ -8,6 +8,8 @@ procedure Fixture_Tests is
    package Display renames Psqlish.Display;
    package Options renames Psqlish.Options;
 
+   use type Options.SSL_Mode;
+
    procedure Check (Condition : Boolean; Message : String) is
    begin
       if not Condition then
@@ -117,24 +119,51 @@ begin
       Base : Options.Configuration;
       Arguments : constant Options.Argument_Array :=
         (new String'("--host=10.0.0.2"),
+         new String'("--hostaddr=10.0.0.3"),
          new String'("-p"),
          new String'("6000"),
          new String'("--username"),
          new String'("alice"),
          new String'("-d"),
          new String'("app"),
+         new String'("--sslmode=verify-full"),
+         new String'("--sslrootcert=/tmp/test-ca.pem"),
          new String'("--command=select 1"));
       Parsed : constant Options.Configuration :=
         Options.Parse (Arguments, Base);
    begin
       Check (To_String (Parsed.Host) = "10.0.0.2", "host override failed");
+      Check
+        (To_String (Parsed.Host_Address) = "10.0.0.3",
+         "host address override failed");
       Check (Parsed.Port = 6_000, "port override failed");
       Check (To_String (Parsed.User) = "alice", "user override failed");
       Check (To_String (Parsed.Database) = "app", "database override failed");
       Check
+        (Parsed.TLS_Mode = Options.Verify_Full,
+         "TLS mode override failed");
+      Check
+        (To_String (Parsed.SSL_Root_Cert) = "/tmp/test-ca.pem",
+         "TLS root certificate override failed");
+      Check
         (Parsed.Has_Command
          and then To_String (Parsed.Command) = "select 1",
          "command override failed");
+   end;
+
+   declare
+      Raised : Boolean := False;
+      Base : Options.Configuration;
+      Arguments : constant Options.Argument_Array :=
+        (1 => new String'("--sslmode=require"));
+   begin
+      begin
+         Base := Options.Parse (Arguments, Base);
+      exception
+         when Options.Option_Error =>
+            Raised := True;
+      end;
+      Check (Raised, "insecure or unsupported TLS modes must be rejected");
    end;
 
    declare

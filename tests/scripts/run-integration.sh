@@ -11,6 +11,13 @@ data_dir="$run_root/data"
 postgres_log="$run_root/postgres.log"
 server_log="$run_root/server.log"
 password_file="$run_root/password"
+tls_dir="$run_root/tls"
+ca_key="$tls_dir/ca-key.pem"
+ca_cert="$tls_dir/ca-cert.pem"
+server_key="$tls_dir/server-key.pem"
+server_request="$tls_dir/server.csr"
+server_cert="$tls_dir/server-cert.pem"
+server_extensions="$tls_dir/server-ext.cnf"
 server_pid=
 postgres_started=false
 
@@ -27,6 +34,24 @@ cleanup () {
 }
 trap cleanup EXIT HUP INT TERM
 
+mkdir -p "$tls_dir"
+openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 1 \
+  -subj '/CN=Flyology Postgres Test CA' \
+  -keyout "$ca_key" -out "$ca_cert" >/dev/null 2>&1
+openssl req -new -newkey rsa:2048 -nodes -sha256 \
+  -subj '/CN=localhost' \
+  -keyout "$server_key" -out "$server_request" >/dev/null 2>&1
+printf '%s\n' \
+  'subjectAltName=DNS:localhost' \
+  'extendedKeyUsage=serverAuth' \
+  > "$server_extensions"
+openssl x509 -req -sha256 -days 1 \
+  -in "$server_request" \
+  -CA "$ca_cert" -CAkey "$ca_key" -CAcreateserial \
+  -extfile "$server_extensions" \
+  -out "$server_cert" >/dev/null 2>&1
+chmod 600 "$server_key"
+
 printf '%s\n' 'flyology-secret' > "$password_file"
 "$postgres_prefix/bin/initdb" \
   -D "$data_dir" \
@@ -40,18 +65,22 @@ printf '%s\n' 'flyology-secret' > "$password_file"
 "$postgres_prefix/bin/pg_ctl" \
   -D "$data_dir" \
   -l "$postgres_log" \
-  -o "-h 127.0.0.1 -p $real_port -F -c synchronous_commit=off -c full_page_writes=off" \
+  -o "-h 127.0.0.1 -p $real_port -F -c synchronous_commit=off -c full_page_writes=off -c ssl=on -c ssl_cert_file=$server_cert -c ssl_key_file=$server_key -c ssl_ca_file=$ca_cert" \
   -w start \
   >/dev/null
 postgres_started=true
 
 POSTGRES_TEST_PORT=$real_port \
+POSTGRES_TLS_CA_FILE=$ca_cert \
+POSTGRES_TLS_SERVER_NAME=localhost \
   "$tests_root/bin/postgres_test_client"
 
 "$postgres_prefix/bin/pg_ctl" -D "$data_dir" -m fast -w stop >/dev/null
 postgres_started=false
 
 POSTGRES_TEST_PORT=$server_port \
+POSTGRES_TLS_CERT_FILE=$server_cert \
+POSTGRES_TLS_KEY_FILE=$server_key \
   "$tests_root/bin/postgres_test_server" >"$server_log" 2>&1 &
 server_pid=$!
 
@@ -66,12 +95,27 @@ while ! grep -q '^ready$' "$server_log"; do
   sleep 0.05
 done
 
+psql_connection="host=localhost hostaddr=127.0.0.1 port=$server_port user=flyology dbname=postgres sslmode=verify-full sslrootcert=$ca_cert"
+
+if PGPASSWORD=flyology-secret \
+  "$postgres_prefix/bin/psql" \
+  "host=localhost hostaddr=127.0.0.1 port=$server_port user=flyology dbname=postgres sslmode=disable" \
+  -Atc 'select 1' >/dev/null 2>&1; then
+  echo "Flyology Postgres TLS server accepted plaintext startup" >&2
+  exit 1
+fi
+
+if PGPASSWORD=flyology-secret \
+  "$postgres_prefix/bin/psql" \
+  "host=wrong.example hostaddr=127.0.0.1 port=$server_port user=flyology dbname=postgres sslmode=verify-full sslrootcert=$ca_cert" \
+  -Atc 'select 1' >/dev/null 2>&1; then
+  echo "psql accepted the Flyology server certificate for a wrong host" >&2
+  exit 1
+fi
+
 result=$(PGPASSWORD=flyology-secret \
   "$postgres_prefix/bin/psql" \
-  -h 127.0.0.1 \
-  -p "$server_port" \
-  -U flyology \
-  -d postgres \
+  "$psql_connection" \
   -v ON_ERROR_STOP=1 \
   -P 'null=(null)' \
   -Atc 'select 1')
@@ -89,20 +133,14 @@ printf 'one\t\n\\N\ttwo\n' > "$copy_input"
 
 PGPASSWORD=flyology-secret \
   "$postgres_prefix/bin/psql" \
-  -h 127.0.0.1 \
-  -p "$server_port" \
-  -U flyology \
-  -d postgres \
+  "$psql_connection" \
   -v ON_ERROR_STOP=1 \
   -q \
   -c "\\copy flyology_sink from '$copy_input' with (format text)"
 
 PGPASSWORD=flyology-secret \
   "$postgres_prefix/bin/psql" \
-  -h 127.0.0.1 \
-  -p "$server_port" \
-  -U flyology \
-  -d postgres \
+  "$psql_connection" \
   -v ON_ERROR_STOP=1 \
   -q \
   -c "\\copy flyology_source to '$copy_output' with (format text)"
@@ -120,14 +158,13 @@ if ! grep -q '^frontend COPY chunks' "$server_log"; then
 fi
 
 POSTGRES_TEST_PORT=$server_port \
+POSTGRES_TLS_CA_FILE=$ca_cert \
+POSTGRES_TLS_SERVER_NAME=localhost \
   "$tests_root/bin/postgres_test_cancellation"
 
 PGPASSWORD=flyology-secret \
   "$postgres_prefix/bin/psql" \
-  -h 127.0.0.1 \
-  -p "$server_port" \
-  -U flyology \
-  -d postgres \
+  "$psql_connection" \
   -v ON_ERROR_STOP=1 \
   -q \
   -f "$tests_root/scripts/extended.sql" \
@@ -143,10 +180,7 @@ done
 
 if PGPASSWORD=wrong-password \
   "$postgres_prefix/bin/psql" \
-  -h 127.0.0.1 \
-  -p "$server_port" \
-  -U flyology \
-  -d postgres \
+  "$psql_connection" \
   -Atc 'select 1' >/dev/null 2>&1; then
   echo "Flyology Postgres test server accepted a wrong password" >&2
   exit 1
@@ -157,10 +191,7 @@ fi
 #  unknown startup user after verification.
 if PGPASSWORD='Flyology invalid SCRAM credential' \
   "$postgres_prefix/bin/psql" \
-  -h 127.0.0.1 \
-  -p "$server_port" \
-  -U unknown-flyology-user \
-  -d postgres \
+  "host=localhost hostaddr=127.0.0.1 port=$server_port user=unknown-flyology-user dbname=postgres sslmode=verify-full sslrootcert=$ca_cert" \
   -Atc 'select 1' >/dev/null 2>&1; then
   echo "Flyology Postgres test server accepted an unknown user" >&2
   exit 1

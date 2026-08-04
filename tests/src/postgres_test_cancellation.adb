@@ -3,11 +3,13 @@ with Ada.Text_IO;
 with Flyology.Bytes;
 with Flyology.IO;
 with Flyology.IO.Sockets;
+with Flyology.IO.TLS;
+with Flyology.IO.TLS.OpenSSL;
 with Flyology.Postgres.Client;
 with Flyology.Postgres.Client_Sockets;
 with Flyology.Postgres.Framing;
 with Flyology.Postgres.Protocol;
-with Flyology.Postgres.Transports.Sockets;
+with Flyology.Postgres.Transports.TLS_Sockets;
 
 procedure Postgres_Test_Cancellation is
 
@@ -16,7 +18,9 @@ procedure Postgres_Test_Cancellation is
    package Framing renames Flyology.Postgres.Framing;
    package Protocol renames Flyology.Postgres.Protocol;
    package Sockets renames Flyology.IO.Sockets;
-   package Transports renames Flyology.Postgres.Transports.Sockets;
+   package TLS renames Flyology.IO.TLS;
+   package OpenSSL renames Flyology.IO.TLS.OpenSSL;
+   package Transports renames Flyology.Postgres.Transports.TLS_Sockets;
 
    use type Protocol.Byte;
    use type Protocol.UInt32;
@@ -30,6 +34,10 @@ procedure Postgres_Test_Cancellation is
 
    Server : constant Sockets.Endpoint :=
      Sockets.Network_Endpoint (Sockets.Loopback_IPv4, Port);
+   Server_Name : constant String :=
+     Ada.Environment_Variables.Value
+       ("POSTGRES_TLS_SERVER_NAME", "localhost");
+   Backend : OpenSSL.OpenSSL_Provider;
 
    procedure Check (Condition : Boolean; Message : String) is
    begin
@@ -42,12 +50,19 @@ procedure Postgres_Test_Cancellation is
      (Process_Id : Protocol.UInt32;
       Secret     : Protocol.Byte_Array) is
       Socket  : aliased Sockets.Socket_Type;
-      Channel : aliased Transports.Socket_Transport (Socket'Access);
+      Channel : aliased Transports.TLS_Socket_Transport (Socket'Access);
       Reply   : Protocol.Byte_Array (1 .. 1);
       Closed_Silently : Boolean := False;
    begin
       Sockets.Create_Socket (Socket);
       Sockets.Connect (Socket, Server, Timeout => 5.0);
+      Framing.Write_Packet
+        (Channel, Protocol.Encode_SSL_Request, Timeout => 5.0);
+      Channel.Receive_Exactly (Reply, Timeout => 5.0);
+      Check
+        (Reply (Reply'First) = Protocol.Byte (Character'Pos ('S')),
+         "cancellation connection TLS was refused");
+      Channel.Upgrade_TLS (Backend, Server_Name, Timeout => 5.0);
       Framing.Write_Packet
         (Channel,
          Protocol.Encode_Cancel_Request (Process_Id, Secret),
@@ -55,11 +70,10 @@ procedure Postgres_Test_Cancellation is
       begin
          Channel.Receive_Exactly (Reply, Timeout => 1.0);
       exception
-         when Flyology.IO.Device_Error =>
+         when Flyology.IO.Device_Error | TLS.TLS_Error =>
             Closed_Silently := True;
       end;
       Check (Closed_Silently, "CancelRequest did not close silently");
-      Sockets.Close_Socket (Socket);
    exception
       when others =>
          if Sockets.Is_Open (Socket) then
@@ -124,17 +138,25 @@ procedure Postgres_Test_Cancellation is
    end Concurrent_Result;
 
 begin
+   OpenSSL.Initialize_Client
+     (Backend,
+      CA_File => Ada.Environment_Variables.Value ("POSTGRES_TLS_CA_FILE"),
+      Library_Directory => Ada.Environment_Variables.Value
+        ("FLYOLOGY_OPENSSL_LIBRARY_DIR", ""));
+
    --  Incorrect credentials must be indistinguishable on their separate
    --  connections and must leave the current handler running.
    declare
       Socket  : aliased Sockets.Socket_Type;
-      Channel : aliased Transports.Socket_Transport (Socket'Access);
+      Channel : aliased Transports.TLS_Socket_Transport (Socket'Access);
       Session : Client.Session (Channel'Access);
    begin
       Sockets.Create_Socket (Socket);
       Sockets.Connect (Socket, Server, Timeout => 5.0);
-      Client.Startup
+      Client.Startup_TLS
         (Session,
+         Backend,
+         Server_Name => Server_Name,
          User     => "flyology",
          Database => "postgres",
          Password => "flyology-secret",
@@ -161,11 +183,11 @@ begin
             Client.Backend_Secret_Key (Session));
       end;
       Expect_Still_Running (Session);
-      Client_Sockets.Cancel (Session, Server, Timeout => 5.0);
+      Client_Sockets.Cancel_TLS
+        (Session, Server, Backend, Server_Name, Timeout => 5.0);
       Drain_Cancellation (Session);
       Client.Send_Command
         (Session, Protocol.Make_Empty_Message ('X'), Timeout => 5.0);
-      Sockets.Close_Socket (Socket);
    end;
 
    delay 0.1;
@@ -174,13 +196,15 @@ begin
    --  the live key all route safely to the same one-shot operation token.
    declare
       Socket  : aliased Sockets.Socket_Type;
-      Channel : aliased Transports.Socket_Transport (Socket'Access);
+      Channel : aliased Transports.TLS_Socket_Transport (Socket'Access);
       Session : Client.Session (Channel'Access);
    begin
       Sockets.Create_Socket (Socket);
       Sockets.Connect (Socket, Server, Timeout => 5.0);
-      Client.Startup
+      Client.Startup_TLS
         (Session,
+         Backend,
+         Server_Name => Server_Name,
          User     => "flyology",
          Database => "postgres",
          Password => "flyology-secret",
@@ -195,7 +219,8 @@ begin
          task type Canceller;
          task body Canceller is
          begin
-            Client_Sockets.Cancel (Session, Server, Timeout => 5.0);
+            Client_Sockets.Cancel_TLS
+              (Session, Server, Backend, Server_Name, Timeout => 5.0);
          exception
             when others =>
                Concurrent_Result.Fail;
@@ -212,7 +237,6 @@ begin
       Drain_Cancellation (Session);
       Client.Send_Command
         (Session, Protocol.Make_Empty_Message ('X'), Timeout => 5.0);
-      Sockets.Close_Socket (Socket);
    end;
 
    Ada.Text_IO.Put_Line

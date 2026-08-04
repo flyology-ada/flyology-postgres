@@ -21,16 +21,33 @@ package body Psqlish.Options is
          raise Option_Error with "invalid port: " & Value;
    end Parse_Port;
 
+   function Parse_SSL_Mode (Value : String) return SSL_Mode is
+   begin
+      if Value = "disable" then
+         return Disable;
+      elsif Value = "verify-full" then
+         return Verify_Full;
+      else
+         raise Option_Error with
+           "unsupported sslmode: " & Value
+           & " (expected disable or verify-full)";
+      end if;
+   end Parse_SSL_Mode;
+
    function Defaults return Configuration is
       Result : Configuration;
       Port_Text : constant String :=
         Ada.Environment_Variables.Value ("PGPORT", "55432");
    begin
       Result.Host := Environment ("PGHOST", "127.0.0.1");
+      Result.Host_Address := Environment ("PGHOSTADDR", "");
       Result.Port := Parse_Port (Port_Text);
       Result.User := Environment ("PGUSER", "flyology");
       Result.Database := Environment ("PGDATABASE", "flyology");
       Result.Password := Environment ("PGPASSWORD", "");
+      Result.TLS_Mode := Parse_SSL_Mode
+        (Ada.Environment_Variables.Value ("PGSSLMODE", "disable"));
+      Result.SSL_Root_Cert := Environment ("PGSSLROOTCERT", "");
       return Result;
    end Defaults;
 
@@ -71,12 +88,18 @@ package body Psqlish.Options is
                raise Option_Error with "host must not be empty";
             end if;
             Result.Host := To_Unbounded_String (Value);
+         elsif Name = "hostaddr" then
+            Result.Host_Address := To_Unbounded_String (Value);
          elsif Name = "port" then
             Result.Port := Parse_Port (Value);
          elsif Name = "username" then
             Result.User := To_Unbounded_String (Value);
          elsif Name = "dbname" then
             Result.Database := To_Unbounded_String (Value);
+         elsif Name = "sslmode" then
+            Result.TLS_Mode := Parse_SSL_Mode (Value);
+         elsif Name = "sslrootcert" then
+            Result.SSL_Root_Cert := To_Unbounded_String (Value);
          elsif Name = "command" then
             Result.Command := To_Unbounded_String (Value);
             Result.Has_Command := True;
@@ -115,9 +138,12 @@ package body Psqlish.Options is
                   Names : constant array (Positive range <>) of
                     Unbounded_String :=
                       (To_Unbounded_String ("host"),
+                       To_Unbounded_String ("hostaddr"),
                        To_Unbounded_String ("port"),
                        To_Unbounded_String ("username"),
                        To_Unbounded_String ("dbname"),
+                       To_Unbounded_String ("sslmode"),
+                       To_Unbounded_String ("sslrootcert"),
                        To_Unbounded_String ("command"));
                   Matched : Boolean := False;
                begin
@@ -174,16 +200,23 @@ package body Psqlish.Options is
       & "Usage: psqlish [OPTION]..." & ASCII.LF
       & "  -h, --host HOST       server address (default 127.0.0.1)"
       & ASCII.LF
+      & "      --hostaddr IP     connect address; --host remains TLS name"
+      & ASCII.LF
       & "  -p, --port PORT       server port (default 55432)" & ASCII.LF
       & "  -U, --username USER   database user (default flyology)"
       & ASCII.LF
       & "  -d, --dbname NAME     database name (default flyology)"
       & ASCII.LF
+      & "      --sslmode MODE    disable or verify-full (default disable)"
+      & ASCII.LF
+      & "      --sslrootcert FILE  PEM trust file for verify-full"
+      & ASCII.LF
       & "  -c, --command SQL     execute SQL and exit" & ASCII.LF
       & "  -?, --help            show this help" & ASCII.LF
       & "  -V, --version         show the version" & ASCII.LF
       & ASCII.LF
-      & "PGHOST, PGPORT, PGUSER, PGDATABASE, and PGPASSWORD provide"
-      & " defaults. CLI options override them. Passwords are never printed.");
+      & "PGHOST, PGHOSTADDR, PGPORT, PGUSER, PGDATABASE, PGPASSWORD,"
+      & " PGSSLMODE, and PGSSLROOTCERT provide defaults. CLI options"
+      & " override them. Passwords are never printed.");
 
 end Psqlish.Options;

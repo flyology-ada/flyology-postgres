@@ -277,7 +277,8 @@ package body Pgish_Catalog is
       end loop;
    end Add_Tables;
 
-   procedure Add_Settings (Result : in out Result_Set) is
+   procedure Add_Settings
+     (State_Value : State.Server_State; Result : in out Result_Set) is
       Values : Cell_Array := (others => Null_Cell);
       procedure Add (Name, Value, Unit, Description : String) is
       begin
@@ -298,7 +299,17 @@ package body Pgish_Catalog is
       Add ("maximum_result_rows", Trim_Image (Maximum_Rows'Image), "rows", "Hard result and LIMIT bound");
       Add ("maximum_sessions", Trim_Image (State.Maximum_Sessions'Image), "sessions", "Server admission capacity");
       Add ("authentication", "trust", "", "Default local demonstration mode");
-      Add ("tls", "off", "", "Connection upgrades are not yet available");
+      declare
+         Enabled : constant Boolean := State.Config (State_Value).TLS_Enabled;
+      begin
+         Add
+           ("tls",
+            (if Enabled then "required" else "off"),
+            "",
+            (if Enabled
+             then "Verified server TLS is required"
+             else "The plaintext server entry point is selected"));
+      end;
    end Add_Settings;
 
    procedure Add_Environment (Result : in out Result_Set) is
@@ -356,7 +367,8 @@ package body Pgish_Catalog is
          elsif Name = "flyology_sessions" then Add_Sessions (State_Value, Source);
          elsif Name = "flyology_repo_commits" then Add_Commits (State_Value, Source);
          elsif Name = "flyology_tables" then Add_Tables (Source);
-         elsif Name = "flyology_settings" then Add_Settings (Source);
+         elsif Name = "flyology_settings" then
+            Add_Settings (State_Value, Source);
          elsif Name = "flyology_environment" then Add_Environment (Source);
          end if;
       end Load;
@@ -408,7 +420,8 @@ package body Pgish_Catalog is
       elsif Base = "flyology_sessions" then Add_Sessions (Context, Result);
       elsif Base = "flyology_repo_commits" then Add_Commits (Context, Result);
       elsif Base = "flyology_tables" then Add_Tables (Result);
-      elsif Base = "flyology_settings" then Add_Settings (Result);
+      elsif Base = "flyology_settings" then
+         Add_Settings (Context, Result);
       elsif Base = "flyology_environment" then Add_Environment (Result);
       elsif To_Lower (Name) = "information_schema.tables" then Add_Information_Tables (Result);
       elsif To_Lower (Name) = "information_schema.columns" then

@@ -6,6 +6,7 @@ with Ada.Text_IO;
 with Flyology;
 with Flyology.Bytes;
 with Flyology.IO.Sockets;
+with Flyology.IO.TLS.OpenSSL;
 with Flyology.Postgres;
 with Flyology.Postgres.Protocol;
 with Flyology.Postgres.SCRAM;
@@ -17,6 +18,7 @@ procedure Postgres_Test_Server is
    package Protocol renames Flyology.Postgres.Protocol;
    package Sessions renames Flyology.Postgres.Server_Sessions;
    package Sockets renames Flyology.IO.Sockets;
+   package OpenSSL renames Flyology.IO.TLS.OpenSSL;
 
    use type Protocol.Frontend_Kind;
    use type Protocol.Frontend_Copy_Kind;
@@ -256,7 +258,17 @@ procedure Postgres_Test_Server is
    Listener : Sockets.Socket_Type;
    State    : aliased Context;
    Server   : aliased Test_Server.Server (Capacity => 8);
+   TLS_Backend : aliased OpenSSL.OpenSSL_Provider;
 begin
+   OpenSSL.Initialize_Server
+     (TLS_Backend,
+      Certificate_File =>
+        Ada.Environment_Variables.Value ("POSTGRES_TLS_CERT_FILE"),
+      Private_Key_File =>
+        Ada.Environment_Variables.Value ("POSTGRES_TLS_KEY_FILE"),
+      Library_Directory =>
+        Ada.Environment_Variables.Value
+          ("FLYOLOGY_OPENSSL_LIBRARY_DIR", ""));
    Sockets.Create_Socket (Listener);
    Sockets.Set_Socket_Option
      (Listener,
@@ -267,6 +279,11 @@ begin
    Sockets.Listen_Socket (Listener, Length => 16);
    Ada.Text_IO.Put_Line ("ready");
    Ada.Text_IO.Flush;
-   Test_Server.Serve
-     (Server, Listener, State, Drain_Timeout => 1.0);
+   Test_Server.Serve_TLS
+     (Server,
+      Listener,
+      State,
+      TLS_Backend,
+      Policy        => Flyology.Postgres.TLS_Required,
+      Drain_Timeout => 1.0);
 end Postgres_Test_Server;

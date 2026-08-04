@@ -9,9 +9,10 @@ It demonstrates startup authentication, simple-query event processing,
 multiple result sets, bounded display buffering, recovery after SQL errors,
 and a multiline REPL. Interactive terminals use `linenoise_ada` for line
 editing and command history. Trust, cleartext-password, and SCRAM-SHA-256
-startup are provided by the library. TLS, COPY streaming, variables, files,
-pager support, and the extended-query protocol are deliberately out of scope.
-In particular, do not use this client where TLS is required.
+startup are provided by the library. Verified TLS is available through
+`sslmode=verify-full`; there is no insecure encrypted mode or downgrade
+fallback. COPY streaming, variables, files, pager support, and the
+extended-query protocol are deliberately out of scope.
 
 ## Build
 
@@ -38,12 +39,23 @@ alr index --add=git+https://github.com/flyology-ada/alire-index.git \
 ## Connection and CLI
 
 Defaults are `127.0.0.1:55432`, user `flyology`, database `flyology`.
-`PGHOST`, `PGPORT`, `PGUSER`, `PGDATABASE`, and `PGPASSWORD` override those
-defaults; `--host`, `--port`, `--username`, and `--dbname` then override the
-environment. Host names and numeric IPv4/IPv6 addresses are resolved through
-Flyology's DNS API. The password is passed directly to startup and is never
+`PGHOST`, `PGHOSTADDR`, `PGPORT`, `PGUSER`, `PGDATABASE`, `PGPASSWORD`,
+`PGSSLMODE`, and `PGSSLROOTCERT` override those defaults; the corresponding
+long options then override the environment. Supported SSL modes are `disable`
+(the compatibility default) and `verify-full`. In verified mode, `PGHOST` is
+the certificate DNS name while optional `PGHOSTADDR` selects the connection
+address. Host names and numeric IPv4/IPv6 addresses are resolved through
+Flyology's DNS API. The password is passed only after any required TLS handshake
+and is never
 printed. This example deliberately has no password-valued CLI option, which
 keeps it out of process listings and shell history.
+
+```sh
+PGHOST=db.example.com PGHOSTADDR=192.0.2.10 \
+PGSSLMODE=verify-full PGSSLROOTCERT=root-ca.pem \
+PGPASSWORD=flyology-secret \
+  ./bin/psqlish --command "select 1"
+```
 
 Use `--command` (or `-c`) for scripts:
 
@@ -86,7 +98,7 @@ catalog-query contract for the companion `pgish` server.
 Example session:
 
 ```text
-psqlish 0.1.0-dev (TLS and COPY are not implemented; \? for help)
+psqlish 0.1.0-dev (TLS verify-full; COPY is not implemented; \? for help)
 flyology=> select 7 as n, null::text as missing, ''::text as empty;
 +---+---------+-------+
 | n | missing | empty |
@@ -145,7 +157,8 @@ option parsing. Its executable output is checked exactly by a shell fixture:
 ```
 
 The default test is deterministic and does not require a server. To add the
-repository's cached configurable real Postgres integration:
+repository's cached configurable real Postgres integration, including an
+ephemeral CA, verified TLS, and wrong-host rejection:
 
 ```sh
 POSTGRES_INTEGRATION=1 ./scripts/test.sh

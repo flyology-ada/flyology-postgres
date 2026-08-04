@@ -1,4 +1,5 @@
 with Flyology.IO.Sockets;
+with Flyology.IO.TLS;
 with Flyology.Postgres.Client;
 
 package Flyology.Postgres.Client_Sockets is
@@ -9,5 +10,14 @@ package Flyology.Postgres.Client_Sockets is
      (Item    : Client.Session;
       Server  : Flyology.IO.Sockets.Endpoint;
       Timeout : Duration := 30.0);
+
+   --  Open a separate socket, require TLS with the same verification name,
+   --  send the stored cancellation credentials, and close silently.
+   procedure Cancel_TLS
+     (Item        : Client.Session;
+      Server      : Flyology.IO.Sockets.Endpoint;
+      Backend     : in out Flyology.IO.TLS.Provider'Class;
+      Server_Name : String;
+      Timeout     : Duration := 30.0);
 
 end Flyology.Postgres.Client_Sockets;

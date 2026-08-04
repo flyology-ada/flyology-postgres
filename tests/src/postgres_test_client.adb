@@ -4,10 +4,12 @@ with Ada.Text_IO;
 with Flyology;
 with Flyology.Bytes;
 with Flyology.IO.Sockets;
+with Flyology.IO.TLS;
+with Flyology.IO.TLS.OpenSSL;
 with Flyology.Postgres.Client;
 with Flyology.Postgres.Client_Sockets;
 with Flyology.Postgres.Protocol;
-with Flyology.Postgres.Transports.Sockets;
+with Flyology.Postgres.Transports.TLS_Sockets;
 
 procedure Postgres_Test_Client is
 
@@ -15,7 +17,9 @@ procedure Postgres_Test_Client is
    package Client_Sockets renames Flyology.Postgres.Client_Sockets;
    package Protocol renames Flyology.Postgres.Protocol;
    package Sockets renames Flyology.IO.Sockets;
-   package Transports renames Flyology.Postgres.Transports.Sockets;
+   package TLS renames Flyology.IO.TLS;
+   package OpenSSL renames Flyology.IO.TLS.OpenSSL;
+   package Transports renames Flyology.Postgres.Transports.TLS_Sockets;
 
    use type Protocol.Backend_Message_Kind;
    use type Protocol.Byte_Offset;
@@ -64,13 +68,17 @@ procedure Postgres_Test_Client is
    end Worker;
 
    task body Worker is
+      Backend : OpenSSL.OpenSSL_Provider;
       Socket  : aliased Sockets.Socket_Type;
-      Channel : aliased Transports.Socket_Transport (Socket'Access);
+      Channel : aliased Transports.TLS_Socket_Transport (Socket'Access);
       Session : Client.Session (Channel'Access);
       All_Good : Boolean := True;
       Saw_Cancellation : Boolean := False;
       Server : constant Sockets.Endpoint :=
         Sockets.Network_Endpoint (Sockets.Loopback_IPv4, Port);
+      Server_Name : constant String :=
+        Ada.Environment_Variables.Value
+          ("POSTGRES_TLS_SERVER_NAME", "localhost");
 
       procedure Check (Condition : Boolean) is
       begin
@@ -81,13 +89,49 @@ procedure Postgres_Test_Client is
         (Flyology.Bytes.To_Array
            (Flyology.Bytes.From_Byte_String (Value)));
    begin
+      OpenSSL.Initialize_Client
+        (Backend,
+         CA_File => Ada.Environment_Variables.Value
+           ("POSTGRES_TLS_CA_FILE"),
+         Library_Directory => Ada.Environment_Variables.Value
+           ("FLYOLOGY_OPENSSL_LIBRARY_DIR", ""));
+
+      --  The same real PostgreSQL endpoint must reject a certificate name
+      --  mismatch before any startup credentials are sent.
+      declare
+         Wrong_Socket  : aliased Sockets.Socket_Type;
+         Wrong_Channel : aliased Transports.TLS_Socket_Transport
+           (Wrong_Socket'Access);
+         Wrong_Session : Client.Session (Wrong_Channel'Access);
+         Rejected      : Boolean := False;
+      begin
+         Sockets.Create_Socket (Wrong_Socket);
+         Sockets.Connect (Wrong_Socket, Server, Timeout => 5.0);
+         begin
+            Client.Startup_TLS
+              (Wrong_Session,
+               Backend,
+               Server_Name => "wrong.example",
+               User        => "flyology",
+               Database    => "postgres",
+               Password    => "flyology-secret",
+               Timeout     => 5.0);
+         exception
+            when TLS.TLS_Error =>
+               Rejected := True;
+         end;
+         Check (Rejected);
+      end;
+
       Sockets.Create_Socket (Socket);
       Sockets.Connect
         (Socket,
          Server,
          Timeout => 5.0);
-      Client.Startup
+      Client.Startup_TLS
         (Session,
+         Backend,
+         Server_Name => Server_Name,
          User     => "flyology",
          Database => "postgres",
          Password => "flyology-secret",
@@ -931,7 +975,8 @@ procedure Postgres_Test_Client is
               (Protocol.Response_Kind (First) =
                  Protocol.Copy_Data_Response);
          end;
-         Client_Sockets.Cancel (Session, Server, Timeout => 5.0);
+         Client_Sockets.Cancel_TLS
+           (Session, Server, Backend, Server_Name, Timeout => 5.0);
          loop
             declare
                Event : constant Client.Copy_Event :=
@@ -958,7 +1003,8 @@ procedure Postgres_Test_Client is
          task body Canceller is
          begin
             delay 0.1;
-            Client_Sockets.Cancel (Session, Server, Timeout => 5.0);
+            Client_Sockets.Cancel_TLS
+              (Session, Server, Backend, Server_Name, Timeout => 5.0);
          end Canceller;
       begin
          loop
@@ -980,7 +1026,6 @@ procedure Postgres_Test_Client is
 
       Client.Send_Command
         (Session, Protocol.Make_Empty_Message ('X'), Timeout => 5.0);
-      Sockets.Close_Socket (Socket);
       if All_Good then
          Result.Pass;
       else

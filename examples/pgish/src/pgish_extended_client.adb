@@ -3,16 +3,18 @@ with Ada.Environment_Variables;
 with Ada.Exceptions;
 with Ada.Text_IO;
 with Flyology.IO.Sockets;
+with Flyology.IO.TLS.OpenSSL;
 with Flyology.Postgres.Client;
 with Flyology.Postgres.Protocol;
-with Flyology.Postgres.Transports.Sockets;
+with Flyology.Postgres.Transports.TLS_Sockets;
 
 procedure Pgish_Extended_Client is
 
    package Client renames Flyology.Postgres.Client;
    package Protocol renames Flyology.Postgres.Protocol;
    package Sockets renames Flyology.IO.Sockets;
-   package Transports renames Flyology.Postgres.Transports.Sockets;
+   package OpenSSL renames Flyology.IO.TLS.OpenSSL;
+   package Transports renames Flyology.Postgres.Transports.TLS_Sockets;
 
    use type Protocol.Backend_Message_Kind;
 
@@ -21,8 +23,14 @@ procedure Pgish_Extended_Client is
         (Ada.Environment_Variables.Value
            ("FLYOLOGY_PGISH_PORT", "55432")));
 
+   CA_File : constant String := Ada.Environment_Variables.Value
+     ("FLYOLOGY_PGISH_TLS_CA", "");
+   Server_Name : constant String := Ada.Environment_Variables.Value
+     ("FLYOLOGY_PGISH_TLS_SERVER_NAME", "localhost");
+
+   TLS_Backend : OpenSSL.OpenSSL_Provider;
    Socket  : aliased Sockets.Socket_Type;
-   Channel : aliased Transports.Socket_Transport (Socket'Access);
+   Channel : aliased Transports.TLS_Socket_Transport (Socket'Access);
    Session : Client.Session (Channel'Access);
    Parse_Complete     : Natural := 0;
    Parameter_Description : Natural := 0;
@@ -38,12 +46,28 @@ begin
      (Socket,
       Sockets.Network_Endpoint (Sockets.Loopback_IPv4, Port),
       Timeout => 5.0);
-   Client.Startup
-     (Session,
-      User             => "flyology",
-      Database         => "flyology",
-      Application_Name => "pgish_extended_client",
-      Timeout          => 5.0);
+   if CA_File'Length > 0 then
+      OpenSSL.Initialize_Client
+        (TLS_Backend,
+         CA_File => CA_File,
+         Library_Directory => Ada.Environment_Variables.Value
+           ("FLYOLOGY_OPENSSL_LIBRARY_DIR", ""));
+      Client.Startup_TLS
+        (Session,
+         TLS_Backend,
+         Server_Name      => Server_Name,
+         User             => "flyology",
+         Database         => "flyology",
+         Application_Name => "pgish_extended_client",
+         Timeout          => 5.0);
+   else
+      Client.Startup
+        (Session,
+         User             => "flyology",
+         Database         => "flyology",
+         Application_Name => "pgish_extended_client",
+         Timeout          => 5.0);
+   end if;
 
    Client.Prepare_Statement
      (Session,

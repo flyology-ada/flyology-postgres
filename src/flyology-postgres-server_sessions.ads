@@ -22,6 +22,8 @@ package Flyology.Postgres.Server_Sessions is
       Timeout : Duration);
    procedure Refuse_TLS
      (Item : in out Session; Timeout : Duration);
+   procedure Accept_TLS
+     (Item : in out Session; Timeout : Duration);
    procedure Refuse_GSS
      (Item : in out Session; Timeout : Duration);
 

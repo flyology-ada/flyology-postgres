@@ -32,7 +32,8 @@ project Flyology_Postgres is
             "flyology-postgres-server_sessions.ads",
             "flyology-postgres-transports.ads",
             "flyology-postgres-transports-connections.ads",
-            "flyology-postgres-transports-sockets.ads");
+            "flyology-postgres-transports-sockets.ads",
+            "flyology-postgres-transports-tls_sockets.ads");
    end case;
 
    for Object_Dir use "obj/" & Flyology_Postgres_Config.Build_Profile;

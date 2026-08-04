@@ -1,4 +1,5 @@
 with Flyology.Bytes;
+with Flyology.IO.TLS;
 with Flyology.Postgres.Protocol;
 with Flyology.Postgres.Transports;
 
@@ -6,6 +7,7 @@ package Flyology.Postgres.Client is
 
    Database_Error : exception;
    Unsupported_Authentication : exception;
+   TLS_Not_Available : exception;
 
    type Session
      (Channel : not null access Transports.Transport'Class) is limited private;
@@ -29,6 +31,19 @@ package Flyology.Postgres.Client is
       Database         : String := "";
       --  Password is consumed as its exact String octets. No SASLprep or
       --  Unicode normalization is performed by this library.
+      Password         : String := "";
+      Application_Name : String := "flyology_postgres";
+      Timeout          : Duration := 30.0);
+
+   --  Require PostgreSQL's direct TLS negotiation before startup. Backend
+   --  verifies both the server certificate chain and Server_Name. Refusal is
+   --  terminal; this procedure never falls back to plaintext.
+   procedure Startup_TLS
+     (Item             : in out Session;
+      Backend          : in out Flyology.IO.TLS.Provider'Class;
+      Server_Name      : String;
+      User             : String;
+      Database         : String := "";
       Password         : String := "";
       Application_Name : String := "flyology_postgres";
       Timeout          : Duration := 30.0);

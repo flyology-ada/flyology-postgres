@@ -18,6 +18,7 @@ package Pgish_State is
       Port            : Natural range 1 .. 65_535 := 55_432;
       Repository_Path : Path_Text;
       Task_Mode       : Name_Text;
+      TLS_Enabled     : Boolean := False;
       Started_At      : Ada.Calendar.Time := Ada.Calendar.Clock;
    end record;
 

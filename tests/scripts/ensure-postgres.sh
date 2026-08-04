@@ -12,7 +12,7 @@ esac
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 tests_root=$(CDPATH= cd -- "$script_dir/.." && pwd)
 cache_root=${POSTGRES_CACHE_DIR:-"$tests_root/.cache/postgres"}
-version_root="$cache_root/$version"
+version_root="$cache_root/$version-openssl"
 prefix="$version_root/install"
 postgres="$prefix/bin/postgres"
 
@@ -52,11 +52,28 @@ fi
 jobs=${POSTGRES_BUILD_JOBS:-4}
 configure_args=${POSTGRES_CONFIGURE_ARGS:-}
 
-(cd "$build_dir" && "$source_dir/configure" \
+openssl_cppflags=${CPPFLAGS:-}
+openssl_ldflags=${LDFLAGS:-}
+openssl_pkg_config_path=${PKG_CONFIG_PATH:-}
+if command -v brew >/dev/null 2>&1; then
+  openssl_prefix=$(brew --prefix openssl@3 2>/dev/null || true)
+  if [ -n "$openssl_prefix" ]; then
+    openssl_cppflags="-I$openssl_prefix/include $openssl_cppflags"
+    openssl_ldflags="-L$openssl_prefix/lib $openssl_ldflags"
+    openssl_pkg_config_path="$openssl_prefix/lib/pkgconfig${openssl_pkg_config_path:+:$openssl_pkg_config_path}"
+  fi
+fi
+
+(cd "$build_dir" && \
+  CPPFLAGS="$openssl_cppflags" \
+  LDFLAGS="$openssl_ldflags" \
+  PKG_CONFIG_PATH="$openssl_pkg_config_path" \
+  "$source_dir/configure" \
   --prefix="$prefix" \
   --without-readline \
   --without-zlib \
   --without-icu \
+  --with-ssl=openssl \
   $configure_args) >&2
 (cd "$build_dir" && "$make_command" -j "$jobs") >&2
 (cd "$build_dir" && "$make_command" install) >&2

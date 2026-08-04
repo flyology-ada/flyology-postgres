@@ -4,6 +4,7 @@ with Ada.Unchecked_Deallocation;
 with Flyology.Postgres.SCRAM;
 with Flyology.Postgres.SCRAM_Core;
 with Flyology.Postgres.Server_Sessions.Control;
+with Flyology.IO.Connections.TLS;
 with Flyology.Postgres.Transports.Connections;
 with Interfaces;
 with System_Random;
@@ -308,6 +309,9 @@ package body Flyology.Postgres.Server is
                   Client_Nonce : constant String :=
                     Flyology.Postgres.SCRAM.Nonce_From_Client_First
                       (Client_First);
+                  Channel_Binding : constant String :=
+                    Flyology.Postgres.SCRAM
+                      .Channel_Binding_From_Client_First (Client_First);
                   Combined_Nonce : constant String :=
                     Client_Nonce & Flyology.Postgres.SCRAM.Random_Nonce;
                   Server_First : constant String :=
@@ -333,7 +337,8 @@ package body Flyology.Postgres.Server is
                         Combined_Nonce,
                         Client_Final,
                         Signature,
-                        Proof_Valid);
+                        Proof_Valid,
+                        Channel_Binding => Channel_Binding);
                      if not Proof_Valid or else not Has_Credential then
                         Flyology.Postgres.SCRAM_Core.Wipe (Signature);
                         return False;
@@ -360,15 +365,36 @@ package body Flyology.Postgres.Server is
 
    procedure Run_Session
      (Context : in out Internal_Context;
-      Client  : in out Server_Sessions.Session) is
+      Client  : in out Server_Sessions.Session;
+      Connection : in out Flyology.IO.Connections.Connection;
+      Cancellation : not null access Flyology.Cancellation.Token) is
       Initial : Protocol.Initial_Request :=
         Server_Sessions.Read_Initial (Client, Startup_Timeout);
+      TLS_Active : Boolean := False;
    begin
       for Attempt in 1 .. 2 loop
          pragma Unreferenced (Attempt);
          case Protocol.Kind (Initial) is
             when Protocol.SSL_Request =>
-               Server_Sessions.Refuse_TLS (Client, Write_Timeout);
+               if TLS_Active then
+                  raise Protocol.Protocol_Error with
+                    "duplicate Postgres SSLRequest";
+               elsif Context.TLS_Mode = TLS_Disabled then
+                  Server_Sessions.Refuse_TLS (Client, Write_Timeout);
+               elsif Context.TLS_Backend = null then
+                  raise Program_Error with
+                    "Postgres TLS policy has no provider";
+               else
+                  Server_Sessions.Accept_TLS (Client, Write_Timeout);
+                  Flyology.IO.Connections.TLS.Upgrade
+                    (Connection,
+                     Context.TLS_Backend.all,
+                     Flyology.IO.TLS.Server,
+                     "",
+                     Timeout => Startup_Timeout,
+                     Token   => Cancellation);
+                  TLS_Active := True;
+               end if;
             when Protocol.GSS_Request =>
                Server_Sessions.Refuse_GSS (Client, Write_Timeout);
             when others =>
@@ -376,6 +402,16 @@ package body Flyology.Postgres.Server is
          end case;
          Initial := Server_Sessions.Read_Initial (Client, Startup_Timeout);
       end loop;
+
+      if Context.TLS_Mode = TLS_Required and then not TLS_Active then
+         Server_Sessions.Send_Error
+           (Client,
+            Message   => "TLS is required",
+            SQL_State => "08004",
+            Severity  => "FATAL",
+            Timeout   => Write_Timeout);
+         return;
+      end if;
 
       if Protocol.Kind (Initial) = Protocol.Cancel_Request then
          Context.Router.Route
@@ -523,17 +559,21 @@ package body Flyology.Postgres.Server is
       Client : Server_Sessions.Session (Channel'Access);
    begin
       Session_Control.Set_Shutdown_Cancellation (Client, Cancellation);
-      Run_Session (Context, Client);
+      Run_Session (Context, Client, Connection, Cancellation);
    end Process_Connection;
 
-   procedure Serve
+   procedure Serve_Internal
      (Item          : aliased in out Server;
       Listener      : in out Flyology.IO.Sockets.Socket_Type;
       Context       : aliased in out Handler_Context;
-      Drain_Timeout : Duration := Flyology.IO.Infinite) is
+      TLS_Backend   : TLS_Provider_Access;
+      TLS_Mode      : TLS_Policy;
+      Drain_Timeout : Duration) is
       Wrapped : aliased Internal_Context :=
         (Application => Context'Unchecked_Access,
-         Router      => Item.Router'Unchecked_Access);
+         Router      => Item.Router'Unchecked_Access,
+         TLS_Backend => TLS_Backend,
+         TLS_Mode    => TLS_Mode);
       Inner : Structured_Access :=
         new Structured.Server
           (Capacity => Worker_Capacity (Item.Capacity));
@@ -559,7 +599,38 @@ package body Flyology.Postgres.Server is
          end if;
          Free (Inner);
          raise;
+   end Serve_Internal;
+
+   procedure Serve
+     (Item          : aliased in out Server;
+      Listener      : in out Flyology.IO.Sockets.Socket_Type;
+      Context       : aliased in out Handler_Context;
+      Drain_Timeout : Duration := Flyology.IO.Infinite) is
+   begin
+      Serve_Internal
+        (Item, Listener, Context, null, TLS_Disabled, Drain_Timeout);
    end Serve;
+
+   procedure Serve_TLS
+     (Item          : aliased in out Server;
+      Listener      : in out Flyology.IO.Sockets.Socket_Type;
+      Context       : aliased in out Handler_Context;
+      Backend       : aliased in out Flyology.IO.TLS.Provider'Class;
+      Policy        : TLS_Policy := TLS_Required;
+      Drain_Timeout : Duration := Flyology.IO.Infinite) is
+   begin
+      if Policy = TLS_Disabled then
+         raise Program_Error with
+           "Serve_TLS requires TLS_Allowed or TLS_Required";
+      end if;
+      Serve_Internal
+        (Item,
+         Listener,
+         Context,
+         Backend'Unchecked_Access,
+         Policy,
+         Drain_Timeout);
+   end Serve_TLS;
 
    procedure Request_Shutdown (Item : in out Server) is
    begin

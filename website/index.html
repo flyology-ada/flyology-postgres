@@ -180,6 +180,7 @@
             <li><strong>Extended queries</strong><span>Prepared statements, portals, flush, sync, suspension, and recovery.</span></li>
             <li><strong>COPY</strong><span>Bounded COPY IN, COPY OUT, and COPY BOTH streams.</span></li>
             <li><strong>Authentication</strong><span>Trust, cleartext password, and SCRAM-SHA-256.</span></li>
+            <li><strong>TLS</strong><span>Verified client and server upgrades with encrypted cancellation.</span></li>
             <li><strong>Protocol servers</strong><span>Application handlers with typed response helpers and cancellation tokens.</span></li>
           </ul>
         </div>
@@ -189,13 +190,13 @@
         <div class="constraint-lede">
           <p class="eyebrow">Boundaries</p>
           <h2 id="boundaries-title">Concrete coverage, with limits attached.</h2>
-          <p>TLS and channel binding are intentionally deferred. Cleartext-password authentication is for trusted test or private networks until transport upgrades are available.</p>
+          <p>TLS clients verify server certificate chains and DNS names, and servers can require encrypted startup. Client-certificate authentication and SCRAM channel binding remain explicit boundaries.</p>
           <a href="guide/#boundaries">Review all current boundaries</a>
         </div>
         <table class="constraint-table">
           <thead><tr><th>Concern</th><th>Contract</th></tr></thead>
           <tbody>
-            <tr><td>TLS</td><td>Clients currently start in plaintext; servers answer <code>SSLRequest</code> with <code>N</code>.</td></tr>
+            <tr><td>TLS</td><td><code>Startup_TLS</code> and <code>Serve_TLS</code> upgrade the same connection without plaintext fallback; encrypted cancellation is available separately.</td></tr>
             <tr><td>Authentication</td><td>No MD5, GSSAPI, SSPI, certificate auth, or SCRAM-SHA-256-PLUS.</td></tr>
             <tr><td>Memory</td><td>Rows and COPY frames are returned individually; callers own their buffering policy.</td></tr>
             <tr><td>Scheduling</td><td>Continuously readable COPY streams may need explicit Flyology fairness points.</td></tr>
@@ -211,7 +212,7 @@
           <div class="history-copy">
             <p class="eyebrow">Working examples</p>
             <h2 id="examples-title">Exercise both ends of the wire.</h2>
-            <p><code>psqlish</code> is a compact Postgres client. <code>pgish</code> is a read-only Postgres-like server with virtual Flyology and catalog tables. Use them together, or connect either side to real Postgres tooling.</p>
+            <p><code>psqlish</code> is a compact Postgres client with verified TLS. <code>pgish</code> is a read-only Postgres-like server with configurable required TLS, virtual Flyology, and catalog tables. Use them together, or connect either side to real Postgres tooling.</p>
             <a href="https://github.com/flyology-ada/flyology-postgres/tree/main/examples">Explore the examples</a>
           </div>
         </div>

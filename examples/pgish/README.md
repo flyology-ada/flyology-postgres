@@ -5,9 +5,10 @@ Postgres server on Flyology's production `Server` and `Server_Sessions` APIs.
 It is an educational server, not a database or a general SQL implementation.
 
 The binary is `flyology_pgish`. It listens on
-`127.0.0.1:55432` by default, negotiates Postgres protocol 3.2, refuses TLS and
-GSS upgrades, and uses trust authentication. The loopback default is
-intentional: do not expose this example on an untrusted network.
+`127.0.0.1:55432` by default, negotiates Postgres protocol 3.2, and uses trust
+authentication. Supplying a certificate and key enables required TLS with no
+plaintext fallback. The loopback default is intentional: trust authentication
+does not establish a database identity, even when TLS protects the transport.
 
 ## Build and run
 
@@ -27,6 +28,17 @@ Connect with a real `psql`:
 psql -h 127.0.0.1 -p 55432 -U flyology -d flyology
 ```
 
+To require TLS, provide a PEM certificate chain and private key:
+
+```sh
+FLYOLOGY_PGISH_TLS_CERT=server-cert.pem \
+FLYOLOGY_PGISH_TLS_KEY=server-key.pem \
+  alr -n run flyology_pgish
+
+psql "host=db.example.com port=55432 user=flyology dbname=flyology \
+sslmode=verify-full sslrootcert=root-ca.pem"
+```
+
 The server prints `ready host=... port=...` after the listener is accepting
 connections. SIGTERM requests graceful shutdown and gives active sessions two
 seconds to drain. Postgres CancelRequest routing remains active during query
@@ -41,6 +53,8 @@ win:
 | `FLYOLOGY_PGISH_PORT` | `--port PORT` | `55432` |
 | `FLYOLOGY_PGISH_REPO` | `--repo PATH` | current directory |
 | `FLYOLOGY_PGISH_TASK_MODE` | `--task-mode lightweight\|native` | `lightweight` |
+| `FLYOLOGY_PGISH_TLS_CERT` | `--tls-cert FILE` | unset (plaintext) |
+| `FLYOLOGY_PGISH_TLS_KEY` | `--tls-key FILE` | unset (plaintext) |
 
 Task mode selects the production server's per-connection handler tasks. The
 signal/shutdown watcher is always native so control-plane progress is
@@ -139,11 +153,14 @@ array (`git -C PATH log ...`), never through a shell. SQL cannot select a file,
 program, command, or arbitrary environment variable. Commit queries read only
 the bounded startup cache, so sessions never spawn processes.
 
-Trust authentication is the only mode in this example. An optional SCRAM mode
+Trust authentication is the only mode in this example. TLS protects and
+authenticates the server when certificate and key paths are configured, but it
+does not authenticate database users or request client certificates. An optional SCRAM mode
 is deliberately omitted because the current generic authentication callback
 does not provide a post-authentication session hook needed to register state
-without leaving failed attempts behind. No TLS is offered until Flyology
-connection upgrades and channel binding are available.
+without leaving failed attempts behind. The example selects explicit plaintext
+`Serve` only when no TLS paths are configured; otherwise it initializes the
+Flyology OpenSSL provider and calls `Serve_TLS` with `TLS_Required`.
 
 ## Tests
 
@@ -157,6 +174,8 @@ NULL behavior, ordering, limits, malformed/unsupported input, and catalog
 bounds. `scripts/run-integration.sh` starts the server, waits for its ready
 line, exercises Parse/Bind/Describe/Execute/Close/Sync with Flyology's typed
 client, and then uses real Postgres 18 `psql` for NULL/empty values, catalog
-meta commands, and error recovery. It sends SIGTERM and waits for deterministic
+meta commands, and error recovery. The integration generates an ephemeral CA,
+requires verified TLS for the typed client, `psqlish`, and real `psql`, and
+asserts that plaintext startup is rejected. It sends SIGTERM and waits for deterministic
 exit. Set `FLYOLOGY_PGISH_SKIP_INTEGRATION=1` to run only focused
 tests.
