@@ -186,7 +186,7 @@ package body Flyology.Postgres.SCRAM is
         or else Value (Value'First .. Value'First + Prefix'Length - 1) /=
           Prefix
       then
-         Fail ("invalid PostgreSQL SCRAM verifier prefix");
+         Fail ("invalid Postgres SCRAM verifier prefix");
       end if;
       Colon_1 := Ada.Strings.Fixed.Index
         (Value, ":", From => Value'First + Prefix'Length);
@@ -202,7 +202,7 @@ package body Flyology.Postgres.SCRAM is
         or else Colon_1 >= Dollar_2 - 1 or else Dollar_2 >= Colon_2 - 1
         or else Colon_2 = Value'Last
       then
-         Fail ("invalid PostgreSQL SCRAM verifier fields");
+         Fail ("invalid Postgres SCRAM verifier fields");
       end if;
 
       declare
@@ -219,7 +219,7 @@ package body Flyology.Postgres.SCRAM is
            or else Stored'Length /= Digest'Length
            or else Server'Length /= Digest'Length
          then
-            Fail ("invalid PostgreSQL SCRAM verifier data length");
+            Fail ("invalid Postgres SCRAM verifier data length");
          end if;
          return
            (Iteration_Count => Iterations,
@@ -390,7 +390,7 @@ package body Flyology.Postgres.SCRAM is
          Nonce_Token : constant String := Next_Token (Bare_Text, Cursor);
          Nonce_Text : constant String := Attribute_Value (Nonce_Token, 'r');
       begin
-         --  PostgreSQL deliberately ignores the SCRAM username and libpq
+         --  Postgres deliberately ignores the SCRAM username and libpq
          --  sends an empty n= value, relying on the startup-message user.
          if Cursor <= Bare_Text'Last then
             Fail ("malformed SCRAM client-first-message");

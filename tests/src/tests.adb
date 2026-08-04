@@ -1507,7 +1507,7 @@ procedure Tests is
          "malformed SCRAM server-final messages are rejected");
       Assert
         (Verifier_Rejected,
-         "malformed PostgreSQL SCRAM verifiers are rejected");
+         "malformed Postgres SCRAM verifiers are rejected");
       Assert (Nonce_Rejected, "mismatched server nonces are rejected");
       Assert
         (GS2_Rejected,

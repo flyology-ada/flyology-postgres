@@ -3,9 +3,9 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="A native Ada implementation of the PostgreSQL frontend/backend protocol over Flyology I/O.">
+    <meta name="description" content="A native Ada implementation of the Postgres frontend/backend protocol over Flyology I/O.">
     <meta name="theme-color" content="#17213d">
-    <title>Flyology Postgres · PostgreSQL protocol for Ada</title>
+    <title>Flyology Postgres · Postgres protocol for Ada</title>
     <link rel="canonical" href="https://postgres.flyology.org/">
     <link rel="icon" href="assets/brand/flyology-primary-icon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="assets/styles/site.css">
@@ -45,7 +45,7 @@
     <main id="main">
       <section class="hero page-shell" aria-labelledby="hero-title">
         <div>
-          <p class="eyebrow">PostgreSQL frontend/backend protocol for Flyology</p>
+          <p class="eyebrow">Postgres frontend/backend protocol for Flyology</p>
           <h1 id="hero-title">Postgres, in native Ada.</h1>
           <p class="hero-lede">
             Flyology Postgres provides typed, bounded client and server primitives over Flyology I/O.
@@ -59,7 +59,7 @@
           </div>
         </div>
 
-        <div class="hero-visual" aria-label="A PostgreSQL query moving from an Ada client to a server and returning bounded row events">
+        <div class="hero-visual" aria-label="A Postgres query moving from an Ada client to a server and returning bounded row events">
           <div class="orbit" aria-hidden="true">
             <div class="orbit-ring"></div>
             <img class="orbit-mark" src="assets/brand/flyology-mark-transparent.svg" alt="">
@@ -93,7 +93,7 @@
       <div class="status-strip" aria-label="Project status">
         <div class="status-inner">
           <div class="status-item"><strong>Protocol 3.2</strong>Typed frontend and backend messages.</div>
-          <div class="status-item"><strong>PostgreSQL 18.4</strong>Interoperability tested in both directions.</div>
+          <div class="status-item"><strong>Postgres 18.4</strong>Interoperability tested in both directions.</div>
           <div class="status-item"><strong>Bounded streams</strong>Rows and COPY frames are never accumulated.</div>
         </div>
       </div>
@@ -111,22 +111,22 @@
           <div class="lane">
             <div class="lane-copy">
               <span class="lane-number">01 / CLIENT</span>
-              <h3>Connect to PostgreSQL</h3>
+              <h3>Connect to Postgres</h3>
             </div>
-            <div class="lane-flow" aria-label="An Ada client sends commands to PostgreSQL">
+            <div class="lane-flow" aria-label="An Ada client sends commands to Postgres">
               <span class="flow-node flow-node-violet">Ada task</span>
               <span class="flow-arrow" aria-hidden="true"></span>
               <span class="flow-node">session</span>
               <span class="flow-arrow" aria-hidden="true"></span>
-              <span class="flow-node flow-node-teal">PostgreSQL</span>
+              <span class="flow-node flow-node-teal">Postgres</span>
             </div>
           </div>
           <div class="lane">
             <div class="lane-copy">
               <span class="lane-number">02 / SERVER</span>
-              <h3>Speak to PostgreSQL tools</h3>
+              <h3>Speak to Postgres tools</h3>
             </div>
-            <div class="lane-flow" aria-label="A PostgreSQL client sends commands to an Ada server handler">
+            <div class="lane-flow" aria-label="A Postgres client sends commands to an Ada server handler">
               <span class="flow-node flow-node-violet">psql</span>
               <span class="flow-arrow" aria-hidden="true"></span>
               <span class="flow-node">session</span>
@@ -147,7 +147,7 @@
         <ol class="mechanic-list">
           <li class="mechanic-item">
             <span class="mechanic-index">01</span>
-            <div><h3>Startup and authentication</h3><p>Trust, cleartext password, and SCRAM-SHA-256 are handled through the PostgreSQL startup exchange.</p></div>
+            <div><h3>Startup and authentication</h3><p>Trust, cleartext password, and SCRAM-SHA-256 are handled through the Postgres startup exchange.</p></div>
           </li>
           <li class="mechanic-item">
             <span class="mechanic-index">02</span>
@@ -159,7 +159,7 @@
           </li>
           <li class="mechanic-item">
             <span class="mechanic-index">04</span>
-            <div><h3>Separate cancellation</h3><p>Backend cancellation credentials travel on the separate connection required by the PostgreSQL protocol.</p></div>
+            <div><h3>Separate cancellation</h3><p>Backend cancellation credentials travel on the separate connection required by the Postgres protocol.</p></div>
           </li>
         </ol>
       </section>
@@ -207,14 +207,14 @@
           <div class="history-copy">
             <p class="eyebrow">Working examples</p>
             <h2 id="examples-title">Exercise both ends of the wire.</h2>
-            <p><code>psqlish</code> is a compact PostgreSQL client. <code>pgish</code> is a read-only PostgreSQL-like server with virtual Flyology and catalog tables. Use them together, or connect either side to real PostgreSQL tooling.</p>
+            <p><code>psqlish</code> is a compact Postgres client. <code>pgish</code> is a read-only Postgres-like server with virtual Flyology and catalog tables. Use them together, or connect either side to real Postgres tooling.</p>
             <a href="https://github.com/flyology-ada/flyology-postgres/tree/main/examples">Explore the examples</a>
           </div>
         </div>
       </section>
 
       <section class="final-cta page-shell" aria-labelledby="cta-title">
-        <h2 id="cta-title">Open your first PostgreSQL session.</h2>
+        <h2 id="cta-title">Open your first Postgres session.</h2>
         <div class="actions">
           <a class="button button-primary" href="guide/">Open the guide</a>
           <a class="button button-secondary" href="api/">Search the API</a>

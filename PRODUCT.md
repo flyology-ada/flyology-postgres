@@ -6,7 +6,7 @@ brand
 
 ## Users
 
-Experienced Ada and GNAT developers building PostgreSQL clients, protocol
+Experienced Ada and GNAT developers building Postgres clients, protocol
 servers, test doubles, and database-adjacent infrastructure are the primary
 audience. Systems programmers evaluating Flyology should be able to understand
 the protocol coverage, streaming model, authentication boundaries, and path to
@@ -14,7 +14,7 @@ a working client or server without reading the entire repository.
 
 ## Product Purpose
 
-Flyology Postgres presents a native Ada implementation of the PostgreSQL
+Flyology Postgres presents a native Ada implementation of the Postgres
 frontend/backend protocol over Flyology I/O. The public site should help a
 visitor understand the client and server surfaces, reach a working first
 connection, choose the correct bounded streaming API, and evaluate the current
@@ -24,7 +24,7 @@ security and transport boundaries responsibly.
 
 Precise, mechanical, and quietly curious. The voice is modest and factual,
 with the confidence of a well-annotated protocol diagram. It is visibly part of
-Flyology, with PostgreSQL wire framing and state transitions providing the
+Flyology, with Postgres wire framing and state transitions providing the
 project-specific visual and narrative material.
 
 ## Anti-references
@@ -40,7 +40,7 @@ that hides protocol state or current security boundaries.
 - Keep bounded streaming and explicit state transitions visible.
 - Pair every capability with its transport, authentication, or scheduling boundary.
 - Keep ordinary Ada syntax at the center of the story.
-- Make the shortest path to a real PostgreSQL connection obvious.
+- Make the shortest path to a real Postgres connection obvious.
 
 ## Accessibility & Inclusion
 

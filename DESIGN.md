@@ -1,6 +1,6 @@
 ---
 name: Flyology Postgres
-description: A precise, contemporary guide to PostgreSQL protocol clients and servers built on Flyology.
+description: A precise, contemporary guide to Postgres protocol clients and servers built on Flyology.
 colors:
   ink: "oklch(27% 0.052 270)"
   ink-soft: "oklch(39% 0.043 270)"
@@ -96,7 +96,7 @@ components:
 The visual system is a contemporary working model: precise enough to inspect,
 animated only when motion explains a state transition, and curious enough to
 reward exploration. A visible technical grid, the existing Flyology mark,
-ordinary Ada syntax, and PostgreSQL message-flow diagrams make the system feel
+ordinary Ada syntax, and Postgres message-flow diagrams make the system feel
 engineered without becoming a terminal simulation.
 
 Light mode is designed for a developer reading guides and source-adjacent
@@ -245,4 +245,4 @@ path or dashed-flow transforms that describe protocol behavior.
 - **Don't** use faux-Victorian ornament to reference Ada Lovelace.
 - **Don't** use glassmorphism, gradient text, decorative colored side stripes, or repeated icon cards.
 - **Don't** use violet and teal as decorative substitutes for one another.
-- **Don't** imply TLS support, unsupported authentication mechanisms, unbounded buffering, or universal PostgreSQL compatibility.
+- **Don't** imply TLS support, unsupported authentication mechanisms, unbounded buffering, or universal Postgres compatibility.

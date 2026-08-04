@@ -74,9 +74,9 @@ Typed frontend constructors encode `Parse`, `Bind`, `Describe`, `Execute`, `Clos
 statements or portals. Parse accepts
 parameter OIDs, including zero for an unspecified type. Each Bind value is built with
 `Text_Parameter`, `Binary_Parameter`, or `Null_Parameter`, so its format stays attached
-to its bytes. Bind uses PostgreSQL's zero-, one-, or per-parameter format-code forms,
+to its bytes. Bind uses Postgres's zero-, one-, or per-parameter format-code forms,
 supports independent result format codes, and preserves the distinction between NULL
-and an empty value. Execute accepts PostgreSQL's nonnegative signed 32-bit maximum-row
+and an empty value. Execute accepts Postgres's nonnegative signed 32-bit maximum-row
 count; zero means unlimited.
 
 `Flyology.Postgres.Client.Session` borrows a transport. `Startup` performs startup and
@@ -241,7 +241,7 @@ cryptographic random source. Registrations are removed when a session ends, and 
 invalid, stale, and duplicate requests all receive the same externally observable
 behavior: the cancellation connection closes silently with no response.
 
-For `SCRAM_SHA_256`, `Lookup_SCRAM_Verifier` returns the exact PostgreSQL credential
+For `SCRAM_SHA_256`, `Lookup_SCRAM_Verifier` returns the exact Postgres credential
 form `SCRAM-SHA-256$<iterations>:<salt>$<StoredKey>:<ServerKey>`, or an empty string
 for an unknown/uncredentialed user. The server never requests, receives, or retains
 that user's plaintext password. Unknown users are challenged with a static precomputed
@@ -310,7 +310,7 @@ that capability at this dependency boundary.
 The implementation follows the current official
 [message-flow](https://www.postgresql.org/docs/current/protocol-flow.html) and
 [message-format](https://www.postgresql.org/docs/current/protocol-message-formats.html)
-documentation, PostgreSQL's
+documentation, Postgres's
 [SASL authentication flow](https://www.postgresql.org/docs/current/sasl-authentication.html),
 [RFC 5802](https://www.rfc-editor.org/rfc/rfc5802), and
 [RFC 7677](https://www.rfc-editor.org/rfc/rfc7677).
@@ -319,11 +319,11 @@ documentation, PostgreSQL's
 
 `Client.Startup.Password` and `SCRAM.Make_Verifier_Raw` treat an Ada `String` as an
 exact octet sequence. Flyology Postgres does **not** implement SASLprep, Unicode
-normalization, or PostgreSQL's valid-UTF-8-then-SASLprep fallback. ASCII passwords are
+normalization, or Postgres's valid-UTF-8-then-SASLprep fallback. ASCII passwords are
 fully interoperable. Non-ASCII passwords interoperate only when the verifier was
 derived from the same exact octets and no normalization is required; callers needing
-PostgreSQL's normalization semantics must normalize before calling, or provision the
-server with a verifier created by PostgreSQL. This boundary is explicit rather than
+Postgres's normalization semantics must normalize before calling, or provision the
+server with a verifier created by Postgres. This boundary is explicit rather than
 silently claiming full SASLprep support.
 
 ## Randomness dependency
@@ -413,7 +413,7 @@ post-error reuse, plus synchronous separate-connection cancellation during an ac
 COPY OUT stream. The
 `psql` direction verifies that the Flyology server emits a multi-column, multi-row
 result with both NULL and empty text, performs `\copy` in both directions through
-the streaming server helpers, then uses PostgreSQL 18's named prepared-
+the streaming server helpers, then uses Postgres 18's named prepared-
 statement commands and asserts raw dispatch of Parse, Bind, Describe, Execute, Close,
 and Sync. It also rejects both a wrong password and an unknown user through real
 SCRAM exchanges. Server-side tests cover correct, incorrect, stale, duplicate, and

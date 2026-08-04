@@ -18,7 +18,7 @@ generic
    with function Lookup_SCRAM_Verifier
      (Context : in out Handler_Context;
       Startup : Protocol.Startup_Information) return String;
-   --  Return the PostgreSQL rolpassword form
+   --  Return the Postgres rolpassword form
    --  SCRAM-SHA-256$iterations:salt$StoredKey:ServerKey, or "" when the
    --  startup user has no credential. Plaintext is never requested by the
    --  SCRAM authentication path.

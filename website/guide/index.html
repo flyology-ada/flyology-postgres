@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Connect Flyology Ada tasks to PostgreSQL, stream queries and COPY data, and build protocol servers.">
+    <meta name="description" content="Connect Flyology Ada tasks to Postgres, stream queries and COPY data, and build protocol servers.">
     <meta name="theme-color" content="#17213d">
     <title>Guide · Flyology Postgres</title>
     <link rel="canonical" href="https://postgres.flyology.org/guide/">
@@ -45,7 +45,7 @@
           <ol class="breadcrumb" aria-label="Breadcrumb"><li><a href="../">Flyology Postgres</a></li><li aria-current="page">Guide</li></ol>
           <h1>From socket to bounded result stream.</h1>
         </div>
-        <p class="doc-hero-copy">Add the crate, connect a Flyology socket, complete PostgreSQL startup, then choose simple queries, prepared portals, COPY streams, or a protocol server.</p>
+        <p class="doc-hero-copy">Add the crate, connect a Flyology socket, complete Postgres startup, then choose simple queries, prepared portals, COPY streams, or a protocol server.</p>
       </header>
 
       <div class="docs-layout">
@@ -78,7 +78,7 @@
             <div class="decision-list">
               <dl>
                 <div class="decision-row"><dt>Flyology</dt><dd>Use the runtime and toolchain preparation documented by the main project.</dd></div>
-                <div class="decision-row"><dt>PostgreSQL</dt><dd>Interoperability is exercised against PostgreSQL 18.4 and the protocol 3.0/3.2 startup shapes.</dd></div>
+                <div class="decision-row"><dt>Postgres</dt><dd>Interoperability is exercised against Postgres 18.4 and the protocol 3.0/3.2 startup shapes.</dd></div>
                 <div class="decision-row"><dt>Transport</dt><dd>The included adapters accept a connected Flyology socket or an accepted Flyology connection.</dd></div>
               </dl>
             </div>
@@ -106,7 +106,7 @@ alr build</code></pre>
           <section id="connect">
             <span class="step-label">STEP 03</span>
             <h2>Connect a socket and complete startup.</h2>
-            <p>A client session borrows its transport. The socket and transport must therefore outlive the session. <code>Startup</code> performs PostgreSQL startup and authentication, then leaves the session ready for commands.</p>
+            <p>A client session borrows its transport. The socket and transport must therefore outlive the session. <code>Startup</code> performs Postgres startup and authentication, then leaves the session ready for commands.</p>
             <figure class="code-panel">
               <figcaption>client startup</figcaption>
               <button class="copy-button" type="button" data-copy>Copy</button>
@@ -233,7 +233,7 @@ end;
           <section id="cancel">
             <span class="step-label">STEP 07</span>
             <h2>Cancel on a separate connection.</h2>
-            <p>PostgreSQL cancellation never travels on the active query connection. Startup stores the backend process ID and variable-length secret. The socket helper opens a separate connection, sends those credentials, and closes it without waiting for a response.</p>
+            <p>Postgres cancellation never travels on the active query connection. Startup stores the backend process ID and variable-length secret. The socket helper opens a separate connection, sends those credentials, and closes it without waiting for a response.</p>
             <figure class="code-panel">
               <figcaption>cancel an active operation</figcaption>
               <button class="copy-button" type="button" data-copy>Copy</button>
@@ -247,13 +247,13 @@ end;
 
           <section id="server">
             <span class="step-label">STEP 08</span>
-            <h2>Build a PostgreSQL protocol server.</h2>
+            <h2>Build a Postgres protocol server.</h2>
             <p><code>Flyology.Postgres.Server</code> is generic over application context, authentication callbacks, SCRAM verifier lookup, and a command handler. Each accepted connection receives its own Flyology handler task.</p>
             <div class="decision-list">
               <dl>
                 <div class="decision-row"><dt>Commands</dt><dd>The handler receives every normal frontend command as a typed or raw-preserving <code>Protocol.Message</code>.</dd></div>
                 <div class="decision-row"><dt>Responses</dt><dd>Session helpers send row descriptions, rows, diagnostics, completion, readiness, and COPY streams.</dd></div>
-                <div class="decision-row"><dt>Authentication</dt><dd>SCRAM lookup returns PostgreSQL verifier text. The server does not request or retain the user's plaintext password.</dd></div>
+                <div class="decision-row"><dt>Authentication</dt><dd>SCRAM lookup returns Postgres verifier text. The server does not request or retain the user's plaintext password.</dd></div>
                 <div class="decision-row"><dt>Cancellation</dt><dd>A fresh per-command token reports matching cancellation and forced structured-server shutdown.</dd></div>
               </dl>
             </div>
@@ -263,7 +263,7 @@ end;
           <section id="examples">
             <span class="step-label">STEP 09</span>
             <h2>Exercise both ends with the example crates.</h2>
-            <p>The examples are independent nested Alire crates and share loopback defaults. Run a real PostgreSQL-compatible client against <code>pgish</code>, or use <code>psqlish</code> against real PostgreSQL.</p>
+            <p>The examples are independent nested Alire crates and share loopback defaults. Run a real Postgres-compatible client against <code>pgish</code>, or use <code>psqlish</code> against real Postgres.</p>
             <figure class="code-panel">
               <figcaption>example directories</figcaption>
               <button class="copy-button" type="button" data-copy>Copy</button>
