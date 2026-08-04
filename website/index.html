@@ -59,18 +59,20 @@
           </div>
         </div>
 
-        <div class="hero-visual" aria-label="A Postgres query moving from an Ada client to a server and returning bounded row events">
+        <div class="hero-visual" aria-label="A Postgres exchange: frontend commands move from client to server, then backend rows and status events return from server to client">
           <div class="orbit" aria-hidden="true">
             <div class="orbit-ring"></div>
             <img class="orbit-mark" src="assets/brand/flyology-mark-transparent.svg" alt="">
           </div>
           <div class="model-note model-note-light">
             <strong>Frontend</strong>
+            <span class="model-direction">Client → server</span>
             Send queries, prepared statements, and COPY streams.
           </div>
           <div class="model-note model-note-native">
             <strong>Backend</strong>
-            Rows and state arrive one owned event at a time.
+            <span class="model-direction">Server → client</span>
+            Receive rows, notices, errors, and readiness events.
           </div>
           <div class="code-window">
             <div class="code-titlebar">

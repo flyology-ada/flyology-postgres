@@ -486,9 +486,24 @@ code:not(pre code) {
 
 .model-note strong {
   display: block;
-  margin-bottom: 0.18rem;
   color: var(--ink);
   font-size: 0.84rem;
+}
+
+.model-direction {
+  display: block;
+  margin: 0.05rem 0 0.28rem;
+  font-size: 0.66rem;
+  font-weight: 650;
+  letter-spacing: 0.035em;
+}
+
+.model-note-light .model-direction {
+  color: var(--violet-deep);
+}
+
+.model-note-native .model-direction {
+  color: var(--teal-deep);
 }
 
 .model-note-light {
