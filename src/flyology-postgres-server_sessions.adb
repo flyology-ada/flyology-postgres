@@ -4,7 +4,39 @@ with Flyology.Postgres.Framing;
 package body Flyology.Postgres.Server_Sessions is
 
    use type Protocol.Byte_Offset;
+   use type Protocol.Field_Format;
    use type Protocol.Frontend_Kind;
+   use type Protocol.Int16;
+   use type Protocol.Int32;
+   use type Protocol.UInt16;
+
+   Payload_Limit : constant Natural := Protocol.Maximum_Message_Size - 4;
+
+   procedure Require_Room
+     (Contents   : Flyology.Bytes.Unbounded_Bytes;
+      Additional : Natural;
+      Context    : String) is
+   begin
+      if Additional > Payload_Limit - Flyology.Bytes.Length (Contents) then
+         raise Protocol.Protocol_Error with
+           Context & " exceeds the configured message limit";
+      end if;
+   end Require_Room;
+
+   function Unsigned_16 (Value : Protocol.Int16) return Protocol.UInt16 is
+     (if Value >= 0
+      then Protocol.UInt16 (Value)
+      else Protocol.UInt16 (Integer (Value) + 65_536));
+
+   function Unsigned_32 (Value : Protocol.Int32) return Protocol.UInt32 is
+     (if Value >= 0
+      then Protocol.UInt32 (Value)
+      else Protocol.UInt32 (Long_Long_Integer (Value) + 4_294_967_296));
+
+   function Signed_16 (Value : Protocol.UInt16) return Protocol.Int16 is
+     (if Value <= Protocol.UInt16 (Protocol.Int16'Last)
+      then Protocol.Int16 (Value)
+      else Protocol.Int16 (Integer (Value) - 65_536));
 
    procedure Send_Built
      (Item    : in out Session;
@@ -209,41 +241,112 @@ package body Flyology.Postgres.Server_Sessions is
    end Send_No_Data;
 
    procedure Send_Row_Description
+     (Item    : in out Session;
+      Columns : Protocol.Field_Description_Array;
+      Timeout : Duration) is
+      Contents : Flyology.Bytes.Unbounded_Bytes;
+   begin
+      if Columns'Length > Natural (Protocol.UInt16'Last) then
+         raise Protocol.Protocol_Error with
+           "RowDescription has too many fields";
+      end if;
+      Require_Room (Contents, 2, "RowDescription");
+      Protocol.Append_U16 (Contents, Protocol.UInt16 (Columns'Length));
+      for Column of Columns loop
+         declare
+            Name : constant String := Protocol.Field_Name (Column);
+         begin
+            if Name'Length > Payload_Limit - 19 then
+               raise Protocol.Protocol_Error with
+                 "RowDescription field name exceeds the configured limit";
+            end if;
+            Require_Room
+              (Contents, Name'Length + 19, "RowDescription");
+            Protocol.Append_C_String (Contents, Name);
+            Protocol.Append_U32 (Contents, Protocol.Table_Oid (Column));
+            Protocol.Append_U16
+              (Contents,
+               Unsigned_16 (Protocol.Column_Attribute_Number (Column)));
+            Protocol.Append_U32 (Contents, Protocol.Type_Oid (Column));
+            Protocol.Append_U16
+              (Contents, Unsigned_16 (Protocol.Type_Size (Column)));
+            Protocol.Append_U32
+              (Contents, Unsigned_32 (Protocol.Type_Modifier (Column)));
+            Protocol.Append_U16
+              (Contents,
+               (if Protocol.Format (Column) = Protocol.Text_Format
+                then 0
+                else 1));
+         end;
+      end loop;
+      Send_Built (Item, 'T', Contents, Timeout);
+   end Send_Row_Description;
+
+   procedure Send_Row_Description
      (Item      : in out Session;
       Name      : String;
       Type_Oid  : Protocol.UInt32 := 25;
       Type_Size : Protocol.UInt16 := 16#FFFF#;
       Timeout   : Duration) is
-      Contents : Flyology.Bytes.Unbounded_Bytes;
    begin
-      Protocol.Append_U16 (Contents, 1);
-      Protocol.Append_C_String (Contents, Name);
-      Protocol.Append_U32 (Contents, 0);
-      Protocol.Append_U16 (Contents, 0);
-      Protocol.Append_U32 (Contents, Type_Oid);
-      Protocol.Append_U16 (Contents, Type_Size);
-      Protocol.Append_U32 (Contents, Protocol.UInt32'Last);
-      Protocol.Append_U16 (Contents, 0);
-      Send_Built (Item, 'T', Contents, Timeout);
+      Send_Row_Description
+        (Item,
+         Columns =>
+           (1 => Protocol.Make_Field_Description
+              (Name      => Name,
+               Type_Oid  => Type_Oid,
+               Type_Size => Signed_16 (Type_Size))),
+         Timeout => Timeout);
    end Send_Row_Description;
 
    procedure Send_Data_Row
-     (Item : in out Session; Value : String; Timeout : Duration) is
+     (Item    : in out Session;
+      Values  : Protocol.Column_Value_Array;
+      Timeout : Duration) is
       Contents : Flyology.Bytes.Unbounded_Bytes;
    begin
-      Protocol.Append_U16 (Contents, 1);
-      Protocol.Append_U32 (Contents, Protocol.UInt32 (Value'Length));
-      Flyology.Bytes.Append_Byte_String (Contents, Value);
+      if Values'Length > Natural (Protocol.UInt16'Last) then
+         raise Protocol.Protocol_Error with "DataRow has too many columns";
+      end if;
+      Require_Room (Contents, 2, "DataRow");
+      Protocol.Append_U16 (Contents, Protocol.UInt16 (Values'Length));
+      for Value of Values loop
+         if Protocol.Is_Null (Value) then
+            Require_Room (Contents, 4, "DataRow");
+            Protocol.Append_U32 (Contents, Protocol.UInt32'Last);
+         else
+            declare
+               Bytes : constant Protocol.Byte_Array :=
+                 Protocol.Column_Bytes (Value);
+            begin
+               if Bytes'Length > Payload_Limit - 4 then
+                  raise Protocol.Protocol_Error with
+                    "DataRow column exceeds the configured limit";
+               end if;
+               Require_Room (Contents, Bytes'Length + 4, "DataRow");
+               Protocol.Append_U32
+                 (Contents, Protocol.UInt32 (Bytes'Length));
+               Protocol.Append_Bytes (Contents, Bytes);
+            end;
+         end if;
+      end loop;
       Send_Built (Item, 'D', Contents, Timeout);
+   end Send_Data_Row;
+
+   procedure Send_Data_Row
+     (Item : in out Session; Value : String; Timeout : Duration) is
+   begin
+      Send_Data_Row
+        (Item,
+         Values => (1 => Protocol.Text_Column (Value)),
+         Timeout => Timeout);
    end Send_Data_Row;
 
    procedure Send_Null_Data_Row
      (Item : in out Session; Timeout : Duration) is
-      Contents : Flyology.Bytes.Unbounded_Bytes;
    begin
-      Protocol.Append_U16 (Contents, 1);
-      Protocol.Append_U32 (Contents, Protocol.UInt32'Last);
-      Send_Built (Item, 'D', Contents, Timeout);
+      Send_Data_Row
+        (Item, Values => (1 => Protocol.Null_Column), Timeout => Timeout);
    end Send_Null_Data_Row;
 
    function Query_Text (Command : Protocol.Message) return String is

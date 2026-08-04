@@ -97,6 +97,30 @@ is
           and then Cursor = Cursor'Old
           and then Value = 0);
 
+   function Count_Fits
+     (Remaining           : Wire_Length;
+      Count               : UInt16;
+      Minimum_Item_Length : Wire_Length) return Boolean is
+     (Minimum_Item_Length = 0
+      or else Natural (Count) <= Remaining / Minimum_Item_Length);
+
+   procedure Try_Read_Bytes
+     (Data    : Byte_Array;
+      Cursor  : in out Wire_Length;
+      Count   : Wire_Length;
+      View    : out Byte_View;
+      Success : out Boolean)
+   with
+     Post =>
+       (if Can_Read (Data, Cursor'Old, Count)
+        then Success
+          and then View = (First => Cursor'Old, Length => Count)
+          and then Valid_View (Data, View)
+          and then Cursor = Cursor'Old + Count
+        else not Success
+          and then Cursor = Cursor'Old
+          and then View = Empty_View);
+
    function Terminated_View
      (Data : Byte_Array; View : Byte_View) return Boolean is
      (Valid_View (Data, View)

@@ -73,9 +73,11 @@ result=$(PGPASSWORD=flyology-secret \
   -U flyology \
   -d postgres \
   -v ON_ERROR_STOP=1 \
+  -P 'null=(null)' \
   -Atc 'select 1')
 
-if [ "$result" != 1 ]; then
+expected=$(printf '%s\n' '1|alpha|(null)' '2||omega')
+if [ "$result" != "$expected" ]; then
   echo "psql received an unexpected result: $result" >&2
   cat "$server_log" >&2
   exit 1

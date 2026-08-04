@@ -68,11 +68,19 @@ package Flyology.Postgres.Server_Sessions is
    procedure Send_No_Data
      (Item : in out Session; Timeout : Duration);
    procedure Send_Row_Description
+     (Item    : in out Session;
+      Columns : Protocol.Field_Description_Array;
+      Timeout : Duration);
+   procedure Send_Row_Description
      (Item      : in out Session;
       Name      : String;
       Type_Oid  : Protocol.UInt32 := 25;
       Type_Size : Protocol.UInt16 := 16#FFFF#;
       Timeout   : Duration);
+   procedure Send_Data_Row
+     (Item    : in out Session;
+      Values  : Protocol.Column_Value_Array;
+      Timeout : Duration);
    procedure Send_Data_Row
      (Item : in out Session; Value : String; Timeout : Duration);
    procedure Send_Null_Data_Row

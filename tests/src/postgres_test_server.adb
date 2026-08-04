@@ -58,10 +58,31 @@ procedure Postgres_Test_Server is
                   Sessions.Send_Empty_Query_Response (Client, Timeout);
                elsif Is_Select (SQL) then
                   Sessions.Send_Row_Description
-                    (Client, Name => "result", Timeout => Timeout);
-                  Sessions.Send_Data_Row (Client, "1", Timeout);
+                    (Client,
+                     Columns =>
+                       (1 => Protocol.Make_Field_Description
+                          (Name      => "id",
+                           Type_Oid  => 23,
+                           Type_Size => 4),
+                        2 => Protocol.Make_Field_Description ("label"),
+                        3 => Protocol.Make_Field_Description ("optional")),
+                     Timeout => Timeout);
+                  Sessions.Send_Data_Row
+                    (Client,
+                     Values =>
+                       (Protocol.Text_Column ("1"),
+                        Protocol.Text_Column ("alpha"),
+                        Protocol.Null_Column),
+                     Timeout => Timeout);
+                  Sessions.Send_Data_Row
+                    (Client,
+                     Values =>
+                       (Protocol.Text_Column ("2"),
+                        Protocol.Text_Column (""),
+                        Protocol.Text_Column ("omega")),
+                     Timeout => Timeout);
                   Sessions.Send_Command_Complete
-                    (Client, "SELECT 1", Timeout);
+                    (Client, "SELECT 2", Timeout);
                else
                   Sessions.Send_Command_Complete (Client, "OK", Timeout);
                end if;

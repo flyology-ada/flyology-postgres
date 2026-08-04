@@ -54,6 +54,23 @@ is
       end if;
    end Try_Read_U32;
 
+   procedure Try_Read_Bytes
+     (Data    : Byte_Array;
+      Cursor  : in out Wire_Length;
+      Count   : Wire_Length;
+      View    : out Byte_View;
+      Success : out Boolean) is
+   begin
+      if Can_Read (Data, Cursor, Count) then
+         View := (First => Cursor, Length => Count);
+         Cursor := Cursor + Count;
+         Success := True;
+      else
+         View := Empty_View;
+         Success := False;
+      end if;
+   end Try_Read_Bytes;
+
    procedure Encode_U16
      (Data     : in out Byte_Array;
       Position : Wire_Length;

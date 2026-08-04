@@ -8,10 +8,10 @@ protocol over Flyology I/O. It provides both:
   handlers.
 
 The current development baseline implements protocol 3.0 framing and startup,
-simple-query client operation, trust and cleartext-password authentication, and raw
-dispatch of every normal frontend command. It interoperates in both directions with
-Postgres 18.4: the test client connects to a real Postgres server, and `psql` connects
-to the test server.
+typed streaming simple-query results, trust and cleartext-password authentication,
+and raw dispatch of every normal frontend command. It interoperates in both
+directions with Postgres 18.4: the test client connects to a real Postgres server,
+and `psql` connects to the test server.
 
 ## Development setup
 
@@ -33,17 +33,61 @@ its one-byte tag and complete payload; `Kind` classifies all protocol 3 frontend
 `Bind`, `Close`, `CopyData`, `CopyDone`, `CopyFail`, `Describe`, `Execute`, `Flush`,
 `FunctionCall`, password/SASL responses, `Parse`, `Query`, `Sync`, and `Terminate`.
 Unknown future tags are preserved as `Unknown` messages rather than discarded.
+`Decode_Backend` adds an owned typed view of `RowDescription`, `DataRow`,
+`CommandComplete`, `EmptyQueryResponse`, `ErrorResponse`, `NoticeResponse`,
+`ParameterStatus`, and `ReadyForQuery`. `Original_Message` retains the raw lower-level
+message. Row descriptions expose every per-field protocol value. Data rows expose
+every column as binary-safe bytes and distinguish NULL from a present zero-length
+value. Diagnostic fields are addressable by their protocol code, so future fields are
+retained as well as the standard severity, SQLSTATE, and message fields.
 
 `Flyology.Postgres.Client.Session` borrows a transport. `Startup` performs startup and
-authentication, `Send_Query` covers the simple-query path, and `Send_Command` plus
-`Receive_Message` expose the lower-level protocol needed to build extended-query and
-COPY state machines.
+authentication. `Send_Query` followed by repeated `Receive_Query_Event` calls is the
+high-level simple-query path. It returns one owned event at a time rather than
+accumulating an unbounded result: each result set is a row description, zero or more
+data rows, and a command completion; command-only statements produce a command
+completion; an empty query produces an empty-query event; and errors and notices are
+returned as typed diagnostics. A final ready event carries the idle, in-transaction,
+or failed-transaction state. Multiple statements naturally produce multiple event
+sequences before that final ready event. `Send_Command` plus `Receive_Message` remain
+the raw lower-level API for extended-query, COPY, and custom state machines.
+
+A typical streaming loop is:
+
+```ada
+Client.Send_Query (Session, "select id, value from items");
+loop
+   declare
+      Event : constant Client.Simple_Query_Event :=
+        Client.Receive_Query_Event (Session);
+   begin
+      case Protocol.Response_Kind (Event) is
+         when Protocol.Row_Description_Response =>
+            --  Inspect Protocol.Description (Event).
+            null;
+         when Protocol.Data_Row_Response =>
+            --  Consume Protocol.Row_Data (Event).
+            null;
+         when Protocol.Error_Response | Protocol.Notice_Response =>
+            --  Inspect Protocol.Diagnostic_Data (Event).
+            null;
+         when others =>
+            null;
+      end case;
+      exit when Protocol.Response_Kind (Event) =
+        Protocol.Ready_For_Query_Response;
+   end;
+end loop;
+```
 
 `Flyology.Postgres.Server` is generic over an application context, an authentication
 callback, and a command handler. It uses Flyology's structured server and gives each
 accepted connection its own Flyology handler task. The handler receives every frontend
 command as a `Protocol.Message` and writes responses through
-`Flyology.Postgres.Server_Sessions`.
+`Flyology.Postgres.Server_Sessions`. Its `Send_Row_Description` and `Send_Data_Row`
+array overloads accept arbitrary field and column counts. `Make_Field_Description`,
+`Text_Column`, `Binary_Column`, and `Null_Column` build their values; the original
+one-column string and NULL helpers remain available for concise handlers.
 
 Two transport adapters are included:
 
@@ -66,7 +110,8 @@ Two transport adapters are included:
   response constructors. SQL execution, prepared-statement/portal state, transaction
   state, COPY semantics, and result type metadata belong to the application handler.
 - Frames are bounded to 16 MiB to prevent unbounded allocation from an untrusted length
-  field.
+  field. Typed decoding also rejects impossible counts, invalid or truncated lengths,
+  missing terminators, invalid format or transaction-state values, and trailing bytes.
 
 The implementation follows the current official
 [message-flow](https://www.postgresql.org/docs/current/protocol-flow.html) and
@@ -96,7 +141,7 @@ alr gnatprove \
   -j0 --level=1 --output=oneline --output-header -f
 ```
 
-The current result is 245 of 245 checks proved with GNATprove FSF 16.1.0.
+The current result is 251 of 251 checks proved with GNATprove FSF 16.1.0.
 
 ## Tests
 
@@ -112,6 +157,10 @@ The first integration run downloads the official source archive, verifies its SH
 checksum, and builds Postgres into `tests/.cache`. Later runs reuse that installation.
 The suite starts an isolated real server for the Ada-client test, then starts the Ada
 protocol server and queries it with the freshly built `psql`.
+The real-server direction covers multiple columns and rows, NULL and empty values,
+multiple statements and result sets, command-only and empty queries, notices,
+parameter status, errors, and recovery. The `psql` direction verifies that the
+Flyology server emits a multi-column, multi-row result with both NULL and empty text.
 
 Useful environment variables:
 

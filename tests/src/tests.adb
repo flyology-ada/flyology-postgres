@@ -12,8 +12,14 @@ procedure Tests is
 
    use type Protocol.Byte;
    use type Protocol.Byte_Offset;
+   use type Protocol.Backend_Message_Kind;
+   use type Protocol.Field_Format;
    use type Protocol.Frontend_Kind;
    use type Protocol.Initial_Kind;
+   use type Protocol.Int16;
+   use type Protocol.Int32;
+   use type Protocol.Transaction_Status;
+   use type Protocol.UInt16;
    use type Protocol.UInt32;
    use type Ada.Streams.Stream_Element_Array;
 
@@ -124,7 +130,6 @@ procedure Tests is
    procedure Test_Proved_Wire_Core is
       package Wire renames Flyology.Postgres.Wire;
       use type Wire.Byte_View;
-      use type Wire.UInt16;
       Data     : Protocol.Byte_Array (-3 .. 0) := (others => 0);
       Found    : Boolean;
       Position : Wire.Wire_Length;
@@ -165,6 +170,20 @@ procedure Tests is
          and then not Wire.Valid_Initial_Length (7)
          and then Wire.Content_Length (8) = 4,
          "proved frame-length predicates enforce protocol minima");
+      Assert
+        (Wire.Count_Fits (Remaining => 8, Count => 2,
+                          Minimum_Item_Length => 4)
+         and then not Wire.Count_Fits
+           (Remaining => 7, Count => 2, Minimum_Item_Length => 4),
+         "proved count checks reject impossible bounded payloads");
+      Cursor := 1;
+      Wire.Try_Read_Bytes
+        (Data, Cursor, Count => 2, View => View, Success => Success);
+      Assert
+        (Success
+         and then Cursor = 3
+         and then View = (First => 1, Length => 2),
+         "proved bounded byte reads return validated slices");
    end Test_Proved_Wire_Core;
 
    procedure Test_Variable_Cancellation_Key is
@@ -227,6 +246,256 @@ procedure Tests is
          "startup packets without their final terminator are rejected");
    end Test_Malformed_Startup;
 
+   procedure Test_Typed_Row_Messages is
+      Description_Contents : Flyology.Bytes.Unbounded_Bytes;
+      Row_Contents         : Flyology.Bytes.Unbounded_Bytes;
+      Binary_Value         : constant Protocol.Byte_Array (1 .. 3) :=
+        (1 => 0,
+         2 => Protocol.Byte (Character'Pos ('A')),
+         3 => 16#FF#);
+   begin
+      Protocol.Append_U16 (Description_Contents, 2);
+      Protocol.Append_C_String (Description_Contents, "identifier");
+      Protocol.Append_U32 (Description_Contents, 42);
+      Protocol.Append_U16 (Description_Contents, 16#FFFF#);
+      Protocol.Append_U32 (Description_Contents, 23);
+      Protocol.Append_U16 (Description_Contents, 4);
+      Protocol.Append_U32 (Description_Contents, Protocol.UInt32'Last);
+      Protocol.Append_U16 (Description_Contents, 0);
+      Protocol.Append_C_String (Description_Contents, "payload");
+      Protocol.Append_U32 (Description_Contents, 0);
+      Protocol.Append_U16 (Description_Contents, 0);
+      Protocol.Append_U32 (Description_Contents, 17);
+      Protocol.Append_U16 (Description_Contents, 16#FFFF#);
+      Protocol.Append_U32 (Description_Contents, Protocol.UInt32'Last);
+      Protocol.Append_U16 (Description_Contents, 1);
+
+      declare
+         Response : constant Protocol.Backend_Message :=
+           Protocol.Decode_Backend
+             (Protocol.Make_Message
+                ('T', Flyology.Bytes.To_Array (Description_Contents)));
+         Description : constant Protocol.Row_Description :=
+           Protocol.Description (Response);
+         First_Field : constant Protocol.Field_Description :=
+           Protocol.Field_At (Description, 1);
+         Second_Field : constant Protocol.Field_Description :=
+           Protocol.Field_At (Description, 2);
+      begin
+         Assert
+           (Protocol.Response_Kind (Response) =
+              Protocol.Row_Description_Response,
+            "RowDescription is decoded to a typed response");
+         Assert
+           (Protocol.Code (Protocol.Original_Message (Response)) = 'T',
+            "typed responses retain their original raw message");
+         Assert
+           (Protocol.Field_Count (Description) = 2,
+            "all RowDescription fields are retained");
+         Assert
+           (Protocol.Field_Name (First_Field) = "identifier"
+            and then Protocol.Table_Oid (First_Field) = 42
+            and then Protocol.Column_Attribute_Number (First_Field) = -1
+            and then Protocol.Type_Oid (First_Field) = 23
+            and then Protocol.Type_Size (First_Field) = 4
+            and then Protocol.Type_Modifier (First_Field) = -1
+            and then Protocol.Format (First_Field) = Protocol.Text_Format,
+            "every RowDescription metadata field is decoded");
+         Assert
+           (Protocol.Field_Name (Second_Field) = "payload"
+            and then Protocol.Type_Size (Second_Field) = -1
+            and then Protocol.Format (Second_Field) = Protocol.Binary_Format,
+            "signed metadata and binary format codes are decoded");
+      end;
+
+      Protocol.Append_U16 (Row_Contents, 4);
+      Protocol.Append_U32 (Row_Contents, 3);
+      Protocol.Append_Bytes (Row_Contents, Binary_Value);
+      Protocol.Append_U32 (Row_Contents, Protocol.UInt32'Last);
+      Protocol.Append_U32 (Row_Contents, 0);
+      Protocol.Append_U32 (Row_Contents, 1);
+      Protocol.Append_Byte
+        (Row_Contents, Protocol.Byte (Character'Pos ('x')));
+
+      declare
+         Response : constant Protocol.Backend_Message :=
+           Protocol.Decode_Backend
+             (Protocol.Make_Message
+                ('D', Flyology.Bytes.To_Array (Row_Contents)));
+         Row : constant Protocol.Data_Row := Protocol.Row_Data (Response);
+      begin
+         Assert
+           (Protocol.Column_Count (Row) = 4,
+            "all DataRow columns are retained");
+         Assert
+           (Protocol.Column_Bytes (Protocol.Column_At (Row, 1)) = Binary_Value,
+            "DataRow values preserve arbitrary bytes");
+         Assert
+           (Protocol.Is_Null (Protocol.Column_At (Row, 2)),
+            "DataRow NULL is distinct");
+         Assert
+           (not Protocol.Is_Null (Protocol.Column_At (Row, 3))
+            and then
+              Protocol.Column_Bytes (Protocol.Column_At (Row, 3))'Length = 0,
+            "DataRow empty values are distinct from NULL");
+         Assert
+           (Protocol.Column_Text (Protocol.Column_At (Row, 4)) = "x",
+            "text convenience access is available");
+      end;
+   end Test_Typed_Row_Messages;
+
+   procedure Test_Typed_Query_Events is
+      Contents : Flyology.Bytes.Unbounded_Bytes;
+   begin
+      Protocol.Append_C_String (Contents, "SELECT 2");
+      declare
+         Response : constant Protocol.Backend_Message :=
+           Protocol.Decode_Backend
+             (Protocol.Make_Message
+                ('C', Flyology.Bytes.To_Array (Contents)));
+      begin
+         Assert
+           (Protocol.Completion_Tag (Response) = "SELECT 2",
+            "CommandComplete tag is decoded");
+      end;
+
+      Contents := Flyology.Bytes.Empty;
+      Protocol.Append_Byte
+        (Contents, Protocol.Byte (Character'Pos ('S')));
+      Protocol.Append_C_String (Contents, "ERROR");
+      Protocol.Append_Byte
+        (Contents, Protocol.Byte (Character'Pos ('V')));
+      Protocol.Append_C_String (Contents, "ERROR");
+      Protocol.Append_Byte
+        (Contents, Protocol.Byte (Character'Pos ('C')));
+      Protocol.Append_C_String (Contents, "22012");
+      Protocol.Append_Byte
+        (Contents, Protocol.Byte (Character'Pos ('M')));
+      Protocol.Append_C_String (Contents, "division by zero");
+      Protocol.Append_Byte
+        (Contents, Protocol.Byte (Character'Pos ('Y')));
+      Protocol.Append_C_String (Contents, "future field");
+      Protocol.Append_Byte (Contents, 0);
+      declare
+         Response : constant Protocol.Backend_Message :=
+           Protocol.Decode_Backend
+             (Protocol.Make_Message
+                ('E', Flyology.Bytes.To_Array (Contents)));
+         Diagnostic : constant Protocol.Diagnostic :=
+           Protocol.Diagnostic_Data (Response);
+      begin
+         Assert
+           (Protocol.Severity (Diagnostic) = "ERROR"
+            and then Protocol.Nonlocalized_Severity (Diagnostic) = "ERROR"
+            and then Protocol.Diagnostic_SQL_State (Diagnostic) = "22012"
+            and then Protocol.Diagnostic_Message (Diagnostic) =
+              "division by zero"
+            and then Protocol.Field_Text (Diagnostic, 'Y') = "future field",
+            "ErrorResponse fields, including future fields, are decoded");
+      end;
+
+      Contents := Flyology.Bytes.Empty;
+      Protocol.Append_C_String (Contents, "application_name");
+      Protocol.Append_C_String (Contents, "typed-tests");
+      declare
+         Response : constant Protocol.Backend_Message :=
+           Protocol.Decode_Backend
+             (Protocol.Make_Message
+                ('S', Flyology.Bytes.To_Array (Contents)));
+         Status : constant Protocol.Parameter_Status :=
+           Protocol.Parameter_Data (Response);
+      begin
+         Assert
+           (Protocol.Parameter_Name (Status) = "application_name"
+            and then Protocol.Parameter_Value (Status) = "typed-tests",
+            "ParameterStatus name and value are decoded");
+      end;
+
+      for Item in Protocol.Transaction_Status loop
+         declare
+            Code : constant Character :=
+              (case Item is
+                 when Protocol.Idle => 'I',
+                 when Protocol.In_Transaction => 'T',
+                 when Protocol.Failed_Transaction => 'E');
+            Payload : constant Protocol.Byte_Array (1 .. 1) :=
+              (1 => Protocol.Byte (Character'Pos (Code)));
+            Response : constant Protocol.Backend_Message :=
+              Protocol.Decode_Backend (Protocol.Make_Message ('Z', Payload));
+         begin
+            Assert
+              (Protocol.Transaction_State (Response) = Item,
+               "ReadyForQuery transaction status is decoded");
+         end;
+      end loop;
+
+      Assert
+        (Protocol.Response_Kind
+           (Protocol.Decode_Backend (Protocol.Make_Empty_Message ('I'))) =
+           Protocol.Empty_Query_Response,
+         "EmptyQueryResponse is decoded");
+      Assert
+        (Protocol.Response_Kind
+           (Protocol.Decode_Backend (Protocol.Make_Empty_Message ('?'))) =
+           Protocol.Unknown_Response,
+         "unknown backend messages retain a raw response");
+   end Test_Typed_Query_Events;
+
+   function Decode_Is_Rejected
+     (Code : Character; Contents : Protocol.Byte_Array) return Boolean is
+   begin
+      declare
+         Ignored : constant Protocol.Backend_Message :=
+           Protocol.Decode_Backend (Protocol.Make_Message (Code, Contents));
+      begin
+         return Protocol.Response_Kind (Ignored) = Protocol.Unknown_Response;
+      end;
+   exception
+      when Protocol.Protocol_Error =>
+         return True;
+   end Decode_Is_Rejected;
+
+   procedure Test_Malformed_Backend_Messages is
+      Empty : constant Protocol.Byte_Array (1 .. 0) := (others => 0);
+      Row_Count_Only : constant Protocol.Byte_Array (1 .. 2) :=
+        (1 => 0, 2 => 1);
+      Data_Truncated : constant Protocol.Byte_Array (1 .. 6) :=
+        (1 => 0, 2 => 1, 3 => 0, 4 => 0, 5 => 0, 6 => 2);
+      Data_Trailing : constant Protocol.Byte_Array (1 .. 7) :=
+        (1 => 0, 2 => 1, 3 => 0, 4 => 0, 5 => 0, 6 => 0, 7 => 99);
+      Bad_Ready : constant Protocol.Byte_Array (1 .. 1) :=
+        (1 => Protocol.Byte (Character'Pos ('?')));
+      Missing_Diagnostic_Terminator : constant Protocol.Byte_Array (1 .. 3) :=
+        (1 => Protocol.Byte (Character'Pos ('M')),
+         2 => Protocol.Byte (Character'Pos ('x')),
+         3 => 0);
+   begin
+      Assert
+        (Decode_Is_Rejected ('T', Row_Count_Only),
+         "impossible RowDescription counts are rejected");
+      Assert
+        (Decode_Is_Rejected ('D', Data_Truncated),
+         "truncated DataRow values are rejected");
+      Assert
+        (Decode_Is_Rejected ('D', Data_Trailing),
+         "DataRow trailing bytes are rejected");
+      Assert
+        (Decode_Is_Rejected ('C', Empty),
+         "unterminated CommandComplete tags are rejected");
+      Assert
+        (Decode_Is_Rejected ('I', Bad_Ready),
+         "nonempty EmptyQueryResponse payloads are rejected");
+      Assert
+        (Decode_Is_Rejected ('Z', Bad_Ready),
+         "invalid ReadyForQuery states are rejected");
+      Assert
+        (Decode_Is_Rejected ('E', Missing_Diagnostic_Terminator),
+         "diagnostics require a final message terminator");
+      Assert
+        (Decode_Is_Rejected ('S', Empty),
+         "truncated ParameterStatus messages are rejected");
+   end Test_Malformed_Backend_Messages;
+
 begin
    Test_Startup;
    Test_Message;
@@ -235,5 +504,8 @@ begin
    Test_Proved_Wire_Core;
    Test_Variable_Cancellation_Key;
    Test_Malformed_Startup;
+   Test_Typed_Row_Messages;
+   Test_Typed_Query_Events;
+   Test_Malformed_Backend_Messages;
    Ada.Text_IO.Put_Line ("all Flyology Postgres unit tests passed");
 end Tests;
