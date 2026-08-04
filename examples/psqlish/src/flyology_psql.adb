@@ -434,32 +434,35 @@ procedure Flyology_Psql is
                    else To_String (Configuration.Database) & "-> "));
                Ada.Text_IO.Flush;
                declare
-                  Line : constant String := Ada.Text_IO.Get_Line;
                   Meta_SQL : Unbounded_String;
                   Has_SQL  : Boolean;
                begin
-                  if Length (Buffer) = 0 and then Line'Length > 0
-                    and then Line (Line'First) = '\'
-                  then
-                     Handle_Meta
-                       (Line, View, Timing, Quit, Meta_SQL, Has_SQL);
-                     if Has_SQL then
-                        Success := Execute_Query
-                          (Session, To_String (Meta_SQL), View, Timing)
-                          and then Success;
+                  declare
+                     Line : constant String := Ada.Text_IO.Get_Line;
+                  begin
+                     if Length (Buffer) = 0 and then Line'Length > 0
+                       and then Line (Line'First) = '\'
+                     then
+                        Handle_Meta
+                          (Line, View, Timing, Quit, Meta_SQL, Has_SQL);
+                        if Has_SQL then
+                           Success := Execute_Query
+                             (Session, To_String (Meta_SQL), View, Timing)
+                             and then Success;
+                        end if;
+                     else
+                        if Length (Buffer) > 0 then
+                           Append (Buffer, ASCII.LF);
+                        end if;
+                        Append (Buffer, Line);
+                        if Statement_Complete (To_String (Buffer)) then
+                           Success := Execute_Query
+                             (Session, To_String (Buffer), View, Timing)
+                             and then Success;
+                           Buffer := Null_Unbounded_String;
+                        end if;
                      end if;
-                  else
-                     if Length (Buffer) > 0 then
-                        Append (Buffer, ASCII.LF);
-                     end if;
-                     Append (Buffer, Line);
-                     if Statement_Complete (To_String (Buffer)) then
-                        Success := Execute_Query
-                          (Session, To_String (Buffer), View, Timing)
-                          and then Success;
-                        Buffer := Null_Unbounded_String;
-                     end if;
-                  end if;
+                  end;
                exception
                   when Ada.Text_IO.End_Error =>
                      if Length (Buffer) > 0 then
