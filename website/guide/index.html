@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Connect Flyology Ada tasks to PostgreSQL, stream queries and COPY data, and build protocol servers.">
+    <meta name="theme-color" content="#17213d">
+    <title>Guide · Flyology Postgres</title>
+    <link rel="canonical" href="https://postgres.flyology.org/guide/">
+    <link rel="icon" href="../assets/brand/flyology-primary-icon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="../assets/styles/site.css">
+    <script src="../assets/scripts/ada-highlight.js"></script>
+    <script src="../assets/scripts/site.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <nav class="site-nav" aria-label="Primary navigation">
+        <a class="brand" href="../" aria-label="Flyology Postgres home">
+          <img src="../assets/brand/flyology-mark-transparent.svg" alt="">
+          <span>Flyology Postgres</span>
+        </a>
+        <ul class="nav-links" data-nav-links>
+          <li><a href="../">Overview</a></li>
+          <li><a href="./" aria-current="page">Guide</a></li>
+          <li><a href="../api/">API</a></li>
+          <li><a href="https://flyology.org/">Flyology</a></li>
+          <li><a href="https://github.com/flyology-ada/flyology-postgres">GitHub</a></li>
+        </ul>
+        <div class="nav-tools">
+          <button class="icon-button" type="button" data-theme-toggle>
+            <span class="visually-hidden" data-theme-label>Change theme</span>
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.64 5.64 7.2 7.2M16.8 16.8l1.56 1.56M18.36 5.64 16.8 7.2M7.2 16.8l-1.56 1.56"/><circle cx="12" cy="12" r="4"/></svg>
+          </button>
+          <button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+          </button>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main" class="page-shell">
+      <header class="doc-hero">
+        <div>
+          <ol class="breadcrumb" aria-label="Breadcrumb"><li><a href="../">Flyology Postgres</a></li><li aria-current="page">Guide</li></ol>
+          <h1>From socket to bounded result stream.</h1>
+        </div>
+        <p class="doc-hero-copy">Add the crate, connect a Flyology socket, complete PostgreSQL startup, then choose simple queries, prepared portals, COPY streams, or a protocol server.</p>
+      </header>
+
+      <div class="docs-layout">
+        <nav class="toc" aria-label="On this page">
+          <p class="toc-title">On this page</p>
+          <ol>
+            <li><a href="#requirements">Requirements</a></li>
+            <li><a href="#add">Add the crate</a></li>
+            <li><a href="#connect">Connect and start</a></li>
+            <li><a href="#simple">Simple queries</a></li>
+            <li><a href="#extended">Extended queries</a></li>
+            <li><a href="#copy">Stream COPY</a></li>
+            <li><a href="#cancel">Cancel work</a></li>
+            <li><a href="#server">Build a server</a></li>
+            <li><a href="#examples">Run the examples</a></li>
+            <li><a href="#boundaries">Boundaries</a></li>
+          </ol>
+        </nav>
+
+        <article class="prose">
+          <aside class="callout callout-teal">
+            <span class="callout-symbol" aria-hidden="true">→</span>
+            <p>Need the execution model first? The main <a href="https://flyology.org/guide/">Flyology guide</a> covers lightweight tasks, runtime preparation, execution groups, task-aware I/O, and capacity planning.</p>
+          </aside>
+
+          <section id="requirements">
+            <span class="step-label">STEP 01</span>
+            <h2>Start with Flyology and Alire.</h2>
+            <p>Flyology Postgres is an Alire library crate. It uses Flyology task-aware sockets and depends on <code>hmac_ada</code> plus <code>system_random</code> for SCRAM-SHA-256.</p>
+            <div class="decision-list">
+              <dl>
+                <div class="decision-row"><dt>Flyology</dt><dd>Use the runtime and toolchain preparation documented by the main project.</dd></div>
+                <div class="decision-row"><dt>PostgreSQL</dt><dd>Interoperability is exercised against PostgreSQL 18.4 and the protocol 3.0/3.2 startup shapes.</dd></div>
+                <div class="decision-row"><dt>Transport</dt><dd>The included adapters accept a connected Flyology socket or an accepted Flyology connection.</dd></div>
+              </dl>
+            </div>
+          </section>
+
+          <section id="add">
+            <span class="step-label">STEP 02</span>
+            <h2>Add the crate to an Alire application.</h2>
+            <p>During development, use the Flyology organization index or pin a sibling checkout. The repository itself uses a sibling pin so both crates can evolve together.</p>
+            <figure class="code-panel">
+              <figcaption>development checkout</figcaption>
+              <button class="copy-button" type="button" data-copy>Copy</button>
+              <pre><code>alr index --add=git+https://github.com/flyology-ada/alire-index.git \
+  --name=flyology --before=community
+alr with flyology_postgres</code></pre>
+            </figure>
+            <figure class="code-panel">
+              <figcaption>sibling source checkout</figcaption>
+              <button class="copy-button" type="button" data-copy>Copy</button>
+              <pre><code>alr -n with flyology --use=../flyology
+alr build</code></pre>
+            </figure>
+          </section>
+
+          <section id="connect">
+            <span class="step-label">STEP 03</span>
+            <h2>Connect a socket and complete startup.</h2>
+            <p>A client session borrows its transport. The socket and transport must therefore outlive the session. <code>Startup</code> performs PostgreSQL startup and authentication, then leaves the session ready for commands.</p>
+            <figure class="code-panel">
+              <figcaption>client startup</figcaption>
+              <button class="copy-button" type="button" data-copy>Copy</button>
+              <pre><code class="language-ada">with Flyology.IO.Sockets;
+with Flyology.Postgres.Client;
+with Flyology.Postgres.Transports.Sockets;
+
+package Sockets renames Flyology.IO.Sockets;
+package Client renames Flyology.Postgres.Client;
+package Transports renames Flyology.Postgres.Transports.Sockets;
+
+Server  : constant Sockets.Endpoint :=
+  Sockets.Network_Endpoint (Sockets.Loopback_IPv4, 5_432);
+Socket  : aliased Sockets.Socket_Type;
+Channel : aliased Transports.Socket_Transport (Socket'Access);
+Session : Client.Session (Channel'Access);
+
+Sockets.Create_Socket (Socket, Family =&gt; Server.Family);
+Sockets.Connect (Socket, Server, Timeout =&gt; 5.0);
+Client.Startup
+  (Session,
+   User             =&gt; "app",
+   Database         =&gt; "app",
+   Password         =&gt; "secret",
+   Application_Name =&gt; "flyology_app",
+   Timeout          =&gt; 5.0);</code></pre>
+            </figure>
+            <aside class="callout">
+              <span class="callout-symbol" aria-hidden="true">!</span>
+              <p><strong>Passwords are exact octets.</strong> The client does not perform SASLprep or Unicode normalization. Apply any application-level normalization before calling <code>Startup</code>.</p>
+            </aside>
+          </section>
+
+          <section id="simple">
+            <span class="step-label">STEP 04</span>
+            <h2>Receive simple-query results one event at a time.</h2>
+            <p><code>Send_Query</code> starts the operation. Repeated <code>Receive_Query_Event</code> calls return row descriptions, data rows, command completions, diagnostics, parameter status, and the final ready state without accumulating a result set.</p>
+            <figure class="code-panel">
+              <figcaption>bounded simple-query loop</figcaption>
+              <button class="copy-button" type="button" data-copy>Copy</button>
+              <pre><code class="language-ada">Client.Send_Query (Session, "select id, value from items");
+loop
+   declare
+      Event : constant Client.Simple_Query_Event :=
+        Client.Receive_Query_Event (Session);
+   begin
+      case Protocol.Response_Kind (Event) is
+         when Protocol.Row_Description_Response =&gt;
+            Inspect (Protocol.Description (Event));
+         when Protocol.Data_Row_Response =&gt;
+            Consume (Protocol.Row_Data (Event));
+         when Protocol.Error_Response | Protocol.Notice_Response =&gt;
+            Report (Protocol.Diagnostic_Data (Event));
+         when others =&gt;
+            null;
+      end case;
+      exit when Protocol.Response_Kind (Event) =
+        Protocol.Ready_For_Query_Response;
+   end;
+end loop;</code></pre>
+            </figure>
+            <p>Multiple SQL statements produce multiple event sequences before the final <code>ReadyForQuery</code>. A present zero-length column remains distinct from SQL <code>NULL</code>.</p>
+          </section>
+
+          <section id="extended">
+            <span class="step-label">STEP 05</span>
+            <h2>Use prepared statements and bounded portals.</h2>
+            <p>The extended path models named or unnamed statements and portals directly. Commands can be pipelined before <code>Sync</code>; <code>Flush</code> requests pending output without ending the cycle.</p>
+            <figure class="code-panel">
+              <figcaption>a portal limited to 50 rows</figcaption>
+              <button class="copy-button" type="button" data-copy>Copy</button>
+              <pre><code class="language-ada">Client.Prepare_Statement
+  (Session, "items", "select id, value from items where id &gt; $1", (1 =&gt; 23));
+Client.Bind_Portal
+  (Session,
+   Portal_Name    =&gt; "items_page",
+   Statement_Name =&gt; "items",
+   Parameters     =&gt; (1 =&gt; Protocol.Text_Parameter ("100")));
+Client.Describe_Portal (Session, "items_page");
+Client.Execute_Portal (Session, "items_page", Maximum_Rows =&gt; 50);
+Client.Flush (Session);
+
+loop
+   Event := Client.Receive_Extended_Event (Session);
+   exit when Protocol.Response_Kind (Event) in
+     Protocol.Command_Complete_Response |
+     Protocol.Portal_Suspended_Response |
+     Protocol.Error_Response;
+end loop;
+
+Client.Synchronize (Session);</code></pre>
+            </figure>
+            <aside class="callout callout-teal">
+              <span class="callout-symbol" aria-hidden="true">i</span>
+              <p>After an extended-query error, only synchronization or termination is accepted. The session becomes reusable after the corresponding <code>ReadyForQuery</code>.</p>
+            </aside>
+          </section>
+
+          <section id="copy">
+            <span class="step-label">STEP 06</span>
+            <h2>Stream COPY frames without an accumulator.</h2>
+            <p>A COPY response changes the session state to COPY IN, COPY OUT, or COPY BOTH. Each call sends or receives one bounded chunk. The same typed path works after simple or extended queries.</p>
+            <figure class="code-panel">
+              <figcaption>COPY IN</figcaption>
+              <button class="copy-button" type="button" data-copy>Copy</button>
+              <pre><code class="language-ada">Client.Send_Query
+  (Session, "copy measurements from stdin (format text)");
+
+declare
+   Started : constant Client.Simple_Query_Event :=
+     Client.Receive_Query_Event (Session);
+begin
+   Inspect (Protocol.Copy_Formats (Started));
+   Client.Send_Copy_Data (Session, First_Chunk);
+   Client.Send_Copy_Data (Session, Second_Chunk);
+   Client.Finish_Copy (Session);
+end;
+
+-- Receive CommandComplete, then ReadyForQuery.</code></pre>
+            </figure>
+            <p><code>Abort_Copy</code> sends <code>CopyFail</code> with a server-visible reason. For extended COPY, synchronization remains mandatory before the session returns to ready.</p>
+          </section>
+
+          <section id="cancel">
+            <span class="step-label">STEP 07</span>
+            <h2>Cancel on a separate connection.</h2>
+            <p>PostgreSQL cancellation never travels on the active query connection. Startup stores the backend process ID and variable-length secret. The socket helper opens a separate connection, sends those credentials, and closes it without waiting for a response.</p>
+            <figure class="code-panel">
+              <figcaption>cancel an active operation</figcaption>
+              <button class="copy-button" type="button" data-copy>Copy</button>
+              <pre><code class="language-ada">Client_Sockets.Cancel (Session, Server, Timeout =&gt; 5.0);
+
+-- Keep receiving on Session until the server's ErrorResponse and
+-- ReadyForQuery complete normal recovery.</code></pre>
+            </figure>
+            <p>Issue cancellation from an independently scheduled task when a lightweight receiver may be continuously runnable.</p>
+          </section>
+
+          <section id="server">
+            <span class="step-label">STEP 08</span>
+            <h2>Build a PostgreSQL protocol server.</h2>
+            <p><code>Flyology.Postgres.Server</code> is generic over application context, authentication callbacks, SCRAM verifier lookup, and a command handler. Each accepted connection receives its own Flyology handler task.</p>
+            <div class="decision-list">
+              <dl>
+                <div class="decision-row"><dt>Commands</dt><dd>The handler receives every normal frontend command as a typed or raw-preserving <code>Protocol.Message</code>.</dd></div>
+                <div class="decision-row"><dt>Responses</dt><dd>Session helpers send row descriptions, rows, diagnostics, completion, readiness, and COPY streams.</dd></div>
+                <div class="decision-row"><dt>Authentication</dt><dd>SCRAM lookup returns PostgreSQL verifier text. The server does not request or retain the user's plaintext password.</dd></div>
+                <div class="decision-row"><dt>Cancellation</dt><dd>A fresh per-command token reports matching cancellation and forced structured-server shutdown.</dd></div>
+              </dl>
+            </div>
+            <p><a href="../api/">Search the generated server and session API</a></p>
+          </section>
+
+          <section id="examples">
+            <span class="step-label">STEP 09</span>
+            <h2>Exercise both ends with the example crates.</h2>
+            <p>The examples are independent nested Alire crates and share loopback defaults. Run a real PostgreSQL-compatible client against <code>pgish</code>, or use <code>flyology_psql</code> against real PostgreSQL.</p>
+            <figure class="code-panel">
+              <figcaption>example directories</figcaption>
+              <button class="copy-button" type="button" data-copy>Copy</button>
+              <pre><code>cd examples/psqlish
+alr run
+
+cd ../pgish
+alr run</code></pre>
+            </figure>
+          </section>
+
+          <section id="boundaries">
+            <span class="step-label">STEP 10</span>
+            <h2>Evaluate the current boundaries.</h2>
+            <p>The library is experimental. Treat these constraints as part of its public contract, not as incidental implementation details.</p>
+            <div class="decision-list">
+              <dl>
+                <div class="decision-row"><dt>TLS</dt><dd>Deferred until Flyology can upgrade accepted connections without losing ownership or buffered-byte safety.</dd></div>
+                <div class="decision-row"><dt>Authentication</dt><dd>Trust, cleartext password, and SCRAM-SHA-256 only. No MD5, GSSAPI, SSPI, certificates, or channel binding.</dd></div>
+                <div class="decision-row"><dt>Cleartext</dt><dd>Use cleartext-password authentication only on trusted test or private networks.</dd></div>
+                <div class="decision-row"><dt>Fairness</dt><dd>A continuously readable COPY socket may require an explicit Flyology fairness point so another task on the same group can run.</dd></div>
+                <div class="decision-row"><dt>Limits</dt><dd>SCRAM messages are bounded to 4 KiB; iteration counts range from 4,096 through 1,000,000.</dd></div>
+              </dl>
+            </div>
+            <aside class="callout">
+              <span class="callout-symbol" aria-hidden="true">!</span>
+              <p>Read the repository's <a href="https://github.com/flyology-ada/flyology-postgres#current-boundaries">current boundaries</a> before production evaluation. The README remains the most detailed compatibility and security record.</p>
+            </aside>
+          </section>
+        </article>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <span>Flyology Postgres is experimental and dual-licensed under MIT or Apache-2.0.</span>
+        <div class="footer-links">
+          <a href="https://github.com/flyology-ada/flyology-postgres">Source</a>
+          <a href="https://flyology.org/guide/">Flyology guide</a>
+          <a href="../api/">API reference</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

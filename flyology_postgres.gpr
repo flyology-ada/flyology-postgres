@@ -9,6 +9,32 @@ project Flyology_Postgres is
    for Library_Version use Project'Library_Name & ".so." & Flyology_Postgres_Config.Crate_Version;
 
    for Source_Dirs use ("src/", "config/");
+
+   type Documentation_Mode_Type is ("false", "true");
+   Documentation_Mode : Documentation_Mode_Type :=
+     external ("FLYOLOGY_POSTGRES_DOCUMENTATION", "false");
+   case Documentation_Mode is
+      when "false" =>
+         null;
+      when "true" =>
+         --  Client, protocol, server, authentication, and transport surfaces,
+         --  plus the SCRAM core needed to resolve public subtype declarations.
+         --  Framing, wire, and control children are internal implementation
+         --  units and are omitted.
+         for Source_Files use
+           ("flyology-postgres.ads",
+            "flyology-postgres-client.ads",
+            "flyology-postgres-client_sockets.ads",
+            "flyology-postgres-protocol.ads",
+            "flyology-postgres-scram.ads",
+            "flyology-postgres-scram_core.ads",
+            "flyology-postgres-server.ads",
+            "flyology-postgres-server_sessions.ads",
+            "flyology-postgres-transports.ads",
+            "flyology-postgres-transports-connections.ads",
+            "flyology-postgres-transports-sockets.ads");
+   end case;
+
    for Object_Dir use "obj/" & Flyology_Postgres_Config.Build_Profile;
    for Create_Missing_Dirs use "True";
    for Library_Dir use "lib";
@@ -31,5 +57,15 @@ project Flyology_Postgres is
    package Install is
       for Artifacts (".") use ("share");
    end Install;
+
+   package Documentation is
+      for Excluded_Project_Files use
+        (external ("FLYOLOGY_ROOT", "../flyology") & "/flyology.gpr",
+         external
+           ("FLYOLOGY_POSTGRES_HMAC_PROJECT", "hmac_ada.gpr"),
+         external
+           ("FLYOLOGY_POSTGRES_RANDOM_PROJECT", "system_random.gpr"));
+      for Resources_Dir ("html") use "docs/gnatdoc/html";
+   end Documentation;
 
 end Flyology_Postgres;

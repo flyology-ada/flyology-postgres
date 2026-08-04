@@ -6,6 +6,7 @@ with System.Storage_Elements;
 package Flyology.Postgres.SCRAM_Core
   with SPARK_Mode
 is
+   --  Internal cryptographic adapter used by SCRAM.
    use type Interfaces.Unsigned_64;
    use type System.Storage_Elements.Storage_Offset;
    subtype Byte_Array is HMAC_SHA256.Byte_Array;

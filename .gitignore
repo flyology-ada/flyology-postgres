@@ -3,6 +3,7 @@
 /alire/
 /config/
 /build/
+/docs/api/
 /tests/.cache/
 /tests/tmp/
 /proof-status.md

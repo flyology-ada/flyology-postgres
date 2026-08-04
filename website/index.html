@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="A native Ada implementation of the PostgreSQL frontend/backend protocol over Flyology I/O.">
+    <meta name="theme-color" content="#17213d">
+    <title>Flyology Postgres · PostgreSQL protocol for Ada</title>
+    <link rel="canonical" href="https://postgres.flyology.org/">
+    <link rel="icon" href="assets/brand/flyology-primary-icon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="assets/styles/site.css">
+    <script src="assets/scripts/ada-highlight.js"></script>
+    <script src="assets/scripts/site.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <nav class="site-nav" aria-label="Primary navigation">
+        <a class="brand" href="./" aria-label="Flyology Postgres home">
+          <img src="assets/brand/flyology-mark-transparent.svg" alt="">
+          <span>Flyology Postgres</span>
+        </a>
+        <ul class="nav-links" data-nav-links>
+          <li><a href="./" aria-current="page">Overview</a></li>
+          <li><a href="guide/">Guide</a></li>
+          <li><a href="api/">API</a></li>
+          <li><a href="https://flyology.org/">Flyology</a></li>
+          <li><a href="https://github.com/flyology-ada/flyology-postgres">GitHub</a></li>
+        </ul>
+        <div class="nav-tools">
+          <button class="icon-button" type="button" data-theme-toggle>
+            <span class="visually-hidden" data-theme-label>Change theme</span>
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.64 5.64 7.2 7.2M16.8 16.8l1.56 1.56M18.36 5.64 16.8 7.2M7.2 16.8l-1.56 1.56"/>
+              <circle cx="12" cy="12" r="4"/>
+            </svg>
+          </button>
+          <button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+          </button>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="hero page-shell" aria-labelledby="hero-title">
+        <div>
+          <p class="eyebrow">PostgreSQL frontend/backend protocol for Flyology</p>
+          <h1 id="hero-title">Postgres, in native Ada.</h1>
+          <p class="hero-lede">
+            Flyology Postgres provides typed, bounded client and server primitives over Flyology I/O. Run simple or extended queries, stream every COPY direction, authenticate with SCRAM-SHA-256, and keep protocol state explicit from startup through cancellation.
+          </p>
+          <div class="actions">
+            <a class="button button-primary" href="guide/">
+              Connect a client
+              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 10h11M11 6l4 4-4 4"/></svg>
+            </a>
+            <a class="button button-secondary" href="api/">Browse the API</a>
+          </div>
+        </div>
+
+        <div class="hero-visual" aria-label="A PostgreSQL query moving from an Ada client to a server and returning bounded row events">
+          <div class="orbit" aria-hidden="true">
+            <div class="orbit-ring"></div>
+            <img class="orbit-mark" src="assets/brand/flyology-mark-transparent.svg" alt="">
+          </div>
+          <div class="model-note model-note-light">
+            <strong>Frontend</strong>
+            Typed commands move through one borrowed transport.
+          </div>
+          <div class="model-note model-note-native">
+            <strong>Backend</strong>
+            Rows and state arrive one owned event at a time.
+          </div>
+          <div class="code-window">
+            <div class="code-titlebar">
+              <div class="window-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+              <span>query.adb</span>
+            </div>
+            <pre><code><span class="token-keyword">Client</span>.Send_Query
+  (Session, <span class="token-string">"select id, value from items"</span>);
+
+<span class="token-keyword">loop</span>
+   Event := Client.Receive_Query_Event (Session);
+   Consume (Event);
+   <span class="token-keyword">exit when</span> Protocol.Response_Kind (Event) =
+     Protocol.Ready_For_Query_Response;
+<span class="token-keyword">end loop</span>;</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <div class="status-strip" aria-label="Project status">
+        <div class="status-inner">
+          <div class="status-item"><strong>Protocol 3.2</strong>Typed frontend and backend messages.</div>
+          <div class="status-item"><strong>PostgreSQL 18.4</strong>Interoperability tested in both directions.</div>
+          <div class="status-item"><strong>Bounded streams</strong>Rows and COPY frames are never accumulated.</div>
+        </div>
+      </div>
+
+      <section class="section page-shell" aria-labelledby="directions-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Two protocol directions</p>
+            <h2 id="directions-title">Build clients and protocol servers from the same wire model.</h2>
+          </div>
+          <p>The protocol layer owns framing and typed messages. Client sessions and server sessions add explicit state, streaming, authentication, and cancellation behavior.</p>
+        </div>
+
+        <div class="lane-stage">
+          <div class="lane">
+            <div class="lane-copy">
+              <span class="lane-number">01 / CLIENT</span>
+              <h3>Connect to PostgreSQL</h3>
+            </div>
+            <div class="lane-flow" aria-label="An Ada client sends commands to PostgreSQL">
+              <span class="flow-node flow-node-violet">Ada task</span>
+              <span class="flow-arrow" aria-hidden="true"></span>
+              <span class="flow-node">session</span>
+              <span class="flow-arrow" aria-hidden="true"></span>
+              <span class="flow-node flow-node-teal">PostgreSQL</span>
+            </div>
+          </div>
+          <div class="lane">
+            <div class="lane-copy">
+              <span class="lane-number">02 / SERVER</span>
+              <h3>Speak to PostgreSQL tools</h3>
+            </div>
+            <div class="lane-flow" aria-label="A PostgreSQL client sends commands to an Ada server handler">
+              <span class="flow-node flow-node-violet">psql</span>
+              <span class="flow-arrow" aria-hidden="true"></span>
+              <span class="flow-node">session</span>
+              <span class="flow-arrow" aria-hidden="true"></span>
+              <span class="flow-node flow-node-teal">Ada handler</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section page-shell mechanics" aria-labelledby="mechanics-title">
+        <div class="mechanics-copy">
+          <p class="eyebrow">Protocol architecture</p>
+          <h2 id="mechanics-title">Every transition stays inspectable.</h2>
+          <p>Startup, queries, COPY, recovery, and cancellation each have an explicit contract. Applications retain control without reimplementing frame validation.</p>
+          <a href="guide/">Read the implementation guide</a>
+        </div>
+        <ol class="mechanic-list">
+          <li class="mechanic-item">
+            <span class="mechanic-index">01</span>
+            <div><h3>Startup and authentication</h3><p>Trust, cleartext password, and SCRAM-SHA-256 are handled through the PostgreSQL startup exchange.</p></div>
+          </li>
+          <li class="mechanic-item">
+            <span class="mechanic-index">02</span>
+            <div><h3>Typed wire messages</h3><p>Known protocol messages receive owned typed views. Unknown future tags retain their original bytes.</p></div>
+          </li>
+          <li class="mechanic-item">
+            <span class="mechanic-index">03</span>
+            <div><h3>Bounded streaming</h3><p>Simple queries, extended queries, and COPY return one event or frame per call, with no hidden result accumulator.</p></div>
+          </li>
+          <li class="mechanic-item">
+            <span class="mechanic-index">04</span>
+            <div><h3>Separate cancellation</h3><p>Backend cancellation credentials travel on the separate connection required by the PostgreSQL protocol.</p></div>
+          </li>
+        </ol>
+      </section>
+
+      <section class="io-band" aria-labelledby="coverage-title">
+        <div class="io-inner">
+          <div>
+            <p class="eyebrow">Current coverage</p>
+            <h2 id="coverage-title">The high-value protocol paths, without an async language.</h2>
+            <p class="io-intro">Calls remain ordinary synchronous Ada operations. On a lightweight task, Flyology suspends the task while its loop thread remains available.</p>
+          </div>
+          <ul class="io-list">
+            <li><strong>Simple queries</strong><span>Typed row descriptions, rows, completion, diagnostics, and readiness.</span></li>
+            <li><strong>Extended queries</strong><span>Prepared statements, portals, flush, sync, suspension, and recovery.</span></li>
+            <li><strong>COPY</strong><span>Bounded COPY IN, COPY OUT, and COPY BOTH streams.</span></li>
+            <li><strong>Authentication</strong><span>Trust, cleartext password, and SCRAM-SHA-256.</span></li>
+            <li><strong>Protocol servers</strong><span>Application handlers with typed response helpers and cancellation tokens.</span></li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="section page-shell constraint-layout" aria-labelledby="boundaries-title">
+        <div class="constraint-lede">
+          <p class="eyebrow">Boundaries</p>
+          <h2 id="boundaries-title">Concrete coverage, with limits attached.</h2>
+          <p>TLS and channel binding are intentionally deferred. Cleartext-password authentication is for trusted test or private networks until transport upgrades are available.</p>
+          <a href="guide/#boundaries">Review all current boundaries</a>
+        </div>
+        <table class="constraint-table">
+          <thead><tr><th>Concern</th><th>Contract</th></tr></thead>
+          <tbody>
+            <tr><td>TLS</td><td>Clients currently start in plaintext; servers answer <code>SSLRequest</code> with <code>N</code>.</td></tr>
+            <tr><td>Authentication</td><td>No MD5, GSSAPI, SSPI, certificate auth, or SCRAM-SHA-256-PLUS.</td></tr>
+            <tr><td>Memory</td><td>Rows and COPY frames are returned individually; callers own their buffering policy.</td></tr>
+            <tr><td>Scheduling</td><td>Continuously readable COPY streams may need explicit Flyology fairness points.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="section page-shell" aria-labelledby="examples-title">
+        <div class="history">
+          <div class="history-visual">
+            <img src="assets/brand/flyology-one-color.svg" alt="The Flyology flight mark">
+          </div>
+          <div class="history-copy">
+            <p class="eyebrow">Working examples</p>
+            <h2 id="examples-title">Exercise both ends of the wire.</h2>
+            <p><code>flyology_psql</code> is a compact PostgreSQL client. <code>pgish</code> is a read-only PostgreSQL-like server with virtual Flyology and catalog tables. Use them together, or connect either side to real PostgreSQL tooling.</p>
+            <a href="https://github.com/flyology-ada/flyology-postgres/tree/main/examples">Explore the examples</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="final-cta page-shell" aria-labelledby="cta-title">
+        <h2 id="cta-title">Open your first PostgreSQL session.</h2>
+        <div class="actions">
+          <a class="button button-primary" href="guide/">Open the guide</a>
+          <a class="button button-secondary" href="api/">Search the API</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <span>Flyology Postgres is experimental and dual-licensed under MIT or Apache-2.0.</span>
+        <div class="footer-links">
+          <a href="https://github.com/flyology-ada/flyology-postgres">Source</a>
+          <a href="https://github.com/flyology-ada/flyology-postgres/actions">CI</a>
+          <a href="https://flyology.org/">Flyology</a>
+          <a href="api/">API reference</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
