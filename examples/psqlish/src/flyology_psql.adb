@@ -13,6 +13,7 @@ with Flyology.Postgres.Protocol;
 with Flyology.Postgres.Transports.Sockets;
 with Psqlish;
 with Psqlish.Display;
+with Psqlish.Input;
 with Psqlish.Options;
 
 procedure Flyology_Psql is
@@ -423,22 +424,21 @@ procedure Flyology_Psql is
          Ada.Text_IO.Put_Line
            ("flyology_psql " & Psqlish.Version
             & " (TLS and COPY are not implemented; \? for help)");
+         Psqlish.Input.Initialize;
          declare
             Buffer : Unbounded_String;
             Quit   : Boolean := False;
          begin
             while not Quit loop
-               Ada.Text_IO.Put
-                 ((if Length (Buffer) = 0
-                   then To_String (Configuration.Database) & "=> "
-                   else To_String (Configuration.Database) & "-> "));
-               Ada.Text_IO.Flush;
                declare
                   Meta_SQL : Unbounded_String;
                   Has_SQL  : Boolean;
                begin
                   declare
-                     Line : constant String := Ada.Text_IO.Get_Line;
+                     Line : constant String := Psqlish.Input.Get_Line
+                       ((if Length (Buffer) = 0
+                         then To_String (Configuration.Database) & "=> "
+                         else To_String (Configuration.Database) & "-> "));
                   begin
                      if Length (Buffer) = 0 and then Line'Length > 0
                        and then Line (Line'First) = '\'
@@ -474,6 +474,7 @@ procedure Flyology_Psql is
                      Quit := True;
                end;
             end loop;
+            Psqlish.Input.Save_History;
          end;
       end if;
 

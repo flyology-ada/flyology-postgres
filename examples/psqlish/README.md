@@ -7,10 +7,11 @@ an example and is not intended to replace `psql`.
 
 It demonstrates startup authentication, simple-query event processing,
 multiple result sets, bounded display buffering, recovery after SQL errors,
-and a multiline REPL. Trust, cleartext-password, and SCRAM-SHA-256 startup are
-provided by the library. TLS, COPY streaming, variables, files, pager support,
-and the extended-query protocol are deliberately out of scope. In particular,
-do not use this client where TLS is required.
+and a multiline REPL. Interactive terminals use `linenoise_ada` for line
+editing and command history. Trust, cleartext-password, and SCRAM-SHA-256
+startup are provided by the library. TLS, COPY streaming, variables, files,
+pager support, and the extended-query protocol are deliberately out of scope.
+In particular, do not use this client where TLS is required.
 
 ## Build
 
@@ -58,8 +59,12 @@ through `ReadyForQuery`, so an interactive connection remains reusable.
 
 SQL is accumulated across lines until the last non-whitespace byte is a
 semicolon. Multiple statements in one submission produce multiple independent
-tables and command tags. EOF submits a pending buffer and exits; `\q` exits
-when entered at a fresh prompt.
+tables and command tags. Interactive input supports cursor editing and
+up/down history. History is saved to `~/.flyology_psql_history`; set
+`FLYOLOGY_PSQL_HISTORY` to override that path or to an empty value to disable
+persistence. Redirected input remains non-interactive and is never recorded.
+EOF submits a pending buffer and exits; `\q` exits when entered at a fresh
+prompt.
 
 Available meta commands:
 

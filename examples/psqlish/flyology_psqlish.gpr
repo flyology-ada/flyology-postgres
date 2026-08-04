@@ -1,4 +1,5 @@
 with "flyology_postgres.gpr";
+with "linenoise.gpr";
 with "config/flyology_psqlish_config.gpr";
 project Flyology_Psqlish is
 
