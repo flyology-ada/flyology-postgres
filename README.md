@@ -40,7 +40,7 @@ No OpenSSL, TLS, or general-purpose cryptography framework is added.
 
 ## Examples
 
-- [`flyology_psql`](examples/psqlish/README.md) is a compact, polished
+- [`psqlish`](examples/psqlish/README.md) is a compact, polished
   `psql`-like client with a multiline REPL, catalog commands, bounded table
   rendering, and real Postgres authentication.
 - [`pgish`](examples/pgish/README.md) is a small read-only Postgres-like server
@@ -48,7 +48,7 @@ No OpenSSL, TLS, or general-purpose cryptography framework is added.
   settings, and catalog tables.
 
 Both are independent nested Alire crates. They share a loopback default so
-`flyology_psql` and real `psql` can be used directly against `pgish`.
+`psqlish` and real `psql` can be used directly against `pgish`.
 
 ## API outline
 

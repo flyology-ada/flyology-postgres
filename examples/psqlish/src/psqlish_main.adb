@@ -16,7 +16,7 @@ with Psqlish.Display;
 with Psqlish.Input;
 with Psqlish.Options;
 
-procedure Flyology_Psql is
+procedure Psqlish_Main is
 
    package Client renames Flyology.Postgres.Client;
    package DNS renames Flyology.IO.DNS;
@@ -415,14 +415,14 @@ procedure Flyology_Psql is
          User             => To_String (Configuration.User),
          Database         => To_String (Configuration.Database),
          Password         => To_String (Configuration.Password),
-         Application_Name => "flyology_psql",
+         Application_Name => "psqlish",
          Timeout          => Query_Timeout);
       if Configuration.Has_Command then
          Success := Execute_Query
            (Session, To_String (Configuration.Command), View, Timing => False);
       else
          Ada.Text_IO.Put_Line
-           ("flyology_psql " & Psqlish.Version
+           ("psqlish " & Psqlish.Version
             & " (TLS and COPY are not implemented; \? for help)");
          Psqlish.Input.Initialize;
          declare
@@ -501,7 +501,7 @@ begin
       if Configuration.Show_Help then
          Ada.Text_IO.Put_Line (Psqlish.Options.Help);
       elsif Configuration.Show_Version then
-         Ada.Text_IO.Put_Line ("flyology_psql " & Psqlish.Version);
+         Ada.Text_IO.Put_Line ("psqlish " & Psqlish.Version);
       else
          Run (Configuration);
       end if;
@@ -509,9 +509,9 @@ begin
 exception
    when Error : Psqlish.Options.Option_Error =>
       Put_Error (Ada.Exceptions.Exception_Message (Error));
-      Put_Error ("Try flyology_psql --help.");
+      Put_Error ("Try psqlish --help.");
       Ada.Command_Line.Set_Exit_Status (Ada.Command_Line.Failure);
    when Error : others =>
       Put_Error (Ada.Exceptions.Exception_Information (Error));
       Ada.Command_Line.Set_Exit_Status (Ada.Command_Line.Failure);
-end Flyology_Psql;
+end Psqlish_Main;

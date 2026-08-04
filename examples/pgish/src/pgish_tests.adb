@@ -94,7 +94,7 @@ begin
       Check
         (Matched and then Result.Column_Count = 3
          and then Result.Row_Count > 0,
-         "flyology_psql table-list query is compatible");
+         "psqlish table-list query is compatible");
    end;
    declare
       Query : constant SQL.Query := SQL.Parse

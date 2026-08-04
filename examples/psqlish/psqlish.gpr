@@ -1,18 +1,22 @@
 with "flyology_postgres.gpr";
 with "linenoise.gpr";
-with "config/flyology_psqlish_config.gpr";
-project Flyology_Psqlish is
+with "config/psqlish_config.gpr";
+project Psqlish is
 
    for Languages use ("Ada");
    for Source_Dirs use ("src/", "config/");
-   for Object_Dir use "obj/" & Flyology_Psqlish_Config.Build_Profile;
+   for Object_Dir use "obj/" & Psqlish_Config.Build_Profile;
    for Create_Missing_Dirs use "True";
    for Exec_Dir use "bin";
-   for Main use ("flyology_psql.adb");
+   for Main use ("psqlish_main.adb");
+
+   package Builder is
+      for Executable ("psqlish_main.adb") use "psqlish";
+   end Builder;
 
    package Compiler is
       for Default_Switches ("Ada") use
-        Flyology_Psqlish_Config.Ada_Compiler_Switches
+        Psqlish_Config.Ada_Compiler_Switches
         & ("-gnatwa", "-gnatwe", "-gnatwJ");
    end Compiler;
 
@@ -20,4 +24,4 @@ project Flyology_Psqlish is
       for Switches ("Ada") use ("-Es");
    end Binder;
 
-end Flyology_Psqlish;
+end Psqlish;

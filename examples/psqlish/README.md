@@ -1,6 +1,6 @@
-# flyology_psql
+# psqlish
 
-`flyology_psql` is a polished, intentionally incomplete `psql`-like example
+`psqlish` is a polished, intentionally incomplete `psql`-like example
 for the production `Flyology.Postgres.Client` API. It connects to ordinary
 Postgres and to `examples/pgish`; it is small enough to read as
 an example and is not intended to replace `psql`.
@@ -25,7 +25,7 @@ From this directory:
 
 ```sh
 alr -n build
-./bin/flyology_psql --help
+./bin/psqlish --help
 ```
 
 When several worktrees build against Flyology concurrently, do not share the
@@ -47,7 +47,7 @@ keeps it out of process listings and shell history.
 Use `--command` (or `-c`) for scripts:
 
 ```sh
-PGPASSWORD=flyology-secret ./bin/flyology_psql \
+PGPASSWORD=flyology-secret ./bin/psqlish \
   --command "select 1 as n, null::text as missing, ''::text as empty"
 ```
 
@@ -60,8 +60,8 @@ through `ReadyForQuery`, so an interactive connection remains reusable.
 SQL is accumulated across lines until the last non-whitespace byte is a
 semicolon. Multiple statements in one submission produce multiple independent
 tables and command tags. Interactive input supports cursor editing and
-up/down history. History is saved to `~/.flyology_psql_history`; set
-`FLYOLOGY_PSQL_HISTORY` to override that path or to an empty value to disable
+up/down history. History is saved to `~/.psqlish_history`; set
+`PSQLISH_HISTORY` to override that path or to an empty value to disable
 persistence. Redirected input remains non-interactive and is never recorded.
 EOF submits a pending buffer and exits; `\q` exits when entered at a fresh
 prompt.
@@ -85,7 +85,7 @@ catalog-query contract for the companion `pgish` server.
 Example session:
 
 ```text
-flyology_psql 0.1.0-dev (TLS and COPY are not implemented; \? for help)
+psqlish 0.1.0-dev (TLS and COPY are not implemented; \? for help)
 flyology=> select 7 as n, null::text as missing, ''::text as empty;
 +---+---------+-------+
 | n | missing | empty |
@@ -109,7 +109,7 @@ Actual timings vary.
 The formatter has configurable limits rather than universal hard caps. This
 client configures explicit limits of 1,000 buffered rows, 1 MiB of retained
 cell/header bytes per display batch, and 80 output bytes per cell. These values are
-kept next to the client wiring in `flyology_psql.adb`, so another consumer can
+kept next to the client wiring in `psqlish_main.adb`, so another consumer can
 choose its own policy.
 
 The client can display more than 1,000 rows. When a row or byte boundary is

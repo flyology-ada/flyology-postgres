@@ -18,10 +18,10 @@ package body Psqlish.Input is
    function History_Filename return String is
       package Environment renames Ada.Environment_Variables;
    begin
-      if Environment.Exists ("FLYOLOGY_PSQL_HISTORY") then
-         return Environment.Value ("FLYOLOGY_PSQL_HISTORY");
+      if Environment.Exists ("PSQLISH_HISTORY") then
+         return Environment.Value ("PSQLISH_HISTORY");
       elsif Environment.Exists ("HOME") then
-         return Environment.Value ("HOME") & "/.flyology_psql_history";
+         return Environment.Value ("HOME") & "/.psqlish_history";
       else
          return "";
       end if;

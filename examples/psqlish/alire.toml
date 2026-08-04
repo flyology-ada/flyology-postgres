@@ -1,4 +1,4 @@
-name = "flyology_psqlish"
+name = "psqlish"
 description = "A small, bounded psql-like client built on Flyology Postgres"
 version = "0.1.0-dev"
 
@@ -9,7 +9,7 @@ licenses = "MIT OR Apache-2.0"
 website = "https://github.com/flyology-ada/flyology-postgres"
 tags = ["example", "postgres", "client", "repl"]
 
-executables = ["flyology_psql"]
+executables = ["psqlish"]
 
 [[depends-on]]
 flyology_postgres = "*"

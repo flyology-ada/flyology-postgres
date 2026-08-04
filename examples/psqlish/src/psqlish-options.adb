@@ -169,9 +169,9 @@ package body Psqlish.Options is
    end Parse;
 
    function Help return String is
-     ("flyology_psql - a deliberately small Postgres terminal" & ASCII.LF
+     ("psqlish - a deliberately small Postgres terminal" & ASCII.LF
       & ASCII.LF
-      & "Usage: flyology_psql [OPTION]..." & ASCII.LF
+      & "Usage: psqlish [OPTION]..." & ASCII.LF
       & "  -h, --host HOST       server address (default 127.0.0.1)"
       & ASCII.LF
       & "  -p, --port PORT       server port (default 55432)" & ASCII.LF

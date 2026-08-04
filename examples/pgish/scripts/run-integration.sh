@@ -43,7 +43,7 @@ done
 FLYOLOGY_PGISH_PORT=$port \
   "$example_root/bin/pgish_extended_client"
 
-if [ -x "$repository_root/examples/psqlish/bin/flyology_psql" ]; then
+if [ -x "$repository_root/examples/psqlish/bin/psqlish" ]; then
   PGHOST=127.0.0.1 PGPORT=$port PGUSER=flyology PGDATABASE=flyology \
     "$repository_root/examples/psqlish/scripts/run-pgish-integration.sh"
 fi
