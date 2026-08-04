@@ -1,0 +1,25 @@
+with "flyology_postgres.gpr";
+with "config/flyology_postgres_introspection_server_example_config.gpr";
+
+project Flyology_Postgres_Introspection_Server_Example is
+   for Languages use ("Ada");
+   for Source_Dirs use ("src", "config");
+   for Object_Dir use "obj/" &
+     Flyology_Postgres_Introspection_Server_Example_Config.Build_Profile;
+   for Exec_Dir use "bin";
+   for Create_Missing_Dirs use "True";
+   for Main use
+     ("flyology_postgres_server_example.adb",
+      "introspection_extended_client.adb",
+      "introspection_server_tests.adb");
+
+   package Compiler is
+      for Default_Switches ("Ada") use
+        Flyology_Postgres_Introspection_Server_Example_Config.Ada_Compiler_Switches
+        & ("-gnat2022", "-gnatwa", "-gnatwJ", "-gnatyM120", "-gnaty-S");
+   end Compiler;
+
+   package Binder is
+      for Switches ("Ada") use ("-Es");
+   end Binder;
+end Flyology_Postgres_Introspection_Server_Example;

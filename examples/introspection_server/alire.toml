@@ -1,0 +1,25 @@
+name = "flyology_postgres_introspection_server_example"
+description = "Bounded Postgres introspection server example for Flyology"
+version = "0.1.0-dev"
+
+authors = ["Yurii Rashkovskii"]
+maintainers = ["Yurii Rashkovskii <yrashk@gmail.com>"]
+maintainers-logins = ["yrashk"]
+licenses = "MIT OR Apache-2.0"
+tags = ["example", "postgres", "server", "introspection"]
+
+executables = [
+  "flyology_postgres_server_example",
+  "introspection_extended_client",
+  "introspection_server_tests",
+]
+
+[[depends-on]]
+flyology_postgres = "*"
+
+[[pins]]
+flyology_postgres = { path = "../.." }
+
+[[actions]]
+type = "test"
+command = ["./scripts/test.sh"]
