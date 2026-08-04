@@ -1,0 +1,12 @@
+/obj/
+/lib/
+/alire/
+/config/
+/backends/lib/
+/backends/obj/
+/tests/alire/
+/tests/bin/
+/tests/obj/
+__pycache__/
+*.pyc
+*.o

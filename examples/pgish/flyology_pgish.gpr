@@ -1,4 +1,5 @@
 with "flyology_postgres.gpr";
+with "sql.gpr";
 with "config/flyology_pgish_config.gpr";
 
 project Flyology_Pgish is
@@ -22,4 +23,9 @@ project Flyology_Pgish is
    package Binder is
       for Switches ("Ada") use ("-Es");
    end Binder;
+
+   package Linker is
+      for Switches ("Ada") use
+        (external ("FLYOLOGY_ROOT") & "/build/alire-rts/adalib/libgnarl.a");
+   end Linker;
 end Flyology_Pgish;

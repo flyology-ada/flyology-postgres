@@ -20,6 +20,12 @@ flyology_postgres = "*"
 [[pins]]
 flyology_postgres = { path = "../.." }
 
+[[depends-on]]
+flyology_postgres_sql = "*"
+
+[[pins]]
+flyology_postgres_sql = { path = "../../sql" }
+
 [[actions]]
 type = "test"
 command = ["./scripts/test.sh"]

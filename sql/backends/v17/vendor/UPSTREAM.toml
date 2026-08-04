@@ -1,0 +1,24 @@
+postgresql_major = 17
+postgresql_release = "17.7"
+libpg_query_release = "6.2.2"
+libpg_query_makefile_release = "6.2.2"
+archive_sha256 = "e68962c18dbf5890821511be6c5c42261170bf8bfd51a82ea9176069f3d0df8b"
+source = "https://github.com/pganalyze/libpg_query"
+postgresql_source = "https://ftp.postgresql.org/pub/source/v17.7/"
+included_components = [
+  "raw PostgreSQL parser extraction",
+  "src/pg_query_outfuncs_protobuf.c",
+  "pg_query.proto",
+  "protobuf/pg_query.pb-c.c",
+  "protobuf/pg_query.pb-c.h",
+  "vendor/protobuf-c/protobuf-c.c",
+  "vendor/protobuf-c/protobuf-c.h",
+]
+excluded_apis = [
+  "JSON serialization",
+  "fingerprinting",
+  "normalization",
+  "deparsing",
+  "PL/pgSQL parsing",
+  "query splitting and scanning",
+]

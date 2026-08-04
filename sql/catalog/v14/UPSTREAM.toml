@@ -1,0 +1,7 @@
+postgresql_major = 14
+postgresql_release = "14.23"
+archive = "postgresql-14.23.tar.bz2"
+archive_sha256 = "cc7216822b546330e29c2f91e123c8734a4c41795082145bb962aa712e8c94a5"
+sha256_verified_against = "https://ftp.postgresql.org/pub/source/v14.23/postgresql-14.23.tar.bz2.sha256"
+source = "https://ftp.postgresql.org/pub/source/v14.23/"
+files = ["src/include/catalog/pg_type.dat", "src/include/catalog/pg_type.h", "src/include/catalog/pg_range.dat"]

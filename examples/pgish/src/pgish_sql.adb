@@ -1,4 +1,5 @@
 with Ada.Characters.Handling;
+with Flyology.Postgres.SQL;
 
 package body Pgish_SQL is
 
@@ -204,6 +205,7 @@ package body Pgish_SQL is
    end Tokenize;
 
    function Parse (SQL : String) return Query is
+      Full_Tree : Flyology.Postgres.SQL.Syntax_Tree;
       Tokens : Token_Array;
       Count  : Positive;
       Cursor : Positive := 1;
@@ -399,6 +401,23 @@ package body Pgish_SQL is
          end if;
       end Finish;
    begin
+      --  The bounded evaluator below intentionally implements only pgish's
+      --  read-only subset.  Syntax acceptance and diagnostics nevertheless
+      --  come from PostgreSQL 18's actual grammar, so its lexer cannot drift
+      --  from the server that pgish emulates.
+      Flyology.Postgres.SQL.Parse
+        (SQL, Flyology.Postgres.SQL.PostgreSQL_18, Full_Tree);
+      if not Flyology.Postgres.SQL.Is_Valid (Full_Tree) then
+         declare
+            Error : constant Flyology.Postgres.SQL.Diagnostic :=
+              Flyology.Postgres.SQL.Error (Full_Tree);
+         begin
+            raise Syntax_Error with
+              Flyology.Postgres.SQL.Message (Error)
+              & " at character"
+              & Flyology.Postgres.SQL.Cursor_Position (Error)'Image;
+         end;
+      end if;
       Tokenize (SQL, Tokens, Count);
       if Is_Word ("show") then
          Result.Kind := Show_Statement;

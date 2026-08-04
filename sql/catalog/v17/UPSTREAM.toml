@@ -1,0 +1,7 @@
+postgresql_major = 17
+postgresql_release = "17.10"
+archive = "postgresql-17.10.tar.bz2"
+archive_sha256 = "078a03516dcdbdb705fecaf415ea3d13a956c589e46f09fed68a06fb00598c90"
+sha256_verified_against = "https://ftp.postgresql.org/pub/source/v17.10/postgresql-17.10.tar.bz2.sha256"
+source = "https://ftp.postgresql.org/pub/source/v17.10/"
+files = ["src/include/catalog/pg_type.dat", "src/include/catalog/pg_type.h", "src/include/catalog/pg_range.dat"]

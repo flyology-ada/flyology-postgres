@@ -1,0 +1,24 @@
+name = "flyology_postgres_sql_tests"
+description = "Conformance tests for the versioned PostgreSQL SQL parser"
+version = "0.1.0-dev"
+
+authors = ["Yurii Rashkovskii"]
+maintainers = ["Yurii Rashkovskii <yrashk@gmail.com>"]
+licenses = "MIT OR Apache-2.0"
+tags = ["testing", "postgres", "sql", "parser"]
+
+executables = ["sql_tests"]
+project-files = ["sql_tests.gpr"]
+
+[[depends-on]]
+flyology_postgres_sql = "*"
+
+[[pins]]
+flyology_postgres_sql = { path = ".." }
+
+[[depends-on]]
+aunit = "^26.0.0"
+
+[[actions]]
+type = "test"
+command = ["./scripts/test.sh"]

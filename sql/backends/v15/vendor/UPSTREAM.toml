@@ -1,0 +1,24 @@
+postgresql_major = 15
+postgresql_release = "15.1"
+libpg_query_release = "4.2.4"
+libpg_query_makefile_release = "4.2.3"
+archive_sha256 = "d0ace0bff40e5daa99e32753a22a7558f9b2207e89260f00171fc50723b831dd"
+source = "https://github.com/pganalyze/libpg_query"
+postgresql_source = "https://ftp.postgresql.org/pub/source/v15.1/"
+included_components = [
+  "raw PostgreSQL parser extraction",
+  "src/pg_query_outfuncs_protobuf.c",
+  "pg_query.proto",
+  "protobuf/pg_query.pb-c.c",
+  "protobuf/pg_query.pb-c.h",
+  "vendor/protobuf-c/protobuf-c.c",
+  "vendor/protobuf-c/protobuf-c.h",
+]
+excluded_apis = [
+  "JSON serialization",
+  "fingerprinting",
+  "normalization",
+  "deparsing",
+  "PL/pgSQL parsing",
+  "query splitting and scanning",
+]

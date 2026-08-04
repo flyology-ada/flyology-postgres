@@ -1,0 +1,7 @@
+postgresql_major = 15
+postgresql_release = "15.18"
+archive = "postgresql-15.18.tar.bz2"
+archive_sha256 = "11df0df97fe3ea4ba9a791faaf39cee1d2fe571e78885b5b55d8517d27c323b4"
+sha256_verified_against = "https://ftp.postgresql.org/pub/source/v15.18/postgresql-15.18.tar.bz2.sha256"
+source = "https://ftp.postgresql.org/pub/source/v15.18/"
+files = ["src/include/catalog/pg_type.dat", "src/include/catalog/pg_type.h", "src/include/catalog/pg_range.dat"]

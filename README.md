@@ -58,6 +58,19 @@ link-time OpenSSL dependency and applications may supply another provider.
 Both are independent nested Alire crates. Their integration suite uses an
 ephemeral CA so `psqlish` and real `psql` exercise verified TLS against `pgish`.
 
+## Versioned SQL parser and catalog types
+
+The nested [`flyology_postgres_sql`](sql/README.md) crate contains isolated
+native PostgreSQL 14–18 raw parsers and fully generated Ada 2022 syntax-tree
+views. `Syntax_Tree` owns a flat arena; public AST records are shallow and use
+opaque child references, discriminated optionals, typed sequence handles,
+exact-width scalars, generated enums, and owned text. Generated catalog layers
+also expose built-in PostgreSQL type metadata and OID constants for every
+supported major.
+
+`pgish` validates input with the PostgreSQL 18 grammar before applying its
+deliberately bounded read-only evaluator subset.
+
 ## API outline
 
 `Flyology.Postgres.Protocol` owns and frames wire messages. A frontend message retains

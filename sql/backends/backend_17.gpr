@@ -1,0 +1,38 @@
+with "../config/sql_config.gpr";
+project Backend_17 is
+
+   for Languages use ("C");
+   for Source_Dirs use
+     ("v17/vendor",
+      "v17/vendor/src",
+      "v17/vendor/protobuf",
+      "v17/vendor/vendor/protobuf-c",
+      "v17/vendor/src/postgres");
+   for Object_Dir use "obj/v17";
+   for Create_Missing_Dirs use "True";
+   for Library_Name use "flyology_pg_query_17";
+   for Library_Dir use "lib";
+   for Library_Kind use "relocatable";
+
+   case Sql_Config.Alire_Host_OS is
+      when "macos" =>
+         for Library_Options use
+           ("-Wl,-unexported_symbols_list," & Project'Project_Dir & "runtime_hidden.macos");
+      when "windows" => null;
+      when others =>
+         for Library_Options use
+           ("-Wl,--version-script=" & Project'Project_Dir & "exports_17.map");
+   end case;
+
+   package Compiler is
+      for Default_Switches ("C") use
+        ("-O2", "-g", "-std=gnu99", "-fPIC", "-fvisibility=hidden",
+         "-fno-strict-aliasing", "-fwrapv", "-Wall",
+         "-Wno-unused-function", "-Wno-unused-value", "-Wno-unused-variable",
+         "-I" & Project'Project_Dir & "v17/vendor",
+         "-I" & Project'Project_Dir & "v17/vendor/vendor",
+         "-I" & Project'Project_Dir & "v17/vendor/src/include",
+         "-I" & Project'Project_Dir & "v17/vendor/src/postgres/include");
+   end Compiler;
+
+end Backend_17;
