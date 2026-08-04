@@ -1,0 +1,286 @@
+with Flyology.Bytes;
+with Flyology.Postgres.Framing;
+
+package body Flyology.Postgres.Server_Sessions is
+
+   use type Protocol.Byte_Offset;
+   use type Protocol.Frontend_Kind;
+
+   procedure Send_Built
+     (Item    : in out Session;
+      Code    : Character;
+      Contents : Flyology.Bytes.Unbounded_Bytes;
+      Timeout : Duration) is
+   begin
+      Send
+        (Item,
+         Protocol.Make_Message
+           (Code, Flyology.Bytes.To_Array (Contents)),
+         Timeout);
+   end Send_Built;
+
+   function Read_Initial
+     (Item : in out Session;
+      Timeout : Duration) return Protocol.Initial_Request is
+   begin
+      return Framing.Read_Initial (Item.Channel.all, Timeout);
+   end Read_Initial;
+
+   function Read_Command
+     (Item : in out Session;
+      Timeout : Duration) return Protocol.Message is
+   begin
+      return Framing.Read_Message (Item.Channel.all, Timeout);
+   end Read_Command;
+
+   procedure Send
+     (Item    : in out Session;
+      Value   : Protocol.Message;
+      Timeout : Duration) is
+   begin
+      Framing.Write_Message (Item.Channel.all, Value, Timeout);
+   end Send;
+
+   procedure Refuse_TLS
+     (Item : in out Session; Timeout : Duration) is
+   begin
+      Framing.Write_Byte
+        (Item.Channel.all, Protocol.Byte (Character'Pos ('N')), Timeout);
+   end Refuse_TLS;
+
+   procedure Refuse_GSS
+     (Item : in out Session; Timeout : Duration) is
+   begin
+      Framing.Write_Byte
+        (Item.Channel.all, Protocol.Byte (Character'Pos ('N')), Timeout);
+   end Refuse_GSS;
+
+   procedure Send_Authentication_Ok
+     (Item : in out Session; Timeout : Duration) is
+      Contents : Flyology.Bytes.Unbounded_Bytes;
+   begin
+      Protocol.Append_U32 (Contents, 0);
+      Send_Built (Item, 'R', Contents, Timeout);
+   end Send_Authentication_Ok;
+
+   procedure Send_Authentication_Cleartext_Password
+     (Item : in out Session; Timeout : Duration) is
+      Contents : Flyology.Bytes.Unbounded_Bytes;
+   begin
+      Protocol.Append_U32 (Contents, 3);
+      Send_Built (Item, 'R', Contents, Timeout);
+   end Send_Authentication_Cleartext_Password;
+
+   procedure Send_Negotiate_Protocol
+     (Item         : in out Session;
+      Latest_Minor : Protocol.UInt32;
+      Timeout      : Duration) is
+      Contents : Flyology.Bytes.Unbounded_Bytes;
+   begin
+      Protocol.Append_U32 (Contents, Latest_Minor);
+      Protocol.Append_U32 (Contents, 0);
+      Send_Built (Item, 'v', Contents, Timeout);
+   end Send_Negotiate_Protocol;
+
+   procedure Send_Parameter_Status
+     (Item    : in out Session;
+      Name    : String;
+      Value   : String;
+      Timeout : Duration) is
+      Contents : Flyology.Bytes.Unbounded_Bytes;
+   begin
+      Protocol.Append_C_String (Contents, Name);
+      Protocol.Append_C_String (Contents, Value);
+      Send_Built (Item, 'S', Contents, Timeout);
+   end Send_Parameter_Status;
+
+   procedure Send_Backend_Key_Data
+     (Item       : in out Session;
+      Process_Id : Protocol.UInt32;
+      Secret_Key : Protocol.Byte_Array;
+      Timeout    : Duration) is
+      Contents : Flyology.Bytes.Unbounded_Bytes;
+   begin
+      if Secret_Key'Length not in 4 .. 256 then
+         raise Protocol.Protocol_Error with
+           "a backend cancellation key must contain 4 through 256 bytes";
+      end if;
+      Protocol.Append_U32 (Contents, Process_Id);
+      Protocol.Append_Bytes (Contents, Secret_Key);
+      Send_Built (Item, 'K', Contents, Timeout);
+   end Send_Backend_Key_Data;
+
+   procedure Send_Ready
+     (Item               : in out Session;
+      Transaction_Status : Character := 'I';
+      Timeout            : Duration) is
+      Contents : Flyology.Bytes.Unbounded_Bytes;
+   begin
+      if Transaction_Status not in 'I' | 'T' | 'E' then
+         raise Protocol.Protocol_Error with
+           "invalid ReadyForQuery transaction status";
+      end if;
+      Protocol.Append_Byte
+        (Contents, Protocol.Byte (Character'Pos (Transaction_Status)));
+      Send_Built (Item, 'Z', Contents, Timeout);
+   end Send_Ready;
+
+   procedure Append_Error_Fields
+     (Contents  : in out Flyology.Bytes.Unbounded_Bytes;
+      Message   : String;
+      SQL_State : String;
+      Severity  : String) is
+   begin
+      if SQL_State'Length /= 5 then
+         raise Protocol.Protocol_Error with
+           "a Postgres SQLSTATE must contain five characters";
+      end if;
+      Protocol.Append_Byte (Contents, Protocol.Byte (Character'Pos ('S')));
+      Protocol.Append_C_String (Contents, Severity);
+      Protocol.Append_Byte (Contents, Protocol.Byte (Character'Pos ('V')));
+      Protocol.Append_C_String (Contents, Severity);
+      Protocol.Append_Byte (Contents, Protocol.Byte (Character'Pos ('C')));
+      Protocol.Append_C_String (Contents, SQL_State);
+      Protocol.Append_Byte (Contents, Protocol.Byte (Character'Pos ('M')));
+      Protocol.Append_C_String (Contents, Message);
+      Protocol.Append_Byte (Contents, 0);
+   end Append_Error_Fields;
+
+   procedure Send_Error
+     (Item      : in out Session;
+      Message   : String;
+      SQL_State : String := "XX000";
+      Severity  : String := "ERROR";
+      Timeout   : Duration) is
+      Contents : Flyology.Bytes.Unbounded_Bytes;
+   begin
+      Append_Error_Fields (Contents, Message, SQL_State, Severity);
+      Send_Built (Item, 'E', Contents, Timeout);
+   end Send_Error;
+
+   procedure Send_Notice
+     (Item      : in out Session;
+      Message   : String;
+      SQL_State : String := "00000";
+      Severity  : String := "NOTICE";
+      Timeout   : Duration) is
+      Contents : Flyology.Bytes.Unbounded_Bytes;
+   begin
+      Append_Error_Fields (Contents, Message, SQL_State, Severity);
+      Send_Built (Item, 'N', Contents, Timeout);
+   end Send_Notice;
+
+   procedure Send_Command_Complete
+     (Item : in out Session; Tag : String; Timeout : Duration) is
+      Contents : Flyology.Bytes.Unbounded_Bytes;
+   begin
+      Protocol.Append_C_String (Contents, Tag);
+      Send_Built (Item, 'C', Contents, Timeout);
+   end Send_Command_Complete;
+
+   procedure Send_Empty_Query_Response
+     (Item : in out Session; Timeout : Duration) is
+   begin
+      Send (Item, Protocol.Make_Empty_Message ('I'), Timeout);
+   end Send_Empty_Query_Response;
+
+   procedure Send_Parse_Complete
+     (Item : in out Session; Timeout : Duration) is
+   begin
+      Send (Item, Protocol.Make_Empty_Message ('1'), Timeout);
+   end Send_Parse_Complete;
+
+   procedure Send_Bind_Complete
+     (Item : in out Session; Timeout : Duration) is
+   begin
+      Send (Item, Protocol.Make_Empty_Message ('2'), Timeout);
+   end Send_Bind_Complete;
+
+   procedure Send_Close_Complete
+     (Item : in out Session; Timeout : Duration) is
+   begin
+      Send (Item, Protocol.Make_Empty_Message ('3'), Timeout);
+   end Send_Close_Complete;
+
+   procedure Send_No_Data
+     (Item : in out Session; Timeout : Duration) is
+   begin
+      Send (Item, Protocol.Make_Empty_Message ('n'), Timeout);
+   end Send_No_Data;
+
+   procedure Send_Row_Description
+     (Item      : in out Session;
+      Name      : String;
+      Type_Oid  : Protocol.UInt32 := 25;
+      Type_Size : Protocol.UInt16 := 16#FFFF#;
+      Timeout   : Duration) is
+      Contents : Flyology.Bytes.Unbounded_Bytes;
+   begin
+      Protocol.Append_U16 (Contents, 1);
+      Protocol.Append_C_String (Contents, Name);
+      Protocol.Append_U32 (Contents, 0);
+      Protocol.Append_U16 (Contents, 0);
+      Protocol.Append_U32 (Contents, Type_Oid);
+      Protocol.Append_U16 (Contents, Type_Size);
+      Protocol.Append_U32 (Contents, Protocol.UInt32'Last);
+      Protocol.Append_U16 (Contents, 0);
+      Send_Built (Item, 'T', Contents, Timeout);
+   end Send_Row_Description;
+
+   procedure Send_Data_Row
+     (Item : in out Session; Value : String; Timeout : Duration) is
+      Contents : Flyology.Bytes.Unbounded_Bytes;
+   begin
+      Protocol.Append_U16 (Contents, 1);
+      Protocol.Append_U32 (Contents, Protocol.UInt32 (Value'Length));
+      Flyology.Bytes.Append_Byte_String (Contents, Value);
+      Send_Built (Item, 'D', Contents, Timeout);
+   end Send_Data_Row;
+
+   procedure Send_Null_Data_Row
+     (Item : in out Session; Timeout : Duration) is
+      Contents : Flyology.Bytes.Unbounded_Bytes;
+   begin
+      Protocol.Append_U16 (Contents, 1);
+      Protocol.Append_U32 (Contents, Protocol.UInt32'Last);
+      Send_Built (Item, 'D', Contents, Timeout);
+   end Send_Null_Data_Row;
+
+   function Query_Text (Command : Protocol.Message) return String is
+      Contents : constant Protocol.Byte_Array := Protocol.Payload (Command);
+      Cursor   : Protocol.Byte_Offset := Contents'First;
+   begin
+      if Protocol.Kind (Command) /= Protocol.Query then
+         raise Protocol.Protocol_Error with "message is not a Query command";
+      end if;
+      declare
+         Result : constant String := Protocol.Read_C_String (Contents, Cursor);
+      begin
+         if Cursor /= Protocol.Byte_Offset'Succ (Contents'Last) then
+            raise Protocol.Protocol_Error with
+              "Query command has trailing payload data";
+         end if;
+         return Result;
+      end;
+   end Query_Text;
+
+   function Password_Text (Command : Protocol.Message) return String is
+      Contents : constant Protocol.Byte_Array := Protocol.Payload (Command);
+      Cursor   : Protocol.Byte_Offset := Contents'First;
+   begin
+      if Protocol.Kind (Command) /= Protocol.Password_Or_SASL_Response then
+         raise Protocol.Protocol_Error with
+           "message is not a password response";
+      end if;
+      declare
+         Result : constant String := Protocol.Read_C_String (Contents, Cursor);
+      begin
+         if Cursor /= Protocol.Byte_Offset'Succ (Contents'Last) then
+            raise Protocol.Protocol_Error with
+              "password response has trailing payload data";
+         end if;
+         return Result;
+      end;
+   end Password_Text;
+
+end Flyology.Postgres.Server_Sessions;

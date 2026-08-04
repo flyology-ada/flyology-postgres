@@ -1,0 +1,16 @@
+name = "flyology_postgres"
+description = "Postgres client and protocol server for Flyology tasks"
+version = "0.1.0-dev"
+
+authors = ["Yurii Rashkovskii"]
+maintainers = ["Yurii Rashkovskii <yrashk@gmail.com>"]
+maintainers-logins = ["yrashk"]
+licenses = "MIT OR Apache-2.0"
+website = "https://github.com/flyology-ada/flyology-postgres"
+tags = ["ada", "postgres", "database", "client", "server", "protocol"]
+
+[[depends-on]]
+flyology = "~0.1.0-dev"
+
+[[pins]]
+flyology = { path = "../flyology" }

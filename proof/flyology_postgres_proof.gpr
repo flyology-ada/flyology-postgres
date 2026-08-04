@@ -1,0 +1,6 @@
+with "../flyology_postgres.gpr";
+project Flyology_Postgres_Proof is
+   for Source_Dirs use ();
+   for Object_Dir use "obj";
+   for Create_Missing_Dirs use "True";
+end Flyology_Postgres_Proof;

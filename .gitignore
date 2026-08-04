@@ -1,0 +1,8 @@
+/obj/
+/lib/
+/alire/
+/config/
+/build/
+/tests/.cache/
+/tests/tmp/
+/proof-status.md
