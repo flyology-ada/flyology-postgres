@@ -60,6 +60,8 @@ jobs:
           ./scripts/test.sh
       - name: Run SQL parser tests
         working-directory: sql/tests
+        env:
+          FLYOLOGY_SQL_GENERATOR_CHECK_PARALLEL: 0
         run: |
           ./scripts/test.sh &
           test_pid=$!
