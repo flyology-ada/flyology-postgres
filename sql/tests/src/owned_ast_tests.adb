@@ -6,14 +6,19 @@ with Flyology.Postgres.SQL;
 with Flyology.Postgres.SQL.Views;
 with Flyology.Postgres.SQL.AST.V14;
 with Flyology.Postgres.SQL.AST.V14.Testing;
+with Flyology.Postgres.SQL.AST.V14.Visitors;
 with Flyology.Postgres.SQL.AST.V15;
 with Flyology.Postgres.SQL.AST.V15.Testing;
+with Flyology.Postgres.SQL.AST.V15.Visitors;
 with Flyology.Postgres.SQL.AST.V16;
 with Flyology.Postgres.SQL.AST.V16.Testing;
+with Flyology.Postgres.SQL.AST.V16.Visitors;
 with Flyology.Postgres.SQL.AST.V17;
 with Flyology.Postgres.SQL.AST.V17.Testing;
+with Flyology.Postgres.SQL.AST.V17.Visitors;
 with Flyology.Postgres.SQL.AST.V18;
 with Flyology.Postgres.SQL.AST.V18.Testing;
+with Flyology.Postgres.SQL.AST.V18.Visitors;
 with Interfaces;
 
 package body Owned_AST_Tests is
@@ -30,6 +35,11 @@ package body Owned_AST_Tests is
    package Test_16 renames Flyology.Postgres.SQL.AST.V16.Testing;
    package Test_17 renames Flyology.Postgres.SQL.AST.V17.Testing;
    package Test_18 renames Flyology.Postgres.SQL.AST.V18.Testing;
+   package Visitors_14 renames Flyology.Postgres.SQL.AST.V14.Visitors;
+   package Visitors_15 renames Flyology.Postgres.SQL.AST.V15.Visitors;
+   package Visitors_16 renames Flyology.Postgres.SQL.AST.V16.Visitors;
+   package Visitors_17 renames Flyology.Postgres.SQL.AST.V17.Visitors;
+   package Visitors_18 renames Flyology.Postgres.SQL.AST.V18.Visitors;
 
    use type AST_14.Node_Kind;
    use type AST_15.Node_Kind;
@@ -39,6 +49,219 @@ package body Owned_AST_Tests is
    use type AST_18.Node_Kind;
    use type Ada.Containers.Count_Type;
    use type Interfaces.Integer_32;
+
+   type Counting_Visitor_14 is new Visitors_14.Visitor with record
+      Nodes : Natural := 0;
+   end record;
+
+   overriding procedure Enter_Node
+     (Self    : in out Counting_Visitor_14;
+      Item    : AST_14.Node;
+      Control : in out Visitors_14.Traversal_Control)
+   is
+      pragma Unreferenced (Item, Control);
+   begin
+      Self.Nodes := Self.Nodes + 1;
+   end Enter_Node;
+
+   type Counting_Visitor_15 is new Visitors_15.Visitor with record
+      Nodes : Natural := 0;
+   end record;
+
+   overriding procedure Enter_Node
+     (Self    : in out Counting_Visitor_15;
+      Item    : AST_15.Node;
+      Control : in out Visitors_15.Traversal_Control)
+   is
+      pragma Unreferenced (Item, Control);
+   begin
+      Self.Nodes := Self.Nodes + 1;
+   end Enter_Node;
+
+   type Counting_Visitor_16 is new Visitors_16.Visitor with record
+      Nodes : Natural := 0;
+   end record;
+
+   overriding procedure Enter_Node
+     (Self    : in out Counting_Visitor_16;
+      Item    : AST_16.Node;
+      Control : in out Visitors_16.Traversal_Control)
+   is
+      pragma Unreferenced (Item, Control);
+   begin
+      Self.Nodes := Self.Nodes + 1;
+   end Enter_Node;
+
+   type Counting_Visitor_17 is new Visitors_17.Visitor with record
+      Nodes : Natural := 0;
+   end record;
+
+   overriding procedure Enter_Node
+     (Self    : in out Counting_Visitor_17;
+      Item    : AST_17.Node;
+      Control : in out Visitors_17.Traversal_Control)
+   is
+      pragma Unreferenced (Item, Control);
+   begin
+      Self.Nodes := Self.Nodes + 1;
+   end Enter_Node;
+
+   type Counting_Visitor_18 is new Visitors_18.Visitor with record
+      Nodes       : Natural := 0;
+      Node_Leaves : Natural := 0;
+      Selects     : Natural := 0;
+      Ctes        : Natural := 0;
+      Joins       : Natural := 0;
+      Expressions : Natural := 0;
+   end record;
+
+   overriding procedure Enter_Node
+     (Self    : in out Counting_Visitor_18;
+      Item    : AST_18.Node;
+      Control : in out Visitors_18.Traversal_Control);
+   overriding procedure Leave_Node
+     (Self : in out Counting_Visitor_18;
+      Item : AST_18.Node);
+   overriding procedure Enter_Select_Stmt
+     (Self    : in out Counting_Visitor_18;
+      Item    : AST_18.Select_Stmt;
+      Control : in out Visitors_18.Traversal_Control);
+   overriding procedure Enter_Common_Table_Expr
+     (Self    : in out Counting_Visitor_18;
+      Item    : AST_18.Common_Table_Expr;
+      Control : in out Visitors_18.Traversal_Control);
+   overriding procedure Enter_Join_Expr
+     (Self    : in out Counting_Visitor_18;
+      Item    : AST_18.Join_Expr;
+      Control : in out Visitors_18.Traversal_Control);
+   overriding procedure Enter_A_Expr
+     (Self    : in out Counting_Visitor_18;
+      Item    : AST_18.A_Expr;
+      Control : in out Visitors_18.Traversal_Control);
+
+   overriding procedure Enter_Node
+     (Self    : in out Counting_Visitor_18;
+      Item    : AST_18.Node;
+      Control : in out Visitors_18.Traversal_Control)
+   is
+      pragma Unreferenced (Item, Control);
+   begin
+      Self.Nodes := Self.Nodes + 1;
+   end Enter_Node;
+
+   overriding procedure Leave_Node
+     (Self : in out Counting_Visitor_18;
+      Item : AST_18.Node)
+   is
+      pragma Unreferenced (Item);
+   begin
+      Self.Node_Leaves := Self.Node_Leaves + 1;
+   end Leave_Node;
+
+   overriding procedure Enter_Select_Stmt
+     (Self    : in out Counting_Visitor_18;
+      Item    : AST_18.Select_Stmt;
+      Control : in out Visitors_18.Traversal_Control)
+   is
+      pragma Unreferenced (Item, Control);
+   begin
+      Self.Selects := Self.Selects + 1;
+   end Enter_Select_Stmt;
+
+   overriding procedure Enter_Common_Table_Expr
+     (Self    : in out Counting_Visitor_18;
+      Item    : AST_18.Common_Table_Expr;
+      Control : in out Visitors_18.Traversal_Control)
+   is
+      pragma Unreferenced (Item, Control);
+   begin
+      Self.Ctes := Self.Ctes + 1;
+   end Enter_Common_Table_Expr;
+
+   overriding procedure Enter_Join_Expr
+     (Self    : in out Counting_Visitor_18;
+      Item    : AST_18.Join_Expr;
+      Control : in out Visitors_18.Traversal_Control)
+   is
+      pragma Unreferenced (Item, Control);
+   begin
+      Self.Joins := Self.Joins + 1;
+   end Enter_Join_Expr;
+
+   overriding procedure Enter_A_Expr
+     (Self    : in out Counting_Visitor_18;
+      Item    : AST_18.A_Expr;
+      Control : in out Visitors_18.Traversal_Control)
+   is
+      pragma Unreferenced (Item, Control);
+   begin
+      Self.Expressions := Self.Expressions + 1;
+   end Enter_A_Expr;
+
+   type Pruning_Visitor is new Visitors_18.Visitor with record
+      Nodes         : Natural := 0;
+      Selects       : Natural := 0;
+      Select_Leaves : Natural := 0;
+   end record;
+
+   overriding procedure Enter_Node
+     (Self    : in out Pruning_Visitor;
+      Item    : AST_18.Node;
+      Control : in out Visitors_18.Traversal_Control);
+   overriding procedure Enter_Select_Stmt
+     (Self    : in out Pruning_Visitor;
+      Item    : AST_18.Select_Stmt;
+      Control : in out Visitors_18.Traversal_Control);
+   overriding procedure Leave_Select_Stmt
+     (Self : in out Pruning_Visitor;
+      Item : AST_18.Select_Stmt);
+
+   overriding procedure Enter_Node
+     (Self    : in out Pruning_Visitor;
+      Item    : AST_18.Node;
+      Control : in out Visitors_18.Traversal_Control)
+   is
+      pragma Unreferenced (Item, Control);
+   begin
+      Self.Nodes := Self.Nodes + 1;
+   end Enter_Node;
+
+   overriding procedure Enter_Select_Stmt
+     (Self    : in out Pruning_Visitor;
+      Item    : AST_18.Select_Stmt;
+      Control : in out Visitors_18.Traversal_Control)
+   is
+      pragma Unreferenced (Item);
+   begin
+      Self.Selects := Self.Selects + 1;
+      Control := Visitors_18.Skip_Children;
+   end Enter_Select_Stmt;
+
+   overriding procedure Leave_Select_Stmt
+     (Self : in out Pruning_Visitor;
+      Item : AST_18.Select_Stmt)
+   is
+      pragma Unreferenced (Item);
+   begin
+      Self.Select_Leaves := Self.Select_Leaves + 1;
+   end Leave_Select_Stmt;
+
+   type Stopping_Visitor is new Visitors_18.Visitor with record
+      Nodes : Natural := 0;
+   end record;
+
+   overriding procedure Enter_Node
+     (Self    : in out Stopping_Visitor;
+      Item    : AST_18.Node;
+      Control : in out Visitors_18.Traversal_Control)
+   is
+      pragma Unreferenced (Item);
+   begin
+      Self.Nodes := Self.Nodes + 1;
+      if Self.Nodes = 3 then
+         Control := Visitors_18.Stop_Traversal;
+      end if;
+   end Enter_Node;
 
    function First_Node
      (Tree : AST_18.Owned_Syntax_Tree) return AST_18.Node_Access
@@ -450,6 +673,59 @@ package body Owned_AST_Tests is
       end;
    end Test_Direct_Corpus;
 
+   procedure Test_Generated_Visitors is
+      T14 : AST_14.Owned_Syntax_Tree;
+      T15 : AST_15.Owned_Syntax_Tree;
+      T16 : AST_16.Owned_Syntax_Tree;
+      T17 : AST_17.Owned_Syntax_Tree;
+      T18 : AST_18.Owned_Syntax_Tree;
+      V14 : Counting_Visitor_14;
+      V15 : Counting_Visitor_15;
+      V16 : Counting_Visitor_16;
+      V17 : Counting_Visitor_17;
+      V18 : Counting_Visitor_18;
+      Pruner  : Pruning_Visitor;
+      Stopper : Stopping_Visitor;
+      Text : constant String :=
+        "WITH active AS (SELECT id FROM accounts WHERE enabled) "
+        & "SELECT a.id FROM active AS a JOIN audit AS b ON a.id = b.id "
+        & "WHERE a.id > 10";
+   begin
+      AST_14.Parse ("SELECT 14", T14);
+      AST_15.Parse ("SELECT 15", T15);
+      AST_16.Parse ("SELECT 16", T16);
+      AST_17.Parse ("SELECT 17", T17);
+      AST_18.Parse (Text, T18);
+
+      Visitors_14.Traverse (V14, T14);
+      Visitors_15.Traverse (V15, T15);
+      Visitors_16.Traverse (V16, T16);
+      Visitors_17.Traverse (V17, T17);
+      Visitors_18.Traverse (V18, T18);
+
+      Assert
+        (V14.Nodes > 0 and V15.Nodes > 0 and V16.Nodes > 0 and V17.Nodes > 0,
+         "generated visitors traverse all four earlier version roots");
+      Assert
+        (V18.Nodes > 0 and then V18.Nodes = V18.Node_Leaves,
+         "full visitor traversal balances generic node enter/leave callbacks");
+      Assert
+        (V18.Selects = 2 and V18.Ctes = 1 and V18.Joins = 1
+         and V18.Expressions > 0,
+         "typed callbacks cover SELECTs, CTEs, joins, and expressions");
+
+      Visitors_18.Traverse (Pruner, T18);
+      Assert
+        (Pruner.Selects = 1 and Pruner.Select_Leaves = 1
+         and Pruner.Nodes = 1,
+         "Skip_Children prunes descendants and retains the leave callback");
+
+      Visitors_18.Traverse (Stopper, T18.Root);
+      Assert
+        (Stopper.Nodes = 3,
+         "Stop_Traversal ends traversal immediately from a node callback");
+   end Test_Generated_Visitors;
+
    procedure Run is
    begin
       Ada.Text_IO.Put_Line ("  owned roots and arena equivalence");
@@ -464,6 +740,8 @@ package body Owned_AST_Tests is
       Test_Direct_Path;
       Ada.Text_IO.Put_Line ("  owned corpus baseline equivalence");
       Test_Direct_Corpus;
+      Ada.Text_IO.Put_Line ("  generated owned AST visitors");
+      Test_Generated_Visitors;
    end Run;
 
 end Owned_AST_Tests;

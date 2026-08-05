@@ -110,6 +110,8 @@ input, or generator, then regenerate every affected major.
   protobuf decoders.
 - `generate_owned_ast.py`: owned records, node variants, vectors, optionals,
   cleanup, and arena materialization support.
+- `generate_owned_visitors.py`: exhaustive typed traversal hooks and walk logic
+  for the owned records.
 - `generate_owned_parser.py`: production native-builder-to-owned parsing.
 - `generate_owned_equivalence.py`: test-only baseline and exhaustive owned
   comparison.

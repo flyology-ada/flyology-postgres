@@ -57,6 +57,69 @@ begin
 end;
 ```
 
+### Generated visitors
+
+Each owned version has a generated visitor child package, for example
+`Flyology.Postgres.SQL.AST.V18.Visitors`. Derive a state-bearing type from
+`Visitor` and override only the typed hooks of interest. `Traverse` performs a
+depth-first walk in protobuf field order and follows every present message
+field and every message element of a typed vector.
+
+```ada
+with Flyology.Postgres.SQL.AST.V18;
+with Flyology.Postgres.SQL.AST.V18.Visitors;
+
+declare
+   package AST renames Flyology.Postgres.SQL.AST.V18;
+   package Visitors renames Flyology.Postgres.SQL.AST.V18.Visitors;
+
+   type Select_Counter is new Visitors.Visitor with record
+      Selects : Natural := 0;
+      Targets : Natural := 0;
+   end record;
+
+   overriding procedure Enter_Select_Stmt
+     (Self    : in out Select_Counter;
+      Item    : AST.Select_Stmt;
+      Control : in out Visitors.Traversal_Control);
+
+   overriding procedure Enter_Select_Stmt
+     (Self    : in out Select_Counter;
+      Item    : AST.Select_Stmt;
+      Control : in out Visitors.Traversal_Control)
+   is
+      pragma Unreferenced (Control);
+   begin
+      Self.Selects := Self.Selects + 1;
+      Self.Targets := Self.Targets + Natural (Item.Target_List.Length);
+   end Enter_Select_Stmt;
+
+   Tree    : AST.Owned_Syntax_Tree;
+   Counter : Select_Counter;
+begin
+   AST.Parse
+     ("WITH q AS (SELECT id FROM events) SELECT id FROM q", Tree);
+   if Tree.Valid then
+      Visitors.Traverse (Counter, Tree);
+   end if;
+end;
+```
+
+Every reachable protobuf message has matching generated `Enter_*` and
+`Leave_*` hooks. `Enter_Node` and `Leave_Node` provide a common hook around the
+discriminated `Node` wrapper; the concrete hook, such as
+`Enter_Select_Stmt`, runs inside it. An enter hook receives
+`Continue_Traversal` initially and may set `Skip_Children` to prune that
+message's descendants or `Stop_Traversal` to end the entire walk. A skipped
+message still receives its leave hook; a stopped traversal does not unwind
+leave hooks.
+
+Visitors borrow the object graph and never take ownership. Their callbacks
+must not free, graft, or mutate access values. Traversal assumes the
+parser-produced acyclic graph remains intact for the call; references remain
+subject to the owning `Owned_Syntax_Tree` lifetime. Exceptions raised by a
+callback propagate immediately and do not guarantee balanced leave hooks.
+
 `AST.Parse` is the sole owned parser entry point. It writes from the native
 semantic builder directly to the owned records and never constructs an
 intermediate shallow arena. Arena materialization and exhaustive structural
@@ -186,7 +249,7 @@ SHA-256 values and source URLs are recorded under `catalog/v*/UPSTREAM.toml`.
 
 ## Reproducible generation
 
-The generated `V14`–`V18` units are never edited by hand. Seven generators form
+The generated `V14`–`V18` units are never edited by hand. Eight generators form
 the parser and AST toolchain:
 
 - `generate_native_parser.py` extracts the version's Bison tables and token
@@ -203,6 +266,8 @@ the parser and AST toolchain:
 - `generate_owned_ast.py` uses that same reachable schema to emit every owned
   record, discriminated node variant, optional and vector type, arena-to-record
   converter, and graph finalizer for `AST.V14` through `AST.V18`.
+- `generate_owned_visitors.py` emits exhaustive depth-first owned-AST visitors,
+  typed enter/leave hooks, and pruning/stop control for every reachable message.
 - `generate_owned_parser.py` combines the protobuf schema with Clang-derived
   PostgreSQL node and enum definitions to emit the private-builder-to-owned
   converter for every reachable message and all five majors.
@@ -231,6 +296,11 @@ python3 tools/generate_types.py \
   --output src
 
 python3 tools/generate_owned_ast.py \
+  --major 18 \
+  --proto backends/v18/vendor/pg_query.proto \
+  --output src
+
+python3 tools/generate_owned_visitors.py \
   --major 18 \
   --proto backends/v18/vendor/pg_query.proto \
   --output src
@@ -285,9 +355,10 @@ cd sql/tests
 
 The tests cover the native scanner, parser tables, semantic builder and
 generated reductions; every protobuf scalar encoding and malformed wire case
-used by the oracle; all five shallow and owned typed roots; field notation,
-optionals, vectors, nested owned nodes, enum fields, ownership replacement, and
-diagnostics. Each owned result is exhaustively compared with the test-only
+used by the oracle; all five shallow and owned typed roots; generated visitors,
+typed callbacks, pruning and stopping; field notation, optionals, vectors,
+nested owned nodes, enum fields, ownership replacement, and diagnostics. Each
+owned result is exhaustively compared with the test-only
 arena-materialized baseline, which is itself checked against the version-pinned
 C oracle. The differential corpus
 includes empty and multi-statement inputs, quoted identifiers, Unicode,
