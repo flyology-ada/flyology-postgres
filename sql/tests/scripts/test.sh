@@ -78,30 +78,70 @@ trap cleanup_generator_checks EXIT
 trap stop_generator_checks HUP INT TERM
 
 generator_check_status=0
+generator_check_parallel=${FLYOLOGY_SQL_GENERATOR_CHECK_PARALLEL:-1}
 
-python3 ../tools/generate_native_actions.py \
-  --all \
-  --vendor-root ../backends \
-  --output ../src \
-  --check \
-  --audit \
-  >"$generator_check_dir/actions.log" 2>&1 &
-printf '%s\n' "$!" >"$generator_check_dir/actions.pid"
+case "$generator_check_parallel" in
+  0|1)
+    ;;
+  *)
+    echo "FLYOLOGY_SQL_GENERATOR_CHECK_PARALLEL must be 0 or 1" >&2
+    exit 2
+    ;;
+esac
+
+start_generator_check() {
+  name=$1
+  shift
+
+  "$@" >"$generator_check_dir/$name.log" 2>&1 &
+  printf '%s\n' "$!" >"$generator_check_dir/$name.pid"
+
+  if [ "$generator_check_parallel" -eq 0 ]; then
+    pid=$(sed -n '1p' "$generator_check_dir/$name.pid")
+    if wait "$pid"; then
+      status=0
+    else
+      status=$?
+    fi
+    printf '%s\n' "$status" >"$generator_check_dir/$name.status"
+    rm -f "$generator_check_dir/$name.pid"
+  fi
+}
+
+finish_generator_check() {
+  name=$1
+
+  if [ -f "$generator_check_dir/$name.status" ]; then
+    finished_status=$(sed -n '1p' "$generator_check_dir/$name.status")
+    rm -f "$generator_check_dir/$name.status"
+  else
+    pid=$(sed -n '1p' "$generator_check_dir/$name.pid")
+    if wait "$pid"; then
+      finished_status=0
+    else
+      finished_status=$?
+    fi
+    rm -f "$generator_check_dir/$name.pid"
+  fi
+}
+
+start_generator_check actions \
+  python3 ../tools/generate_native_actions.py \
+    --all \
+    --vendor-root ../backends \
+    --output ../src \
+    --check \
+    --audit
 
 for version in 14 15 16 17 18; do
-  check_generated_version "$version" \
-    >"$generator_check_dir/v$version.log" 2>&1 &
-  printf '%s\n' "$!" >"$generator_check_dir/v$version.pid"
+  start_generator_check "v$version" check_generated_version "$version"
 done
 
-actions_pid=$(sed -n '1p' "$generator_check_dir/actions.pid")
-if wait "$actions_pid"; then
-  actions_status=0
-else
-  actions_status=$?
+finish_generator_check actions
+actions_status=$finished_status
+if [ "$actions_status" -ne 0 ]; then
   generator_check_status=1
 fi
-rm -f "$generator_check_dir/actions.pid"
 
 printf '\n== Shared PostgreSQL semantic action generator check ==\n'
 cat "$generator_check_dir/actions.log"
@@ -111,15 +151,11 @@ if [ "$actions_status" -ne 0 ]; then
 fi
 
 for version in 14 15 16 17 18; do
-  pid_file="$generator_check_dir/v$version.pid"
-  pid=$(sed -n '1p' "$pid_file")
-  if wait "$pid"; then
-    version_status=0
-  else
-    version_status=$?
+  finish_generator_check "v$version"
+  version_status=$finished_status
+  if [ "$version_status" -ne 0 ]; then
     generator_check_status=1
   fi
-  rm -f "$pid_file"
 
   printf '\n== PostgreSQL %s generator checks ==\n' "$version"
   cat "$generator_check_dir/v$version.log"
