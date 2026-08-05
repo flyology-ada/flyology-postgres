@@ -1,4 +1,4 @@
-with "../config/sql_config.gpr";
+with "backend_config.gpr";
 project Backend_16 is
 
    for Languages use ("C");
@@ -14,7 +14,7 @@ project Backend_16 is
    for Library_Dir use "lib";
    for Library_Kind use "relocatable";
 
-   case Sql_Config.Alire_Host_OS is
+   case Backend_Config.Host_OS is
       when "macos" =>
          for Library_Options use
            ("-Wl,-unexported_symbols_list," & Project'Project_Dir & "runtime_hidden.macos");

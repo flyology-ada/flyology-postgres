@@ -22,3 +22,12 @@ aunit = "^26.0.0"
 [[actions]]
 type = "test"
 command = ["./scripts/test.sh"]
+
+[environment.'case(os)'.macos]
+FLYOLOGY_POSTGRES_SQL_BACKEND_OS.set = "macos"
+
+[environment.'case(os)'.windows]
+FLYOLOGY_POSTGRES_SQL_BACKEND_OS.set = "windows"
+
+[environment.'case(os)'.'...']
+FLYOLOGY_POSTGRES_SQL_BACKEND_OS.set = "unix"

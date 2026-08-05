@@ -1,0 +1,7 @@
+abstract project Backend_Config is
+
+   type Host_OS_Kind is ("macos", "windows", "unix");
+   Host_OS : Host_OS_Kind :=
+     external ("FLYOLOGY_POSTGRES_SQL_BACKEND_OS", "unix");
+
+end Backend_Config;
