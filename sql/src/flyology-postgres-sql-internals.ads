@@ -33,6 +33,9 @@ private package Flyology.Postgres.SQL.Internals is
    function Only_Field_Name (Tree : Syntax_Tree; Object : Value_Id) return String;
    function Only_Field_Value (Tree : Syntax_Tree; Object : Value_Id) return Value_Id;
 
+   function Equivalent (Left, Right : Syntax_Tree) return Boolean;
+   function First_Difference (Left, Right : Syntax_Tree) return String;
+
 private
 
    type Sequence_Id is new Value_Id;

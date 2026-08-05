@@ -3,10 +3,18 @@ postgresql_release = "14.6"
 libpg_query_release = "3.0.0"
 libpg_query_makefile_release = "3.0.0"
 archive_sha256 = "59c5cd6d41e36e3f5c9d1179b40190c5429045e211a29527e8500f93a9a75f78"
+postgresql_archive_sha256 = "aceda0f908b94a47e14cbb467bb4ac619400d03246b7b0605683e11157fbd480"
 source = "https://github.com/pganalyze/libpg_query"
 postgresql_source = "https://ftp.postgresql.org/pub/source/v14.6/"
 included_components = [
   "raw PostgreSQL parser extraction",
+  "native_source/backend/parser/gram.y",
+  "native_source/backend/parser/scan.l",
+  "native_source/backend/parser/parser.c",
+  "native_source/COPYRIGHT",
+  "native_source/include/parser/kwlist.h",
+  "native_source/include/parser/scanner.h",
+  "native_source/include/parser/scansup.h",
   "src/pg_query_outfuncs_protobuf.c",
   "pg_query.proto",
   "protobuf/pg_query.pb-c.c",

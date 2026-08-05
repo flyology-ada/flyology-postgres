@@ -3,6 +3,8 @@ with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with AUnit.Assertions; use AUnit.Assertions;
 with Flyology.Postgres.SQL;
 with Flyology.Postgres.SQL.Decoder_Testing;
+with Flyology.Postgres.SQL.Differential_Testing;
+with Flyology.Postgres.SQL.Native_Testing;
 with Flyology.Postgres.SQL.V14;
 with Flyology.Postgres.SQL.V15;
 with Flyology.Postgres.SQL.V16;
@@ -339,8 +341,12 @@ procedure SQL_Tests is
    end Test_Catalog_Types;
 
 begin
+   Ada.Text_IO.Put_Line ("Test_Native_Parser_Runtime");
+   Flyology.Postgres.SQL.Native_Testing.Run;
    Ada.Text_IO.Put_Line ("Test_Protobuf_Wire_Decoder");
    Flyology.Postgres.SQL.Decoder_Testing.Run;
+   Ada.Text_IO.Put_Line ("Test_Native_C_Differential");
+   Flyology.Postgres.SQL.Differential_Testing.Run;
    Ada.Text_IO.Put_Line ("Test_Common_Syntax");
    Test_Common_Syntax;
    Ada.Text_IO.Put_Line ("Test_Protobuf_Corpus");

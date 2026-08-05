@@ -218,9 +218,11 @@ def parse_makefile(source: Path) -> tuple[str, str]:
 
 def import_version(
     source: Path,
+    postgres_source: Path | None,
     destination: Path,
     major: int,
     archive: Path | None,
+    postgres_archive: Path | None,
     release: str | None,
 ) -> None:
     pg_version, makefile_version = parse_makefile(source)
@@ -229,8 +231,9 @@ def import_version(
         raise ValueError(f"{source} contains PostgreSQL {pg_version}, expected {major}")
 
     previous_hash = "not-recorded"
+    previous_postgres_hash = "not-recorded"
     previous_provenance = destination / "UPSTREAM.toml"
-    if archive is None and previous_provenance.exists():
+    if previous_provenance.exists():
         match = re.search(
             r'^archive_sha256\s*=\s*"([^"]+)"',
             previous_provenance.read_text(),
@@ -238,6 +241,13 @@ def import_version(
         )
         if match:
             previous_hash = match.group(1)
+        postgres_match = re.search(
+            r'^postgresql_archive_sha256\s*=\s*"([^"]+)"',
+            previous_provenance.read_text(),
+            re.MULTILINE,
+        )
+        if postgres_match:
+            previous_postgres_hash = postgres_match.group(1)
 
     if destination.exists():
         shutil.rmtree(destination)
@@ -313,6 +323,31 @@ def import_version(
             snprintf.write_text(text.replace(marker, shim + marker, 1))
     shutil.copy2(source / "protobuf" / "pg_query.proto", destination / "pg_query.proto")
 
+    if postgres_source is not None:
+        configure_source = postgres_source / "configure.ac"
+        configure_match = re.search(
+            r"AC_INIT\(\[PostgreSQL\],\s*\[([^]]+)\]",
+            configure_source.read_text() if configure_source.exists() else "",
+        )
+        if not configure_match or configure_match.group(1) != pg_version:
+            raise ValueError(
+                f"{postgres_source} is not the PostgreSQL {pg_version} source tree"
+            )
+        native_source = destination / "native_source"
+        (native_source / "backend" / "parser").mkdir(parents=True)
+        (native_source / "include" / "parser").mkdir(parents=True)
+        shutil.copy2(postgres_source / "COPYRIGHT", native_source / "COPYRIGHT")
+        for name in ("gram.y", "scan.l", "parser.c"):
+            shutil.copy2(
+                postgres_source / "src" / "backend" / "parser" / name,
+                native_source / "backend" / "parser" / name,
+            )
+        for name in ("kwlist.h", "scanner.h", "scansup.h"):
+            shutil.copy2(
+                postgres_source / "src" / "include" / "parser" / name,
+                native_source / "include" / "parser" / name,
+            )
+
     # PL/pgSQL is a separate language parser and is intentionally outside this
     # crate.  Its extracted objects also pull in catalog-analysis helpers that
     # the raw SQL parser does not use.
@@ -332,16 +367,27 @@ def import_version(
     (destination / f"flyology_pg{major}_wrapper.c").write_text(wrapper(major, has_options))
 
     archive_hash = digest(archive) if archive else previous_hash
+    postgres_archive_hash = (
+        digest(postgres_archive) if postgres_archive else previous_postgres_hash
+    )
     (destination / "UPSTREAM.toml").write_text(
         f'''postgresql_major = {major}
 postgresql_release = "{pg_version}"
 libpg_query_release = "{extraction_version}"
 libpg_query_makefile_release = "{makefile_version}"
 archive_sha256 = "{archive_hash}"
+postgresql_archive_sha256 = "{postgres_archive_hash}"
 source = "https://github.com/pganalyze/libpg_query"
 postgresql_source = "https://ftp.postgresql.org/pub/source/v{pg_version}/"
 included_components = [
   "raw PostgreSQL parser extraction",
+  "native_source/backend/parser/gram.y",
+  "native_source/backend/parser/scan.l",
+  "native_source/backend/parser/parser.c",
+  "native_source/COPYRIGHT",
+  "native_source/include/parser/kwlist.h",
+  "native_source/include/parser/scanner.h",
+  "native_source/include/parser/scansup.h",
   "src/pg_query_outfuncs_protobuf.c",
   "pg_query.proto",
   "protobuf/pg_query.pb-c.c",
@@ -365,8 +411,10 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--major", type=int, choices=VERSIONS, required=True)
     parser.add_argument("--source", type=Path, required=True)
+    parser.add_argument("--postgres-source", type=Path, required=True)
     parser.add_argument("--destination", type=Path, required=True)
     parser.add_argument("--archive", type=Path)
+    parser.add_argument("--postgres-archive", type=Path)
     parser.add_argument(
         "--libpg-query-release",
         help="release tag used for the archive (some historical Makefiles are stale)",
@@ -374,9 +422,11 @@ def main() -> None:
     args = parser.parse_args()
     import_version(
         args.source.resolve(),
+        args.postgres_source.resolve() if args.postgres_source else None,
         args.destination.resolve(),
         args.major,
         args.archive,
+        args.postgres_archive,
         args.libpg_query_release,
     )
 

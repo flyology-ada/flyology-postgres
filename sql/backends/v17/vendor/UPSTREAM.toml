@@ -3,10 +3,18 @@ postgresql_release = "17.7"
 libpg_query_release = "6.2.2"
 libpg_query_makefile_release = "6.2.2"
 archive_sha256 = "e68962c18dbf5890821511be6c5c42261170bf8bfd51a82ea9176069f3d0df8b"
+postgresql_archive_sha256 = "4a9e94204e265b292b0b36534c38543f24f9d96f5413ceac489ef053082ae752"
 source = "https://github.com/pganalyze/libpg_query"
 postgresql_source = "https://ftp.postgresql.org/pub/source/v17.7/"
 included_components = [
   "raw PostgreSQL parser extraction",
+  "native_source/backend/parser/gram.y",
+  "native_source/backend/parser/scan.l",
+  "native_source/backend/parser/parser.c",
+  "native_source/COPYRIGHT",
+  "native_source/include/parser/kwlist.h",
+  "native_source/include/parser/scanner.h",
+  "native_source/include/parser/scansup.h",
   "src/pg_query_outfuncs_protobuf.c",
   "pg_query.proto",
   "protobuf/pg_query.pb-c.c",

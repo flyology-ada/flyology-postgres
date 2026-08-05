@@ -1,9 +1,10 @@
 # Flyology PostgreSQL SQL
 
-`flyology_postgres_sql` is a versioned binding to PostgreSQL's real raw SQL
-parser for PostgreSQL 14 through 18. Each major has an isolated native parser,
-a generated Ada 2022 syntax-tree API, and generated built-in type metadata.
-Consumer builds use checked-in source and do not access the network.
+`flyology_postgres_sql` contains a native Ada implementation of PostgreSQL's
+raw SQL parser for PostgreSQL 14 through 18. Each major has generated scanner
+tables, parser tables, semantic reductions, schema metadata, an Ada 2022
+syntax-tree API, and built-in type metadata. Consumer builds use checked-in
+source and do not access the network.
 
 ## Shallow Ada syntax trees
 
@@ -87,10 +88,52 @@ interpretation. PostgreSQL 15–18 support the parser-mode and lexer-GUC fields 
 `Supports_Parse_Options` reports this, and non-default options raise
 `Unsupported_Parse_Options` instead of being silently ignored.
 
-The native boundary keeps PostgreSQL's protobuf buffer alive only while the
-generated, schema-aware Ada decoder copies it into the flat arena. Cleanup is
-exception-safe. Protobuf bytes, C pointers, native ownership, and arena
+Normal parsing is entirely Ada: it does not call `libpg_query`, serialize
+protobuf, or cross a C boundary. The isolated C backends remain private test
+oracles. They parse the same corpus through PostgreSQL and protobuf so the test
+suite can compare the two logical arenas exactly, including field presence and
+diagnostic positions. Protobuf bytes, C pointers, native ownership, and arena
 identifiers are not part of the public API.
+
+## Native parser architecture
+
+The production pipeline is:
+
+```text
+SQL text
+  -> generated Flex DFA scanner
+  -> generated Bison LALR tables
+  -> generated Ada semantic reductions
+  -> private flat semantic arena
+  -> generated protobuf-schema mapping
+  -> public Syntax_Tree arena and shallow views
+```
+
+The scanner implements PostgreSQL's start conditions, longest-match behavior,
+keywords, lookahead filters, comments, quoted and Unicode identifiers, ordinary
+and escape strings, dollar quoting, parameters, operators, and numeric forms.
+The parser runtime applies the checked-in version's LALR tables and generated
+reductions. Semantic values are stored in a private flat builder; recursive
+grammar relationships therefore do not allocate an Ada object graph. A
+schema-driven converter maps those values to the same logical arena shape as
+the former protobuf decoder.
+
+The validation-only pipeline is:
+
+```text
+the same SQL text
+  -> isolated version-pinned libpg_query/PostgreSQL backend
+  -> protobuf wire bytes
+  -> generated Ada protobuf decoder
+  -> oracle Syntax_Tree arena
+  -> structural comparison with the native result
+```
+
+The comparison is member-order independent for objects and order sensitive for
+sequences. It preserves scalar kinds, enum values, omitted fields, array
+contents, parse validity, diagnostics, and cursor positions. The C result and
+its protobuf buffer are freed on every path after the oracle tree has copied
+the data.
 
 ## Catalog types
 
@@ -105,12 +148,27 @@ SHA-256 values and source URLs are recorded under `catalog/v*/UPSTREAM.toml`.
 
 ## Reproducible generation
 
-The generated `V14`–`V18` specs and bodies are never edited by hand.
-`tools/generate_ada.py` reads each checked-in `pg_query.proto`, computes every
-message and enum reachable from `ParseResult` and `Node`, and emits both the
-public references/views/optionals/sequences and the private protobuf decoder.
-The schema model retains wire field numbers, scalar encodings, repetitions,
-oneof membership, message edges, enum numbers, and JSON field names. The type generator reads
+The generated `V14`–`V18` units are never edited by hand. Four generators form
+the parser and AST toolchain:
+
+- `generate_native_parser.py` extracts the version's Bison tables and token
+  numbers, exact Flex DFA tables and actions, start conditions, and keyword
+  table.
+- `generate_native_actions.py` reads Clang's JSON AST for the extracted parser
+  and PostgreSQL constructors, then translates every reachable grammar
+  reduction into Ada. Its audit rejects unsupported C constructs.
+- `generate_native_schema.py` combines `pg_query.proto` with PostgreSQL node and
+  enum definitions to generate the semantic-arena-to-public-arena mapping.
+- `generate_ada.py` reads `pg_query.proto`, computes every message and enum
+  reachable from `ParseResult` and `Node`, and emits the public shallow views
+  and the private protobuf decoder used by the C oracle.
+
+The native tables and reductions come from the exact generated `gram.c` and
+`scan.c` shipped by the pinned `libpg_query` extraction, including its required
+PostgreSQL patches. The corresponding official PostgreSQL `gram.y`, `scan.l`,
+parser support file, scanner headers, and keyword list are also checked in for
+source-level audit and provenance. `pg_query.proto` remains the single source
+of truth for the externally observable AST schema. The type generator reads
 checked-in `pg_type.dat`.
 
 ```sh
@@ -123,28 +181,55 @@ python3 tools/generate_types.py \
   --major 18 \
   --catalog catalog/v18/pg_type.dat \
   --output src
+
+python3 tools/generate_native_parser.py \
+  --major 18 \
+  --vendor backends/v18/vendor \
+  --output src
+
+python3 tools/generate_native_actions.py \
+  --major 18 \
+  --vendor backends/v18/vendor \
+  --output src \
+  --audit
+
+python3 tools/generate_native_schema.py \
+  --major 18 \
+  --proto backends/v18/vendor/pg_query.proto \
+  --version-header backends/v18/vendor/pg_query.h \
+  --vendor backends/v18/vendor \
+  --output src
 ```
 
-Both generators accept `--check`; the test action checks deterministic output
-for all five versions before compiling and running the traversal tests.
+All parser/AST generators accept `--check`; the test action checks deterministic
+output for all five versions before compiling and running traversal and
+differential tests.
 
 `tools/import_upstream.py` imports a pinned `libpg_query` release, removes
-unrelated entry points, adds the version-prefixed wrapper, and records source
-and archive provenance. `tools/import_catalog.py` verifies PostgreSQL's
-published SHA-256 before extracting catalog definitions. The PostgreSQL and
+unrelated entry points, adds the version-prefixed oracle wrapper, imports the
+minimal official PostgreSQL grammar/scanner source set, and records both source
+archive hashes. `tools/import_catalog.py` verifies PostgreSQL's published
+SHA-256 before extracting catalog definitions. The PostgreSQL and
 `libpg_query` license files are retained with each imported backend.
 
 ## Testing
 
 ```sh
-cd tests
-alr -n test
+cd sql/tests
+./scripts/test.sh
 ```
 
-The tests cover every protobuf scalar encoding, malformed wire data, all five
-typed roots, field notation, optionals, sequences, nested references, enum
-fields, diagnostics, Unicode and quoted SQL, version-specific syntax, catalog
-metadata, and representative SELECT, CTE, join, expression, MERGE, DDL, and
-utility nodes. The SQL crate and generated units compile with strict Ada 2022
-switches. The one-time JSON/protobuf migration differential and its corpus are
+The tests cover the native scanner, parser tables, semantic builder and
+generated reductions; every protobuf scalar encoding and malformed wire case
+used by the oracle; all five typed roots; field notation, optionals, sequences,
+nested references, enum fields, and diagnostics. The differential corpus
+includes empty and multi-statement inputs, quoted identifiers, Unicode,
+comments, dollar and escape strings, embedded NUL rejection, invalid SQL, and
+representative SELECT, CTE, join, expression, MERGE, DML, DDL, and utility
+statements across all applicable majors. The SQL crate and generated units
+compile with strict Ada 2022 switches. The earlier JSON/protobuf migration is
 recorded in `tests/PROTOBUF_MIGRATION.md`.
+
+This is the Phase 1 output: the native parser populates the existing limited,
+arena-owning `Syntax_Tree` and its public shallow record views. A separate,
+fully owned recursive Ada record AST is deliberately outside this phase.
