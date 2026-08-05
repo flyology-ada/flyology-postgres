@@ -3,6 +3,8 @@ with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Text_IO;
 with AUnit.Assertions; use AUnit.Assertions;
 with Flyology.Bytes;
+with Flyology.IO.TLS;
+with Flyology.IO.TLS.OpenSSL;
 with Flyology.Postgres.Client;
 with Flyology.Postgres.Protocol;
 with Flyology.Postgres.SCRAM;
@@ -34,7 +36,8 @@ procedure Tests is
    use type Client.Operation_State;
    use type Ada.Streams.Stream_Element_Array;
 
-   type Memory_Transport is limited new Transports.Transport with record
+   type Memory_Transport is
+     limited new Transports.TLS_Upgradable_Transport with record
       Input  : Flyology.Bytes.Unbounded_Bytes;
       Output : Flyology.Bytes.Unbounded_Bytes;
       Next   : Natural := 1;
@@ -49,6 +52,12 @@ procedure Tests is
      (Item    : in out Memory_Transport;
       Data    : Ada.Streams.Stream_Element_Array;
       Timeout : Duration);
+
+   overriding procedure Upgrade_TLS
+     (Item        : in out Memory_Transport;
+      Backend     : in out Flyology.IO.TLS.Provider'Class;
+      Server_Name : String;
+      Timeout     : Duration);
 
    overriding procedure Receive_Exactly
      (Item    : in out Memory_Transport;
@@ -77,6 +86,16 @@ procedure Tests is
    begin
       Flyology.Bytes.Append (Item.Output, Data);
    end Send_All;
+
+   overriding procedure Upgrade_TLS
+     (Item        : in out Memory_Transport;
+      Backend     : in out Flyology.IO.TLS.Provider'Class;
+      Server_Name : String;
+      Timeout     : Duration) is
+      pragma Unreferenced (Item, Backend, Server_Name, Timeout);
+   begin
+      raise Program_Error with "unexpected memory transport TLS upgrade";
+   end Upgrade_TLS;
 
    procedure Queue
      (Item : in out Memory_Transport; Message : Protocol.Message) is
@@ -125,6 +144,48 @@ procedure Tests is
         (Protocol.Kind (Initial) = Protocol.SSL_Request,
          "SSLRequest round-trips through initial packet decoding");
    end Test_SSL_Request;
+
+   procedure Test_TLS_Refusal_Is_Terminal is
+      package OpenSSL renames Flyology.IO.TLS.OpenSSL;
+      Backend : OpenSSL.OpenSSL_Provider;
+      Channel : aliased Memory_Transport;
+      Session : Client.Session (Channel'Access);
+      Refused : Boolean := False;
+      Retry_Rejected : Boolean := False;
+   begin
+      Flyology.Bytes.Append
+        (Channel.Input,
+         (1 => Protocol.Byte (Character'Pos ('N'))));
+      begin
+         Client.Startup_TLS
+           (Session,
+            Backend,
+            Server_Name => "db.example.com",
+            User        => "tester",
+            Timeout     => 1.0);
+      exception
+         when Client.TLS_Not_Available =>
+            Refused := True;
+      end;
+      Assert (Refused, "TLS refusal raises TLS_Not_Available");
+      Assert
+        (Client.State (Session) = Client.Closed,
+         "TLS refusal permanently closes the session state");
+      Assert
+        (Flyology.Bytes.To_Array (Channel.Output) =
+           Protocol.Encode_SSL_Request,
+         "TLS refusal sends no plaintext startup packet");
+
+      begin
+         Client.Startup (Session, User => "tester", Timeout => 1.0);
+      exception
+         when Program_Error =>
+            Retry_Rejected := True;
+      end;
+      Assert
+        (Retry_Rejected,
+         "TLS-refused sessions cannot retry startup in plaintext");
+   end Test_TLS_Refusal_Is_Terminal;
 
    procedure Test_Message is
       Contents : Flyology.Bytes.Unbounded_Bytes;
@@ -1558,6 +1619,7 @@ procedure Tests is
 begin
    Test_Startup;
    Test_SSL_Request;
+   Test_TLS_Refusal_Is_Terminal;
    Test_Message;
    Test_All_Frontend_Commands;
    Test_Malformed_String;

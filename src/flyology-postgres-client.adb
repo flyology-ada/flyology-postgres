@@ -338,22 +338,28 @@ package body Flyology.Postgres.Client is
            "Postgres transport does not support TLS upgrade";
       end if;
 
-      Framing.Write_Packet
-        (Item.Channel.all, Protocol.Encode_SSL_Request, Timeout);
-      Item.Channel.Receive_Exactly (Response, Timeout);
-      if Response (Response'First) /=
-        Protocol.Byte (Character'Pos ('S'))
-      then
-         raise TLS_Not_Available with "Postgres server refused TLS";
-      end if;
+      begin
+         Framing.Write_Packet
+           (Item.Channel.all, Protocol.Encode_SSL_Request, Timeout);
+         Item.Channel.Receive_Exactly (Response, Timeout);
+         if Response (Response'First) /=
+           Protocol.Byte (Character'Pos ('S'))
+         then
+            raise TLS_Not_Available with "Postgres server refused TLS";
+         end if;
 
-      Transports.Upgrade_TLS
-        (Transports.TLS_Upgradable_Transport'Class (Item.Channel.all),
-         Backend,
-         Server_Name,
-         Timeout);
-      Complete_Startup
-        (Item, User, Database, Password, Application_Name, Timeout);
+         Transports.Upgrade_TLS
+           (Transports.TLS_Upgradable_Transport'Class (Item.Channel.all),
+            Backend,
+            Server_Name,
+            Timeout);
+         Complete_Startup
+           (Item, User, Database, Password, Application_Name, Timeout);
+      exception
+         when others =>
+            Item.Current_State := Closed;
+            raise;
+      end;
    end Startup_TLS;
 
    procedure Send_Command
