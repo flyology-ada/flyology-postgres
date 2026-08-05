@@ -1,6 +1,15 @@
 with "backend_config.gpr";
 project Backend_14 is
 
+   Common_Compiler_Switches :=
+     ("-O2", "-g", "-std=gnu99", "-fPIC", "-fvisibility=hidden",
+      "-fno-strict-aliasing", "-fwrapv", "-Wall",
+      "-Wno-unused-function", "-Wno-unused-value", "-Wno-unused-variable",
+      "-I" & Project'Project_Dir & "v14/vendor",
+      "-I" & Project'Project_Dir & "v14/vendor/vendor",
+      "-I" & Project'Project_Dir & "v14/vendor/src/include",
+      "-I" & Project'Project_Dir & "v14/vendor/src/postgres/include");
+
    for Languages use ("C");
    for Source_Dirs use
      ("v14/vendor",
@@ -26,14 +35,13 @@ project Backend_14 is
    end case;
 
    package Compiler is
-      for Default_Switches ("C") use
-        ("-O2", "-g", "-std=gnu99", "-fPIC", "-fvisibility=hidden",
-         "-fno-strict-aliasing", "-fwrapv", "-Wall",
-         "-Wno-unused-function", "-Wno-unused-value", "-Wno-unused-variable",
-         "-I" & Project'Project_Dir & "v14/vendor",
-         "-I" & Project'Project_Dir & "v14/vendor/vendor",
-         "-I" & Project'Project_Dir & "v14/vendor/src/include",
-         "-I" & Project'Project_Dir & "v14/vendor/src/postgres/include");
+      case Backend_Config.Host_OS is
+         when "unix" =>
+            for Default_Switches ("C") use
+              Common_Compiler_Switches & ("-DHAVE_STRCHRNUL");
+         when others =>
+            for Default_Switches ("C") use Common_Compiler_Switches;
+      end case;
    end Compiler;
 
 end Backend_14;
