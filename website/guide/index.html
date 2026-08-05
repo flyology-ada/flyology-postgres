@@ -60,7 +60,7 @@
             <li><a href="#copy">Stream COPY</a></li>
             <li><a href="#cancel">Cancel work</a></li>
             <li><a href="#server">Build a server</a></li>
-            <li><a href="#parse-sql">Parse SQL</a></li>
+            <li><a href="#parse-sql">Parse and transform SQL</a></li>
             <li><a href="#examples">Run the examples</a></li>
             <li><a href="#boundaries">Boundaries</a></li>
           </ol>
@@ -266,7 +266,7 @@ end;
 
           <section id="parse-sql">
             <span class="step-label">STEP 09</span>
-            <h2>Parse SQL into versioned Ada records.</h2>
+            <h2>Parse, analyze, and transform SQL.</h2>
             <p>The separate <code>flyology_postgres_sql</code> crate parses PostgreSQL 14 through 18 syntax with a native Ada parser generated from each pinned upstream grammar. Choose the package matching the PostgreSQL major whose syntax you accept. For ordinary application code, use the owned AST package.</p>
             <figure class="code-panel">
               <figcaption>add the SQL parser crate</figcaption>
@@ -309,12 +309,99 @@ begin
    end if;
 end;</code></pre>
             </figure>
+            <h3>Walk the complete tree with a generated visitor.</h3>
+            <p>Each versioned owned AST has a matching <code>Visitors</code> child package. Derive a visitor with the state your analysis needs, then override only the typed hooks that contribute to it. Traversal follows every present child and every message element of a typed vector.</p>
+            <figure class="code-panel">
+              <figcaption>count SELECT statements and target expressions</figcaption>
+              <button class="copy-button" type="button" data-copy>Copy</button>
+              <pre><code class="language-ada">with Flyology.Postgres.SQL.AST.V18;
+with Flyology.Postgres.SQL.AST.V18.Visitors;
+
+declare
+   package AST renames Flyology.Postgres.SQL.AST.V18;
+   package Visitors renames Flyology.Postgres.SQL.AST.V18.Visitors;
+
+   type Analysis is new Visitors.Visitor with record
+      Selects : Natural := 0;
+      Targets : Natural := 0;
+   end record;
+
+   overriding procedure Enter_Select_Stmt
+     (Self    : in out Analysis;
+      Item    : AST.Select_Stmt;
+      Control : in out Visitors.Traversal_Control)
+   is
+      pragma Unreferenced (Control);
+   begin
+      Self.Selects := Self.Selects + 1;
+      Self.Targets := Self.Targets + Natural (Item.Target_List.Length);
+   end Enter_Select_Stmt;
+
+   Tree   : AST.Owned_Syntax_Tree;
+   Report : Analysis;
+begin
+   AST.Parse
+     ("WITH q AS (SELECT id FROM events) SELECT id FROM q",
+      Tree);
+
+   if Tree.Valid then
+      Visitors.Traverse (Report, Tree);
+   end if;
+end;</code></pre>
+            </figure>
+            <p>An enter hook may set <code>Skip_Children</code> when descendants cannot add useful facts, or <code>Stop_Traversal</code> when the analysis has its answer. Matching <code>Leave_*</code> hooks support scopes, stacks, and post-order summaries.</p>
+
+            <h3>Plan transformations during traversal, apply them afterward.</h3>
+            <p>Visitor callback records are borrowed, read-only views of the owned graph. For a safe rewrite, collect child access values in visitor state, finish the traversal, then mutate scalar payloads through those references. This keeps vectors and graph topology stable while the walker is active.</p>
+            <figure class="code-panel">
+              <figcaption>collect and redact owned string literals</figcaption>
+              <button class="copy-button" type="button" data-copy>Copy</button>
+              <pre><code class="language-ada">overriding procedure Enter_A_Const
+  (Self    : in out Rewrite_Planner;
+   Item    : AST.A_Const;
+   Control : in out Visitors.Traversal_Control)
+is
+   pragma Unreferenced (Control);
+begin
+   if Item.Sval.Present and then Item.Sval.Value /= null then
+      Self.String_Literals.Append (Item.Sval.Value);
+   end if;
+end Enter_A_Const;
+
+Visitors.Traverse (Plan, Tree);
+
+for Literal of Plan.String_Literals loop
+   if Literal.Sval.Present then
+      Literal.Sval.Value := To_Unbounded_String ("[redacted]");
+   end if;
+end loop;</code></pre>
+            </figure>
+            <aside class="callout">
+              <span class="callout-symbol" aria-hidden="true">!</span>
+              <p>References in an analysis or rewrite plan belong to their <code>Owned_Syntax_Tree</code>. Do not use them after clearing, reparsing, or finalizing that tree. Do not resize vectors, replace node discriminants, or graft objects from another owner while traversing.</p>
+            </aside>
+
+            <h3>Run the complete analysis and transformation examples.</h3>
+            <p>The repository includes strict Ada 2022 examples that count relations, joins, columns, and function calls, then demonstrate a two-pass relation rename and literal redaction.</p>
+            <figure class="code-panel">
+              <figcaption>build and run the SQL visitor examples</figcaption>
+              <button class="copy-button" type="button" data-copy>Copy</button>
+              <pre><code>cd sql/examples
+alr -n build
+./scripts/test.sh
+
+./bin/analyze_sql "SELECT count(*) FROM audit.events"</code></pre>
+            </figure>
+            <p><a href="https://github.com/flyology-ada/flyology-postgres/tree/main/sql/examples">Read the complete runnable visitor examples</a></p>
             <div class="decision-list">
               <dl>
                 <div class="decision-row"><dt>Owned AST</dt><dd><code>SQL.AST.V14</code> through <code>V18</code> expose records, typed vectors, enums, access values, and explicit <code>Present</code> discriminants. This is the default API.</dd></div>
+                <div class="decision-row"><dt>Visitors</dt><dd>Every reachable message has generated typed <code>Enter_*</code> and <code>Leave_*</code> hooks, plus pruning and early-stop controls.</dd></div>
+                <div class="decision-row"><dt>Transformations</dt><dd>Build a rewrite plan during traversal and apply it afterward. The in-memory AST changes, but <code>Source_Text</code> remains the original SQL.</dd></div>
                 <div class="decision-row"><dt>Lifetime</dt><dd><code>Owned_Syntax_Tree</code> controls the complete graph. Do not retain its access values after clearing, reparsing, or finalizing that tree.</dd></div>
                 <div class="decision-row"><dt>Shallow views</dt><dd><code>SQL.Views.V14</code> through <code>V18</code> avoid the recursive object graph. Use them only when allocation pressure justifies resolving opaque references against their owning <code>Syntax_Tree</code>.</dd></div>
                 <div class="decision-row"><dt>Diagnostics</dt><dd>A failed owned parse leaves <code>Tree.Valid</code> false and records the message and cursor position in the owning tree.</dd></div>
+                <div class="decision-row"><dt>SQL output</dt><dd>The crate currently has no deparser. Emit a separate target representation or pair the rewrite plan with a dedicated SQL printer when rewritten text is required.</dd></div>
               </dl>
             </div>
             <aside class="callout callout-teal">
