@@ -60,7 +60,16 @@ jobs:
           ./scripts/test.sh
       - name: Run SQL parser tests
         working-directory: sql/tests
-        run: ./scripts/test.sh
+        run: |
+          ./scripts/test.sh &
+          test_pid=$!
+          while kill -0 "$test_pid" 2>/dev/null; do
+            sleep 30
+            if kill -0 "$test_pid" 2>/dev/null; then
+              echo "SQL parser tests are still running..."
+            fi
+          done
+          wait "$test_pid"
       - name: Run pgish tests
         working-directory: examples/pgish
         run: |
