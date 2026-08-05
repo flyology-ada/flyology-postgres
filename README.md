@@ -91,7 +91,8 @@ count; zero means unlimited.
 startup and authentication. `Startup_TLS` first sends the exact Postgres
 `SSLRequest`, requires an `S` response without downgrade fallback, upgrades the same
 transport, verifies the server chain and DNS name through the selected Flyology TLS
-provider, and only then sends credentials. `Send_Query` followed by repeated
+provider, and only then sends credentials. Any negotiation or encrypted-startup
+failure permanently closes the session state. `Send_Query` followed by repeated
 `Receive_Query_Event` calls is the
 high-level simple-query path. It returns one owned event at a time rather than
 accumulating an unbounded result: each result set is a row description, zero or more
@@ -299,6 +300,9 @@ that capability at this dependency boundary.
 - TLS clients always verify the peer chain and DNS name because Flyology's shipped
   provider intentionally has no insecure client mode. The server does not yet request
   client certificates.
+- TLS uses PostgreSQL's traditional `SSLRequest` negotiation. PostgreSQL 17's
+  `sslnegotiation=direct` mode, which starts TLS immediately on the TCP connection,
+  is not implemented.
 - `Startup` and `Cancel` remain explicit plaintext APIs for trusted test or private
   networks. Use `Startup_TLS`, `Serve_TLS`, and `Cancel_TLS` when encryption is
   required. Cleartext-password authentication is safe only on an authenticated TLS

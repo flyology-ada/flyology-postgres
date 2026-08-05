@@ -47,8 +47,9 @@ package Flyology.Postgres.Server is
       Context       : aliased in out Handler_Context;
       Drain_Timeout : Duration := Flyology.IO.Infinite);
 
-   --  Serve with PostgreSQL direct TLS negotiation. Allowed accepts both TLS
-   --  and plaintext startup; Required rejects plaintext startup. Disabled is
+   --  Serve with PostgreSQL SSLRequest negotiation. Allowed accepts both TLS
+   --  and plaintext startup; Required rejects plaintext startup. PostgreSQL's
+   --  separate sslnegotiation=direct mode is not supported. Disabled is
    --  invalid here and is represented by the ordinary Serve overload.
    procedure Serve_TLS
      (Item          : aliased in out Server;

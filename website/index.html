@@ -196,7 +196,7 @@
         <table class="constraint-table">
           <thead><tr><th>Concern</th><th>Contract</th></tr></thead>
           <tbody>
-            <tr><td>TLS</td><td><code>Startup_TLS</code> and <code>Serve_TLS</code> upgrade the same connection without plaintext fallback; encrypted cancellation is available separately.</td></tr>
+            <tr><td>TLS</td><td><code>Startup_TLS</code> and <code>Serve_TLS</code> use PostgreSQL <code>SSLRequest</code> negotiation without plaintext fallback; encrypted cancellation is available separately. <code>sslnegotiation=direct</code> is not yet supported.</td></tr>
             <tr><td>Authentication</td><td>No MD5, GSSAPI, SSPI, certificate auth, or SCRAM-SHA-256-PLUS.</td></tr>
             <tr><td>Memory</td><td>Rows and COPY frames are returned individually; callers own their buffering policy.</td></tr>
             <tr><td>Scheduling</td><td>Continuously readable COPY streams may need explicit Flyology fairness points.</td></tr>

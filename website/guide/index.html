@@ -284,7 +284,7 @@ alr run</code></pre>
             <p>The library is experimental. Treat these constraints as part of its public contract, not as incidental implementation details.</p>
             <div class="decision-list">
               <dl>
-                <div class="decision-row"><dt>TLS</dt><dd>Verified client and ownership-preserving server upgrades are available; required mode rejects plaintext startup.</dd></div>
+                <div class="decision-row"><dt>TLS</dt><dd>Verified client and ownership-preserving server upgrades use PostgreSQL <code>SSLRequest</code>; required mode rejects plaintext startup. PostgreSQL's separate <code>sslnegotiation=direct</code> mode is not implemented.</dd></div>
                 <div class="decision-row"><dt>Authentication</dt><dd>Trust, cleartext password, and SCRAM-SHA-256 only. No MD5, GSSAPI, SSPI, certificate authentication, or SCRAM-SHA-256-PLUS.</dd></div>
                 <div class="decision-row"><dt>Cleartext</dt><dd>Use cleartext-password authentication only over verified TLS or a comparably trusted transport.</dd></div>
                 <div class="decision-row"><dt>Fairness</dt><dd>A continuously readable COPY socket may require an explicit Flyology fairness point so another task on the same group can run.</dd></div>

@@ -35,9 +35,10 @@ package Flyology.Postgres.Client is
       Application_Name : String := "flyology_postgres";
       Timeout          : Duration := 30.0);
 
-   --  Require PostgreSQL's direct TLS negotiation before startup. Backend
+   --  Require PostgreSQL SSLRequest negotiation before startup. Backend
    --  verifies both the server certificate chain and Server_Name. Refusal is
-   --  terminal; this procedure never falls back to plaintext.
+   --  terminal; this procedure never falls back to plaintext. PostgreSQL's
+   --  separate sslnegotiation=direct mode is not supported.
    procedure Startup_TLS
      (Item             : in out Session;
       Backend          : in out Flyology.IO.TLS.Provider'Class;
