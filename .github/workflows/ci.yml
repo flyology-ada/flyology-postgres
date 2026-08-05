@@ -14,10 +14,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Test
+  prepare-postgres:
+    name: Prepare PostgreSQL
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Cache PostgreSQL test installation
+        id: postgres-cache
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: tests/.cache/postgres
+          key: postgresql-18.4-openssl-${{ runner.os }}-${{ runner.arch }}
+      - name: Build PostgreSQL test installation
+        if: steps.postgres-cache.outputs.cache-hit != 'true'
+        run: ./tests/scripts/ensure-postgres.sh
+
+  protocol:
+    name: Protocol and integration
+    needs: prepare-postgres
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Check out sources
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -42,7 +60,7 @@ jobs:
             --name=flyology \
             --before=community
       - name: Cache PostgreSQL test installation
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: tests/.cache/postgres
           key: postgresql-18.4-openssl-${{ runner.os }}-${{ runner.arch }}
@@ -51,6 +69,40 @@ jobs:
         run: |
           alr -n build
           ./scripts/test.sh
+
+  psqlish:
+    name: psqlish
+    needs: prepare-postgres
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install Alire
+        uses: alire-project/setup-alire@fc4c8ce471aa30b3af0d39ce15add1ee9eaf28f2 # v6.0.0
+        with:
+          version: 2.1.1
+          toolchain: >-
+            gnat_native=16.1.0
+            gprbuild=26.0.1
+          cache: true
+      - name: Select toolchain
+        run: |
+          alr --non-interactive toolchain --select \
+            gnat_native=16.1.0 \
+            gprbuild=26.0.1
+      - name: Configure Flyology index
+        run: |
+          alr index --reset-community
+          alr index \
+            --add=git+https://github.com/flyology-ada/alire-index.git \
+            --name=flyology \
+            --before=community
+      - name: Cache PostgreSQL test installation
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: tests/.cache/postgres
+          key: postgresql-18.4-openssl-${{ runner.os }}-${{ runner.arch }}
       - name: Run psqlish tests
         working-directory: examples/psqlish
         env:
@@ -58,12 +110,65 @@ jobs:
         run: |
           alr -n build
           ./scripts/test.sh
+
+  sql-generated-shared:
+    name: SQL generated sources (shared)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Check shared generated sources
+        working-directory: sql/tests
+        run: ./scripts/test.sh --check-shared-generated
+
+  sql-generated-version:
+    name: SQL generated sources (PostgreSQL ${{ matrix.postgresql }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        postgresql: [14, 15, 16, 17, 18]
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Check PostgreSQL ${{ matrix.postgresql }} generated sources
+        working-directory: sql/tests
+        run: ./scripts/test.sh --check-generated ${{ matrix.postgresql }}
+
+  sql:
+    name: SQL runtime (PostgreSQL 14–18)
+    needs: [sql-generated-shared, sql-generated-version]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install Alire
+        uses: alire-project/setup-alire@fc4c8ce471aa30b3af0d39ce15add1ee9eaf28f2 # v6.0.0
+        with:
+          version: 2.1.1
+          toolchain: >-
+            gnat_native=16.1.0
+            gprbuild=26.0.1
+          cache: true
+      - name: Select toolchain
+        run: |
+          alr --non-interactive toolchain --select \
+            gnat_native=16.1.0 \
+            gprbuild=26.0.1
+      - name: Configure Flyology index
+        run: |
+          alr index --reset-community
+          alr index \
+            --add=git+https://github.com/flyology-ada/alire-index.git \
+            --name=flyology \
+            --before=community
       - name: Run SQL parser tests
         working-directory: sql/tests
-        env:
-          FLYOLOGY_SQL_GENERATOR_CHECK_PARALLEL: 0
         run: |
-          ./scripts/test.sh &
+          ./scripts/test.sh --runtime &
           test_pid=$!
           while kill -0 "$test_pid" 2>/dev/null; do
             sleep 30
@@ -72,6 +177,43 @@ jobs:
             fi
           done
           wait "$test_pid"
+
+  pgish:
+    name: pgish
+    needs: prepare-postgres
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install Alire
+        uses: alire-project/setup-alire@fc4c8ce471aa30b3af0d39ce15add1ee9eaf28f2 # v6.0.0
+        with:
+          version: 2.1.1
+          toolchain: >-
+            gnat_native=16.1.0
+            gprbuild=26.0.1
+          cache: true
+      - name: Select toolchain
+        run: |
+          alr --non-interactive toolchain --select \
+            gnat_native=16.1.0 \
+            gprbuild=26.0.1
+      - name: Configure Flyology index
+        run: |
+          alr index --reset-community
+          alr index \
+            --add=git+https://github.com/flyology-ada/alire-index.git \
+            --name=flyology \
+            --before=community
+      - name: Cache PostgreSQL test installation
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: tests/.cache/postgres
+          key: postgresql-18.4-openssl-${{ runner.os }}-${{ runner.arch }}
+      - name: Build psqlish integration client
+        working-directory: examples/psqlish
+        run: alr -n build
       - name: Run pgish tests
         working-directory: examples/pgish
         run: |
