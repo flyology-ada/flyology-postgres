@@ -1,0 +1,21 @@
+name = "flyology_postgres_sql_examples"
+description = "Analysis and transformation examples for the owned PostgreSQL AST"
+version = "0.1.0-dev"
+
+authors = ["Yurii Rashkovskii"]
+maintainers = ["Yurii Rashkovskii <yrashk@gmail.com>"]
+licenses = "MIT OR Apache-2.0"
+tags = ["example", "postgres", "sql", "ast", "visitor"]
+
+executables = ["analyze_sql", "transform_sql_ast"]
+project-files = ["sql_examples.gpr"]
+
+[[depends-on]]
+flyology_postgres_sql = "*"
+
+[[pins]]
+flyology_postgres_sql = { path = ".." }
+
+[[actions]]
+type = "test"
+command = ["./scripts/test.sh"]

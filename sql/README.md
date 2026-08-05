@@ -120,6 +120,46 @@ parser-produced acyclic graph remains intact for the call; references remain
 subject to the owning `Owned_Syntax_Tree` lifetime. Exceptions raised by a
 callback propagate immediately and do not guarantee balanced leave hooks.
 
+### Analysis and transformation passes
+
+Runnable PostgreSQL 18 examples live in `examples/`:
+
+- `analyze_sql.adb` accumulates statement, target, relation, join, column, and
+  function-call facts in visitor state. With no argument it analyzes its built-in
+  CTE/join query; one command-line argument replaces that SQL text.
+- `transform_sql_ast.adb` uses a visitor to collect owned references into a
+  rewrite plan, then renames a relation and redacts string literals in a second
+  pass.
+
+```sh
+cd sql/examples
+alr -n build
+./scripts/test.sh
+
+# Analyze another statement. Quote it as one shell argument.
+./bin/analyze_sql "SELECT count(*) FROM audit.events"
+```
+
+Analysis belongs directly in `Enter_*` and `Leave_*` callbacks: keep counters,
+sets, stacks, or reports in the derived visitor. Use `Skip_Children` when a
+matched subtree cannot contribute more facts, and `Stop_Traversal` when one
+answer is enough.
+
+AST transformations should use two passes. The traversal pass observes records
+and retains only child access values already owned by the tree. After traversal
+finishes, the apply pass changes scalar, enum, optional, or string payloads
+through those references. Do not resize vectors, replace node discriminants,
+change access topology, or attach objects from another owner while walking.
+Every retained reference is valid only while its `Owned_Syntax_Tree` remains
+alive and uncleared.
+
+This transforms the in-memory raw AST, not the original SQL text:
+`Source_Text` remains the input, and this crate does not currently provide a
+deparser. A tool that needs rewritten SQL should either emit its own target
+representation or pair the rewrite plan with a dedicated SQL printer. The same
+patterns work for V14 through V17 by changing the two versioned package names;
+the visitor surfaces are generated from each version's checked-in schema.
+
 `AST.Parse` is the sole owned parser entry point. It writes from the native
 semantic builder directly to the owned records and never constructs an
 intermediate shallow arena. Arena materialization and exhaustive structural

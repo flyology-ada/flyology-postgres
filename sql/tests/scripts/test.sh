@@ -56,6 +56,12 @@ done
 
 alr -n build
 
+(
+  cd ../examples
+  alr -n build
+  ./scripts/test.sh
+)
+
 production_library=../lib/libFlyology_Postgres_SQL.a
 production_oracle_symbols=$(
   nm "$production_library" \
