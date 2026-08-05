@@ -3,9 +3,40 @@ pragma Style_Checks (Off);
 with Ada.Containers;
 with Ada.Strings.Unbounded;
 with Interfaces;
+with Flyology.Postgres.SQL.Views;
 
-separate (Flyology.Postgres.SQL.AST.V15)
-function Equivalent
+package body Flyology.Postgres.SQL.AST.V15.Testing is
+
+   procedure Materialize_Baseline
+     (Arena : Syntax_Tree; Result : in out Owned_Syntax_Tree) is
+   begin
+      Materialize (Arena, Result);
+   end Materialize_Baseline;
+
+   procedure Parse_Baseline
+     (SQL     : String;
+      Result  : in out Owned_Syntax_Tree;
+      Options : Parse_Options := Default_Options)
+   is
+      Arena : Syntax_Tree;
+   begin
+      Flyology.Postgres.SQL.Views.Parse
+        (SQL, PostgreSQL_15, Arena, Options);
+      if Is_Valid (Arena) then
+         Materialize (Arena, Result);
+      else
+         Clear (Result);
+         Result.Source_Text :=
+           Ada.Strings.Unbounded.To_Unbounded_String (SQL);
+         Result.Diagnostic_Message :=
+           Ada.Strings.Unbounded.To_Unbounded_String
+             (Message (Error (Arena)));
+         Result.Diagnostic_Position :=
+           Cursor_Position (Error (Arena));
+      end if;
+   end Parse_Baseline;
+
+   function Equivalent
   (Left, Right : Owned_Syntax_Tree) return Boolean
 is
    use type Ada.Containers.Count_Type;
@@ -13488,4 +13519,6 @@ begin
       return Fail ("Owned_Syntax_Tree metadata");
    end if;
    return Equivalent_Parse_Result (Left.Root, Right.Root, 0);
-end Equivalent;
+   end Equivalent;
+
+end Flyology.Postgres.SQL.AST.V15.Testing;

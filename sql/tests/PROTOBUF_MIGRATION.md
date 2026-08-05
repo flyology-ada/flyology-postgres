@@ -14,9 +14,9 @@ semantics: an omitted scalar carries no presence bit. Separate low-level tests
 verify that an explicitly encoded scalar zero is retained as present.
 
 Embedded NUL input cannot be represented faithfully by the upstream C-string
-API. The public Ada `Parse` operation therefore rejects it before entering C
-and reports its exact byte position. This behavior is covered by the permanent
-parser tests.
+API. The owned `AST.V*.Parse` and advanced `Views.Parse` operations reject it
+before parsing and report its exact byte position. This behavior is covered by
+the permanent parser tests.
 
 After the comparison passed, the JSON emitter, JSON accessor, Ada JSON loader,
 and GNATCOLL.JSON dependency were removed. The temporary comparison program and

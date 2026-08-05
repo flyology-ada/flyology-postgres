@@ -5,9 +5,15 @@ pragma Style_Checks ("M160");
 with Ada.Strings.Unbounded;
 with Interfaces;
 
-package Flyology.Postgres.SQL.V18 is
+package Flyology.Postgres.SQL.Views.V16 is
 
    subtype Text is Ada.Strings.Unbounded.Unbounded_String;
+
+   type Overriding_Kind is
+     (Overriding_Kind_Undefined,
+      Overriding_Kind_Overriding_Not_Set,
+      Overriding_Kind_Overriding_User_Value,
+      Overriding_Kind_Overriding_System_Value);
 
    type Query_Source is
      (Query_Source_Undefined,
@@ -84,8 +90,7 @@ package Flyology.Postgres.SQL.V18 is
       Rte_Kind_Rte_Values,
       Rte_Kind_Rte_Cte,
       Rte_Kind_Rte_Namedtuplestore,
-      Rte_Kind_Rte_Result,
-      Rte_Kind_Rte_Group);
+      Rte_Kind_Rte_Result);
 
    type Wco_Kind is
      (Wco_Kind_Wcokind_Undefined,
@@ -109,25 +114,6 @@ package Flyology.Postgres.SQL.V18 is
       Cte_Materialize_Default,
       Cte_Materialize_Always,
       Cte_Materialize_Never);
-
-   type Returning_Option_Kind is
-     (Returning_Option_Kind_Undefined,
-      Returning_Option_Kind_Returning_Option_Old,
-      Returning_Option_Kind_Returning_Option_New);
-
-   type Json_Quotes is
-     (Json_Quotes_Undefined,
-      Json_Quotes_Js_Quotes_Unspec,
-      Json_Quotes_Js_Quotes_Keep,
-      Json_Quotes_Js_Quotes_Omit);
-
-   type Json_Table_Column_Type is
-     (Json_Table_Column_Type_Undefined,
-      Json_Table_Column_Type_Jtc_For_Ordinality,
-      Json_Table_Column_Type_Jtc_Regular,
-      Json_Table_Column_Type_Jtc_Exists,
-      Json_Table_Column_Type_Jtc_Formatted,
-      Json_Table_Column_Type_Jtc_Nested);
 
    type Set_Operation is
      (Set_Operation_Undefined,
@@ -204,8 +190,8 @@ package Flyology.Postgres.SQL.V18 is
       Alter_Table_Type_At_Cooked_Column_Default,
       Alter_Table_Type_At_Drop_Not_Null,
       Alter_Table_Type_At_Set_Not_Null,
-      Alter_Table_Type_At_Set_Expression,
       Alter_Table_Type_At_Drop_Expression,
+      Alter_Table_Type_At_Check_Not_Null,
       Alter_Table_Type_At_Set_Statistics,
       Alter_Table_Type_At_Set_Options,
       Alter_Table_Type_At_Reset_Options,
@@ -295,9 +281,7 @@ package Flyology.Postgres.SQL.V18 is
       Constr_Type_Constr_Attr_Deferrable,
       Constr_Type_Constr_Attr_Not_Deferrable,
       Constr_Type_Constr_Attr_Deferred,
-      Constr_Type_Constr_Attr_Immediate,
-      Constr_Type_Constr_Attr_Enforced,
-      Constr_Type_Constr_Attr_Not_Enforced);
+      Constr_Type_Constr_Attr_Immediate);
 
    type Import_Foreign_Schema_Type is
      (Import_Foreign_Schema_Type_Undefined,
@@ -393,29 +377,12 @@ package Flyology.Postgres.SQL.V18 is
       Alter_Subscription_Type_Alter_Subscription_Enabled,
       Alter_Subscription_Type_Alter_Subscription_Skip);
 
-   type Overriding_Kind is
-     (Overriding_Kind_Undefined,
-      Overriding_Kind_Overriding_Not_Set,
-      Overriding_Kind_Overriding_User_Value,
-      Overriding_Kind_Overriding_System_Value);
-
    type On_Commit_Action is
      (On_Commit_Action_Undefined,
       On_Commit_Action_Oncommit_Noop,
       On_Commit_Action_Oncommit_Preserve_Rows,
       On_Commit_Action_Oncommit_Delete_Rows,
       On_Commit_Action_Oncommit_Drop);
-
-   type Table_Func_Type is
-     (Table_Func_Type_Undefined,
-      Table_Func_Type_Tft_Xmltable,
-      Table_Func_Type_Tft_Json_Table);
-
-   type Var_Returning_Type is
-     (Var_Returning_Type_Undefined,
-      Var_Returning_Type_Var_Returning_Default,
-      Var_Returning_Type_Var_Returning_Old,
-      Var_Returning_Type_Var_Returning_New);
 
    type Param_Kind is
      (Param_Kind_Undefined,
@@ -454,6 +421,15 @@ package Flyology.Postgres.SQL.V18 is
       Sub_Link_Type_Multiexpr_Sublink,
       Sub_Link_Type_Array_Sublink,
       Sub_Link_Type_Cte_Sublink);
+
+   type Row_Compare_Type is
+     (Row_Compare_Type_Undefined,
+      Row_Compare_Type_Rowcompare_Lt,
+      Row_Compare_Type_Rowcompare_Le,
+      Row_Compare_Type_Rowcompare_Eq,
+      Row_Compare_Type_Rowcompare_Ge,
+      Row_Compare_Type_Rowcompare_Gt,
+      Row_Compare_Type_Rowcompare_Ne);
 
    type Min_Max_Op is
      (Min_Max_Op_Undefined,
@@ -512,10 +488,7 @@ package Flyology.Postgres.SQL.V18 is
       Json_Constructor_Type_Jsctor_Json_Object,
       Json_Constructor_Type_Jsctor_Json_Array,
       Json_Constructor_Type_Jsctor_Json_Objectagg,
-      Json_Constructor_Type_Jsctor_Json_Arrayagg,
-      Json_Constructor_Type_Jsctor_Json_Parse,
-      Json_Constructor_Type_Jsctor_Json_Scalar,
-      Json_Constructor_Type_Jsctor_Json_Serialize);
+      Json_Constructor_Type_Jsctor_Json_Arrayagg);
 
    type Json_Value_Type is
      (Json_Value_Type_Undefined,
@@ -523,32 +496,6 @@ package Flyology.Postgres.SQL.V18 is
       Json_Value_Type_Js_Type_Object,
       Json_Value_Type_Js_Type_Array,
       Json_Value_Type_Js_Type_Scalar);
-
-   type Json_Wrapper is
-     (Json_Wrapper_Undefined,
-      Json_Wrapper_Jsw_Unspec,
-      Json_Wrapper_Jsw_None,
-      Json_Wrapper_Jsw_Conditional,
-      Json_Wrapper_Jsw_Unconditional);
-
-   type Json_Behavior_Type is
-     (Json_Behavior_Type_Undefined,
-      Json_Behavior_Type_Json_Behavior_Null,
-      Json_Behavior_Type_Json_Behavior_Error,
-      Json_Behavior_Type_Json_Behavior_Empty,
-      Json_Behavior_Type_Json_Behavior_True,
-      Json_Behavior_Type_Json_Behavior_False,
-      Json_Behavior_Type_Json_Behavior_Unknown,
-      Json_Behavior_Type_Json_Behavior_Empty_Array,
-      Json_Behavior_Type_Json_Behavior_Empty_Object,
-      Json_Behavior_Type_Json_Behavior_Default);
-
-   type Json_Expr_Op is
-     (Json_Expr_Op_Undefined,
-      Json_Expr_Op_Json_Exists_Op,
-      Json_Expr_Op_Json_Query_Op,
-      Json_Expr_Op_Json_Value_Op,
-      Json_Expr_Op_Json_Table_Op);
 
    type Null_Test_Type is
      (Null_Test_Type_Undefined,
@@ -563,12 +510,6 @@ package Flyology.Postgres.SQL.V18 is
       Bool_Test_Type_Is_Not_False,
       Bool_Test_Type_Is_Unknown,
       Bool_Test_Type_Is_Not_Unknown);
-
-   type Merge_Match_Kind is
-     (Merge_Match_Kind_Undefined,
-      Merge_Match_Kind_Merge_When_Matched,
-      Merge_Match_Kind_Merge_When_Not_Matched_By_Source,
-      Merge_Match_Kind_Merge_When_Not_Matched_By_Target);
 
    type Cmd_Type is
      (Cmd_Type_Undefined,
@@ -589,7 +530,6 @@ package Flyology.Postgres.SQL.V18 is
       Join_Type_Join_Right,
       Join_Type_Join_Semi,
       Join_Type_Join_Anti,
-      Join_Type_Join_Right_Semi,
       Join_Type_Join_Right_Anti,
       Join_Type_Join_Unique_Outer,
       Join_Type_Join_Unique_Inner);
@@ -626,18 +566,6 @@ package Flyology.Postgres.SQL.V18 is
       Lock_Wait_Policy_Lock_Wait_Skip,
       Lock_Wait_Policy_Lock_Wait_Error);
 
-   type Compare_Type is
-     (Compare_Type_Undefined,
-      Compare_Type_Compare_Invalid,
-      Compare_Type_Compare_Lt,
-      Compare_Type_Compare_Le,
-      Compare_Type_Compare_Eq,
-      Compare_Type_Compare_Ge,
-      Compare_Type_Compare_Gt,
-      Compare_Type_Compare_Ne,
-      Compare_Type_Compare_Overlap,
-      Compare_Type_Compare_Contained_By);
-
    type Parse_Result_Reference is private;
    type Node_Reference is private;
    type Integer_Value_Reference is private;
@@ -658,8 +586,6 @@ package Flyology.Postgres.SQL.V18 is
    type Aggref_Reference is private;
    type Grouping_Func_Reference is private;
    type Window_Func_Reference is private;
-   type Window_Func_Run_Condition_Reference is private;
-   type Merge_Support_Func_Reference is private;
    type Subscripting_Ref_Reference is private;
    type Func_Expr_Reference is private;
    type Named_Arg_Expr_Reference is private;
@@ -693,21 +619,14 @@ package Flyology.Postgres.SQL.V18 is
    type Json_Value_Expr_Reference is private;
    type Json_Constructor_Expr_Reference is private;
    type Json_Is_Predicate_Reference is private;
-   type Json_Behavior_Reference is private;
-   type Json_Expr_Reference is private;
-   type Json_Table_Path_Reference is private;
-   type Json_Table_Path_Scan_Reference is private;
-   type Json_Table_Sibling_Join_Reference is private;
    type Null_Test_Reference is private;
    type Boolean_Test_Reference is private;
-   type Merge_Action_Reference is private;
    type Coerce_To_Domain_Reference is private;
    type Coerce_To_Domain_Value_Reference is private;
    type Set_To_Default_Reference is private;
    type Current_Of_Expr_Reference is private;
    type Next_Value_Expr_Reference is private;
    type Inference_Elem_Reference is private;
-   type Returning_Expr_Reference is private;
    type Target_Entry_Reference is private;
    type Range_Tbl_Ref_Reference is private;
    type Join_Expr_Reference is private;
@@ -762,19 +681,10 @@ package Flyology.Postgres.SQL.V18 is
    type Cte_Cycle_Clause_Reference is private;
    type Common_Table_Expr_Reference is private;
    type Merge_When_Clause_Reference is private;
-   type Returning_Option_Reference is private;
-   type Returning_Clause_Reference is private;
+   type Merge_Action_Reference is private;
    type Trigger_Transition_Reference is private;
    type Json_Output_Reference is private;
-   type Json_Argument_Reference is private;
-   type Json_Func_Expr_Reference is private;
-   type Json_Table_Path_Spec_Reference is private;
-   type Json_Table_Reference is private;
-   type Json_Table_Column_Reference is private;
    type Json_Key_Value_Reference is private;
-   type Json_Parse_Expr_Reference is private;
-   type Json_Scalar_Expr_Reference is private;
-   type Json_Serialize_Expr_Reference is private;
    type Json_Object_Constructor_Reference is private;
    type Json_Array_Constructor_Reference is private;
    type Json_Array_Query_Constructor_Reference is private;
@@ -792,9 +702,8 @@ package Flyology.Postgres.SQL.V18 is
    type Pl_Assign_Stmt_Reference is private;
    type Create_Schema_Stmt_Reference is private;
    type Alter_Table_Stmt_Reference is private;
-   type Alter_Table_Cmd_Reference is private;
-   type At_Alter_Constraint_Reference is private;
    type Replica_Identity_Stmt_Reference is private;
+   type Alter_Table_Cmd_Reference is private;
    type Alter_Collation_Stmt_Reference is private;
    type Alter_Domain_Stmt_Reference is private;
    type Grant_Stmt_Reference is private;
@@ -1001,24 +910,6 @@ package Flyology.Postgres.SQL.V18 is
       case Present is
          when True =>
             Value : Window_Func_Reference;
-         when False =>
-            null;
-      end case;
-   end record;
-
-   type Optional_Window_Func_Run_Condition_Reference (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Window_Func_Run_Condition_Reference;
-         when False =>
-            null;
-      end case;
-   end record;
-
-   type Optional_Merge_Support_Func_Reference (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Merge_Support_Func_Reference;
          when False =>
             null;
       end case;
@@ -1321,51 +1212,6 @@ package Flyology.Postgres.SQL.V18 is
       end case;
    end record;
 
-   type Optional_Json_Behavior_Reference (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Json_Behavior_Reference;
-         when False =>
-            null;
-      end case;
-   end record;
-
-   type Optional_Json_Expr_Reference (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Json_Expr_Reference;
-         when False =>
-            null;
-      end case;
-   end record;
-
-   type Optional_Json_Table_Path_Reference (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Json_Table_Path_Reference;
-         when False =>
-            null;
-      end case;
-   end record;
-
-   type Optional_Json_Table_Path_Scan_Reference (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Json_Table_Path_Scan_Reference;
-         when False =>
-            null;
-      end case;
-   end record;
-
-   type Optional_Json_Table_Sibling_Join_Reference (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Json_Table_Sibling_Join_Reference;
-         when False =>
-            null;
-      end case;
-   end record;
-
    type Optional_Null_Test_Reference (Present : Standard.Boolean := False) is record
       case Present is
          when True =>
@@ -1379,15 +1225,6 @@ package Flyology.Postgres.SQL.V18 is
       case Present is
          when True =>
             Value : Boolean_Test_Reference;
-         when False =>
-            null;
-      end case;
-   end record;
-
-   type Optional_Merge_Action_Reference (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Merge_Action_Reference;
          when False =>
             null;
       end case;
@@ -1442,15 +1279,6 @@ package Flyology.Postgres.SQL.V18 is
       case Present is
          when True =>
             Value : Inference_Elem_Reference;
-         when False =>
-            null;
-      end case;
-   end record;
-
-   type Optional_Returning_Expr_Reference (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Returning_Expr_Reference;
          when False =>
             null;
       end case;
@@ -1942,19 +1770,10 @@ package Flyology.Postgres.SQL.V18 is
       end case;
    end record;
 
-   type Optional_Returning_Option_Reference (Present : Standard.Boolean := False) is record
+   type Optional_Merge_Action_Reference (Present : Standard.Boolean := False) is record
       case Present is
          when True =>
-            Value : Returning_Option_Reference;
-         when False =>
-            null;
-      end case;
-   end record;
-
-   type Optional_Returning_Clause_Reference (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Returning_Clause_Reference;
+            Value : Merge_Action_Reference;
          when False =>
             null;
       end case;
@@ -1978,82 +1797,10 @@ package Flyology.Postgres.SQL.V18 is
       end case;
    end record;
 
-   type Optional_Json_Argument_Reference (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Json_Argument_Reference;
-         when False =>
-            null;
-      end case;
-   end record;
-
-   type Optional_Json_Func_Expr_Reference (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Json_Func_Expr_Reference;
-         when False =>
-            null;
-      end case;
-   end record;
-
-   type Optional_Json_Table_Path_Spec_Reference (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Json_Table_Path_Spec_Reference;
-         when False =>
-            null;
-      end case;
-   end record;
-
-   type Optional_Json_Table_Reference (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Json_Table_Reference;
-         when False =>
-            null;
-      end case;
-   end record;
-
-   type Optional_Json_Table_Column_Reference (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Json_Table_Column_Reference;
-         when False =>
-            null;
-      end case;
-   end record;
-
    type Optional_Json_Key_Value_Reference (Present : Standard.Boolean := False) is record
       case Present is
          when True =>
             Value : Json_Key_Value_Reference;
-         when False =>
-            null;
-      end case;
-   end record;
-
-   type Optional_Json_Parse_Expr_Reference (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Json_Parse_Expr_Reference;
-         when False =>
-            null;
-      end case;
-   end record;
-
-   type Optional_Json_Scalar_Expr_Reference (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Json_Scalar_Expr_Reference;
-         when False =>
-            null;
-      end case;
-   end record;
-
-   type Optional_Json_Serialize_Expr_Reference (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Json_Serialize_Expr_Reference;
          when False =>
             null;
       end case;
@@ -2212,28 +1959,19 @@ package Flyology.Postgres.SQL.V18 is
       end case;
    end record;
 
-   type Optional_Alter_Table_Cmd_Reference (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Alter_Table_Cmd_Reference;
-         when False =>
-            null;
-      end case;
-   end record;
-
-   type Optional_At_Alter_Constraint_Reference (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : At_Alter_Constraint_Reference;
-         when False =>
-            null;
-      end case;
-   end record;
-
    type Optional_Replica_Identity_Stmt_Reference (Present : Standard.Boolean := False) is record
       case Present is
          when True =>
             Value : Replica_Identity_Stmt_Reference;
+         when False =>
+            null;
+      end case;
+   end record;
+
+   type Optional_Alter_Table_Cmd_Reference (Present : Standard.Boolean := False) is record
+      case Present is
+         when True =>
+            Value : Alter_Table_Cmd_Reference;
          when False =>
             null;
       end case;
@@ -3382,15 +3120,6 @@ package Flyology.Postgres.SQL.V18 is
       end case;
    end record;
 
-   type Optional_Table_Func_Type (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Table_Func_Type;
-         when False =>
-            null;
-      end case;
-   end record;
-
    type Optional_Node_Reference (Present : Standard.Boolean := False) is record
       case Present is
          when True =>
@@ -3413,15 +3142,6 @@ package Flyology.Postgres.SQL.V18 is
       case Present is
          when True =>
             Value : Interfaces.Unsigned_32;
-         when False =>
-            null;
-      end case;
-   end record;
-
-   type Optional_Var_Returning_Type (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Var_Returning_Type;
          when False =>
             null;
       end case;
@@ -3481,10 +3201,10 @@ package Flyology.Postgres.SQL.V18 is
       end case;
    end record;
 
-   type Optional_Compare_Type (Present : Standard.Boolean := False) is record
+   type Optional_Row_Compare_Type (Present : Standard.Boolean := False) is record
       case Present is
          when True =>
-            Value : Compare_Type;
+            Value : Row_Compare_Type;
          when False =>
             null;
       end case;
@@ -3562,33 +3282,6 @@ package Flyology.Postgres.SQL.V18 is
       end case;
    end record;
 
-   type Optional_Json_Behavior_Type (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Json_Behavior_Type;
-         when False =>
-            null;
-      end case;
-   end record;
-
-   type Optional_Json_Expr_Op (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Json_Expr_Op;
-         when False =>
-            null;
-      end case;
-   end record;
-
-   type Optional_Json_Wrapper (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Json_Wrapper;
-         when False =>
-            null;
-      end case;
-   end record;
-
    type Optional_Null_Test_Type (Present : Standard.Boolean := False) is record
       case Present is
          when True =>
@@ -3602,33 +3295,6 @@ package Flyology.Postgres.SQL.V18 is
       case Present is
          when True =>
             Value : Bool_Test_Type;
-         when False =>
-            null;
-      end case;
-   end record;
-
-   type Optional_Merge_Match_Kind (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Merge_Match_Kind;
-         when False =>
-            null;
-      end case;
-   end record;
-
-   type Optional_Cmd_Type (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Cmd_Type;
-         when False =>
-            null;
-      end case;
-   end record;
-
-   type Optional_Overriding_Kind (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Overriding_Kind;
          when False =>
             null;
       end case;
@@ -3652,10 +3318,28 @@ package Flyology.Postgres.SQL.V18 is
       end case;
    end record;
 
+   type Optional_Cmd_Type (Present : Standard.Boolean := False) is record
+      case Present is
+         when True =>
+            Value : Cmd_Type;
+         when False =>
+            null;
+      end case;
+   end record;
+
    type Optional_Query_Source (Present : Standard.Boolean := False) is record
       case Present is
          when True =>
             Value : Query_Source;
+         when False =>
+            null;
+      end case;
+   end record;
+
+   type Optional_Overriding_Kind (Present : Standard.Boolean := False) is record
+      case Present is
+         when True =>
+            Value : Overriding_Kind;
          when False =>
             null;
       end case;
@@ -3791,33 +3475,6 @@ package Flyology.Postgres.SQL.V18 is
       case Present is
          when True =>
             Value : Cte_Materialize;
-         when False =>
-            null;
-      end case;
-   end record;
-
-   type Optional_Returning_Option_Kind (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Returning_Option_Kind;
-         when False =>
-            null;
-      end case;
-   end record;
-
-   type Optional_Json_Quotes (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Json_Quotes;
-         when False =>
-            null;
-      end case;
-   end record;
-
-   type Optional_Json_Table_Column_Type (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Json_Table_Column_Type;
          when False =>
             null;
       end case;
@@ -4027,8 +3684,6 @@ package Flyology.Postgres.SQL.V18 is
       Aggref : Optional_Aggref_Reference;
       Grouping_Func : Optional_Grouping_Func_Reference;
       Window_Func : Optional_Window_Func_Reference;
-      Window_Func_Run_Condition : Optional_Window_Func_Run_Condition_Reference;
-      Merge_Support_Func : Optional_Merge_Support_Func_Reference;
       Subscripting_Ref : Optional_Subscripting_Ref_Reference;
       Func_Expr : Optional_Func_Expr_Reference;
       Named_Arg_Expr : Optional_Named_Arg_Expr_Reference;
@@ -4062,21 +3717,14 @@ package Flyology.Postgres.SQL.V18 is
       Json_Value_Expr : Optional_Json_Value_Expr_Reference;
       Json_Constructor_Expr : Optional_Json_Constructor_Expr_Reference;
       Json_Is_Predicate : Optional_Json_Is_Predicate_Reference;
-      Json_Behavior : Optional_Json_Behavior_Reference;
-      Json_Expr : Optional_Json_Expr_Reference;
-      Json_Table_Path : Optional_Json_Table_Path_Reference;
-      Json_Table_Path_Scan : Optional_Json_Table_Path_Scan_Reference;
-      Json_Table_Sibling_Join : Optional_Json_Table_Sibling_Join_Reference;
       Null_Test : Optional_Null_Test_Reference;
       Boolean_Test : Optional_Boolean_Test_Reference;
-      Merge_Action : Optional_Merge_Action_Reference;
       Coerce_To_Domain : Optional_Coerce_To_Domain_Reference;
       Coerce_To_Domain_Value : Optional_Coerce_To_Domain_Value_Reference;
       Set_To_Default : Optional_Set_To_Default_Reference;
       Current_Of_Expr : Optional_Current_Of_Expr_Reference;
       Next_Value_Expr : Optional_Next_Value_Expr_Reference;
       Inference_Elem : Optional_Inference_Elem_Reference;
-      Returning_Expr : Optional_Returning_Expr_Reference;
       Target_Entry : Optional_Target_Entry_Reference;
       Range_Tbl_Ref : Optional_Range_Tbl_Ref_Reference;
       Join_Expr : Optional_Join_Expr_Reference;
@@ -4131,19 +3779,10 @@ package Flyology.Postgres.SQL.V18 is
       Ctecycle_Clause : Optional_Cte_Cycle_Clause_Reference;
       Common_Table_Expr : Optional_Common_Table_Expr_Reference;
       Merge_When_Clause : Optional_Merge_When_Clause_Reference;
-      Returning_Option : Optional_Returning_Option_Reference;
-      Returning_Clause : Optional_Returning_Clause_Reference;
+      Merge_Action : Optional_Merge_Action_Reference;
       Trigger_Transition : Optional_Trigger_Transition_Reference;
       Json_Output : Optional_Json_Output_Reference;
-      Json_Argument : Optional_Json_Argument_Reference;
-      Json_Func_Expr : Optional_Json_Func_Expr_Reference;
-      Json_Table_Path_Spec : Optional_Json_Table_Path_Spec_Reference;
-      Json_Table : Optional_Json_Table_Reference;
-      Json_Table_Column : Optional_Json_Table_Column_Reference;
       Json_Key_Value : Optional_Json_Key_Value_Reference;
-      Json_Parse_Expr : Optional_Json_Parse_Expr_Reference;
-      Json_Scalar_Expr : Optional_Json_Scalar_Expr_Reference;
-      Json_Serialize_Expr : Optional_Json_Serialize_Expr_Reference;
       Json_Object_Constructor : Optional_Json_Object_Constructor_Reference;
       Json_Array_Constructor : Optional_Json_Array_Constructor_Reference;
       Json_Array_Query_Constructor : Optional_Json_Array_Query_Constructor_Reference;
@@ -4161,9 +3800,8 @@ package Flyology.Postgres.SQL.V18 is
       Plassign_Stmt : Optional_Pl_Assign_Stmt_Reference;
       Create_Schema_Stmt : Optional_Create_Schema_Stmt_Reference;
       Alter_Table_Stmt : Optional_Alter_Table_Stmt_Reference;
-      Alter_Table_Cmd : Optional_Alter_Table_Cmd_Reference;
-      Atalter_Constraint : Optional_At_Alter_Constraint_Reference;
       Replica_Identity_Stmt : Optional_Replica_Identity_Stmt_Reference;
+      Alter_Table_Cmd : Optional_Alter_Table_Cmd_Reference;
       Alter_Collation_Stmt : Optional_Alter_Collation_Stmt_Reference;
       Alter_Domain_Stmt : Optional_Alter_Domain_Stmt_Reference;
       Grant_Stmt : Optional_Grant_Stmt_Reference;
@@ -4349,7 +3987,6 @@ package Flyology.Postgres.SQL.V18 is
    end record;
 
    type Table_Func is record
-      Functype : Optional_Table_Func_Type;
       Ns_Uris : Sequence_Of_Node;
       Ns_Names : Sequence_Of_Node;
       Docexpr : Optional_Node_Reference;
@@ -4360,10 +3997,7 @@ package Flyology.Postgres.SQL.V18 is
       Colcollations : Sequence_Of_Node;
       Colexprs : Sequence_Of_Node;
       Coldefexprs : Sequence_Of_Node;
-      Colvalexprs : Sequence_Of_Node;
-      Passingvalexprs : Sequence_Of_Node;
       Notnulls : Sequence_Of_Unsigned_64;
-      Plan : Optional_Node_Reference;
       Ordinalitycol : Optional_Integer_32;
       Location : Optional_Integer_32;
    end record;
@@ -4375,7 +4009,7 @@ package Flyology.Postgres.SQL.V18 is
       Options : Sequence_Of_Node;
       On_Commit : Optional_On_Commit_Action;
       Table_Space_Name : Optional_Text;
-      View_Query : Optional_Query_Reference;
+      View_Query : Optional_Node_Reference;
       Skip_Data : Optional_Boolean;
    end record;
 
@@ -4388,7 +4022,6 @@ package Flyology.Postgres.SQL.V18 is
       Varcollid : Optional_Unsigned_32;
       Varnullingrels : Sequence_Of_Unsigned_64;
       Varlevelsup : Optional_Unsigned_32;
-      Varreturningtype : Optional_Var_Returning_Type;
       Location : Optional_Integer_32;
    end record;
 
@@ -4440,25 +4073,9 @@ package Flyology.Postgres.SQL.V18 is
       Inputcollid : Optional_Unsigned_32;
       Args : Sequence_Of_Node;
       Aggfilter : Optional_Node_Reference;
-      Run_Condition : Sequence_Of_Node;
       Winref : Optional_Unsigned_32;
       Winstar : Optional_Boolean;
       Winagg : Optional_Boolean;
-      Location : Optional_Integer_32;
-   end record;
-
-   type Window_Func_Run_Condition is record
-      Xpr : Optional_Node_Reference;
-      Opno : Optional_Unsigned_32;
-      Inputcollid : Optional_Unsigned_32;
-      Wfunc_Left : Optional_Boolean;
-      Arg : Optional_Node_Reference;
-   end record;
-
-   type Merge_Support_Func is record
-      Xpr : Optional_Node_Reference;
-      Msftype : Optional_Unsigned_32;
-      Msfcollid : Optional_Unsigned_32;
       Location : Optional_Integer_32;
    end record;
 
@@ -4673,8 +4290,6 @@ package Flyology.Postgres.SQL.V18 is
       Element_Typeid : Optional_Unsigned_32;
       Elements : Sequence_Of_Node;
       Multidims : Optional_Boolean;
-      List_Start : Optional_Integer_32;
-      List_End : Optional_Integer_32;
       Location : Optional_Integer_32;
    end record;
 
@@ -4689,7 +4304,7 @@ package Flyology.Postgres.SQL.V18 is
 
    type Row_Compare_Expr is record
       Xpr : Optional_Node_Reference;
-      Cmptype : Optional_Compare_Type;
+      Rctype : Optional_Row_Compare_Type;
       Opnos : Sequence_Of_Node;
       Opfamilies : Sequence_Of_Node;
       Inputcollids : Sequence_Of_Node;
@@ -4775,52 +4390,6 @@ package Flyology.Postgres.SQL.V18 is
       Location : Optional_Integer_32;
    end record;
 
-   type Json_Behavior is record
-      Btype : Optional_Json_Behavior_Type;
-      Expr : Optional_Node_Reference;
-      Coerce : Optional_Boolean;
-      Location : Optional_Integer_32;
-   end record;
-
-   type Json_Expr is record
-      Xpr : Optional_Node_Reference;
-      Op : Optional_Json_Expr_Op;
-      Column_Name : Optional_Text;
-      Formatted_Expr : Optional_Node_Reference;
-      Format : Optional_Json_Format_Reference;
-      Path_Spec : Optional_Node_Reference;
-      Returning : Optional_Json_Returning_Reference;
-      Passing_Names : Sequence_Of_Node;
-      Passing_Values : Sequence_Of_Node;
-      On_Empty : Optional_Json_Behavior_Reference;
-      On_Error : Optional_Json_Behavior_Reference;
-      Use_Io_Coercion : Optional_Boolean;
-      Use_Json_Coercion : Optional_Boolean;
-      Wrapper : Optional_Json_Wrapper;
-      Omit_Quotes : Optional_Boolean;
-      Collation : Optional_Unsigned_32;
-      Location : Optional_Integer_32;
-   end record;
-
-   type Json_Table_Path is record
-      Name : Optional_Text;
-   end record;
-
-   type Json_Table_Path_Scan is record
-      Plan : Optional_Node_Reference;
-      Path : Optional_Json_Table_Path_Reference;
-      Error_On_Error : Optional_Boolean;
-      Child : Optional_Node_Reference;
-      Col_Min : Optional_Integer_32;
-      Col_Max : Optional_Integer_32;
-   end record;
-
-   type Json_Table_Sibling_Join is record
-      Plan : Optional_Node_Reference;
-      Lplan : Optional_Node_Reference;
-      Rplan : Optional_Node_Reference;
-   end record;
-
    type Null_Test is record
       Xpr : Optional_Node_Reference;
       Arg : Optional_Node_Reference;
@@ -4834,15 +4403,6 @@ package Flyology.Postgres.SQL.V18 is
       Arg : Optional_Node_Reference;
       Booltesttype : Optional_Bool_Test_Type;
       Location : Optional_Integer_32;
-   end record;
-
-   type Merge_Action is record
-      Match_Kind : Optional_Merge_Match_Kind;
-      Command_Type : Optional_Cmd_Type;
-      Override : Optional_Overriding_Kind;
-      Qual : Optional_Node_Reference;
-      Target_List : Sequence_Of_Node;
-      Update_Colnos : Sequence_Of_Node;
    end record;
 
    type Coerce_To_Domain is record
@@ -4889,13 +4449,6 @@ package Flyology.Postgres.SQL.V18 is
       Expr : Optional_Node_Reference;
       Infercollid : Optional_Unsigned_32;
       Inferopclass : Optional_Unsigned_32;
-   end record;
-
-   type Returning_Expr is record
-      Xpr : Optional_Node_Reference;
-      Retlevelsup : Optional_Integer_32;
-      Retold : Optional_Boolean;
-      Retexpr : Optional_Node_Reference;
    end record;
 
    type Target_Entry is record
@@ -4956,20 +4509,16 @@ package Flyology.Postgres.SQL.V18 is
       Has_Modifying_Cte : Optional_Boolean;
       Has_For_Update : Optional_Boolean;
       Has_Row_Security : Optional_Boolean;
-      Has_Group_Rte : Optional_Boolean;
       Is_Return : Optional_Boolean;
       Cte_List : Sequence_Of_Node;
       Rtable : Sequence_Of_Node;
       Rteperminfos : Sequence_Of_Node;
       Jointree : Optional_From_Expr_Reference;
       Merge_Action_List : Sequence_Of_Node;
-      Merge_Target_Relation : Optional_Integer_32;
-      Merge_Join_Condition : Optional_Node_Reference;
+      Merge_Use_Outer_Join : Optional_Boolean;
       Target_List : Sequence_Of_Node;
       Override : Optional_Overriding_Kind;
       On_Conflict : Optional_On_Conflict_Expr_Reference;
-      Returning_Old_Alias : Optional_Text;
-      Returning_New_Alias : Optional_Text;
       Returning_List : Sequence_Of_Node;
       Group_Clause : Sequence_Of_Node;
       Group_Distinct : Optional_Boolean;
@@ -5015,8 +4564,6 @@ package Flyology.Postgres.SQL.V18 is
       Name : Sequence_Of_Node;
       Lexpr : Optional_Node_Reference;
       Rexpr : Optional_Node_Reference;
-      Rexpr_List_Start : Optional_Integer_32;
-      Rexpr_List_End : Optional_Integer_32;
       Location : Optional_Integer_32;
    end record;
 
@@ -5067,8 +4614,6 @@ package Flyology.Postgres.SQL.V18 is
 
    type A_Array_Expr is record
       Elements : Sequence_Of_Node;
-      List_Start : Optional_Integer_32;
-      List_End : Optional_Integer_32;
       Location : Optional_Integer_32;
    end record;
 
@@ -5246,15 +4791,12 @@ package Flyology.Postgres.SQL.V18 is
    end record;
 
    type Range_Tbl_Entry is record
-      Alias : Optional_Alias_Reference;
-      Eref : Optional_Alias_Reference;
       Rtekind : Optional_Rte_Kind;
       Relid : Optional_Unsigned_32;
-      Inh : Optional_Boolean;
       Relkind : Optional_Text;
       Rellockmode : Optional_Integer_32;
-      Perminfoindex : Optional_Unsigned_32;
       Tablesample : Optional_Table_Sample_Clause_Reference;
+      Perminfoindex : Optional_Unsigned_32;
       Subquery : Optional_Query_Reference;
       Security_Barrier : Optional_Boolean;
       Jointype : Optional_Join_Type;
@@ -5275,8 +4817,10 @@ package Flyology.Postgres.SQL.V18 is
       Colcollations : Sequence_Of_Node;
       Enrname : Optional_Text;
       Enrtuples : Optional_IEEE_Float_64;
-      Groupexprs : Sequence_Of_Node;
+      Alias : Optional_Alias_Reference;
+      Eref : Optional_Alias_Reference;
       Lateral : Optional_Boolean;
+      Inh : Optional_Boolean;
       In_From_Cl : Optional_Boolean;
       Security_Quals : Sequence_Of_Node;
    end record;
@@ -5319,7 +4863,6 @@ package Flyology.Postgres.SQL.V18 is
       Tle_Sort_Group_Ref : Optional_Unsigned_32;
       Eqop : Optional_Unsigned_32;
       Sortop : Optional_Unsigned_32;
-      Reverse_Sort : Optional_Boolean;
       Nulls_First : Optional_Boolean;
       Hashable : Optional_Boolean;
    end record;
@@ -5338,6 +4881,7 @@ package Flyology.Postgres.SQL.V18 is
       Frame_Options : Optional_Integer_32;
       Start_Offset : Optional_Node_Reference;
       End_Offset : Optional_Node_Reference;
+      Run_Condition : Sequence_Of_Node;
       Start_In_Range_Func : Optional_Unsigned_32;
       End_In_Range_Func : Optional_Unsigned_32;
       In_Range_Coll : Optional_Unsigned_32;
@@ -5412,7 +4956,7 @@ package Flyology.Postgres.SQL.V18 is
    end record;
 
    type Merge_When_Clause is record
-      Match_Kind : Optional_Merge_Match_Kind;
+      Matched : Optional_Boolean;
       Command_Type : Optional_Cmd_Type;
       Override : Optional_Overriding_Kind;
       Condition : Optional_Node_Reference;
@@ -5420,15 +4964,13 @@ package Flyology.Postgres.SQL.V18 is
       Values : Sequence_Of_Node;
    end record;
 
-   type Returning_Option is record
-      Option : Optional_Returning_Option_Kind;
-      Value : Optional_Text;
-      Location : Optional_Integer_32;
-   end record;
-
-   type Returning_Clause is record
-      Options : Sequence_Of_Node;
-      Exprs : Sequence_Of_Node;
+   type Merge_Action is record
+      Matched : Optional_Boolean;
+      Command_Type : Optional_Cmd_Type;
+      Override : Optional_Overriding_Kind;
+      Qual : Optional_Node_Reference;
+      Target_List : Sequence_Of_Node;
+      Update_Colnos : Sequence_Of_Node;
    end record;
 
    type Trigger_Transition is record
@@ -5442,79 +4984,9 @@ package Flyology.Postgres.SQL.V18 is
       Returning : Optional_Json_Returning_Reference;
    end record;
 
-   type Json_Argument is record
-      Val : Optional_Json_Value_Expr_Reference;
-      Name : Optional_Text;
-   end record;
-
-   type Json_Func_Expr is record
-      Op : Optional_Json_Expr_Op;
-      Column_Name : Optional_Text;
-      Context_Item : Optional_Json_Value_Expr_Reference;
-      Pathspec : Optional_Node_Reference;
-      Passing : Sequence_Of_Node;
-      Output : Optional_Json_Output_Reference;
-      On_Empty : Optional_Json_Behavior_Reference;
-      On_Error : Optional_Json_Behavior_Reference;
-      Wrapper : Optional_Json_Wrapper;
-      Quotes : Optional_Json_Quotes;
-      Location : Optional_Integer_32;
-   end record;
-
-   type Json_Table_Path_Spec is record
-      String : Optional_Node_Reference;
-      Name : Optional_Text;
-      Name_Location : Optional_Integer_32;
-      Location : Optional_Integer_32;
-   end record;
-
-   type Json_Table is record
-      Context_Item : Optional_Json_Value_Expr_Reference;
-      Pathspec : Optional_Json_Table_Path_Spec_Reference;
-      Passing : Sequence_Of_Node;
-      Columns : Sequence_Of_Node;
-      On_Error : Optional_Json_Behavior_Reference;
-      Alias : Optional_Alias_Reference;
-      Lateral : Optional_Boolean;
-      Location : Optional_Integer_32;
-   end record;
-
-   type Json_Table_Column is record
-      Coltype : Optional_Json_Table_Column_Type;
-      Name : Optional_Text;
-      Type_Name : Optional_Type_Name_Reference;
-      Pathspec : Optional_Json_Table_Path_Spec_Reference;
-      Format : Optional_Json_Format_Reference;
-      Wrapper : Optional_Json_Wrapper;
-      Quotes : Optional_Json_Quotes;
-      Columns : Sequence_Of_Node;
-      On_Empty : Optional_Json_Behavior_Reference;
-      On_Error : Optional_Json_Behavior_Reference;
-      Location : Optional_Integer_32;
-   end record;
-
    type Json_Key_Value is record
       Key : Optional_Node_Reference;
       Value : Optional_Json_Value_Expr_Reference;
-   end record;
-
-   type Json_Parse_Expr is record
-      Expr : Optional_Json_Value_Expr_Reference;
-      Output : Optional_Json_Output_Reference;
-      Unique_Keys : Optional_Boolean;
-      Location : Optional_Integer_32;
-   end record;
-
-   type Json_Scalar_Expr is record
-      Expr : Optional_Node_Reference;
-      Output : Optional_Json_Output_Reference;
-      Location : Optional_Integer_32;
-   end record;
-
-   type Json_Serialize_Expr is record
-      Expr : Optional_Json_Value_Expr_Reference;
-      Output : Optional_Json_Output_Reference;
-      Location : Optional_Integer_32;
    end record;
 
    type Json_Object_Constructor is record
@@ -5572,7 +5044,7 @@ package Flyology.Postgres.SQL.V18 is
       Cols : Sequence_Of_Node;
       Select_Stmt : Optional_Node_Reference;
       On_Conflict_Clause : Optional_On_Conflict_Clause_Reference;
-      Returning_Clause : Optional_Returning_Clause_Reference;
+      Returning_List : Sequence_Of_Node;
       With_Clause : Optional_With_Clause_Reference;
       Override : Optional_Overriding_Kind;
    end record;
@@ -5581,7 +5053,7 @@ package Flyology.Postgres.SQL.V18 is
       Relation : Optional_Range_Var_Reference;
       Using_Clause : Sequence_Of_Node;
       Where_Clause : Optional_Node_Reference;
-      Returning_Clause : Optional_Returning_Clause_Reference;
+      Returning_List : Sequence_Of_Node;
       With_Clause : Optional_With_Clause_Reference;
    end record;
 
@@ -5590,7 +5062,7 @@ package Flyology.Postgres.SQL.V18 is
       Target_List : Sequence_Of_Node;
       Where_Clause : Optional_Node_Reference;
       From_Clause : Sequence_Of_Node;
-      Returning_Clause : Optional_Returning_Clause_Reference;
+      Returning_List : Sequence_Of_Node;
       With_Clause : Optional_With_Clause_Reference;
    end record;
 
@@ -5599,7 +5071,6 @@ package Flyology.Postgres.SQL.V18 is
       Source_Relation : Optional_Node_Reference;
       Join_Condition : Optional_Node_Reference;
       Merge_When_Clauses : Sequence_Of_Node;
-      Returning_Clause : Optional_Returning_Clause_Reference;
       With_Clause : Optional_With_Clause_Reference;
    end record;
 
@@ -5663,6 +5134,11 @@ package Flyology.Postgres.SQL.V18 is
       Missing_Ok : Optional_Boolean;
    end record;
 
+   type Replica_Identity_Stmt is record
+      Identity_Type : Optional_Text;
+      Name : Optional_Text;
+   end record;
+
    type Alter_Table_Cmd is record
       Field_Subtype : Optional_Alter_Table_Type;
       Name : Optional_Text;
@@ -5672,22 +5148,6 @@ package Flyology.Postgres.SQL.V18 is
       Behavior : Optional_Drop_Behavior;
       Missing_Ok : Optional_Boolean;
       Recurse : Optional_Boolean;
-   end record;
-
-   type At_Alter_Constraint is record
-      Conname : Optional_Text;
-      Alter_Enforceability : Optional_Boolean;
-      Is_Enforced : Optional_Boolean;
-      Alter_Deferrability : Optional_Boolean;
-      Deferrable : Optional_Boolean;
-      Initdeferred : Optional_Boolean;
-      Alter_Inheritability : Optional_Boolean;
-      Noinherit : Optional_Boolean;
-   end record;
-
-   type Replica_Identity_Stmt is record
-      Identity_Type : Optional_Text;
-      Name : Optional_Text;
    end record;
 
    type Alter_Collation_Stmt is record
@@ -5756,9 +5216,7 @@ package Flyology.Postgres.SQL.V18 is
       Kind : Optional_Variable_Set_Kind;
       Name : Optional_Text;
       Args : Sequence_Of_Node;
-      Jumble_Args : Optional_Boolean;
       Is_Local : Optional_Boolean;
-      Location : Optional_Integer_32;
    end record;
 
    type Variable_Show_Stmt is record
@@ -5773,7 +5231,6 @@ package Flyology.Postgres.SQL.V18 is
       Partspec : Optional_Partition_Spec_Reference;
       Of_Typename : Optional_Type_Name_Reference;
       Constraints : Sequence_Of_Node;
-      Nnconstraints : Sequence_Of_Node;
       Options : Sequence_Of_Node;
       Oncommit : Optional_On_Commit_Action;
       Tablespacename : Optional_Text;
@@ -5786,17 +5243,13 @@ package Flyology.Postgres.SQL.V18 is
       Conname : Optional_Text;
       Deferrable : Optional_Boolean;
       Initdeferred : Optional_Boolean;
-      Is_Enforced : Optional_Boolean;
-      Skip_Validation : Optional_Boolean;
-      Initially_Valid : Optional_Boolean;
+      Location : Optional_Integer_32;
       Is_No_Inherit : Optional_Boolean;
       Raw_Expr : Optional_Node_Reference;
       Cooked_Expr : Optional_Text;
       Generated_When : Optional_Text;
-      Generated_Kind : Optional_Text;
       Nulls_Not_Distinct : Optional_Boolean;
       Keys : Sequence_Of_Node;
-      Without_Overlaps : Optional_Boolean;
       Including : Sequence_Of_Node;
       Exclusions : Sequence_Of_Node;
       Options : Sequence_Of_Node;
@@ -5808,15 +5261,14 @@ package Flyology.Postgres.SQL.V18 is
       Pktable : Optional_Range_Var_Reference;
       Fk_Attrs : Sequence_Of_Node;
       Pk_Attrs : Sequence_Of_Node;
-      Fk_With_Period : Optional_Boolean;
-      Pk_With_Period : Optional_Boolean;
       Fk_Matchtype : Optional_Text;
       Fk_Upd_Action : Optional_Text;
       Fk_Del_Action : Optional_Text;
       Fk_Del_Set_Cols : Sequence_Of_Node;
       Old_Conpfeqop : Sequence_Of_Node;
       Old_Pktable_Oid : Optional_Unsigned_32;
-      Location : Optional_Integer_32;
+      Skip_Validation : Optional_Boolean;
+      Initially_Valid : Optional_Boolean;
    end record;
 
    type Create_Table_Space_Stmt is record
@@ -6136,7 +5588,6 @@ package Flyology.Postgres.SQL.V18 is
       Nulls_Not_Distinct : Optional_Boolean;
       Primary : Optional_Boolean;
       Isconstraint : Optional_Boolean;
-      Iswithoutoverlaps : Optional_Boolean;
       Deferrable : Optional_Boolean;
       Initdeferred : Optional_Boolean;
       Transformed : Optional_Boolean;
@@ -6162,7 +5613,7 @@ package Flyology.Postgres.SQL.V18 is
 
    type Alter_Stats_Stmt is record
       Defnames : Sequence_Of_Node;
-      Stxstattarget : Optional_Node_Reference;
+      Stxstattarget : Optional_Integer_32;
       Missing_Ok : Optional_Boolean;
    end record;
 
@@ -6181,7 +5632,6 @@ package Flyology.Postgres.SQL.V18 is
       Arg_Type : Optional_Type_Name_Reference;
       Mode : Optional_Function_Parameter_Mode;
       Defexpr : Optional_Node_Reference;
-      Location : Optional_Integer_32;
    end record;
 
    type Alter_Function_Stmt is record
@@ -6284,7 +5734,6 @@ package Flyology.Postgres.SQL.V18 is
       Savepoint_Name : Optional_Text;
       Gid : Optional_Text;
       Chain : Optional_Boolean;
-      Location : Optional_Integer_32;
    end record;
 
    type Composite_Type_Stmt is record
@@ -6451,8 +5900,6 @@ package Flyology.Postgres.SQL.V18 is
 
    type Deallocate_Stmt is record
       Name : Optional_Text;
-      Isall : Optional_Boolean;
-      Location : Optional_Integer_32;
    end record;
 
    type Drop_Owned_Stmt is record
@@ -6539,8 +5986,6 @@ package Flyology.Postgres.SQL.V18 is
       Node_Aggref,
       Node_Grouping_Func,
       Node_Window_Func,
-      Node_Window_Func_Run_Condition,
-      Node_Merge_Support_Func,
       Node_Subscripting_Ref,
       Node_Func_Expr,
       Node_Named_Arg_Expr,
@@ -6574,21 +6019,14 @@ package Flyology.Postgres.SQL.V18 is
       Node_Json_Value_Expr,
       Node_Json_Constructor_Expr,
       Node_Json_Is_Predicate,
-      Node_Json_Behavior,
-      Node_Json_Expr,
-      Node_Json_Table_Path,
-      Node_Json_Table_Path_Scan,
-      Node_Json_Table_Sibling_Join,
       Node_Null_Test,
       Node_Boolean_Test,
-      Node_Merge_Action,
       Node_Coerce_To_Domain,
       Node_Coerce_To_Domain_Value,
       Node_Set_To_Default,
       Node_Current_Of_Expr,
       Node_Next_Value_Expr,
       Node_Inference_Elem,
-      Node_Returning_Expr,
       Node_Target_Entry,
       Node_Range_Tbl_Ref,
       Node_Join_Expr,
@@ -6643,19 +6081,10 @@ package Flyology.Postgres.SQL.V18 is
       Node_Cte_Cycle_Clause,
       Node_Common_Table_Expr,
       Node_Merge_When_Clause,
-      Node_Returning_Option,
-      Node_Returning_Clause,
+      Node_Merge_Action,
       Node_Trigger_Transition,
       Node_Json_Output,
-      Node_Json_Argument,
-      Node_Json_Func_Expr,
-      Node_Json_Table_Path_Spec,
-      Node_Json_Table,
-      Node_Json_Table_Column,
       Node_Json_Key_Value,
-      Node_Json_Parse_Expr,
-      Node_Json_Scalar_Expr,
-      Node_Json_Serialize_Expr,
       Node_Json_Object_Constructor,
       Node_Json_Array_Constructor,
       Node_Json_Array_Query_Constructor,
@@ -6673,9 +6102,8 @@ package Flyology.Postgres.SQL.V18 is
       Node_Pl_Assign_Stmt,
       Node_Create_Schema_Stmt,
       Node_Alter_Table_Stmt,
-      Node_Alter_Table_Cmd,
-      Node_At_Alter_Constraint,
       Node_Replica_Identity_Stmt,
+      Node_Alter_Table_Cmd,
       Node_Alter_Collation_Stmt,
       Node_Alter_Domain_Stmt,
       Node_Grant_Stmt,
@@ -6803,7 +6231,7 @@ package Flyology.Postgres.SQL.V18 is
       Node_A_Const);
 
    function Root (Tree : Syntax_Tree) return Parse_Result_Reference
-     with Pre => Is_Valid (Tree) and then Version (Tree) = PostgreSQL_18;
+     with Pre => Is_Valid (Tree) and then Version (Tree) = PostgreSQL_16;
    function Kind (Tree : Syntax_Tree; Item : Node_Reference) return Node_Kind;
 
    function As_Alias (Tree : Syntax_Tree; Item : Node_Reference) return Alias_Reference
@@ -6824,10 +6252,6 @@ package Flyology.Postgres.SQL.V18 is
      with Pre => Kind (Tree, Item) = Node_Grouping_Func;
    function As_Window_Func (Tree : Syntax_Tree; Item : Node_Reference) return Window_Func_Reference
      with Pre => Kind (Tree, Item) = Node_Window_Func;
-   function As_Window_Func_Run_Condition (Tree : Syntax_Tree; Item : Node_Reference) return Window_Func_Run_Condition_Reference
-     with Pre => Kind (Tree, Item) = Node_Window_Func_Run_Condition;
-   function As_Merge_Support_Func (Tree : Syntax_Tree; Item : Node_Reference) return Merge_Support_Func_Reference
-     with Pre => Kind (Tree, Item) = Node_Merge_Support_Func;
    function As_Subscripting_Ref (Tree : Syntax_Tree; Item : Node_Reference) return Subscripting_Ref_Reference
      with Pre => Kind (Tree, Item) = Node_Subscripting_Ref;
    function As_Func_Expr (Tree : Syntax_Tree; Item : Node_Reference) return Func_Expr_Reference
@@ -6894,22 +6318,10 @@ package Flyology.Postgres.SQL.V18 is
      with Pre => Kind (Tree, Item) = Node_Json_Constructor_Expr;
    function As_Json_Is_Predicate (Tree : Syntax_Tree; Item : Node_Reference) return Json_Is_Predicate_Reference
      with Pre => Kind (Tree, Item) = Node_Json_Is_Predicate;
-   function As_Json_Behavior (Tree : Syntax_Tree; Item : Node_Reference) return Json_Behavior_Reference
-     with Pre => Kind (Tree, Item) = Node_Json_Behavior;
-   function As_Json_Expr (Tree : Syntax_Tree; Item : Node_Reference) return Json_Expr_Reference
-     with Pre => Kind (Tree, Item) = Node_Json_Expr;
-   function As_Json_Table_Path (Tree : Syntax_Tree; Item : Node_Reference) return Json_Table_Path_Reference
-     with Pre => Kind (Tree, Item) = Node_Json_Table_Path;
-   function As_Json_Table_Path_Scan (Tree : Syntax_Tree; Item : Node_Reference) return Json_Table_Path_Scan_Reference
-     with Pre => Kind (Tree, Item) = Node_Json_Table_Path_Scan;
-   function As_Json_Table_Sibling_Join (Tree : Syntax_Tree; Item : Node_Reference) return Json_Table_Sibling_Join_Reference
-     with Pre => Kind (Tree, Item) = Node_Json_Table_Sibling_Join;
    function As_Null_Test (Tree : Syntax_Tree; Item : Node_Reference) return Null_Test_Reference
      with Pre => Kind (Tree, Item) = Node_Null_Test;
    function As_Boolean_Test (Tree : Syntax_Tree; Item : Node_Reference) return Boolean_Test_Reference
      with Pre => Kind (Tree, Item) = Node_Boolean_Test;
-   function As_Merge_Action (Tree : Syntax_Tree; Item : Node_Reference) return Merge_Action_Reference
-     with Pre => Kind (Tree, Item) = Node_Merge_Action;
    function As_Coerce_To_Domain (Tree : Syntax_Tree; Item : Node_Reference) return Coerce_To_Domain_Reference
      with Pre => Kind (Tree, Item) = Node_Coerce_To_Domain;
    function As_Coerce_To_Domain_Value (Tree : Syntax_Tree; Item : Node_Reference) return Coerce_To_Domain_Value_Reference
@@ -6922,8 +6334,6 @@ package Flyology.Postgres.SQL.V18 is
      with Pre => Kind (Tree, Item) = Node_Next_Value_Expr;
    function As_Inference_Elem (Tree : Syntax_Tree; Item : Node_Reference) return Inference_Elem_Reference
      with Pre => Kind (Tree, Item) = Node_Inference_Elem;
-   function As_Returning_Expr (Tree : Syntax_Tree; Item : Node_Reference) return Returning_Expr_Reference
-     with Pre => Kind (Tree, Item) = Node_Returning_Expr;
    function As_Target_Entry (Tree : Syntax_Tree; Item : Node_Reference) return Target_Entry_Reference
      with Pre => Kind (Tree, Item) = Node_Target_Entry;
    function As_Range_Tbl_Ref (Tree : Syntax_Tree; Item : Node_Reference) return Range_Tbl_Ref_Reference
@@ -7032,32 +6442,14 @@ package Flyology.Postgres.SQL.V18 is
      with Pre => Kind (Tree, Item) = Node_Common_Table_Expr;
    function As_Merge_When_Clause (Tree : Syntax_Tree; Item : Node_Reference) return Merge_When_Clause_Reference
      with Pre => Kind (Tree, Item) = Node_Merge_When_Clause;
-   function As_Returning_Option (Tree : Syntax_Tree; Item : Node_Reference) return Returning_Option_Reference
-     with Pre => Kind (Tree, Item) = Node_Returning_Option;
-   function As_Returning_Clause (Tree : Syntax_Tree; Item : Node_Reference) return Returning_Clause_Reference
-     with Pre => Kind (Tree, Item) = Node_Returning_Clause;
+   function As_Merge_Action (Tree : Syntax_Tree; Item : Node_Reference) return Merge_Action_Reference
+     with Pre => Kind (Tree, Item) = Node_Merge_Action;
    function As_Trigger_Transition (Tree : Syntax_Tree; Item : Node_Reference) return Trigger_Transition_Reference
      with Pre => Kind (Tree, Item) = Node_Trigger_Transition;
    function As_Json_Output (Tree : Syntax_Tree; Item : Node_Reference) return Json_Output_Reference
      with Pre => Kind (Tree, Item) = Node_Json_Output;
-   function As_Json_Argument (Tree : Syntax_Tree; Item : Node_Reference) return Json_Argument_Reference
-     with Pre => Kind (Tree, Item) = Node_Json_Argument;
-   function As_Json_Func_Expr (Tree : Syntax_Tree; Item : Node_Reference) return Json_Func_Expr_Reference
-     with Pre => Kind (Tree, Item) = Node_Json_Func_Expr;
-   function As_Json_Table_Path_Spec (Tree : Syntax_Tree; Item : Node_Reference) return Json_Table_Path_Spec_Reference
-     with Pre => Kind (Tree, Item) = Node_Json_Table_Path_Spec;
-   function As_Json_Table (Tree : Syntax_Tree; Item : Node_Reference) return Json_Table_Reference
-     with Pre => Kind (Tree, Item) = Node_Json_Table;
-   function As_Json_Table_Column (Tree : Syntax_Tree; Item : Node_Reference) return Json_Table_Column_Reference
-     with Pre => Kind (Tree, Item) = Node_Json_Table_Column;
    function As_Json_Key_Value (Tree : Syntax_Tree; Item : Node_Reference) return Json_Key_Value_Reference
      with Pre => Kind (Tree, Item) = Node_Json_Key_Value;
-   function As_Json_Parse_Expr (Tree : Syntax_Tree; Item : Node_Reference) return Json_Parse_Expr_Reference
-     with Pre => Kind (Tree, Item) = Node_Json_Parse_Expr;
-   function As_Json_Scalar_Expr (Tree : Syntax_Tree; Item : Node_Reference) return Json_Scalar_Expr_Reference
-     with Pre => Kind (Tree, Item) = Node_Json_Scalar_Expr;
-   function As_Json_Serialize_Expr (Tree : Syntax_Tree; Item : Node_Reference) return Json_Serialize_Expr_Reference
-     with Pre => Kind (Tree, Item) = Node_Json_Serialize_Expr;
    function As_Json_Object_Constructor (Tree : Syntax_Tree; Item : Node_Reference) return Json_Object_Constructor_Reference
      with Pre => Kind (Tree, Item) = Node_Json_Object_Constructor;
    function As_Json_Array_Constructor (Tree : Syntax_Tree; Item : Node_Reference) return Json_Array_Constructor_Reference
@@ -7092,12 +6484,10 @@ package Flyology.Postgres.SQL.V18 is
      with Pre => Kind (Tree, Item) = Node_Create_Schema_Stmt;
    function As_Alter_Table_Stmt (Tree : Syntax_Tree; Item : Node_Reference) return Alter_Table_Stmt_Reference
      with Pre => Kind (Tree, Item) = Node_Alter_Table_Stmt;
-   function As_Alter_Table_Cmd (Tree : Syntax_Tree; Item : Node_Reference) return Alter_Table_Cmd_Reference
-     with Pre => Kind (Tree, Item) = Node_Alter_Table_Cmd;
-   function As_At_Alter_Constraint (Tree : Syntax_Tree; Item : Node_Reference) return At_Alter_Constraint_Reference
-     with Pre => Kind (Tree, Item) = Node_At_Alter_Constraint;
    function As_Replica_Identity_Stmt (Tree : Syntax_Tree; Item : Node_Reference) return Replica_Identity_Stmt_Reference
      with Pre => Kind (Tree, Item) = Node_Replica_Identity_Stmt;
+   function As_Alter_Table_Cmd (Tree : Syntax_Tree; Item : Node_Reference) return Alter_Table_Cmd_Reference
+     with Pre => Kind (Tree, Item) = Node_Alter_Table_Cmd;
    function As_Alter_Collation_Stmt (Tree : Syntax_Tree; Item : Node_Reference) return Alter_Collation_Stmt_Reference
      with Pre => Kind (Tree, Item) = Node_Alter_Collation_Stmt;
    function As_Alter_Domain_Stmt (Tree : Syntax_Tree; Item : Node_Reference) return Alter_Domain_Stmt_Reference
@@ -7381,8 +6771,6 @@ package Flyology.Postgres.SQL.V18 is
    function View (Tree : Syntax_Tree; Item : Aggref_Reference) return Aggref;
    function View (Tree : Syntax_Tree; Item : Grouping_Func_Reference) return Grouping_Func;
    function View (Tree : Syntax_Tree; Item : Window_Func_Reference) return Window_Func;
-   function View (Tree : Syntax_Tree; Item : Window_Func_Run_Condition_Reference) return Window_Func_Run_Condition;
-   function View (Tree : Syntax_Tree; Item : Merge_Support_Func_Reference) return Merge_Support_Func;
    function View (Tree : Syntax_Tree; Item : Subscripting_Ref_Reference) return Subscripting_Ref;
    function View (Tree : Syntax_Tree; Item : Func_Expr_Reference) return Func_Expr;
    function View (Tree : Syntax_Tree; Item : Named_Arg_Expr_Reference) return Named_Arg_Expr;
@@ -7416,21 +6804,14 @@ package Flyology.Postgres.SQL.V18 is
    function View (Tree : Syntax_Tree; Item : Json_Value_Expr_Reference) return Json_Value_Expr;
    function View (Tree : Syntax_Tree; Item : Json_Constructor_Expr_Reference) return Json_Constructor_Expr;
    function View (Tree : Syntax_Tree; Item : Json_Is_Predicate_Reference) return Json_Is_Predicate;
-   function View (Tree : Syntax_Tree; Item : Json_Behavior_Reference) return Json_Behavior;
-   function View (Tree : Syntax_Tree; Item : Json_Expr_Reference) return Json_Expr;
-   function View (Tree : Syntax_Tree; Item : Json_Table_Path_Reference) return Json_Table_Path;
-   function View (Tree : Syntax_Tree; Item : Json_Table_Path_Scan_Reference) return Json_Table_Path_Scan;
-   function View (Tree : Syntax_Tree; Item : Json_Table_Sibling_Join_Reference) return Json_Table_Sibling_Join;
    function View (Tree : Syntax_Tree; Item : Null_Test_Reference) return Null_Test;
    function View (Tree : Syntax_Tree; Item : Boolean_Test_Reference) return Boolean_Test;
-   function View (Tree : Syntax_Tree; Item : Merge_Action_Reference) return Merge_Action;
    function View (Tree : Syntax_Tree; Item : Coerce_To_Domain_Reference) return Coerce_To_Domain;
    function View (Tree : Syntax_Tree; Item : Coerce_To_Domain_Value_Reference) return Coerce_To_Domain_Value;
    function View (Tree : Syntax_Tree; Item : Set_To_Default_Reference) return Set_To_Default;
    function View (Tree : Syntax_Tree; Item : Current_Of_Expr_Reference) return Current_Of_Expr;
    function View (Tree : Syntax_Tree; Item : Next_Value_Expr_Reference) return Next_Value_Expr;
    function View (Tree : Syntax_Tree; Item : Inference_Elem_Reference) return Inference_Elem;
-   function View (Tree : Syntax_Tree; Item : Returning_Expr_Reference) return Returning_Expr;
    function View (Tree : Syntax_Tree; Item : Target_Entry_Reference) return Target_Entry;
    function View (Tree : Syntax_Tree; Item : Range_Tbl_Ref_Reference) return Range_Tbl_Ref;
    function View (Tree : Syntax_Tree; Item : Join_Expr_Reference) return Join_Expr;
@@ -7485,19 +6866,10 @@ package Flyology.Postgres.SQL.V18 is
    function View (Tree : Syntax_Tree; Item : Cte_Cycle_Clause_Reference) return Cte_Cycle_Clause;
    function View (Tree : Syntax_Tree; Item : Common_Table_Expr_Reference) return Common_Table_Expr;
    function View (Tree : Syntax_Tree; Item : Merge_When_Clause_Reference) return Merge_When_Clause;
-   function View (Tree : Syntax_Tree; Item : Returning_Option_Reference) return Returning_Option;
-   function View (Tree : Syntax_Tree; Item : Returning_Clause_Reference) return Returning_Clause;
+   function View (Tree : Syntax_Tree; Item : Merge_Action_Reference) return Merge_Action;
    function View (Tree : Syntax_Tree; Item : Trigger_Transition_Reference) return Trigger_Transition;
    function View (Tree : Syntax_Tree; Item : Json_Output_Reference) return Json_Output;
-   function View (Tree : Syntax_Tree; Item : Json_Argument_Reference) return Json_Argument;
-   function View (Tree : Syntax_Tree; Item : Json_Func_Expr_Reference) return Json_Func_Expr;
-   function View (Tree : Syntax_Tree; Item : Json_Table_Path_Spec_Reference) return Json_Table_Path_Spec;
-   function View (Tree : Syntax_Tree; Item : Json_Table_Reference) return Json_Table;
-   function View (Tree : Syntax_Tree; Item : Json_Table_Column_Reference) return Json_Table_Column;
    function View (Tree : Syntax_Tree; Item : Json_Key_Value_Reference) return Json_Key_Value;
-   function View (Tree : Syntax_Tree; Item : Json_Parse_Expr_Reference) return Json_Parse_Expr;
-   function View (Tree : Syntax_Tree; Item : Json_Scalar_Expr_Reference) return Json_Scalar_Expr;
-   function View (Tree : Syntax_Tree; Item : Json_Serialize_Expr_Reference) return Json_Serialize_Expr;
    function View (Tree : Syntax_Tree; Item : Json_Object_Constructor_Reference) return Json_Object_Constructor;
    function View (Tree : Syntax_Tree; Item : Json_Array_Constructor_Reference) return Json_Array_Constructor;
    function View (Tree : Syntax_Tree; Item : Json_Array_Query_Constructor_Reference) return Json_Array_Query_Constructor;
@@ -7515,9 +6887,8 @@ package Flyology.Postgres.SQL.V18 is
    function View (Tree : Syntax_Tree; Item : Pl_Assign_Stmt_Reference) return Pl_Assign_Stmt;
    function View (Tree : Syntax_Tree; Item : Create_Schema_Stmt_Reference) return Create_Schema_Stmt;
    function View (Tree : Syntax_Tree; Item : Alter_Table_Stmt_Reference) return Alter_Table_Stmt;
-   function View (Tree : Syntax_Tree; Item : Alter_Table_Cmd_Reference) return Alter_Table_Cmd;
-   function View (Tree : Syntax_Tree; Item : At_Alter_Constraint_Reference) return At_Alter_Constraint;
    function View (Tree : Syntax_Tree; Item : Replica_Identity_Stmt_Reference) return Replica_Identity_Stmt;
+   function View (Tree : Syntax_Tree; Item : Alter_Table_Cmd_Reference) return Alter_Table_Cmd;
    function View (Tree : Syntax_Tree; Item : Alter_Collation_Stmt_Reference) return Alter_Collation_Stmt;
    function View (Tree : Syntax_Tree; Item : Alter_Domain_Stmt_Reference) return Alter_Domain_Stmt;
    function View (Tree : Syntax_Tree; Item : Grant_Stmt_Reference) return Grant_Stmt;
@@ -7663,8 +7034,6 @@ private
    type Aggref_Reference is record Value : Value_Id := No_Value; end record;
    type Grouping_Func_Reference is record Value : Value_Id := No_Value; end record;
    type Window_Func_Reference is record Value : Value_Id := No_Value; end record;
-   type Window_Func_Run_Condition_Reference is record Value : Value_Id := No_Value; end record;
-   type Merge_Support_Func_Reference is record Value : Value_Id := No_Value; end record;
    type Subscripting_Ref_Reference is record Value : Value_Id := No_Value; end record;
    type Func_Expr_Reference is record Value : Value_Id := No_Value; end record;
    type Named_Arg_Expr_Reference is record Value : Value_Id := No_Value; end record;
@@ -7698,21 +7067,14 @@ private
    type Json_Value_Expr_Reference is record Value : Value_Id := No_Value; end record;
    type Json_Constructor_Expr_Reference is record Value : Value_Id := No_Value; end record;
    type Json_Is_Predicate_Reference is record Value : Value_Id := No_Value; end record;
-   type Json_Behavior_Reference is record Value : Value_Id := No_Value; end record;
-   type Json_Expr_Reference is record Value : Value_Id := No_Value; end record;
-   type Json_Table_Path_Reference is record Value : Value_Id := No_Value; end record;
-   type Json_Table_Path_Scan_Reference is record Value : Value_Id := No_Value; end record;
-   type Json_Table_Sibling_Join_Reference is record Value : Value_Id := No_Value; end record;
    type Null_Test_Reference is record Value : Value_Id := No_Value; end record;
    type Boolean_Test_Reference is record Value : Value_Id := No_Value; end record;
-   type Merge_Action_Reference is record Value : Value_Id := No_Value; end record;
    type Coerce_To_Domain_Reference is record Value : Value_Id := No_Value; end record;
    type Coerce_To_Domain_Value_Reference is record Value : Value_Id := No_Value; end record;
    type Set_To_Default_Reference is record Value : Value_Id := No_Value; end record;
    type Current_Of_Expr_Reference is record Value : Value_Id := No_Value; end record;
    type Next_Value_Expr_Reference is record Value : Value_Id := No_Value; end record;
    type Inference_Elem_Reference is record Value : Value_Id := No_Value; end record;
-   type Returning_Expr_Reference is record Value : Value_Id := No_Value; end record;
    type Target_Entry_Reference is record Value : Value_Id := No_Value; end record;
    type Range_Tbl_Ref_Reference is record Value : Value_Id := No_Value; end record;
    type Join_Expr_Reference is record Value : Value_Id := No_Value; end record;
@@ -7767,19 +7129,10 @@ private
    type Cte_Cycle_Clause_Reference is record Value : Value_Id := No_Value; end record;
    type Common_Table_Expr_Reference is record Value : Value_Id := No_Value; end record;
    type Merge_When_Clause_Reference is record Value : Value_Id := No_Value; end record;
-   type Returning_Option_Reference is record Value : Value_Id := No_Value; end record;
-   type Returning_Clause_Reference is record Value : Value_Id := No_Value; end record;
+   type Merge_Action_Reference is record Value : Value_Id := No_Value; end record;
    type Trigger_Transition_Reference is record Value : Value_Id := No_Value; end record;
    type Json_Output_Reference is record Value : Value_Id := No_Value; end record;
-   type Json_Argument_Reference is record Value : Value_Id := No_Value; end record;
-   type Json_Func_Expr_Reference is record Value : Value_Id := No_Value; end record;
-   type Json_Table_Path_Spec_Reference is record Value : Value_Id := No_Value; end record;
-   type Json_Table_Reference is record Value : Value_Id := No_Value; end record;
-   type Json_Table_Column_Reference is record Value : Value_Id := No_Value; end record;
    type Json_Key_Value_Reference is record Value : Value_Id := No_Value; end record;
-   type Json_Parse_Expr_Reference is record Value : Value_Id := No_Value; end record;
-   type Json_Scalar_Expr_Reference is record Value : Value_Id := No_Value; end record;
-   type Json_Serialize_Expr_Reference is record Value : Value_Id := No_Value; end record;
    type Json_Object_Constructor_Reference is record Value : Value_Id := No_Value; end record;
    type Json_Array_Constructor_Reference is record Value : Value_Id := No_Value; end record;
    type Json_Array_Query_Constructor_Reference is record Value : Value_Id := No_Value; end record;
@@ -7797,9 +7150,8 @@ private
    type Pl_Assign_Stmt_Reference is record Value : Value_Id := No_Value; end record;
    type Create_Schema_Stmt_Reference is record Value : Value_Id := No_Value; end record;
    type Alter_Table_Stmt_Reference is record Value : Value_Id := No_Value; end record;
-   type Alter_Table_Cmd_Reference is record Value : Value_Id := No_Value; end record;
-   type At_Alter_Constraint_Reference is record Value : Value_Id := No_Value; end record;
    type Replica_Identity_Stmt_Reference is record Value : Value_Id := No_Value; end record;
+   type Alter_Table_Cmd_Reference is record Value : Value_Id := No_Value; end record;
    type Alter_Collation_Stmt_Reference is record Value : Value_Id := No_Value; end record;
    type Alter_Domain_Stmt_Reference is record Value : Value_Id := No_Value; end record;
    type Grant_Stmt_Reference is record Value : Value_Id := No_Value; end record;
@@ -7920,4 +7272,4 @@ private
    type Sequence_Of_Node is record Value : Value_Id := No_Value; end record;
    type Sequence_Of_Unsigned_64 is record Value : Value_Id := No_Value; end record;
 
-end Flyology.Postgres.SQL.V18;
+end Flyology.Postgres.SQL.Views.V16;

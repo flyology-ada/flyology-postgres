@@ -6,6 +6,7 @@
 /backends/obj/
 /tests/alire/
 /tests/bin/
+/tests/lib/
 /tests/obj/
 __pycache__/
 *.pyc

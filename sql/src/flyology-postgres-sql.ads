@@ -33,12 +33,6 @@ package Flyology.Postgres.SQL is
 
    type Syntax_Tree is tagged limited private;
 
-   procedure Parse
-     (SQL     : String;
-      Version : Major_Version;
-      Result  : in out Syntax_Tree;
-      Options : Parse_Options := Default_Options);
-
    function Is_Valid (Tree : Syntax_Tree) return Boolean;
    function Version (Tree : Syntax_Tree) return Major_Version
      with Pre => Is_Valid (Tree);
@@ -104,5 +98,12 @@ private
       Members        : Member_Vectors.Vector;
       Elements       : Element_Vectors.Vector;
    end record;
+
+   procedure Parse
+     (SQL     : String;
+      Version : Major_Version;
+      Result  : in out Syntax_Tree;
+      Options : Parse_Options := Default_Options);
+   --  Internal arena parser, publicly surfaced only through SQL.Views.Parse.
 
 end Flyology.Postgres.SQL;

@@ -62,8 +62,9 @@ ephemeral CA so `psqlish` and real `psql` exercise verified TLS against `pgish`.
 
 The nested [`flyology_postgres_sql`](sql/README.md) crate contains isolated
 native PostgreSQL 14–18 raw parsers and fully generated Ada 2022 syntax-tree
-views. `Syntax_Tree` owns a flat arena; public AST records are shallow and use
-opaque child references, discriminated optionals, typed sequence handles,
+APIs. The default `SQL.AST.V14`–`V18` packages return fully owned, naturally
+navigable Ada records. Allocation-sensitive consumers can explicitly select
+the flat-arena `SQL.Views.V14`–`V18` API. Both retain discriminated optionals,
 exact-width scalars, generated enums, and owned text. Generated catalog layers
 also expose built-in PostgreSQL type metadata and OID constants for every
 supported major.

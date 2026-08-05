@@ -3,21 +3,33 @@ with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Text_IO;
 with AUnit.Assertions; use AUnit.Assertions;
 with Flyology.Postgres.SQL;
+with Flyology.Postgres.SQL.Views;
 with Flyology.Postgres.SQL.AST.V14;
+with Flyology.Postgres.SQL.AST.V14.Testing;
 with Flyology.Postgres.SQL.AST.V15;
+with Flyology.Postgres.SQL.AST.V15.Testing;
 with Flyology.Postgres.SQL.AST.V16;
+with Flyology.Postgres.SQL.AST.V16.Testing;
 with Flyology.Postgres.SQL.AST.V17;
+with Flyology.Postgres.SQL.AST.V17.Testing;
 with Flyology.Postgres.SQL.AST.V18;
+with Flyology.Postgres.SQL.AST.V18.Testing;
 with Interfaces;
 
 package body Owned_AST_Tests is
 
    package SQL renames Flyology.Postgres.SQL;
+   package Views renames Flyology.Postgres.SQL.Views;
    package AST_14 renames Flyology.Postgres.SQL.AST.V14;
    package AST_15 renames Flyology.Postgres.SQL.AST.V15;
    package AST_16 renames Flyology.Postgres.SQL.AST.V16;
    package AST_17 renames Flyology.Postgres.SQL.AST.V17;
    package AST_18 renames Flyology.Postgres.SQL.AST.V18;
+   package Test_14 renames Flyology.Postgres.SQL.AST.V14.Testing;
+   package Test_15 renames Flyology.Postgres.SQL.AST.V15.Testing;
+   package Test_16 renames Flyology.Postgres.SQL.AST.V16.Testing;
+   package Test_17 renames Flyology.Postgres.SQL.AST.V17.Testing;
+   package Test_18 renames Flyology.Postgres.SQL.AST.V18.Testing;
 
    use type AST_14.Node_Kind;
    use type AST_15.Node_Kind;
@@ -50,27 +62,27 @@ package body Owned_AST_Tests is
       D17 : AST_17.Owned_Syntax_Tree;
       D18 : AST_18.Owned_Syntax_Tree;
    begin
-      AST_14.Parse ("SELECT 14", T14);
-      AST_15.Parse ("SELECT 15", T15);
-      AST_16.Parse ("SELECT 16", T16);
-      AST_17.Parse ("SELECT 17", T17);
-      AST_18.Parse ("SELECT 18", T18);
-      AST_14.Parse_Direct ("SELECT 14", D14);
-      AST_15.Parse_Direct ("SELECT 15", D15);
-      AST_16.Parse_Direct ("SELECT 16", D16);
-      AST_17.Parse_Direct ("SELECT 17", D17);
-      AST_18.Parse_Direct ("SELECT 18", D18);
+      Test_14.Parse_Baseline ("SELECT 14", T14);
+      Test_15.Parse_Baseline ("SELECT 15", T15);
+      Test_16.Parse_Baseline ("SELECT 16", T16);
+      Test_17.Parse_Baseline ("SELECT 17", T17);
+      Test_18.Parse_Baseline ("SELECT 18", T18);
+      AST_14.Parse ("SELECT 14", D14);
+      AST_15.Parse ("SELECT 15", D15);
+      AST_16.Parse ("SELECT 16", D16);
+      AST_17.Parse ("SELECT 17", D17);
+      AST_18.Parse ("SELECT 18", D18);
 
-      Assert (AST_14.Equivalent (T14, D14),
-              "PostgreSQL 14 direct output equals Phase 2");
-      Assert (AST_15.Equivalent (T15, D15),
-              "PostgreSQL 15 direct output equals Phase 2");
-      Assert (AST_16.Equivalent (T16, D16),
-              "PostgreSQL 16 direct output equals Phase 2");
-      Assert (AST_17.Equivalent (T17, D17),
-              "PostgreSQL 17 direct output equals Phase 2");
-      Assert (AST_18.Equivalent (T18, D18),
-              "PostgreSQL 18 direct output equals Phase 2");
+      Assert (Test_14.Equivalent (T14, D14),
+              "PostgreSQL 14 owned output equals the arena baseline");
+      Assert (Test_15.Equivalent (T15, D15),
+              "PostgreSQL 15 owned output equals the arena baseline");
+      Assert (Test_16.Equivalent (T16, D16),
+              "PostgreSQL 16 owned output equals the arena baseline");
+      Assert (Test_17.Equivalent (T17, D17),
+              "PostgreSQL 17 owned output equals the arena baseline");
+      Assert (Test_18.Equivalent (T18, D18),
+              "PostgreSQL 18 owned output equals the arena baseline");
 
       Assert (T14.Valid and T14.Root.Statements.Length = 1,
               "PostgreSQL 14 produces an owned root");
@@ -191,12 +203,12 @@ package body Owned_AST_Tests is
    end Test_Presence;
 
    procedure Test_Ownership_And_Replacement is
-      Arena : SQL.Syntax_Tree;
+      Arena : Views.Syntax_Tree;
       Tree  : AST_18.Owned_Syntax_Tree;
    begin
-      SQL.Parse ("SELECT 1 AS retained", SQL.PostgreSQL_18, Arena);
-      AST_18.Materialize (Arena, Tree);
-      SQL.Parse ("SELECT 2", SQL.PostgreSQL_18, Arena);
+      Views.Parse ("SELECT 1 AS retained", SQL.PostgreSQL_18, Arena);
+      Test_18.Materialize_Baseline (Arena, Tree);
+      Views.Parse ("SELECT 2", SQL.PostgreSQL_18, Arena);
       declare
          Selection : constant AST_18.Select_Stmt :=
            First_Node (Tree).Select_Stmt_Payload;
@@ -277,12 +289,12 @@ package body Owned_AST_Tests is
         & "SELECT a.id FROM active AS a JOIN audit AS b ON a.id = b.id "
         & "WHERE a.id > 10";
    begin
-      AST_18.Parse (Text, Baseline);
-      AST_18.Parse_Direct (Text, Direct);
+      Test_18.Parse_Baseline (Text, Baseline);
+      AST_18.Parse (Text, Direct);
       Assert (Direct.Valid, "direct semantic construction succeeds");
       Assert
-        (AST_18.Equivalent (Baseline, Direct),
-         "every owned field matches the Phase 2 baseline");
+        (Test_18.Equivalent (Baseline, Direct),
+         "every owned field matches the arena baseline");
       Assert
         (Direct.Root.Version.Present
          and then Baseline.Root.Version.Present
@@ -296,16 +308,16 @@ package body Owned_AST_Tests is
       begin
          Assert
            (Actual.Target_List.Length = Expected.Target_List.Length,
-            "direct target sequence matches the Phase 2 baseline");
+            "owned target sequence matches the arena baseline");
          Assert
            (Actual.From_Clause.Length = Expected.From_Clause.Length,
-            "direct FROM sequence matches the Phase 2 baseline");
+            "owned FROM sequence matches the arena baseline");
          Assert
            (Actual.With_Clause.Present = Expected.With_Clause.Present,
-            "direct optional presence matches the Phase 2 baseline");
+            "owned optional presence matches the arena baseline");
          Assert
            (Actual.Where_Clause.Present = Expected.Where_Clause.Present,
-            "direct expression presence matches the Phase 2 baseline");
+            "owned expression presence matches the arena baseline");
       end;
    end Test_Direct_Path;
 
@@ -313,45 +325,45 @@ package body Owned_AST_Tests is
       procedure Compare_14 (Text : String) is
          Baseline, Direct : AST_14.Owned_Syntax_Tree;
       begin
-         AST_14.Parse (Text, Baseline);
-         AST_14.Parse_Direct (Text, Direct);
-         Assert (AST_14.Equivalent (Baseline, Direct),
+         Test_14.Parse_Baseline (Text, Baseline);
+         AST_14.Parse (Text, Direct);
+         Assert (Test_14.Equivalent (Baseline, Direct),
                  "V14 direct AST differs for: " & Text);
       end Compare_14;
 
       procedure Compare_15 (Text : String) is
          Baseline, Direct : AST_15.Owned_Syntax_Tree;
       begin
-         AST_15.Parse (Text, Baseline);
-         AST_15.Parse_Direct (Text, Direct);
-         Assert (AST_15.Equivalent (Baseline, Direct),
+         Test_15.Parse_Baseline (Text, Baseline);
+         AST_15.Parse (Text, Direct);
+         Assert (Test_15.Equivalent (Baseline, Direct),
                  "V15 direct AST differs for: " & Text);
       end Compare_15;
 
       procedure Compare_16 (Text : String) is
          Baseline, Direct : AST_16.Owned_Syntax_Tree;
       begin
-         AST_16.Parse (Text, Baseline);
-         AST_16.Parse_Direct (Text, Direct);
-         Assert (AST_16.Equivalent (Baseline, Direct),
+         Test_16.Parse_Baseline (Text, Baseline);
+         AST_16.Parse (Text, Direct);
+         Assert (Test_16.Equivalent (Baseline, Direct),
                  "V16 direct AST differs for: " & Text);
       end Compare_16;
 
       procedure Compare_17 (Text : String) is
          Baseline, Direct : AST_17.Owned_Syntax_Tree;
       begin
-         AST_17.Parse (Text, Baseline);
-         AST_17.Parse_Direct (Text, Direct);
-         Assert (AST_17.Equivalent (Baseline, Direct),
+         Test_17.Parse_Baseline (Text, Baseline);
+         AST_17.Parse (Text, Direct);
+         Assert (Test_17.Equivalent (Baseline, Direct),
                  "V17 direct AST differs for: " & Text);
       end Compare_17;
 
       procedure Compare_18 (Text : String) is
          Baseline, Direct : AST_18.Owned_Syntax_Tree;
       begin
-         AST_18.Parse (Text, Baseline);
-         AST_18.Parse_Direct (Text, Direct);
-         Assert (AST_18.Equivalent (Baseline, Direct),
+         Test_18.Parse_Baseline (Text, Baseline);
+         AST_18.Parse (Text, Direct);
+         Assert (Test_18.Equivalent (Baseline, Direct),
                  "V18 direct AST differs for: " & Text);
       end Compare_18;
 
@@ -416,10 +428,10 @@ package body Owned_AST_Tests is
          Options : constant SQL.Parse_Options :=
            (Mode => SQL.Type_Name, others => <>);
       begin
-         AST_15.Parse ("integer", Baseline, Options);
-         AST_15.Parse_Direct ("integer", Direct, Options);
+         Test_15.Parse_Baseline ("integer", Baseline, Options);
+         AST_15.Parse ("integer", Direct, Options);
          Assert
-           (AST_15.Equivalent (Baseline, Direct),
+           (Test_15.Equivalent (Baseline, Direct),
             "V15 direct AST differs in type-name parse mode");
       end;
 
@@ -428,7 +440,7 @@ package body Owned_AST_Tests is
          Raised : Boolean := False;
       begin
          begin
-            AST_14.Parse_Direct
+            AST_14.Parse
               ("integer", Direct, (Mode => SQL.Type_Name, others => <>));
          exception
             when SQL.Unsupported_Parse_Options =>
@@ -440,7 +452,7 @@ package body Owned_AST_Tests is
 
    procedure Run is
    begin
-      Ada.Text_IO.Put_Line ("  owned roots and direct equivalence");
+      Ada.Text_IO.Put_Line ("  owned roots and arena equivalence");
       Test_Every_Version;
       Ada.Text_IO.Put_Line ("  owned complex traversal");
       Test_Complex_Traversal;
@@ -448,9 +460,9 @@ package body Owned_AST_Tests is
       Test_Presence;
       Ada.Text_IO.Put_Line ("  owned lifetime");
       Test_Ownership_And_Replacement;
-      Ada.Text_IO.Put_Line ("  owned direct complex equivalence");
+      Ada.Text_IO.Put_Line ("  owned complex baseline equivalence");
       Test_Direct_Path;
-      Ada.Text_IO.Put_Line ("  owned direct corpus equivalence");
+      Ada.Text_IO.Put_Line ("  owned corpus baseline equivalence");
       Test_Direct_Corpus;
    end Run;
 

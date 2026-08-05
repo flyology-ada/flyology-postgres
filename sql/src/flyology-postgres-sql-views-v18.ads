@@ -5,7 +5,7 @@ pragma Style_Checks ("M160");
 with Ada.Strings.Unbounded;
 with Interfaces;
 
-package Flyology.Postgres.SQL.V17 is
+package Flyology.Postgres.SQL.Views.V18 is
 
    subtype Text is Ada.Strings.Unbounded.Unbounded_String;
 
@@ -84,7 +84,8 @@ package Flyology.Postgres.SQL.V17 is
       Rte_Kind_Rte_Values,
       Rte_Kind_Rte_Cte,
       Rte_Kind_Rte_Namedtuplestore,
-      Rte_Kind_Rte_Result);
+      Rte_Kind_Rte_Result,
+      Rte_Kind_Rte_Group);
 
    type Wco_Kind is
      (Wco_Kind_Wcokind_Undefined,
@@ -108,6 +109,11 @@ package Flyology.Postgres.SQL.V17 is
       Cte_Materialize_Default,
       Cte_Materialize_Always,
       Cte_Materialize_Never);
+
+   type Returning_Option_Kind is
+     (Returning_Option_Kind_Undefined,
+      Returning_Option_Kind_Returning_Option_Old,
+      Returning_Option_Kind_Returning_Option_New);
 
    type Json_Quotes is
      (Json_Quotes_Undefined,
@@ -200,7 +206,6 @@ package Flyology.Postgres.SQL.V17 is
       Alter_Table_Type_At_Set_Not_Null,
       Alter_Table_Type_At_Set_Expression,
       Alter_Table_Type_At_Drop_Expression,
-      Alter_Table_Type_At_Check_Not_Null,
       Alter_Table_Type_At_Set_Statistics,
       Alter_Table_Type_At_Set_Options,
       Alter_Table_Type_At_Reset_Options,
@@ -290,7 +295,9 @@ package Flyology.Postgres.SQL.V17 is
       Constr_Type_Constr_Attr_Deferrable,
       Constr_Type_Constr_Attr_Not_Deferrable,
       Constr_Type_Constr_Attr_Deferred,
-      Constr_Type_Constr_Attr_Immediate);
+      Constr_Type_Constr_Attr_Immediate,
+      Constr_Type_Constr_Attr_Enforced,
+      Constr_Type_Constr_Attr_Not_Enforced);
 
    type Import_Foreign_Schema_Type is
      (Import_Foreign_Schema_Type_Undefined,
@@ -404,6 +411,12 @@ package Flyology.Postgres.SQL.V17 is
       Table_Func_Type_Tft_Xmltable,
       Table_Func_Type_Tft_Json_Table);
 
+   type Var_Returning_Type is
+     (Var_Returning_Type_Undefined,
+      Var_Returning_Type_Var_Returning_Default,
+      Var_Returning_Type_Var_Returning_Old,
+      Var_Returning_Type_Var_Returning_New);
+
    type Param_Kind is
      (Param_Kind_Undefined,
       Param_Kind_Param_Extern,
@@ -441,15 +454,6 @@ package Flyology.Postgres.SQL.V17 is
       Sub_Link_Type_Multiexpr_Sublink,
       Sub_Link_Type_Array_Sublink,
       Sub_Link_Type_Cte_Sublink);
-
-   type Row_Compare_Type is
-     (Row_Compare_Type_Undefined,
-      Row_Compare_Type_Rowcompare_Lt,
-      Row_Compare_Type_Rowcompare_Le,
-      Row_Compare_Type_Rowcompare_Eq,
-      Row_Compare_Type_Rowcompare_Ge,
-      Row_Compare_Type_Rowcompare_Gt,
-      Row_Compare_Type_Rowcompare_Ne);
 
    type Min_Max_Op is
      (Min_Max_Op_Undefined,
@@ -585,6 +589,7 @@ package Flyology.Postgres.SQL.V17 is
       Join_Type_Join_Right,
       Join_Type_Join_Semi,
       Join_Type_Join_Anti,
+      Join_Type_Join_Right_Semi,
       Join_Type_Join_Right_Anti,
       Join_Type_Join_Unique_Outer,
       Join_Type_Join_Unique_Inner);
@@ -620,6 +625,18 @@ package Flyology.Postgres.SQL.V17 is
       Lock_Wait_Policy_Lock_Wait_Block,
       Lock_Wait_Policy_Lock_Wait_Skip,
       Lock_Wait_Policy_Lock_Wait_Error);
+
+   type Compare_Type is
+     (Compare_Type_Undefined,
+      Compare_Type_Compare_Invalid,
+      Compare_Type_Compare_Lt,
+      Compare_Type_Compare_Le,
+      Compare_Type_Compare_Eq,
+      Compare_Type_Compare_Ge,
+      Compare_Type_Compare_Gt,
+      Compare_Type_Compare_Ne,
+      Compare_Type_Compare_Overlap,
+      Compare_Type_Compare_Contained_By);
 
    type Parse_Result_Reference is private;
    type Node_Reference is private;
@@ -690,6 +707,7 @@ package Flyology.Postgres.SQL.V17 is
    type Current_Of_Expr_Reference is private;
    type Next_Value_Expr_Reference is private;
    type Inference_Elem_Reference is private;
+   type Returning_Expr_Reference is private;
    type Target_Entry_Reference is private;
    type Range_Tbl_Ref_Reference is private;
    type Join_Expr_Reference is private;
@@ -727,7 +745,6 @@ package Flyology.Postgres.SQL.V17 is
    type Partition_Spec_Reference is private;
    type Partition_Bound_Spec_Reference is private;
    type Partition_Range_Datum_Reference is private;
-   type Single_Partition_Spec_Reference is private;
    type Partition_Cmd_Reference is private;
    type Range_Tbl_Entry_Reference is private;
    type Rte_Permission_Info_Reference is private;
@@ -745,6 +762,8 @@ package Flyology.Postgres.SQL.V17 is
    type Cte_Cycle_Clause_Reference is private;
    type Common_Table_Expr_Reference is private;
    type Merge_When_Clause_Reference is private;
+   type Returning_Option_Reference is private;
+   type Returning_Clause_Reference is private;
    type Trigger_Transition_Reference is private;
    type Json_Output_Reference is private;
    type Json_Argument_Reference is private;
@@ -773,8 +792,9 @@ package Flyology.Postgres.SQL.V17 is
    type Pl_Assign_Stmt_Reference is private;
    type Create_Schema_Stmt_Reference is private;
    type Alter_Table_Stmt_Reference is private;
-   type Replica_Identity_Stmt_Reference is private;
    type Alter_Table_Cmd_Reference is private;
+   type At_Alter_Constraint_Reference is private;
+   type Replica_Identity_Stmt_Reference is private;
    type Alter_Collation_Stmt_Reference is private;
    type Alter_Domain_Stmt_Reference is private;
    type Grant_Stmt_Reference is private;
@@ -1427,6 +1447,15 @@ package Flyology.Postgres.SQL.V17 is
       end case;
    end record;
 
+   type Optional_Returning_Expr_Reference (Present : Standard.Boolean := False) is record
+      case Present is
+         when True =>
+            Value : Returning_Expr_Reference;
+         when False =>
+            null;
+      end case;
+   end record;
+
    type Optional_Target_Entry_Reference (Present : Standard.Boolean := False) is record
       case Present is
          when True =>
@@ -1760,15 +1789,6 @@ package Flyology.Postgres.SQL.V17 is
       end case;
    end record;
 
-   type Optional_Single_Partition_Spec_Reference (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Single_Partition_Spec_Reference;
-         when False =>
-            null;
-      end case;
-   end record;
-
    type Optional_Partition_Cmd_Reference (Present : Standard.Boolean := False) is record
       case Present is
          when True =>
@@ -1917,6 +1937,24 @@ package Flyology.Postgres.SQL.V17 is
       case Present is
          when True =>
             Value : Merge_When_Clause_Reference;
+         when False =>
+            null;
+      end case;
+   end record;
+
+   type Optional_Returning_Option_Reference (Present : Standard.Boolean := False) is record
+      case Present is
+         when True =>
+            Value : Returning_Option_Reference;
+         when False =>
+            null;
+      end case;
+   end record;
+
+   type Optional_Returning_Clause_Reference (Present : Standard.Boolean := False) is record
+      case Present is
+         when True =>
+            Value : Returning_Clause_Reference;
          when False =>
             null;
       end case;
@@ -2174,19 +2212,28 @@ package Flyology.Postgres.SQL.V17 is
       end case;
    end record;
 
-   type Optional_Replica_Identity_Stmt_Reference (Present : Standard.Boolean := False) is record
+   type Optional_Alter_Table_Cmd_Reference (Present : Standard.Boolean := False) is record
       case Present is
          when True =>
-            Value : Replica_Identity_Stmt_Reference;
+            Value : Alter_Table_Cmd_Reference;
          when False =>
             null;
       end case;
    end record;
 
-   type Optional_Alter_Table_Cmd_Reference (Present : Standard.Boolean := False) is record
+   type Optional_At_Alter_Constraint_Reference (Present : Standard.Boolean := False) is record
       case Present is
          when True =>
-            Value : Alter_Table_Cmd_Reference;
+            Value : At_Alter_Constraint_Reference;
+         when False =>
+            null;
+      end case;
+   end record;
+
+   type Optional_Replica_Identity_Stmt_Reference (Present : Standard.Boolean := False) is record
+      case Present is
+         when True =>
+            Value : Replica_Identity_Stmt_Reference;
          when False =>
             null;
       end case;
@@ -3371,6 +3418,15 @@ package Flyology.Postgres.SQL.V17 is
       end case;
    end record;
 
+   type Optional_Var_Returning_Type (Present : Standard.Boolean := False) is record
+      case Present is
+         when True =>
+            Value : Var_Returning_Type;
+         when False =>
+            null;
+      end case;
+   end record;
+
    type Optional_Param_Kind (Present : Standard.Boolean := False) is record
       case Present is
          when True =>
@@ -3425,10 +3481,10 @@ package Flyology.Postgres.SQL.V17 is
       end case;
    end record;
 
-   type Optional_Row_Compare_Type (Present : Standard.Boolean := False) is record
+   type Optional_Compare_Type (Present : Standard.Boolean := False) is record
       case Present is
          when True =>
-            Value : Row_Compare_Type;
+            Value : Compare_Type;
          when False =>
             null;
       end case;
@@ -3740,6 +3796,15 @@ package Flyology.Postgres.SQL.V17 is
       end case;
    end record;
 
+   type Optional_Returning_Option_Kind (Present : Standard.Boolean := False) is record
+      case Present is
+         when True =>
+            Value : Returning_Option_Kind;
+         when False =>
+            null;
+      end case;
+   end record;
+
    type Optional_Json_Quotes (Present : Standard.Boolean := False) is record
       case Present is
          when True =>
@@ -4011,6 +4076,7 @@ package Flyology.Postgres.SQL.V17 is
       Current_Of_Expr : Optional_Current_Of_Expr_Reference;
       Next_Value_Expr : Optional_Next_Value_Expr_Reference;
       Inference_Elem : Optional_Inference_Elem_Reference;
+      Returning_Expr : Optional_Returning_Expr_Reference;
       Target_Entry : Optional_Target_Entry_Reference;
       Range_Tbl_Ref : Optional_Range_Tbl_Ref_Reference;
       Join_Expr : Optional_Join_Expr_Reference;
@@ -4048,7 +4114,6 @@ package Flyology.Postgres.SQL.V17 is
       Partition_Spec : Optional_Partition_Spec_Reference;
       Partition_Bound_Spec : Optional_Partition_Bound_Spec_Reference;
       Partition_Range_Datum : Optional_Partition_Range_Datum_Reference;
-      Single_Partition_Spec : Optional_Single_Partition_Spec_Reference;
       Partition_Cmd : Optional_Partition_Cmd_Reference;
       Range_Tbl_Entry : Optional_Range_Tbl_Entry_Reference;
       Rtepermission_Info : Optional_Rte_Permission_Info_Reference;
@@ -4066,6 +4131,8 @@ package Flyology.Postgres.SQL.V17 is
       Ctecycle_Clause : Optional_Cte_Cycle_Clause_Reference;
       Common_Table_Expr : Optional_Common_Table_Expr_Reference;
       Merge_When_Clause : Optional_Merge_When_Clause_Reference;
+      Returning_Option : Optional_Returning_Option_Reference;
+      Returning_Clause : Optional_Returning_Clause_Reference;
       Trigger_Transition : Optional_Trigger_Transition_Reference;
       Json_Output : Optional_Json_Output_Reference;
       Json_Argument : Optional_Json_Argument_Reference;
@@ -4094,8 +4161,9 @@ package Flyology.Postgres.SQL.V17 is
       Plassign_Stmt : Optional_Pl_Assign_Stmt_Reference;
       Create_Schema_Stmt : Optional_Create_Schema_Stmt_Reference;
       Alter_Table_Stmt : Optional_Alter_Table_Stmt_Reference;
-      Replica_Identity_Stmt : Optional_Replica_Identity_Stmt_Reference;
       Alter_Table_Cmd : Optional_Alter_Table_Cmd_Reference;
+      Atalter_Constraint : Optional_At_Alter_Constraint_Reference;
+      Replica_Identity_Stmt : Optional_Replica_Identity_Stmt_Reference;
       Alter_Collation_Stmt : Optional_Alter_Collation_Stmt_Reference;
       Alter_Domain_Stmt : Optional_Alter_Domain_Stmt_Reference;
       Grant_Stmt : Optional_Grant_Stmt_Reference;
@@ -4307,7 +4375,7 @@ package Flyology.Postgres.SQL.V17 is
       Options : Sequence_Of_Node;
       On_Commit : Optional_On_Commit_Action;
       Table_Space_Name : Optional_Text;
-      View_Query : Optional_Node_Reference;
+      View_Query : Optional_Query_Reference;
       Skip_Data : Optional_Boolean;
    end record;
 
@@ -4320,6 +4388,7 @@ package Flyology.Postgres.SQL.V17 is
       Varcollid : Optional_Unsigned_32;
       Varnullingrels : Sequence_Of_Unsigned_64;
       Varlevelsup : Optional_Unsigned_32;
+      Varreturningtype : Optional_Var_Returning_Type;
       Location : Optional_Integer_32;
    end record;
 
@@ -4604,6 +4673,8 @@ package Flyology.Postgres.SQL.V17 is
       Element_Typeid : Optional_Unsigned_32;
       Elements : Sequence_Of_Node;
       Multidims : Optional_Boolean;
+      List_Start : Optional_Integer_32;
+      List_End : Optional_Integer_32;
       Location : Optional_Integer_32;
    end record;
 
@@ -4618,7 +4689,7 @@ package Flyology.Postgres.SQL.V17 is
 
    type Row_Compare_Expr is record
       Xpr : Optional_Node_Reference;
-      Rctype : Optional_Row_Compare_Type;
+      Cmptype : Optional_Compare_Type;
       Opnos : Sequence_Of_Node;
       Opfamilies : Sequence_Of_Node;
       Inputcollids : Sequence_Of_Node;
@@ -4820,6 +4891,13 @@ package Flyology.Postgres.SQL.V17 is
       Inferopclass : Optional_Unsigned_32;
    end record;
 
+   type Returning_Expr is record
+      Xpr : Optional_Node_Reference;
+      Retlevelsup : Optional_Integer_32;
+      Retold : Optional_Boolean;
+      Retexpr : Optional_Node_Reference;
+   end record;
+
    type Target_Entry is record
       Xpr : Optional_Node_Reference;
       Expr : Optional_Node_Reference;
@@ -4878,6 +4956,7 @@ package Flyology.Postgres.SQL.V17 is
       Has_Modifying_Cte : Optional_Boolean;
       Has_For_Update : Optional_Boolean;
       Has_Row_Security : Optional_Boolean;
+      Has_Group_Rte : Optional_Boolean;
       Is_Return : Optional_Boolean;
       Cte_List : Sequence_Of_Node;
       Rtable : Sequence_Of_Node;
@@ -4889,6 +4968,8 @@ package Flyology.Postgres.SQL.V17 is
       Target_List : Sequence_Of_Node;
       Override : Optional_Overriding_Kind;
       On_Conflict : Optional_On_Conflict_Expr_Reference;
+      Returning_Old_Alias : Optional_Text;
+      Returning_New_Alias : Optional_Text;
       Returning_List : Sequence_Of_Node;
       Group_Clause : Sequence_Of_Node;
       Group_Distinct : Optional_Boolean;
@@ -4934,6 +5015,8 @@ package Flyology.Postgres.SQL.V17 is
       Name : Sequence_Of_Node;
       Lexpr : Optional_Node_Reference;
       Rexpr : Optional_Node_Reference;
+      Rexpr_List_Start : Optional_Integer_32;
+      Rexpr_List_End : Optional_Integer_32;
       Location : Optional_Integer_32;
    end record;
 
@@ -4984,6 +5067,8 @@ package Flyology.Postgres.SQL.V17 is
 
    type A_Array_Expr is record
       Elements : Sequence_Of_Node;
+      List_Start : Optional_Integer_32;
+      List_End : Optional_Integer_32;
       Location : Optional_Integer_32;
    end record;
 
@@ -5154,8 +5239,6 @@ package Flyology.Postgres.SQL.V17 is
       Location : Optional_Integer_32;
    end record;
 
-   type Single_Partition_Spec is null record;
-
    type Partition_Cmd is record
       Name : Optional_Range_Var_Reference;
       Bound : Optional_Partition_Bound_Spec_Reference;
@@ -5192,6 +5275,7 @@ package Flyology.Postgres.SQL.V17 is
       Colcollations : Sequence_Of_Node;
       Enrname : Optional_Text;
       Enrtuples : Optional_IEEE_Float_64;
+      Groupexprs : Sequence_Of_Node;
       Lateral : Optional_Boolean;
       In_From_Cl : Optional_Boolean;
       Security_Quals : Sequence_Of_Node;
@@ -5235,6 +5319,7 @@ package Flyology.Postgres.SQL.V17 is
       Tle_Sort_Group_Ref : Optional_Unsigned_32;
       Eqop : Optional_Unsigned_32;
       Sortop : Optional_Unsigned_32;
+      Reverse_Sort : Optional_Boolean;
       Nulls_First : Optional_Boolean;
       Hashable : Optional_Boolean;
    end record;
@@ -5333,6 +5418,17 @@ package Flyology.Postgres.SQL.V17 is
       Condition : Optional_Node_Reference;
       Target_List : Sequence_Of_Node;
       Values : Sequence_Of_Node;
+   end record;
+
+   type Returning_Option is record
+      Option : Optional_Returning_Option_Kind;
+      Value : Optional_Text;
+      Location : Optional_Integer_32;
+   end record;
+
+   type Returning_Clause is record
+      Options : Sequence_Of_Node;
+      Exprs : Sequence_Of_Node;
    end record;
 
    type Trigger_Transition is record
@@ -5476,7 +5572,7 @@ package Flyology.Postgres.SQL.V17 is
       Cols : Sequence_Of_Node;
       Select_Stmt : Optional_Node_Reference;
       On_Conflict_Clause : Optional_On_Conflict_Clause_Reference;
-      Returning_List : Sequence_Of_Node;
+      Returning_Clause : Optional_Returning_Clause_Reference;
       With_Clause : Optional_With_Clause_Reference;
       Override : Optional_Overriding_Kind;
    end record;
@@ -5485,7 +5581,7 @@ package Flyology.Postgres.SQL.V17 is
       Relation : Optional_Range_Var_Reference;
       Using_Clause : Sequence_Of_Node;
       Where_Clause : Optional_Node_Reference;
-      Returning_List : Sequence_Of_Node;
+      Returning_Clause : Optional_Returning_Clause_Reference;
       With_Clause : Optional_With_Clause_Reference;
    end record;
 
@@ -5494,7 +5590,7 @@ package Flyology.Postgres.SQL.V17 is
       Target_List : Sequence_Of_Node;
       Where_Clause : Optional_Node_Reference;
       From_Clause : Sequence_Of_Node;
-      Returning_List : Sequence_Of_Node;
+      Returning_Clause : Optional_Returning_Clause_Reference;
       With_Clause : Optional_With_Clause_Reference;
    end record;
 
@@ -5503,7 +5599,7 @@ package Flyology.Postgres.SQL.V17 is
       Source_Relation : Optional_Node_Reference;
       Join_Condition : Optional_Node_Reference;
       Merge_When_Clauses : Sequence_Of_Node;
-      Returning_List : Sequence_Of_Node;
+      Returning_Clause : Optional_Returning_Clause_Reference;
       With_Clause : Optional_With_Clause_Reference;
    end record;
 
@@ -5567,11 +5663,6 @@ package Flyology.Postgres.SQL.V17 is
       Missing_Ok : Optional_Boolean;
    end record;
 
-   type Replica_Identity_Stmt is record
-      Identity_Type : Optional_Text;
-      Name : Optional_Text;
-   end record;
-
    type Alter_Table_Cmd is record
       Field_Subtype : Optional_Alter_Table_Type;
       Name : Optional_Text;
@@ -5581,6 +5672,22 @@ package Flyology.Postgres.SQL.V17 is
       Behavior : Optional_Drop_Behavior;
       Missing_Ok : Optional_Boolean;
       Recurse : Optional_Boolean;
+   end record;
+
+   type At_Alter_Constraint is record
+      Conname : Optional_Text;
+      Alter_Enforceability : Optional_Boolean;
+      Is_Enforced : Optional_Boolean;
+      Alter_Deferrability : Optional_Boolean;
+      Deferrable : Optional_Boolean;
+      Initdeferred : Optional_Boolean;
+      Alter_Inheritability : Optional_Boolean;
+      Noinherit : Optional_Boolean;
+   end record;
+
+   type Replica_Identity_Stmt is record
+      Identity_Type : Optional_Text;
+      Name : Optional_Text;
    end record;
 
    type Alter_Collation_Stmt is record
@@ -5649,7 +5756,9 @@ package Flyology.Postgres.SQL.V17 is
       Kind : Optional_Variable_Set_Kind;
       Name : Optional_Text;
       Args : Sequence_Of_Node;
+      Jumble_Args : Optional_Boolean;
       Is_Local : Optional_Boolean;
+      Location : Optional_Integer_32;
    end record;
 
    type Variable_Show_Stmt is record
@@ -5664,6 +5773,7 @@ package Flyology.Postgres.SQL.V17 is
       Partspec : Optional_Partition_Spec_Reference;
       Of_Typename : Optional_Type_Name_Reference;
       Constraints : Sequence_Of_Node;
+      Nnconstraints : Sequence_Of_Node;
       Options : Sequence_Of_Node;
       Oncommit : Optional_On_Commit_Action;
       Tablespacename : Optional_Text;
@@ -5676,15 +5786,17 @@ package Flyology.Postgres.SQL.V17 is
       Conname : Optional_Text;
       Deferrable : Optional_Boolean;
       Initdeferred : Optional_Boolean;
+      Is_Enforced : Optional_Boolean;
       Skip_Validation : Optional_Boolean;
       Initially_Valid : Optional_Boolean;
       Is_No_Inherit : Optional_Boolean;
       Raw_Expr : Optional_Node_Reference;
       Cooked_Expr : Optional_Text;
       Generated_When : Optional_Text;
-      Inhcount : Optional_Integer_32;
+      Generated_Kind : Optional_Text;
       Nulls_Not_Distinct : Optional_Boolean;
       Keys : Sequence_Of_Node;
+      Without_Overlaps : Optional_Boolean;
       Including : Sequence_Of_Node;
       Exclusions : Sequence_Of_Node;
       Options : Sequence_Of_Node;
@@ -5696,6 +5808,8 @@ package Flyology.Postgres.SQL.V17 is
       Pktable : Optional_Range_Var_Reference;
       Fk_Attrs : Sequence_Of_Node;
       Pk_Attrs : Sequence_Of_Node;
+      Fk_With_Period : Optional_Boolean;
+      Pk_With_Period : Optional_Boolean;
       Fk_Matchtype : Optional_Text;
       Fk_Upd_Action : Optional_Text;
       Fk_Del_Action : Optional_Text;
@@ -6022,6 +6136,7 @@ package Flyology.Postgres.SQL.V17 is
       Nulls_Not_Distinct : Optional_Boolean;
       Primary : Optional_Boolean;
       Isconstraint : Optional_Boolean;
+      Iswithoutoverlaps : Optional_Boolean;
       Deferrable : Optional_Boolean;
       Initdeferred : Optional_Boolean;
       Transformed : Optional_Boolean;
@@ -6066,6 +6181,7 @@ package Flyology.Postgres.SQL.V17 is
       Arg_Type : Optional_Type_Name_Reference;
       Mode : Optional_Function_Parameter_Mode;
       Defexpr : Optional_Node_Reference;
+      Location : Optional_Integer_32;
    end record;
 
    type Alter_Function_Stmt is record
@@ -6472,6 +6588,7 @@ package Flyology.Postgres.SQL.V17 is
       Node_Current_Of_Expr,
       Node_Next_Value_Expr,
       Node_Inference_Elem,
+      Node_Returning_Expr,
       Node_Target_Entry,
       Node_Range_Tbl_Ref,
       Node_Join_Expr,
@@ -6509,7 +6626,6 @@ package Flyology.Postgres.SQL.V17 is
       Node_Partition_Spec,
       Node_Partition_Bound_Spec,
       Node_Partition_Range_Datum,
-      Node_Single_Partition_Spec,
       Node_Partition_Cmd,
       Node_Range_Tbl_Entry,
       Node_Rte_Permission_Info,
@@ -6527,6 +6643,8 @@ package Flyology.Postgres.SQL.V17 is
       Node_Cte_Cycle_Clause,
       Node_Common_Table_Expr,
       Node_Merge_When_Clause,
+      Node_Returning_Option,
+      Node_Returning_Clause,
       Node_Trigger_Transition,
       Node_Json_Output,
       Node_Json_Argument,
@@ -6555,8 +6673,9 @@ package Flyology.Postgres.SQL.V17 is
       Node_Pl_Assign_Stmt,
       Node_Create_Schema_Stmt,
       Node_Alter_Table_Stmt,
-      Node_Replica_Identity_Stmt,
       Node_Alter_Table_Cmd,
+      Node_At_Alter_Constraint,
+      Node_Replica_Identity_Stmt,
       Node_Alter_Collation_Stmt,
       Node_Alter_Domain_Stmt,
       Node_Grant_Stmt,
@@ -6684,7 +6803,7 @@ package Flyology.Postgres.SQL.V17 is
       Node_A_Const);
 
    function Root (Tree : Syntax_Tree) return Parse_Result_Reference
-     with Pre => Is_Valid (Tree) and then Version (Tree) = PostgreSQL_17;
+     with Pre => Is_Valid (Tree) and then Version (Tree) = PostgreSQL_18;
    function Kind (Tree : Syntax_Tree; Item : Node_Reference) return Node_Kind;
 
    function As_Alias (Tree : Syntax_Tree; Item : Node_Reference) return Alias_Reference
@@ -6803,6 +6922,8 @@ package Flyology.Postgres.SQL.V17 is
      with Pre => Kind (Tree, Item) = Node_Next_Value_Expr;
    function As_Inference_Elem (Tree : Syntax_Tree; Item : Node_Reference) return Inference_Elem_Reference
      with Pre => Kind (Tree, Item) = Node_Inference_Elem;
+   function As_Returning_Expr (Tree : Syntax_Tree; Item : Node_Reference) return Returning_Expr_Reference
+     with Pre => Kind (Tree, Item) = Node_Returning_Expr;
    function As_Target_Entry (Tree : Syntax_Tree; Item : Node_Reference) return Target_Entry_Reference
      with Pre => Kind (Tree, Item) = Node_Target_Entry;
    function As_Range_Tbl_Ref (Tree : Syntax_Tree; Item : Node_Reference) return Range_Tbl_Ref_Reference
@@ -6877,8 +6998,6 @@ package Flyology.Postgres.SQL.V17 is
      with Pre => Kind (Tree, Item) = Node_Partition_Bound_Spec;
    function As_Partition_Range_Datum (Tree : Syntax_Tree; Item : Node_Reference) return Partition_Range_Datum_Reference
      with Pre => Kind (Tree, Item) = Node_Partition_Range_Datum;
-   function As_Single_Partition_Spec (Tree : Syntax_Tree; Item : Node_Reference) return Single_Partition_Spec_Reference
-     with Pre => Kind (Tree, Item) = Node_Single_Partition_Spec;
    function As_Partition_Cmd (Tree : Syntax_Tree; Item : Node_Reference) return Partition_Cmd_Reference
      with Pre => Kind (Tree, Item) = Node_Partition_Cmd;
    function As_Range_Tbl_Entry (Tree : Syntax_Tree; Item : Node_Reference) return Range_Tbl_Entry_Reference
@@ -6913,6 +7032,10 @@ package Flyology.Postgres.SQL.V17 is
      with Pre => Kind (Tree, Item) = Node_Common_Table_Expr;
    function As_Merge_When_Clause (Tree : Syntax_Tree; Item : Node_Reference) return Merge_When_Clause_Reference
      with Pre => Kind (Tree, Item) = Node_Merge_When_Clause;
+   function As_Returning_Option (Tree : Syntax_Tree; Item : Node_Reference) return Returning_Option_Reference
+     with Pre => Kind (Tree, Item) = Node_Returning_Option;
+   function As_Returning_Clause (Tree : Syntax_Tree; Item : Node_Reference) return Returning_Clause_Reference
+     with Pre => Kind (Tree, Item) = Node_Returning_Clause;
    function As_Trigger_Transition (Tree : Syntax_Tree; Item : Node_Reference) return Trigger_Transition_Reference
      with Pre => Kind (Tree, Item) = Node_Trigger_Transition;
    function As_Json_Output (Tree : Syntax_Tree; Item : Node_Reference) return Json_Output_Reference
@@ -6969,10 +7092,12 @@ package Flyology.Postgres.SQL.V17 is
      with Pre => Kind (Tree, Item) = Node_Create_Schema_Stmt;
    function As_Alter_Table_Stmt (Tree : Syntax_Tree; Item : Node_Reference) return Alter_Table_Stmt_Reference
      with Pre => Kind (Tree, Item) = Node_Alter_Table_Stmt;
-   function As_Replica_Identity_Stmt (Tree : Syntax_Tree; Item : Node_Reference) return Replica_Identity_Stmt_Reference
-     with Pre => Kind (Tree, Item) = Node_Replica_Identity_Stmt;
    function As_Alter_Table_Cmd (Tree : Syntax_Tree; Item : Node_Reference) return Alter_Table_Cmd_Reference
      with Pre => Kind (Tree, Item) = Node_Alter_Table_Cmd;
+   function As_At_Alter_Constraint (Tree : Syntax_Tree; Item : Node_Reference) return At_Alter_Constraint_Reference
+     with Pre => Kind (Tree, Item) = Node_At_Alter_Constraint;
+   function As_Replica_Identity_Stmt (Tree : Syntax_Tree; Item : Node_Reference) return Replica_Identity_Stmt_Reference
+     with Pre => Kind (Tree, Item) = Node_Replica_Identity_Stmt;
    function As_Alter_Collation_Stmt (Tree : Syntax_Tree; Item : Node_Reference) return Alter_Collation_Stmt_Reference
      with Pre => Kind (Tree, Item) = Node_Alter_Collation_Stmt;
    function As_Alter_Domain_Stmt (Tree : Syntax_Tree; Item : Node_Reference) return Alter_Domain_Stmt_Reference
@@ -7305,6 +7430,7 @@ package Flyology.Postgres.SQL.V17 is
    function View (Tree : Syntax_Tree; Item : Current_Of_Expr_Reference) return Current_Of_Expr;
    function View (Tree : Syntax_Tree; Item : Next_Value_Expr_Reference) return Next_Value_Expr;
    function View (Tree : Syntax_Tree; Item : Inference_Elem_Reference) return Inference_Elem;
+   function View (Tree : Syntax_Tree; Item : Returning_Expr_Reference) return Returning_Expr;
    function View (Tree : Syntax_Tree; Item : Target_Entry_Reference) return Target_Entry;
    function View (Tree : Syntax_Tree; Item : Range_Tbl_Ref_Reference) return Range_Tbl_Ref;
    function View (Tree : Syntax_Tree; Item : Join_Expr_Reference) return Join_Expr;
@@ -7342,7 +7468,6 @@ package Flyology.Postgres.SQL.V17 is
    function View (Tree : Syntax_Tree; Item : Partition_Spec_Reference) return Partition_Spec;
    function View (Tree : Syntax_Tree; Item : Partition_Bound_Spec_Reference) return Partition_Bound_Spec;
    function View (Tree : Syntax_Tree; Item : Partition_Range_Datum_Reference) return Partition_Range_Datum;
-   function View (Tree : Syntax_Tree; Item : Single_Partition_Spec_Reference) return Single_Partition_Spec;
    function View (Tree : Syntax_Tree; Item : Partition_Cmd_Reference) return Partition_Cmd;
    function View (Tree : Syntax_Tree; Item : Range_Tbl_Entry_Reference) return Range_Tbl_Entry;
    function View (Tree : Syntax_Tree; Item : Rte_Permission_Info_Reference) return Rte_Permission_Info;
@@ -7360,6 +7485,8 @@ package Flyology.Postgres.SQL.V17 is
    function View (Tree : Syntax_Tree; Item : Cte_Cycle_Clause_Reference) return Cte_Cycle_Clause;
    function View (Tree : Syntax_Tree; Item : Common_Table_Expr_Reference) return Common_Table_Expr;
    function View (Tree : Syntax_Tree; Item : Merge_When_Clause_Reference) return Merge_When_Clause;
+   function View (Tree : Syntax_Tree; Item : Returning_Option_Reference) return Returning_Option;
+   function View (Tree : Syntax_Tree; Item : Returning_Clause_Reference) return Returning_Clause;
    function View (Tree : Syntax_Tree; Item : Trigger_Transition_Reference) return Trigger_Transition;
    function View (Tree : Syntax_Tree; Item : Json_Output_Reference) return Json_Output;
    function View (Tree : Syntax_Tree; Item : Json_Argument_Reference) return Json_Argument;
@@ -7388,8 +7515,9 @@ package Flyology.Postgres.SQL.V17 is
    function View (Tree : Syntax_Tree; Item : Pl_Assign_Stmt_Reference) return Pl_Assign_Stmt;
    function View (Tree : Syntax_Tree; Item : Create_Schema_Stmt_Reference) return Create_Schema_Stmt;
    function View (Tree : Syntax_Tree; Item : Alter_Table_Stmt_Reference) return Alter_Table_Stmt;
-   function View (Tree : Syntax_Tree; Item : Replica_Identity_Stmt_Reference) return Replica_Identity_Stmt;
    function View (Tree : Syntax_Tree; Item : Alter_Table_Cmd_Reference) return Alter_Table_Cmd;
+   function View (Tree : Syntax_Tree; Item : At_Alter_Constraint_Reference) return At_Alter_Constraint;
+   function View (Tree : Syntax_Tree; Item : Replica_Identity_Stmt_Reference) return Replica_Identity_Stmt;
    function View (Tree : Syntax_Tree; Item : Alter_Collation_Stmt_Reference) return Alter_Collation_Stmt;
    function View (Tree : Syntax_Tree; Item : Alter_Domain_Stmt_Reference) return Alter_Domain_Stmt;
    function View (Tree : Syntax_Tree; Item : Grant_Stmt_Reference) return Grant_Stmt;
@@ -7584,6 +7712,7 @@ private
    type Current_Of_Expr_Reference is record Value : Value_Id := No_Value; end record;
    type Next_Value_Expr_Reference is record Value : Value_Id := No_Value; end record;
    type Inference_Elem_Reference is record Value : Value_Id := No_Value; end record;
+   type Returning_Expr_Reference is record Value : Value_Id := No_Value; end record;
    type Target_Entry_Reference is record Value : Value_Id := No_Value; end record;
    type Range_Tbl_Ref_Reference is record Value : Value_Id := No_Value; end record;
    type Join_Expr_Reference is record Value : Value_Id := No_Value; end record;
@@ -7621,7 +7750,6 @@ private
    type Partition_Spec_Reference is record Value : Value_Id := No_Value; end record;
    type Partition_Bound_Spec_Reference is record Value : Value_Id := No_Value; end record;
    type Partition_Range_Datum_Reference is record Value : Value_Id := No_Value; end record;
-   type Single_Partition_Spec_Reference is record Value : Value_Id := No_Value; end record;
    type Partition_Cmd_Reference is record Value : Value_Id := No_Value; end record;
    type Range_Tbl_Entry_Reference is record Value : Value_Id := No_Value; end record;
    type Rte_Permission_Info_Reference is record Value : Value_Id := No_Value; end record;
@@ -7639,6 +7767,8 @@ private
    type Cte_Cycle_Clause_Reference is record Value : Value_Id := No_Value; end record;
    type Common_Table_Expr_Reference is record Value : Value_Id := No_Value; end record;
    type Merge_When_Clause_Reference is record Value : Value_Id := No_Value; end record;
+   type Returning_Option_Reference is record Value : Value_Id := No_Value; end record;
+   type Returning_Clause_Reference is record Value : Value_Id := No_Value; end record;
    type Trigger_Transition_Reference is record Value : Value_Id := No_Value; end record;
    type Json_Output_Reference is record Value : Value_Id := No_Value; end record;
    type Json_Argument_Reference is record Value : Value_Id := No_Value; end record;
@@ -7667,8 +7797,9 @@ private
    type Pl_Assign_Stmt_Reference is record Value : Value_Id := No_Value; end record;
    type Create_Schema_Stmt_Reference is record Value : Value_Id := No_Value; end record;
    type Alter_Table_Stmt_Reference is record Value : Value_Id := No_Value; end record;
-   type Replica_Identity_Stmt_Reference is record Value : Value_Id := No_Value; end record;
    type Alter_Table_Cmd_Reference is record Value : Value_Id := No_Value; end record;
+   type At_Alter_Constraint_Reference is record Value : Value_Id := No_Value; end record;
+   type Replica_Identity_Stmt_Reference is record Value : Value_Id := No_Value; end record;
    type Alter_Collation_Stmt_Reference is record Value : Value_Id := No_Value; end record;
    type Alter_Domain_Stmt_Reference is record Value : Value_Id := No_Value; end record;
    type Grant_Stmt_Reference is record Value : Value_Id := No_Value; end record;
@@ -7789,4 +7920,4 @@ private
    type Sequence_Of_Node is record Value : Value_Id := No_Value; end record;
    type Sequence_Of_Unsigned_64 is record Value : Value_Id := No_Value; end record;
 
-end Flyology.Postgres.SQL.V17;
+end Flyology.Postgres.SQL.Views.V18;

@@ -2,14 +2,15 @@ with Ada.Text_IO;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with AUnit.Assertions; use AUnit.Assertions;
 with Flyology.Postgres.SQL;
+with Flyology.Postgres.SQL.Views;
 with Flyology.Postgres.SQL.Decoder_Testing;
 with Flyology.Postgres.SQL.Differential_Testing;
 with Flyology.Postgres.SQL.Native_Testing;
-with Flyology.Postgres.SQL.V14;
-with Flyology.Postgres.SQL.V15;
-with Flyology.Postgres.SQL.V16;
-with Flyology.Postgres.SQL.V17;
-with Flyology.Postgres.SQL.V18;
+with Flyology.Postgres.SQL.Views.V14;
+with Flyology.Postgres.SQL.Views.V15;
+with Flyology.Postgres.SQL.Views.V16;
+with Flyology.Postgres.SQL.Views.V17;
+with Flyology.Postgres.SQL.Views.V18;
 with Flyology.Postgres.Types;
 with Flyology.Postgres.Types.V18;
 with Owned_AST_Tests;
@@ -17,11 +18,12 @@ with Owned_AST_Tests;
 procedure SQL_Tests is
 
    package SQL renames Flyology.Postgres.SQL;
-   package V14 renames Flyology.Postgres.SQL.V14;
-   package V15 renames Flyology.Postgres.SQL.V15;
-   package V16 renames Flyology.Postgres.SQL.V16;
-   package V17 renames Flyology.Postgres.SQL.V17;
-   package V18 renames Flyology.Postgres.SQL.V18;
+   package Views renames Flyology.Postgres.SQL.Views;
+   package V14 renames Flyology.Postgres.SQL.Views.V14;
+   package V15 renames Flyology.Postgres.SQL.Views.V15;
+   package V16 renames Flyology.Postgres.SQL.Views.V16;
+   package V17 renames Flyology.Postgres.SQL.Views.V17;
+   package V18 renames Flyology.Postgres.SQL.Views.V18;
    package Types renames Flyology.Postgres.Types;
    package Types_18 renames Flyology.Postgres.Types.V18;
 
@@ -41,12 +43,12 @@ procedure SQL_Tests is
    begin
       for Version in SQL.Major_Version loop
          declare
-            Tree : SQL.Syntax_Tree;
+            Tree : Views.Syntax_Tree;
          begin
-            SQL.Parse (Text, Version, Tree);
-            Assert (SQL.Is_Valid (Tree), "common SQL parses for " & Version'Image);
-            Assert (SQL.Version (Tree) = Version, "tree retains its parser version");
-            Assert (SQL.Source (Tree) = Text, "tree owns the original SQL text");
+            Views.Parse (Text, Version, Tree);
+            Assert (Views.Is_Valid (Tree), "common SQL parses for " & Version'Image);
+            Assert (Views.Version (Tree) = Version, "tree retains its parser version");
+            Assert (Views.Source (Tree) = Text, "tree owns the original SQL text");
          end;
       end loop;
    end Test_Common_Syntax;
@@ -56,17 +58,17 @@ procedure SQL_Tests is
       begin
          for Version in SQL.Major_Version loop
             declare
-               Tree : SQL.Syntax_Tree;
+               Tree : Views.Syntax_Tree;
             begin
-               SQL.Parse (Text, Version, Tree);
+               Views.Parse (Text, Version, Tree);
                Assert
-                 (SQL.Is_Valid (Tree),
+                 (Views.Is_Valid (Tree),
                   "protobuf corpus parses for " & Version'Image & ": " & Text);
             end;
          end loop;
       end Parse_For_All;
 
-      NUL_Tree : SQL.Syntax_Tree;
+      NUL_Tree : Views.Syntax_Tree;
    begin
       Parse_For_All ("SELECT 0, FALSE, NULL");
       Parse_For_All ("SELECT 1; SELECT 2;");
@@ -78,20 +80,20 @@ procedure SQL_Tests is
 
       for Version in SQL.Major_Version loop
          declare
-            Tree : SQL.Syntax_Tree;
+            Tree : Views.Syntax_Tree;
          begin
-            SQL.Parse ("SELECT 'unterminated", Version, Tree);
-            Assert (not SQL.Is_Valid (Tree), "invalid corpus input is rejected");
+            Views.Parse ("SELECT 'unterminated", Version, Tree);
+            Assert (not Views.Is_Valid (Tree), "invalid corpus input is rejected");
          end;
       end loop;
 
-      SQL.Parse
+      Views.Parse
         ("SELECT 1" & Character'Val (0) & "SELECT 2",
          SQL.PostgreSQL_18,
          NUL_Tree);
-      Assert (not SQL.Is_Valid (NUL_Tree), "embedded NUL input is rejected");
+      Assert (not Views.Is_Valid (NUL_Tree), "embedded NUL input is rejected");
       Assert
-        (SQL.Cursor_Position (SQL.Error (NUL_Tree)) = 9,
+        (Views.Cursor_Position (Views.Error (NUL_Tree)) = 9,
          "embedded NUL diagnostic identifies the byte position");
    end Test_Protobuf_Corpus;
 
@@ -100,34 +102,34 @@ procedure SQL_Tests is
         "MERGE INTO inventory AS i USING changes AS c ON i.id = c.id "
         & "WHEN MATCHED THEN UPDATE SET quantity = c.quantity "
         & "WHEN NOT MATCHED THEN INSERT (id, quantity) VALUES (c.id, c.quantity);";
-      PG14 : SQL.Syntax_Tree;
+      PG14 : Views.Syntax_Tree;
    begin
-      SQL.Parse (Merge_SQL, SQL.PostgreSQL_14, PG14);
-      Assert (not SQL.Is_Valid (PG14), "MERGE is rejected by PostgreSQL 14");
+      Views.Parse (Merge_SQL, SQL.PostgreSQL_14, PG14);
+      Assert (not Views.Is_Valid (PG14), "MERGE is rejected by PostgreSQL 14");
 
       for Version in SQL.PostgreSQL_15 .. SQL.PostgreSQL_18 loop
          declare
-            Tree : SQL.Syntax_Tree;
+            Tree : Views.Syntax_Tree;
          begin
-            SQL.Parse (Merge_SQL, Version, Tree);
-            Assert (SQL.Is_Valid (Tree), "MERGE parses from PostgreSQL 15 onward");
+            Views.Parse (Merge_SQL, Version, Tree);
+            Assert (Views.Is_Valid (Tree), "MERGE parses from PostgreSQL 15 onward");
          end;
       end loop;
    end Test_Version_Layers;
 
    procedure Test_Diagnostic is
-      Tree : SQL.Syntax_Tree;
+      Tree : Views.Syntax_Tree;
    begin
-      SQL.Parse ("SELECT FROM WHERE", SQL.PostgreSQL_18, Tree);
-      Assert (not SQL.Is_Valid (Tree), "invalid SQL produces an invalid tree");
-      Assert (SQL.Message (SQL.Error (Tree))'Length > 0, "diagnostic has a message");
+      Views.Parse ("SELECT FROM WHERE", SQL.PostgreSQL_18, Tree);
+      Assert (not Views.Is_Valid (Tree), "invalid SQL produces an invalid tree");
+      Assert (Views.Message (Views.Error (Tree))'Length > 0, "diagnostic has a message");
       Assert
-        (SQL.Cursor_Position (SQL.Error (Tree)) > 0,
+        (Views.Cursor_Position (Views.Error (Tree)) > 0,
          "diagnostic retains PostgreSQL's cursor position");
    end Test_Diagnostic;
 
    procedure Test_Parse_Options is
-      Tree     : SQL.Syntax_Tree;
+      Tree     : Views.Syntax_Tree;
       Rejected : Boolean := False;
    begin
       Assert
@@ -137,7 +139,7 @@ procedure SQL_Tests is
         (SQL.Supports_Parse_Options (SQL.PostgreSQL_15),
          "PostgreSQL 15 supports parser modes and lexer GUC options");
       begin
-         SQL.Parse
+         Views.Parse
            ("integer",
             SQL.PostgreSQL_14,
             Tree,
@@ -147,19 +149,19 @@ procedure SQL_Tests is
             Rejected := True;
       end;
       Assert (Rejected, "PostgreSQL 14 does not silently ignore parse options");
-      SQL.Parse
+      Views.Parse
         ("integer",
          SQL.PostgreSQL_15,
          Tree,
          (Mode => SQL.Type_Name, others => <>));
-      Assert (SQL.Is_Valid (Tree), "PostgreSQL 15 type-name mode parses a type");
+      Assert (Views.Is_Valid (Tree), "PostgreSQL 15 type-name mode parses a type");
    end Test_Parse_Options;
 
    procedure Test_Typed_V18_Tree is
-      Tree : SQL.Syntax_Tree;
+      Tree : Views.Syntax_Tree;
    begin
-      SQL.Parse ("SELECT 1 AS answer", SQL.PostgreSQL_18, Tree);
-      Assert (SQL.Is_Valid (Tree), "typed-tree input parses");
+      Views.Parse ("SELECT 1 AS answer", SQL.PostgreSQL_18, Tree);
+      Assert (Views.Is_Valid (Tree), "typed-tree input parses");
       declare
          Parsed : constant V18.Parse_Result :=
            V18.View (Tree, V18.Root (Tree));
@@ -198,15 +200,15 @@ procedure SQL_Tests is
    end Test_Typed_V18_Tree;
 
    procedure Test_Every_Typed_Root is
-      T14 : SQL.Syntax_Tree;
-      T15 : SQL.Syntax_Tree;
-      T16 : SQL.Syntax_Tree;
-      T17 : SQL.Syntax_Tree;
+      T14 : Views.Syntax_Tree;
+      T15 : Views.Syntax_Tree;
+      T16 : Views.Syntax_Tree;
+      T17 : Views.Syntax_Tree;
    begin
-      SQL.Parse ("SELECT 1", SQL.PostgreSQL_14, T14);
-      SQL.Parse ("SELECT 1", SQL.PostgreSQL_15, T15);
-      SQL.Parse ("SELECT 1", SQL.PostgreSQL_16, T16);
-      SQL.Parse ("SELECT 1", SQL.PostgreSQL_17, T17);
+      Views.Parse ("SELECT 1", SQL.PostgreSQL_14, T14);
+      Views.Parse ("SELECT 1", SQL.PostgreSQL_15, T15);
+      Views.Parse ("SELECT 1", SQL.PostgreSQL_16, T16);
+      Views.Parse ("SELECT 1", SQL.PostgreSQL_17, T17);
       Assert
         (V14.Length (T14, V14.View (T14, V14.Root (T14)).Statements) = 1,
          "V14 shallow typed root works");
@@ -222,7 +224,7 @@ procedure SQL_Tests is
    end Test_Every_Typed_Root;
 
    procedure Test_Complex_Record_Views is
-      Tree : SQL.Syntax_Tree;
+      Tree : Views.Syntax_Tree;
 
       function First_Statement return V18.Node_Reference is
          Items : constant V18.Sequence_Of_Raw_Stmt :=
@@ -231,13 +233,13 @@ procedure SQL_Tests is
          return V18.Statement (Tree, V18.Element (Tree, Items, 1));
       end First_Statement;
    begin
-      SQL.Parse
+      Views.Parse
         ("WITH active AS (SELECT id FROM accounts WHERE enabled) "
          & "SELECT a.id FROM active AS a JOIN audit AS b ON a.id = b.id "
          & "WHERE a.id > 10",
          SQL.PostgreSQL_18,
          Tree);
-      Assert (SQL.Is_Valid (Tree), "complex SELECT parses");
+      Assert (Views.Is_Valid (Tree), "complex SELECT parses");
       declare
          Select_View : constant V18.Select_Stmt :=
            V18.View
@@ -271,7 +273,7 @@ procedure SQL_Tests is
             "expression enum value is decoded into the generated Ada enum");
       end;
 
-      SQL.Parse
+      Views.Parse
         ("MERGE INTO inventory AS i USING changes AS c ON i.id = c.id "
          & "WHEN MATCHED THEN UPDATE SET quantity = c.quantity",
          SQL.PostgreSQL_18,
@@ -286,7 +288,7 @@ procedure SQL_Tests is
             "MERGE actions are a typed node sequence");
       end;
 
-      SQL.Parse
+      Views.Parse
         ("CREATE TABLE typed_example "
          & "(id bigint PRIMARY KEY, payload jsonb NOT NULL)",
          SQL.PostgreSQL_18,
@@ -301,7 +303,7 @@ procedure SQL_Tests is
             "DDL elements are available through field notation");
       end;
 
-      SQL.Parse ("SHOW search_path", SQL.PostgreSQL_18, Tree);
+      Views.Parse ("SHOW search_path", SQL.PostgreSQL_18, Tree);
       declare
          Show_View : constant V18.Variable_Show_Stmt :=
            V18.View

@@ -1,5 +1,6 @@
 with Interfaces;
 with System;
+with Flyology.Postgres.SQL.Arena_Storage;
 
 private package Flyology.Postgres.SQL.Decoders is
 
@@ -46,28 +47,38 @@ private package Flyology.Postgres.SQL.Decoders is
       Field_Number : Positive;
       Encoding     : Wire_Type);
 
-   function Begin_Object (Tree : in out Syntax_Tree) return Value_Id;
+   function Begin_Object (Tree : in out Syntax_Tree) return Value_Id
+     renames Arena_Storage.Begin_Object;
    procedure Finish_Object
      (Tree : in out Syntax_Tree;
       Id   : Value_Id;
-      Items : Member_Vectors.Vector);
+      Items : Member_Vectors.Vector)
+     renames Arena_Storage.Finish_Object;
    procedure Set_Member
-     (Items : in out Member_Vectors.Vector; Name : String; Value : Value_Id);
+     (Items : in out Member_Vectors.Vector; Name : String; Value : Value_Id)
+     renames Arena_Storage.Set_Member;
    procedure Clear_Member
-     (Items : in out Member_Vectors.Vector; Name : String);
+     (Items : in out Member_Vectors.Vector; Name : String)
+     renames Arena_Storage.Clear_Member;
    function Make_Array
      (Tree : in out Syntax_Tree;
-      Items : Element_Vectors.Vector) return Value_Id;
+      Items : Element_Vectors.Vector) return Value_Id
+     renames Arena_Storage.Make_Array;
    function Store_Boolean
-     (Tree : in out Syntax_Tree; Value : Boolean) return Value_Id;
+     (Tree : in out Syntax_Tree; Value : Boolean) return Value_Id
+     renames Arena_Storage.Store_Boolean;
    function Store_Signed
-     (Tree : in out Syntax_Tree; Value : Interfaces.Integer_64) return Value_Id;
+     (Tree : in out Syntax_Tree; Value : Interfaces.Integer_64) return Value_Id
+     renames Arena_Storage.Store_Signed;
    function Store_Unsigned
-     (Tree : in out Syntax_Tree; Value : Interfaces.Unsigned_64) return Value_Id;
+     (Tree : in out Syntax_Tree; Value : Interfaces.Unsigned_64) return Value_Id
+     renames Arena_Storage.Store_Unsigned;
    function Store_Float
-     (Tree : in out Syntax_Tree; Value : Interfaces.IEEE_Float_64) return Value_Id;
+     (Tree : in out Syntax_Tree; Value : Interfaces.IEEE_Float_64) return Value_Id
+     renames Arena_Storage.Store_Float;
    function Store_Text
-     (Tree : in out Syntax_Tree; Value : String) return Value_Id;
+     (Tree : in out Syntax_Tree; Value : String) return Value_Id
+     renames Arena_Storage.Store_Text;
 
 private
 

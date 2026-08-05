@@ -3,7 +3,7 @@ pragma Style_Checks ("M160");
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Flyology.Postgres.SQL.Internals;
 
-package body Flyology.Postgres.SQL.V17 is
+package body Flyology.Postgres.SQL.Views.V18 is
 
    function Decode_Query_Source
      (Tree : Syntax_Tree; Value : Value_Id) return Query_Source
@@ -208,6 +208,8 @@ package body Flyology.Postgres.SQL.V17 is
          return Rte_Kind_Rte_Namedtuplestore;
       elsif Text_Value = "RTE_RESULT" then
          return Rte_Kind_Rte_Result;
+      elsif Text_Value = "RTE_GROUP" then
+         return Rte_Kind_Rte_Group;
       else
          raise Constraint_Error with "unknown Rte_Kind value: " & Text_Value;
       end if;
@@ -276,6 +278,22 @@ package body Flyology.Postgres.SQL.V17 is
          raise Constraint_Error with "unknown Cte_Materialize value: " & Text_Value;
       end if;
    end Decode_Cte_Materialize;
+
+   function Decode_Returning_Option_Kind
+     (Tree : Syntax_Tree; Value : Value_Id) return Returning_Option_Kind
+   is
+      Text_Value : constant String := Internals.String_Data (Tree, Value);
+   begin
+      if Text_Value = "RETURNING_OPTION_KIND_UNDEFINED" then
+         return Returning_Option_Kind_Undefined;
+      elsif Text_Value = "RETURNING_OPTION_OLD" then
+         return Returning_Option_Kind_Returning_Option_Old;
+      elsif Text_Value = "RETURNING_OPTION_NEW" then
+         return Returning_Option_Kind_Returning_Option_New;
+      else
+         raise Constraint_Error with "unknown Returning_Option_Kind value: " & Text_Value;
+      end if;
+   end Decode_Returning_Option_Kind;
 
    function Decode_Json_Quotes
      (Tree : Syntax_Tree; Value : Value_Id) return Json_Quotes
@@ -492,8 +510,6 @@ package body Flyology.Postgres.SQL.V17 is
          return Alter_Table_Type_At_Set_Expression;
       elsif Text_Value = "AT_DropExpression" then
          return Alter_Table_Type_At_Drop_Expression;
-      elsif Text_Value = "AT_CheckNotNull" then
-         return Alter_Table_Type_At_Check_Not_Null;
       elsif Text_Value = "AT_SetStatistics" then
          return Alter_Table_Type_At_Set_Statistics;
       elsif Text_Value = "AT_SetOptions" then
@@ -692,6 +708,10 @@ package body Flyology.Postgres.SQL.V17 is
          return Constr_Type_Constr_Attr_Deferred;
       elsif Text_Value = "CONSTR_ATTR_IMMEDIATE" then
          return Constr_Type_Constr_Attr_Immediate;
+      elsif Text_Value = "CONSTR_ATTR_ENFORCED" then
+         return Constr_Type_Constr_Attr_Enforced;
+      elsif Text_Value = "CONSTR_ATTR_NOT_ENFORCED" then
+         return Constr_Type_Constr_Attr_Not_Enforced;
       else
          raise Constraint_Error with "unknown Constr_Type value: " & Text_Value;
       end if;
@@ -1011,6 +1031,24 @@ package body Flyology.Postgres.SQL.V17 is
       end if;
    end Decode_Table_Func_Type;
 
+   function Decode_Var_Returning_Type
+     (Tree : Syntax_Tree; Value : Value_Id) return Var_Returning_Type
+   is
+      Text_Value : constant String := Internals.String_Data (Tree, Value);
+   begin
+      if Text_Value = "VAR_RETURNING_TYPE_UNDEFINED" then
+         return Var_Returning_Type_Undefined;
+      elsif Text_Value = "VAR_RETURNING_DEFAULT" then
+         return Var_Returning_Type_Var_Returning_Default;
+      elsif Text_Value = "VAR_RETURNING_OLD" then
+         return Var_Returning_Type_Var_Returning_Old;
+      elsif Text_Value = "VAR_RETURNING_NEW" then
+         return Var_Returning_Type_Var_Returning_New;
+      else
+         raise Constraint_Error with "unknown Var_Returning_Type value: " & Text_Value;
+      end if;
+   end Decode_Var_Returning_Type;
+
    function Decode_Param_Kind
      (Tree : Syntax_Tree; Value : Value_Id) return Param_Kind
    is
@@ -1116,30 +1154,6 @@ package body Flyology.Postgres.SQL.V17 is
          raise Constraint_Error with "unknown Sub_Link_Type value: " & Text_Value;
       end if;
    end Decode_Sub_Link_Type;
-
-   function Decode_Row_Compare_Type
-     (Tree : Syntax_Tree; Value : Value_Id) return Row_Compare_Type
-   is
-      Text_Value : constant String := Internals.String_Data (Tree, Value);
-   begin
-      if Text_Value = "ROW_COMPARE_TYPE_UNDEFINED" then
-         return Row_Compare_Type_Undefined;
-      elsif Text_Value = "ROWCOMPARE_LT" then
-         return Row_Compare_Type_Rowcompare_Lt;
-      elsif Text_Value = "ROWCOMPARE_LE" then
-         return Row_Compare_Type_Rowcompare_Le;
-      elsif Text_Value = "ROWCOMPARE_EQ" then
-         return Row_Compare_Type_Rowcompare_Eq;
-      elsif Text_Value = "ROWCOMPARE_GE" then
-         return Row_Compare_Type_Rowcompare_Ge;
-      elsif Text_Value = "ROWCOMPARE_GT" then
-         return Row_Compare_Type_Rowcompare_Gt;
-      elsif Text_Value = "ROWCOMPARE_NE" then
-         return Row_Compare_Type_Rowcompare_Ne;
-      else
-         raise Constraint_Error with "unknown Row_Compare_Type value: " & Text_Value;
-      end if;
-   end Decode_Row_Compare_Type;
 
    function Decode_Min_Max_Op
      (Tree : Syntax_Tree; Value : Value_Id) return Min_Max_Op
@@ -1502,6 +1516,8 @@ package body Flyology.Postgres.SQL.V17 is
          return Join_Type_Join_Semi;
       elsif Text_Value = "JOIN_ANTI" then
          return Join_Type_Join_Anti;
+      elsif Text_Value = "JOIN_RIGHT_SEMI" then
+         return Join_Type_Join_Right_Semi;
       elsif Text_Value = "JOIN_RIGHT_ANTI" then
          return Join_Type_Join_Right_Anti;
       elsif Text_Value = "JOIN_UNIQUE_OUTER" then
@@ -1606,6 +1622,36 @@ package body Flyology.Postgres.SQL.V17 is
          raise Constraint_Error with "unknown Lock_Wait_Policy value: " & Text_Value;
       end if;
    end Decode_Lock_Wait_Policy;
+
+   function Decode_Compare_Type
+     (Tree : Syntax_Tree; Value : Value_Id) return Compare_Type
+   is
+      Text_Value : constant String := Internals.String_Data (Tree, Value);
+   begin
+      if Text_Value = "COMPARE_TYPE_UNDEFINED" then
+         return Compare_Type_Undefined;
+      elsif Text_Value = "COMPARE_INVALID" then
+         return Compare_Type_Compare_Invalid;
+      elsif Text_Value = "COMPARE_LT" then
+         return Compare_Type_Compare_Lt;
+      elsif Text_Value = "COMPARE_LE" then
+         return Compare_Type_Compare_Le;
+      elsif Text_Value = "COMPARE_EQ" then
+         return Compare_Type_Compare_Eq;
+      elsif Text_Value = "COMPARE_GE" then
+         return Compare_Type_Compare_Ge;
+      elsif Text_Value = "COMPARE_GT" then
+         return Compare_Type_Compare_Gt;
+      elsif Text_Value = "COMPARE_NE" then
+         return Compare_Type_Compare_Ne;
+      elsif Text_Value = "COMPARE_OVERLAP" then
+         return Compare_Type_Compare_Overlap;
+      elsif Text_Value = "COMPARE_CONTAINED_BY" then
+         return Compare_Type_Compare_Contained_By;
+      else
+         raise Constraint_Error with "unknown Compare_Type value: " & Text_Value;
+      end if;
+   end Decode_Compare_Type;
 
    function Root (Tree : Syntax_Tree) return Parse_Result_Reference is
      (Value => Internals.Root (Tree));
@@ -1729,6 +1775,8 @@ package body Flyology.Postgres.SQL.V17 is
          return Node_Next_Value_Expr;
       elsif Name = "InferenceElem" then
          return Node_Inference_Elem;
+      elsif Name = "ReturningExpr" then
+         return Node_Returning_Expr;
       elsif Name = "TargetEntry" then
          return Node_Target_Entry;
       elsif Name = "RangeTblRef" then
@@ -1803,8 +1851,6 @@ package body Flyology.Postgres.SQL.V17 is
          return Node_Partition_Bound_Spec;
       elsif Name = "PartitionRangeDatum" then
          return Node_Partition_Range_Datum;
-      elsif Name = "SinglePartitionSpec" then
-         return Node_Single_Partition_Spec;
       elsif Name = "PartitionCmd" then
          return Node_Partition_Cmd;
       elsif Name = "RangeTblEntry" then
@@ -1839,6 +1885,10 @@ package body Flyology.Postgres.SQL.V17 is
          return Node_Common_Table_Expr;
       elsif Name = "MergeWhenClause" then
          return Node_Merge_When_Clause;
+      elsif Name = "ReturningOption" then
+         return Node_Returning_Option;
+      elsif Name = "ReturningClause" then
+         return Node_Returning_Clause;
       elsif Name = "TriggerTransition" then
          return Node_Trigger_Transition;
       elsif Name = "JsonOutput" then
@@ -1895,10 +1945,12 @@ package body Flyology.Postgres.SQL.V17 is
          return Node_Create_Schema_Stmt;
       elsif Name = "AlterTableStmt" then
          return Node_Alter_Table_Stmt;
-      elsif Name = "ReplicaIdentityStmt" then
-         return Node_Replica_Identity_Stmt;
       elsif Name = "AlterTableCmd" then
          return Node_Alter_Table_Cmd;
+      elsif Name = "ATAlterConstraint" then
+         return Node_At_Alter_Constraint;
+      elsif Name = "ReplicaIdentityStmt" then
+         return Node_Replica_Identity_Stmt;
       elsif Name = "AlterCollationStmt" then
          return Node_Alter_Collation_Stmt;
       elsif Name = "AlterDomainStmt" then
@@ -2386,6 +2438,10 @@ package body Flyology.Postgres.SQL.V17 is
      (Tree : Syntax_Tree; Item : Node_Reference) return Inference_Elem_Reference is
      (Value => Internals.Only_Field_Value (Tree, Item.Value));
 
+   function As_Returning_Expr
+     (Tree : Syntax_Tree; Item : Node_Reference) return Returning_Expr_Reference is
+     (Value => Internals.Only_Field_Value (Tree, Item.Value));
+
    function As_Target_Entry
      (Tree : Syntax_Tree; Item : Node_Reference) return Target_Entry_Reference is
      (Value => Internals.Only_Field_Value (Tree, Item.Value));
@@ -2534,10 +2590,6 @@ package body Flyology.Postgres.SQL.V17 is
      (Tree : Syntax_Tree; Item : Node_Reference) return Partition_Range_Datum_Reference is
      (Value => Internals.Only_Field_Value (Tree, Item.Value));
 
-   function As_Single_Partition_Spec
-     (Tree : Syntax_Tree; Item : Node_Reference) return Single_Partition_Spec_Reference is
-     (Value => Internals.Only_Field_Value (Tree, Item.Value));
-
    function As_Partition_Cmd
      (Tree : Syntax_Tree; Item : Node_Reference) return Partition_Cmd_Reference is
      (Value => Internals.Only_Field_Value (Tree, Item.Value));
@@ -2604,6 +2656,14 @@ package body Flyology.Postgres.SQL.V17 is
 
    function As_Merge_When_Clause
      (Tree : Syntax_Tree; Item : Node_Reference) return Merge_When_Clause_Reference is
+     (Value => Internals.Only_Field_Value (Tree, Item.Value));
+
+   function As_Returning_Option
+     (Tree : Syntax_Tree; Item : Node_Reference) return Returning_Option_Reference is
+     (Value => Internals.Only_Field_Value (Tree, Item.Value));
+
+   function As_Returning_Clause
+     (Tree : Syntax_Tree; Item : Node_Reference) return Returning_Clause_Reference is
      (Value => Internals.Only_Field_Value (Tree, Item.Value));
 
    function As_Trigger_Transition
@@ -2718,12 +2778,16 @@ package body Flyology.Postgres.SQL.V17 is
      (Tree : Syntax_Tree; Item : Node_Reference) return Alter_Table_Stmt_Reference is
      (Value => Internals.Only_Field_Value (Tree, Item.Value));
 
-   function As_Replica_Identity_Stmt
-     (Tree : Syntax_Tree; Item : Node_Reference) return Replica_Identity_Stmt_Reference is
-     (Value => Internals.Only_Field_Value (Tree, Item.Value));
-
    function As_Alter_Table_Cmd
      (Tree : Syntax_Tree; Item : Node_Reference) return Alter_Table_Cmd_Reference is
+     (Value => Internals.Only_Field_Value (Tree, Item.Value));
+
+   function As_At_Alter_Constraint
+     (Tree : Syntax_Tree; Item : Node_Reference) return At_Alter_Constraint_Reference is
+     (Value => Internals.Only_Field_Value (Tree, Item.Value));
+
+   function As_Replica_Identity_Stmt
+     (Tree : Syntax_Tree; Item : Node_Reference) return Replica_Identity_Stmt_Reference is
      (Value => Internals.Only_Field_Value (Tree, Item.Value));
 
    function As_Alter_Collation_Stmt
@@ -3549,6 +3613,11 @@ package body Flyology.Postgres.SQL.V17 is
             (Present => True,
              Value   => (Value => Internals.Field (Tree, Item.Value, "InferenceElem")))
          else (Present => False)),
+      Returning_Expr =>
+        (if Internals.Has_Field (Tree, Item.Value, "ReturningExpr") then
+            (Present => True,
+             Value   => (Value => Internals.Field (Tree, Item.Value, "ReturningExpr")))
+         else (Present => False)),
       Target_Entry =>
         (if Internals.Has_Field (Tree, Item.Value, "TargetEntry") then
             (Present => True,
@@ -3734,11 +3803,6 @@ package body Flyology.Postgres.SQL.V17 is
             (Present => True,
              Value   => (Value => Internals.Field (Tree, Item.Value, "PartitionRangeDatum")))
          else (Present => False)),
-      Single_Partition_Spec =>
-        (if Internals.Has_Field (Tree, Item.Value, "SinglePartitionSpec") then
-            (Present => True,
-             Value   => (Value => Internals.Field (Tree, Item.Value, "SinglePartitionSpec")))
-         else (Present => False)),
       Partition_Cmd =>
         (if Internals.Has_Field (Tree, Item.Value, "PartitionCmd") then
             (Present => True,
@@ -3823,6 +3887,16 @@ package body Flyology.Postgres.SQL.V17 is
         (if Internals.Has_Field (Tree, Item.Value, "MergeWhenClause") then
             (Present => True,
              Value   => (Value => Internals.Field (Tree, Item.Value, "MergeWhenClause")))
+         else (Present => False)),
+      Returning_Option =>
+        (if Internals.Has_Field (Tree, Item.Value, "ReturningOption") then
+            (Present => True,
+             Value   => (Value => Internals.Field (Tree, Item.Value, "ReturningOption")))
+         else (Present => False)),
+      Returning_Clause =>
+        (if Internals.Has_Field (Tree, Item.Value, "ReturningClause") then
+            (Present => True,
+             Value   => (Value => Internals.Field (Tree, Item.Value, "ReturningClause")))
          else (Present => False)),
       Trigger_Transition =>
         (if Internals.Has_Field (Tree, Item.Value, "TriggerTransition") then
@@ -3964,15 +4038,20 @@ package body Flyology.Postgres.SQL.V17 is
             (Present => True,
              Value   => (Value => Internals.Field (Tree, Item.Value, "AlterTableStmt")))
          else (Present => False)),
-      Replica_Identity_Stmt =>
-        (if Internals.Has_Field (Tree, Item.Value, "ReplicaIdentityStmt") then
-            (Present => True,
-             Value   => (Value => Internals.Field (Tree, Item.Value, "ReplicaIdentityStmt")))
-         else (Present => False)),
       Alter_Table_Cmd =>
         (if Internals.Has_Field (Tree, Item.Value, "AlterTableCmd") then
             (Present => True,
              Value   => (Value => Internals.Field (Tree, Item.Value, "AlterTableCmd")))
+         else (Present => False)),
+      Atalter_Constraint =>
+        (if Internals.Has_Field (Tree, Item.Value, "ATAlterConstraint") then
+            (Present => True,
+             Value   => (Value => Internals.Field (Tree, Item.Value, "ATAlterConstraint")))
+         else (Present => False)),
+      Replica_Identity_Stmt =>
+        (if Internals.Has_Field (Tree, Item.Value, "ReplicaIdentityStmt") then
+            (Present => True,
+             Value   => (Value => Internals.Field (Tree, Item.Value, "ReplicaIdentityStmt")))
          else (Present => False)),
       Alter_Collation_Stmt =>
         (if Internals.Has_Field (Tree, Item.Value, "AlterCollationStmt") then
@@ -4925,6 +5004,11 @@ package body Flyology.Postgres.SQL.V17 is
         (if Internals.Has_Field (Tree, Item.Value, "varlevelsup") then
             (Present => True,
              Value   => Interfaces.Unsigned_32 (Internals.Unsigned_Data (Tree, Internals.Field (Tree, Item.Value, "varlevelsup"))))
+         else (Present => False)),
+      Varreturningtype =>
+        (if Internals.Has_Field (Tree, Item.Value, "varreturningtype") then
+            (Present => True,
+             Value   => Decode_Var_Returning_Type (Tree, Internals.Field (Tree, Item.Value, "varreturningtype")))
          else (Present => False)),
       Location =>
         (if Internals.Has_Field (Tree, Item.Value, "location") then
@@ -6010,6 +6094,16 @@ package body Flyology.Postgres.SQL.V17 is
             (Present => True,
              Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "multidims")))
          else (Present => False)),
+      List_Start =>
+        (if Internals.Has_Field (Tree, Item.Value, "list_start") then
+            (Present => True,
+             Value   => Interfaces.Integer_32 (Internals.Signed_Data (Tree, Internals.Field (Tree, Item.Value, "list_start"))))
+         else (Present => False)),
+      List_End =>
+        (if Internals.Has_Field (Tree, Item.Value, "list_end") then
+            (Present => True,
+             Value   => Interfaces.Integer_32 (Internals.Signed_Data (Tree, Internals.Field (Tree, Item.Value, "list_end"))))
+         else (Present => False)),
       Location =>
         (if Internals.Has_Field (Tree, Item.Value, "location") then
             (Present => True,
@@ -6056,10 +6150,10 @@ package body Flyology.Postgres.SQL.V17 is
             (Present => True,
              Value   => (Value => Internals.Field (Tree, Item.Value, "xpr")))
          else (Present => False)),
-      Rctype =>
-        (if Internals.Has_Field (Tree, Item.Value, "rctype") then
+      Cmptype =>
+        (if Internals.Has_Field (Tree, Item.Value, "cmptype") then
             (Present => True,
-             Value   => Decode_Row_Compare_Type (Tree, Internals.Field (Tree, Item.Value, "rctype")))
+             Value   => Decode_Compare_Type (Tree, Internals.Field (Tree, Item.Value, "cmptype")))
          else (Present => False)),
       Opnos =>
         (Value =>
@@ -6781,6 +6875,29 @@ package body Flyology.Postgres.SQL.V17 is
              Value   => Interfaces.Unsigned_32 (Internals.Unsigned_Data (Tree, Internals.Field (Tree, Item.Value, "inferopclass"))))
          else (Present => False)));
 
+   function View (Tree : Syntax_Tree; Item : Returning_Expr_Reference) return Returning_Expr is
+     (
+      Xpr =>
+        (if Internals.Has_Field (Tree, Item.Value, "xpr") then
+            (Present => True,
+             Value   => (Value => Internals.Field (Tree, Item.Value, "xpr")))
+         else (Present => False)),
+      Retlevelsup =>
+        (if Internals.Has_Field (Tree, Item.Value, "retlevelsup") then
+            (Present => True,
+             Value   => Interfaces.Integer_32 (Internals.Signed_Data (Tree, Internals.Field (Tree, Item.Value, "retlevelsup"))))
+         else (Present => False)),
+      Retold =>
+        (if Internals.Has_Field (Tree, Item.Value, "retold") then
+            (Present => True,
+             Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "retold")))
+         else (Present => False)),
+      Retexpr =>
+        (if Internals.Has_Field (Tree, Item.Value, "retexpr") then
+            (Present => True,
+             Value   => (Value => Internals.Field (Tree, Item.Value, "retexpr")))
+         else (Present => False)));
+
    function View (Tree : Syntax_Tree; Item : Target_Entry_Reference) return Target_Entry is
      (
       Xpr =>
@@ -7008,6 +7125,11 @@ package body Flyology.Postgres.SQL.V17 is
             (Present => True,
              Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "hasRowSecurity")))
          else (Present => False)),
+      Has_Group_Rte =>
+        (if Internals.Has_Field (Tree, Item.Value, "hasGroupRTE") then
+            (Present => True,
+             Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "hasGroupRTE")))
+         else (Present => False)),
       Is_Return =>
         (if Internals.Has_Field (Tree, Item.Value, "isReturn") then
             (Present => True,
@@ -7062,6 +7184,16 @@ package body Flyology.Postgres.SQL.V17 is
         (if Internals.Has_Field (Tree, Item.Value, "onConflict") then
             (Present => True,
              Value   => (Value => Internals.Field (Tree, Item.Value, "onConflict")))
+         else (Present => False)),
+      Returning_Old_Alias =>
+        (if Internals.Has_Field (Tree, Item.Value, "returningOldAlias") then
+            (Present => True,
+             Value   => To_Unbounded_String (Internals.String_Data (Tree, Internals.Field (Tree, Item.Value, "returningOldAlias"))))
+         else (Present => False)),
+      Returning_New_Alias =>
+        (if Internals.Has_Field (Tree, Item.Value, "returningNewAlias") then
+            (Present => True,
+             Value   => To_Unbounded_String (Internals.String_Data (Tree, Internals.Field (Tree, Item.Value, "returningNewAlias"))))
          else (Present => False)),
       Returning_List =>
         (Value =>
@@ -7240,6 +7372,16 @@ package body Flyology.Postgres.SQL.V17 is
             (Present => True,
              Value   => (Value => Internals.Field (Tree, Item.Value, "rexpr")))
          else (Present => False)),
+      Rexpr_List_Start =>
+        (if Internals.Has_Field (Tree, Item.Value, "rexpr_list_start") then
+            (Present => True,
+             Value   => Interfaces.Integer_32 (Internals.Signed_Data (Tree, Internals.Field (Tree, Item.Value, "rexpr_list_start"))))
+         else (Present => False)),
+      Rexpr_List_End =>
+        (if Internals.Has_Field (Tree, Item.Value, "rexpr_list_end") then
+            (Present => True,
+             Value   => Interfaces.Integer_32 (Internals.Signed_Data (Tree, Internals.Field (Tree, Item.Value, "rexpr_list_end"))))
+         else (Present => False)),
       Location =>
         (if Internals.Has_Field (Tree, Item.Value, "location") then
             (Present => True,
@@ -7399,6 +7541,16 @@ package body Flyology.Postgres.SQL.V17 is
            (if Internals.Has_Field (Tree, Item.Value, "elements")
             then Internals.Field (Tree, Item.Value, "elements")
             else No_Value)),
+      List_Start =>
+        (if Internals.Has_Field (Tree, Item.Value, "list_start") then
+            (Present => True,
+             Value   => Interfaces.Integer_32 (Internals.Signed_Data (Tree, Internals.Field (Tree, Item.Value, "list_start"))))
+         else (Present => False)),
+      List_End =>
+        (if Internals.Has_Field (Tree, Item.Value, "list_end") then
+            (Present => True,
+             Value   => Interfaces.Integer_32 (Internals.Signed_Data (Tree, Internals.Field (Tree, Item.Value, "list_end"))))
+         else (Present => False)),
       Location =>
         (if Internals.Has_Field (Tree, Item.Value, "location") then
             (Present => True,
@@ -8012,9 +8164,6 @@ package body Flyology.Postgres.SQL.V17 is
              Value   => Interfaces.Integer_32 (Internals.Signed_Data (Tree, Internals.Field (Tree, Item.Value, "location"))))
          else (Present => False)));
 
-   function View (Tree : Syntax_Tree; Item : Single_Partition_Spec_Reference) return Single_Partition_Spec is
-     (null record);
-
    function View (Tree : Syntax_Tree; Item : Partition_Cmd_Reference) return Partition_Cmd is
      (
       Name =>
@@ -8180,6 +8329,11 @@ package body Flyology.Postgres.SQL.V17 is
             (Present => True,
              Value   => Interfaces.IEEE_Float_64 (Internals.Float_Data (Tree, Internals.Field (Tree, Item.Value, "enrtuples"))))
          else (Present => False)),
+      Groupexprs =>
+        (Value =>
+           (if Internals.Has_Field (Tree, Item.Value, "groupexprs")
+            then Internals.Field (Tree, Item.Value, "groupexprs")
+            else No_Value)),
       Lateral =>
         (if Internals.Has_Field (Tree, Item.Value, "lateral") then
             (Present => True,
@@ -8334,6 +8488,11 @@ package body Flyology.Postgres.SQL.V17 is
         (if Internals.Has_Field (Tree, Item.Value, "sortop") then
             (Present => True,
              Value   => Interfaces.Unsigned_32 (Internals.Unsigned_Data (Tree, Internals.Field (Tree, Item.Value, "sortop"))))
+         else (Present => False)),
+      Reverse_Sort =>
+        (if Internals.Has_Field (Tree, Item.Value, "reverse_sort") then
+            (Present => True,
+             Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "reverse_sort")))
          else (Present => False)),
       Nulls_First =>
         (if Internals.Has_Field (Tree, Item.Value, "nulls_first") then
@@ -8704,6 +8863,37 @@ package body Flyology.Postgres.SQL.V17 is
         (Value =>
            (if Internals.Has_Field (Tree, Item.Value, "values")
             then Internals.Field (Tree, Item.Value, "values")
+            else No_Value)));
+
+   function View (Tree : Syntax_Tree; Item : Returning_Option_Reference) return Returning_Option is
+     (
+      Option =>
+        (if Internals.Has_Field (Tree, Item.Value, "option") then
+            (Present => True,
+             Value   => Decode_Returning_Option_Kind (Tree, Internals.Field (Tree, Item.Value, "option")))
+         else (Present => False)),
+      Value =>
+        (if Internals.Has_Field (Tree, Item.Value, "value") then
+            (Present => True,
+             Value   => To_Unbounded_String (Internals.String_Data (Tree, Internals.Field (Tree, Item.Value, "value"))))
+         else (Present => False)),
+      Location =>
+        (if Internals.Has_Field (Tree, Item.Value, "location") then
+            (Present => True,
+             Value   => Interfaces.Integer_32 (Internals.Signed_Data (Tree, Internals.Field (Tree, Item.Value, "location"))))
+         else (Present => False)));
+
+   function View (Tree : Syntax_Tree; Item : Returning_Clause_Reference) return Returning_Clause is
+     (
+      Options =>
+        (Value =>
+           (if Internals.Has_Field (Tree, Item.Value, "options")
+            then Internals.Field (Tree, Item.Value, "options")
+            else No_Value)),
+      Exprs =>
+        (Value =>
+           (if Internals.Has_Field (Tree, Item.Value, "exprs")
+            then Internals.Field (Tree, Item.Value, "exprs")
             else No_Value)));
 
    function View (Tree : Syntax_Tree; Item : Trigger_Transition_Reference) return Trigger_Transition is
@@ -9192,11 +9382,11 @@ package body Flyology.Postgres.SQL.V17 is
             (Present => True,
              Value   => (Value => Internals.Field (Tree, Item.Value, "onConflictClause")))
          else (Present => False)),
-      Returning_List =>
-        (Value =>
-           (if Internals.Has_Field (Tree, Item.Value, "returningList")
-            then Internals.Field (Tree, Item.Value, "returningList")
-            else No_Value)),
+      Returning_Clause =>
+        (if Internals.Has_Field (Tree, Item.Value, "returningClause") then
+            (Present => True,
+             Value   => (Value => Internals.Field (Tree, Item.Value, "returningClause")))
+         else (Present => False)),
       With_Clause =>
         (if Internals.Has_Field (Tree, Item.Value, "withClause") then
             (Present => True,
@@ -9225,11 +9415,11 @@ package body Flyology.Postgres.SQL.V17 is
             (Present => True,
              Value   => (Value => Internals.Field (Tree, Item.Value, "whereClause")))
          else (Present => False)),
-      Returning_List =>
-        (Value =>
-           (if Internals.Has_Field (Tree, Item.Value, "returningList")
-            then Internals.Field (Tree, Item.Value, "returningList")
-            else No_Value)),
+      Returning_Clause =>
+        (if Internals.Has_Field (Tree, Item.Value, "returningClause") then
+            (Present => True,
+             Value   => (Value => Internals.Field (Tree, Item.Value, "returningClause")))
+         else (Present => False)),
       With_Clause =>
         (if Internals.Has_Field (Tree, Item.Value, "withClause") then
             (Present => True,
@@ -9258,11 +9448,11 @@ package body Flyology.Postgres.SQL.V17 is
            (if Internals.Has_Field (Tree, Item.Value, "fromClause")
             then Internals.Field (Tree, Item.Value, "fromClause")
             else No_Value)),
-      Returning_List =>
-        (Value =>
-           (if Internals.Has_Field (Tree, Item.Value, "returningList")
-            then Internals.Field (Tree, Item.Value, "returningList")
-            else No_Value)),
+      Returning_Clause =>
+        (if Internals.Has_Field (Tree, Item.Value, "returningClause") then
+            (Present => True,
+             Value   => (Value => Internals.Field (Tree, Item.Value, "returningClause")))
+         else (Present => False)),
       With_Clause =>
         (if Internals.Has_Field (Tree, Item.Value, "withClause") then
             (Present => True,
@@ -9291,11 +9481,11 @@ package body Flyology.Postgres.SQL.V17 is
            (if Internals.Has_Field (Tree, Item.Value, "mergeWhenClauses")
             then Internals.Field (Tree, Item.Value, "mergeWhenClauses")
             else No_Value)),
-      Returning_List =>
-        (Value =>
-           (if Internals.Has_Field (Tree, Item.Value, "returningList")
-            then Internals.Field (Tree, Item.Value, "returningList")
-            else No_Value)),
+      Returning_Clause =>
+        (if Internals.Has_Field (Tree, Item.Value, "returningClause") then
+            (Present => True,
+             Value   => (Value => Internals.Field (Tree, Item.Value, "returningClause")))
+         else (Present => False)),
       With_Clause =>
         (if Internals.Has_Field (Tree, Item.Value, "withClause") then
             (Present => True,
@@ -9530,19 +9720,6 @@ package body Flyology.Postgres.SQL.V17 is
              Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "missing_ok")))
          else (Present => False)));
 
-   function View (Tree : Syntax_Tree; Item : Replica_Identity_Stmt_Reference) return Replica_Identity_Stmt is
-     (
-      Identity_Type =>
-        (if Internals.Has_Field (Tree, Item.Value, "identity_type") then
-            (Present => True,
-             Value   => To_Unbounded_String (Internals.String_Data (Tree, Internals.Field (Tree, Item.Value, "identity_type"))))
-         else (Present => False)),
-      Name =>
-        (if Internals.Has_Field (Tree, Item.Value, "name") then
-            (Present => True,
-             Value   => To_Unbounded_String (Internals.String_Data (Tree, Internals.Field (Tree, Item.Value, "name"))))
-         else (Present => False)));
-
    function View (Tree : Syntax_Tree; Item : Alter_Table_Cmd_Reference) return Alter_Table_Cmd is
      (
       Field_Subtype =>
@@ -9584,6 +9761,62 @@ package body Flyology.Postgres.SQL.V17 is
         (if Internals.Has_Field (Tree, Item.Value, "recurse") then
             (Present => True,
              Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "recurse")))
+         else (Present => False)));
+
+   function View (Tree : Syntax_Tree; Item : At_Alter_Constraint_Reference) return At_Alter_Constraint is
+     (
+      Conname =>
+        (if Internals.Has_Field (Tree, Item.Value, "conname") then
+            (Present => True,
+             Value   => To_Unbounded_String (Internals.String_Data (Tree, Internals.Field (Tree, Item.Value, "conname"))))
+         else (Present => False)),
+      Alter_Enforceability =>
+        (if Internals.Has_Field (Tree, Item.Value, "alterEnforceability") then
+            (Present => True,
+             Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "alterEnforceability")))
+         else (Present => False)),
+      Is_Enforced =>
+        (if Internals.Has_Field (Tree, Item.Value, "is_enforced") then
+            (Present => True,
+             Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "is_enforced")))
+         else (Present => False)),
+      Alter_Deferrability =>
+        (if Internals.Has_Field (Tree, Item.Value, "alterDeferrability") then
+            (Present => True,
+             Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "alterDeferrability")))
+         else (Present => False)),
+      Deferrable =>
+        (if Internals.Has_Field (Tree, Item.Value, "deferrable") then
+            (Present => True,
+             Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "deferrable")))
+         else (Present => False)),
+      Initdeferred =>
+        (if Internals.Has_Field (Tree, Item.Value, "initdeferred") then
+            (Present => True,
+             Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "initdeferred")))
+         else (Present => False)),
+      Alter_Inheritability =>
+        (if Internals.Has_Field (Tree, Item.Value, "alterInheritability") then
+            (Present => True,
+             Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "alterInheritability")))
+         else (Present => False)),
+      Noinherit =>
+        (if Internals.Has_Field (Tree, Item.Value, "noinherit") then
+            (Present => True,
+             Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "noinherit")))
+         else (Present => False)));
+
+   function View (Tree : Syntax_Tree; Item : Replica_Identity_Stmt_Reference) return Replica_Identity_Stmt is
+     (
+      Identity_Type =>
+        (if Internals.Has_Field (Tree, Item.Value, "identity_type") then
+            (Present => True,
+             Value   => To_Unbounded_String (Internals.String_Data (Tree, Internals.Field (Tree, Item.Value, "identity_type"))))
+         else (Present => False)),
+      Name =>
+        (if Internals.Has_Field (Tree, Item.Value, "name") then
+            (Present => True,
+             Value   => To_Unbounded_String (Internals.String_Data (Tree, Internals.Field (Tree, Item.Value, "name"))))
          else (Present => False)));
 
    function View (Tree : Syntax_Tree; Item : Alter_Collation_Stmt_Reference) return Alter_Collation_Stmt is
@@ -9817,10 +10050,20 @@ package body Flyology.Postgres.SQL.V17 is
            (if Internals.Has_Field (Tree, Item.Value, "args")
             then Internals.Field (Tree, Item.Value, "args")
             else No_Value)),
+      Jumble_Args =>
+        (if Internals.Has_Field (Tree, Item.Value, "jumble_args") then
+            (Present => True,
+             Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "jumble_args")))
+         else (Present => False)),
       Is_Local =>
         (if Internals.Has_Field (Tree, Item.Value, "is_local") then
             (Present => True,
              Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "is_local")))
+         else (Present => False)),
+      Location =>
+        (if Internals.Has_Field (Tree, Item.Value, "location") then
+            (Present => True,
+             Value   => Interfaces.Integer_32 (Internals.Signed_Data (Tree, Internals.Field (Tree, Item.Value, "location"))))
          else (Present => False)));
 
    function View (Tree : Syntax_Tree; Item : Variable_Show_Stmt_Reference) return Variable_Show_Stmt is
@@ -9867,6 +10110,11 @@ package body Flyology.Postgres.SQL.V17 is
         (Value =>
            (if Internals.Has_Field (Tree, Item.Value, "constraints")
             then Internals.Field (Tree, Item.Value, "constraints")
+            else No_Value)),
+      Nnconstraints =>
+        (Value =>
+           (if Internals.Has_Field (Tree, Item.Value, "nnconstraints")
+            then Internals.Field (Tree, Item.Value, "nnconstraints")
             else No_Value)),
       Options =>
         (Value =>
@@ -9916,6 +10164,11 @@ package body Flyology.Postgres.SQL.V17 is
             (Present => True,
              Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "initdeferred")))
          else (Present => False)),
+      Is_Enforced =>
+        (if Internals.Has_Field (Tree, Item.Value, "is_enforced") then
+            (Present => True,
+             Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "is_enforced")))
+         else (Present => False)),
       Skip_Validation =>
         (if Internals.Has_Field (Tree, Item.Value, "skip_validation") then
             (Present => True,
@@ -9946,10 +10199,10 @@ package body Flyology.Postgres.SQL.V17 is
             (Present => True,
              Value   => To_Unbounded_String (Internals.String_Data (Tree, Internals.Field (Tree, Item.Value, "generated_when"))))
          else (Present => False)),
-      Inhcount =>
-        (if Internals.Has_Field (Tree, Item.Value, "inhcount") then
+      Generated_Kind =>
+        (if Internals.Has_Field (Tree, Item.Value, "generated_kind") then
             (Present => True,
-             Value   => Interfaces.Integer_32 (Internals.Signed_Data (Tree, Internals.Field (Tree, Item.Value, "inhcount"))))
+             Value   => To_Unbounded_String (Internals.String_Data (Tree, Internals.Field (Tree, Item.Value, "generated_kind"))))
          else (Present => False)),
       Nulls_Not_Distinct =>
         (if Internals.Has_Field (Tree, Item.Value, "nulls_not_distinct") then
@@ -9961,6 +10214,11 @@ package body Flyology.Postgres.SQL.V17 is
            (if Internals.Has_Field (Tree, Item.Value, "keys")
             then Internals.Field (Tree, Item.Value, "keys")
             else No_Value)),
+      Without_Overlaps =>
+        (if Internals.Has_Field (Tree, Item.Value, "without_overlaps") then
+            (Present => True,
+             Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "without_overlaps")))
+         else (Present => False)),
       Including =>
         (Value =>
            (if Internals.Has_Field (Tree, Item.Value, "including")
@@ -10016,6 +10274,16 @@ package body Flyology.Postgres.SQL.V17 is
            (if Internals.Has_Field (Tree, Item.Value, "pk_attrs")
             then Internals.Field (Tree, Item.Value, "pk_attrs")
             else No_Value)),
+      Fk_With_Period =>
+        (if Internals.Has_Field (Tree, Item.Value, "fk_with_period") then
+            (Present => True,
+             Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "fk_with_period")))
+         else (Present => False)),
+      Pk_With_Period =>
+        (if Internals.Has_Field (Tree, Item.Value, "pk_with_period") then
+            (Present => True,
+             Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "pk_with_period")))
+         else (Present => False)),
       Fk_Matchtype =>
         (if Internals.Has_Field (Tree, Item.Value, "fk_matchtype") then
             (Present => True,
@@ -11130,6 +11398,11 @@ package body Flyology.Postgres.SQL.V17 is
             (Present => True,
              Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "isconstraint")))
          else (Present => False)),
+      Iswithoutoverlaps =>
+        (if Internals.Has_Field (Tree, Item.Value, "iswithoutoverlaps") then
+            (Present => True,
+             Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "iswithoutoverlaps")))
+         else (Present => False)),
       Deferrable =>
         (if Internals.Has_Field (Tree, Item.Value, "deferrable") then
             (Present => True,
@@ -11289,6 +11562,11 @@ package body Flyology.Postgres.SQL.V17 is
         (if Internals.Has_Field (Tree, Item.Value, "defexpr") then
             (Present => True,
              Value   => (Value => Internals.Field (Tree, Item.Value, "defexpr")))
+         else (Present => False)),
+      Location =>
+        (if Internals.Has_Field (Tree, Item.Value, "location") then
+            (Present => True,
+             Value   => Interfaces.Integer_32 (Internals.Signed_Data (Tree, Internals.Field (Tree, Item.Value, "location"))))
          else (Present => False)));
 
    function View (Tree : Syntax_Tree; Item : Alter_Function_Stmt_Reference) return Alter_Function_Stmt is
@@ -12357,4 +12635,4 @@ package body Flyology.Postgres.SQL.V17 is
      (Tree : Syntax_Tree; Item : Raw_Stmt_Reference) return Node_Reference is
      (View (Tree, Item).Statement.Value);
 
-end Flyology.Postgres.SQL.V17;
+end Flyology.Postgres.SQL.Views.V18;

@@ -3,9 +3,40 @@ pragma Style_Checks (Off);
 with Ada.Containers;
 with Ada.Strings.Unbounded;
 with Interfaces;
+with Flyology.Postgres.SQL.Views;
 
-separate (Flyology.Postgres.SQL.AST.V16)
-function Equivalent
+package body Flyology.Postgres.SQL.AST.V18.Testing is
+
+   procedure Materialize_Baseline
+     (Arena : Syntax_Tree; Result : in out Owned_Syntax_Tree) is
+   begin
+      Materialize (Arena, Result);
+   end Materialize_Baseline;
+
+   procedure Parse_Baseline
+     (SQL     : String;
+      Result  : in out Owned_Syntax_Tree;
+      Options : Parse_Options := Default_Options)
+   is
+      Arena : Syntax_Tree;
+   begin
+      Flyology.Postgres.SQL.Views.Parse
+        (SQL, PostgreSQL_18, Arena, Options);
+      if Is_Valid (Arena) then
+         Materialize (Arena, Result);
+      else
+         Clear (Result);
+         Result.Source_Text :=
+           Ada.Strings.Unbounded.To_Unbounded_String (SQL);
+         Result.Diagnostic_Message :=
+           Ada.Strings.Unbounded.To_Unbounded_String
+             (Message (Error (Arena)));
+         Result.Diagnostic_Position :=
+           Cursor_Position (Error (Arena));
+      end if;
+   end Parse_Baseline;
+
+   function Equivalent
   (Left, Right : Owned_Syntax_Tree) return Boolean
 is
    use type Ada.Containers.Count_Type;
@@ -78,6 +109,10 @@ is
      (Left, Right : Grouping_Func; Depth : Natural) return Boolean;
    function Equivalent_Record_Window_Func
      (Left, Right : Window_Func; Depth : Natural) return Boolean;
+   function Equivalent_Record_Window_Func_Run_Condition
+     (Left, Right : Window_Func_Run_Condition; Depth : Natural) return Boolean;
+   function Equivalent_Record_Merge_Support_Func
+     (Left, Right : Merge_Support_Func; Depth : Natural) return Boolean;
    function Equivalent_Record_Subscripting_Ref
      (Left, Right : Subscripting_Ref; Depth : Natural) return Boolean;
    function Equivalent_Func_Expr
@@ -152,10 +187,26 @@ is
      (Left, Right : Json_Constructor_Expr; Depth : Natural) return Boolean;
    function Equivalent_Record_Json_Is_Predicate
      (Left, Right : Json_Is_Predicate; Depth : Natural) return Boolean;
+   function Equivalent_Json_Behavior
+     (Left, Right : Json_Behavior_Access; Depth : Natural) return Boolean;
+   function Equivalent_Record_Json_Behavior
+     (Left, Right : Json_Behavior; Depth : Natural) return Boolean;
+   function Equivalent_Record_Json_Expr
+     (Left, Right : Json_Expr; Depth : Natural) return Boolean;
+   function Equivalent_Json_Table_Path
+     (Left, Right : Json_Table_Path_Access; Depth : Natural) return Boolean;
+   function Equivalent_Record_Json_Table_Path
+     (Left, Right : Json_Table_Path; Depth : Natural) return Boolean;
+   function Equivalent_Record_Json_Table_Path_Scan
+     (Left, Right : Json_Table_Path_Scan; Depth : Natural) return Boolean;
+   function Equivalent_Record_Json_Table_Sibling_Join
+     (Left, Right : Json_Table_Sibling_Join; Depth : Natural) return Boolean;
    function Equivalent_Record_Null_Test
      (Left, Right : Null_Test; Depth : Natural) return Boolean;
    function Equivalent_Record_Boolean_Test
      (Left, Right : Boolean_Test; Depth : Natural) return Boolean;
+   function Equivalent_Record_Merge_Action
+     (Left, Right : Merge_Action; Depth : Natural) return Boolean;
    function Equivalent_Record_Coerce_To_Domain
      (Left, Right : Coerce_To_Domain; Depth : Natural) return Boolean;
    function Equivalent_Record_Coerce_To_Domain_Value
@@ -168,6 +219,8 @@ is
      (Left, Right : Next_Value_Expr; Depth : Natural) return Boolean;
    function Equivalent_Record_Inference_Elem
      (Left, Right : Inference_Elem; Depth : Natural) return Boolean;
+   function Equivalent_Record_Returning_Expr
+     (Left, Right : Returning_Expr; Depth : Natural) return Boolean;
    function Equivalent_Record_Target_Entry
      (Left, Right : Target_Entry; Depth : Natural) return Boolean;
    function Equivalent_Record_Range_Tbl_Ref
@@ -308,18 +361,40 @@ is
      (Left, Right : Common_Table_Expr; Depth : Natural) return Boolean;
    function Equivalent_Record_Merge_When_Clause
      (Left, Right : Merge_When_Clause; Depth : Natural) return Boolean;
-   function Equivalent_Record_Merge_Action
-     (Left, Right : Merge_Action; Depth : Natural) return Boolean;
+   function Equivalent_Record_Returning_Option
+     (Left, Right : Returning_Option; Depth : Natural) return Boolean;
+   function Equivalent_Returning_Clause
+     (Left, Right : Returning_Clause_Access; Depth : Natural) return Boolean;
+   function Equivalent_Record_Returning_Clause
+     (Left, Right : Returning_Clause; Depth : Natural) return Boolean;
    function Equivalent_Record_Trigger_Transition
      (Left, Right : Trigger_Transition; Depth : Natural) return Boolean;
    function Equivalent_Json_Output
      (Left, Right : Json_Output_Access; Depth : Natural) return Boolean;
    function Equivalent_Record_Json_Output
      (Left, Right : Json_Output; Depth : Natural) return Boolean;
+   function Equivalent_Record_Json_Argument
+     (Left, Right : Json_Argument; Depth : Natural) return Boolean;
+   function Equivalent_Record_Json_Func_Expr
+     (Left, Right : Json_Func_Expr; Depth : Natural) return Boolean;
+   function Equivalent_Json_Table_Path_Spec
+     (Left, Right : Json_Table_Path_Spec_Access; Depth : Natural) return Boolean;
+   function Equivalent_Record_Json_Table_Path_Spec
+     (Left, Right : Json_Table_Path_Spec; Depth : Natural) return Boolean;
+   function Equivalent_Record_Json_Table
+     (Left, Right : Json_Table; Depth : Natural) return Boolean;
+   function Equivalent_Record_Json_Table_Column
+     (Left, Right : Json_Table_Column; Depth : Natural) return Boolean;
    function Equivalent_Json_Key_Value
      (Left, Right : Json_Key_Value_Access; Depth : Natural) return Boolean;
    function Equivalent_Record_Json_Key_Value
      (Left, Right : Json_Key_Value; Depth : Natural) return Boolean;
+   function Equivalent_Record_Json_Parse_Expr
+     (Left, Right : Json_Parse_Expr; Depth : Natural) return Boolean;
+   function Equivalent_Record_Json_Scalar_Expr
+     (Left, Right : Json_Scalar_Expr; Depth : Natural) return Boolean;
+   function Equivalent_Record_Json_Serialize_Expr
+     (Left, Right : Json_Serialize_Expr; Depth : Natural) return Boolean;
    function Equivalent_Record_Json_Object_Constructor
      (Left, Right : Json_Object_Constructor; Depth : Natural) return Boolean;
    function Equivalent_Record_Json_Array_Constructor
@@ -360,10 +435,12 @@ is
      (Left, Right : Create_Schema_Stmt; Depth : Natural) return Boolean;
    function Equivalent_Record_Alter_Table_Stmt
      (Left, Right : Alter_Table_Stmt; Depth : Natural) return Boolean;
-   function Equivalent_Record_Replica_Identity_Stmt
-     (Left, Right : Replica_Identity_Stmt; Depth : Natural) return Boolean;
    function Equivalent_Record_Alter_Table_Cmd
      (Left, Right : Alter_Table_Cmd; Depth : Natural) return Boolean;
+   function Equivalent_Record_At_Alter_Constraint
+     (Left, Right : At_Alter_Constraint; Depth : Natural) return Boolean;
+   function Equivalent_Record_Replica_Identity_Stmt
+     (Left, Right : Replica_Identity_Stmt; Depth : Natural) return Boolean;
    function Equivalent_Record_Alter_Collation_Stmt
      (Left, Right : Alter_Collation_Stmt; Depth : Natural) return Boolean;
    function Equivalent_Record_Alter_Domain_Stmt
@@ -984,6 +1061,13 @@ is
       if Depth > 256 then
          raise Constraint_Error with "excessive owned AST recursion";
       end if;
+      if Left.Functype.Present /= Right.Functype.Present then
+         return Fail ("Table_Func.Functype.Present");
+      elsif Left.Functype.Present then
+         if not (Left.Functype.Value = Right.Functype.Value) then
+            return Fail ("Table_Func.Functype.Value");
+         end if;
+      end if;
       if Left.Ns_Uris.Length /= Right.Ns_Uris.Length then
          return Fail ("Table_Func.Ns_Uris.Length");
       end if;
@@ -1062,6 +1146,22 @@ is
             return Fail ("Table_Func.Coldefexprs.Element");
          end if;
       end loop;
+      if Left.Colvalexprs.Length /= Right.Colvalexprs.Length then
+         return Fail ("Table_Func.Colvalexprs.Length");
+      end if;
+      for Index in Left.Colvalexprs.First_Index .. Left.Colvalexprs.Last_Index loop
+         if not (Equivalent_Node (Left.Colvalexprs.Element (Index), Right.Colvalexprs.Element (Index), Depth + 1)) then
+            return Fail ("Table_Func.Colvalexprs.Element");
+         end if;
+      end loop;
+      if Left.Passingvalexprs.Length /= Right.Passingvalexprs.Length then
+         return Fail ("Table_Func.Passingvalexprs.Length");
+      end if;
+      for Index in Left.Passingvalexprs.First_Index .. Left.Passingvalexprs.Last_Index loop
+         if not (Equivalent_Node (Left.Passingvalexprs.Element (Index), Right.Passingvalexprs.Element (Index), Depth + 1)) then
+            return Fail ("Table_Func.Passingvalexprs.Element");
+         end if;
+      end loop;
       if Left.Notnulls.Length /= Right.Notnulls.Length then
          return Fail ("Table_Func.Notnulls.Length");
       end if;
@@ -1070,6 +1170,13 @@ is
             return Fail ("Table_Func.Notnulls.Element");
          end if;
       end loop;
+      if Left.Plan.Present /= Right.Plan.Present then
+         return Fail ("Table_Func.Plan.Present");
+      elsif Left.Plan.Present then
+         if not (Equivalent_Node (Left.Plan.Value, Right.Plan.Value, Depth + 1)) then
+            return Fail ("Table_Func.Plan.Value");
+         end if;
+      end if;
       if Left.Ordinalitycol.Present /= Right.Ordinalitycol.Present then
          return Fail ("Table_Func.Ordinalitycol.Present");
       elsif Left.Ordinalitycol.Present then
@@ -1150,7 +1257,7 @@ is
       if Left.View_Query.Present /= Right.View_Query.Present then
          return Fail ("Into_Clause.View_Query.Present");
       elsif Left.View_Query.Present then
-         if not (Equivalent_Node (Left.View_Query.Value, Right.View_Query.Value, Depth + 1)) then
+         if not (Equivalent_Query (Left.View_Query.Value, Right.View_Query.Value, Depth + 1)) then
             return Fail ("Into_Clause.View_Query.Value");
          end if;
       end if;
@@ -1235,6 +1342,13 @@ is
       elsif Left.Varlevelsup.Present then
          if not (Left.Varlevelsup.Value = Right.Varlevelsup.Value) then
             return Fail ("Var.Varlevelsup.Value");
+         end if;
+      end if;
+      if Left.Varreturningtype.Present /= Right.Varreturningtype.Present then
+         return Fail ("Var.Varreturningtype.Present");
+      elsif Left.Varreturningtype.Present then
+         if not (Left.Varreturningtype.Value = Right.Varreturningtype.Value) then
+            return Fail ("Var.Varreturningtype.Value");
          end if;
       end if;
       if Left.Location.Present /= Right.Location.Present then
@@ -1558,6 +1672,14 @@ is
             return Fail ("Window_Func.Aggfilter.Value");
          end if;
       end if;
+      if Left.Run_Condition.Length /= Right.Run_Condition.Length then
+         return Fail ("Window_Func.Run_Condition.Length");
+      end if;
+      for Index in Left.Run_Condition.First_Index .. Left.Run_Condition.Last_Index loop
+         if not (Equivalent_Node (Left.Run_Condition.Element (Index), Right.Run_Condition.Element (Index), Depth + 1)) then
+            return Fail ("Window_Func.Run_Condition.Element");
+         end if;
+      end loop;
       if Left.Winref.Present /= Right.Winref.Present then
          return Fail ("Window_Func.Winref.Present");
       elsif Left.Winref.Present then
@@ -1588,6 +1710,89 @@ is
       end if;
       return True;
    end Equivalent_Record_Window_Func;
+
+   function Equivalent_Record_Window_Func_Run_Condition
+     (Left, Right : Window_Func_Run_Condition; Depth : Natural) return Boolean
+   is
+   begin
+      if Depth > 256 then
+         raise Constraint_Error with "excessive owned AST recursion";
+      end if;
+      if Left.Xpr.Present /= Right.Xpr.Present then
+         return Fail ("Window_Func_Run_Condition.Xpr.Present");
+      elsif Left.Xpr.Present then
+         if not (Equivalent_Node (Left.Xpr.Value, Right.Xpr.Value, Depth + 1)) then
+            return Fail ("Window_Func_Run_Condition.Xpr.Value");
+         end if;
+      end if;
+      if Left.Opno.Present /= Right.Opno.Present then
+         return Fail ("Window_Func_Run_Condition.Opno.Present");
+      elsif Left.Opno.Present then
+         if not (Left.Opno.Value = Right.Opno.Value) then
+            return Fail ("Window_Func_Run_Condition.Opno.Value");
+         end if;
+      end if;
+      if Left.Inputcollid.Present /= Right.Inputcollid.Present then
+         return Fail ("Window_Func_Run_Condition.Inputcollid.Present");
+      elsif Left.Inputcollid.Present then
+         if not (Left.Inputcollid.Value = Right.Inputcollid.Value) then
+            return Fail ("Window_Func_Run_Condition.Inputcollid.Value");
+         end if;
+      end if;
+      if Left.Wfunc_Left.Present /= Right.Wfunc_Left.Present then
+         return Fail ("Window_Func_Run_Condition.Wfunc_Left.Present");
+      elsif Left.Wfunc_Left.Present then
+         if not (Left.Wfunc_Left.Value = Right.Wfunc_Left.Value) then
+            return Fail ("Window_Func_Run_Condition.Wfunc_Left.Value");
+         end if;
+      end if;
+      if Left.Arg.Present /= Right.Arg.Present then
+         return Fail ("Window_Func_Run_Condition.Arg.Present");
+      elsif Left.Arg.Present then
+         if not (Equivalent_Node (Left.Arg.Value, Right.Arg.Value, Depth + 1)) then
+            return Fail ("Window_Func_Run_Condition.Arg.Value");
+         end if;
+      end if;
+      return True;
+   end Equivalent_Record_Window_Func_Run_Condition;
+
+   function Equivalent_Record_Merge_Support_Func
+     (Left, Right : Merge_Support_Func; Depth : Natural) return Boolean
+   is
+   begin
+      if Depth > 256 then
+         raise Constraint_Error with "excessive owned AST recursion";
+      end if;
+      if Left.Xpr.Present /= Right.Xpr.Present then
+         return Fail ("Merge_Support_Func.Xpr.Present");
+      elsif Left.Xpr.Present then
+         if not (Equivalent_Node (Left.Xpr.Value, Right.Xpr.Value, Depth + 1)) then
+            return Fail ("Merge_Support_Func.Xpr.Value");
+         end if;
+      end if;
+      if Left.Msftype.Present /= Right.Msftype.Present then
+         return Fail ("Merge_Support_Func.Msftype.Present");
+      elsif Left.Msftype.Present then
+         if not (Left.Msftype.Value = Right.Msftype.Value) then
+            return Fail ("Merge_Support_Func.Msftype.Value");
+         end if;
+      end if;
+      if Left.Msfcollid.Present /= Right.Msfcollid.Present then
+         return Fail ("Merge_Support_Func.Msfcollid.Present");
+      elsif Left.Msfcollid.Present then
+         if not (Left.Msfcollid.Value = Right.Msfcollid.Value) then
+            return Fail ("Merge_Support_Func.Msfcollid.Value");
+         end if;
+      end if;
+      if Left.Location.Present /= Right.Location.Present then
+         return Fail ("Merge_Support_Func.Location.Present");
+      elsif Left.Location.Present then
+         if not (Left.Location.Value = Right.Location.Value) then
+            return Fail ("Merge_Support_Func.Location.Value");
+         end if;
+      end if;
+      return True;
+   end Equivalent_Record_Merge_Support_Func;
 
    function Equivalent_Record_Subscripting_Ref
      (Left, Right : Subscripting_Ref; Depth : Natural) return Boolean
@@ -2862,6 +3067,20 @@ is
             return Fail ("Array_Expr.Multidims.Value");
          end if;
       end if;
+      if Left.List_Start.Present /= Right.List_Start.Present then
+         return Fail ("Array_Expr.List_Start.Present");
+      elsif Left.List_Start.Present then
+         if not (Left.List_Start.Value = Right.List_Start.Value) then
+            return Fail ("Array_Expr.List_Start.Value");
+         end if;
+      end if;
+      if Left.List_End.Present /= Right.List_End.Present then
+         return Fail ("Array_Expr.List_End.Present");
+      elsif Left.List_End.Present then
+         if not (Left.List_End.Value = Right.List_End.Value) then
+            return Fail ("Array_Expr.List_End.Value");
+         end if;
+      end if;
       if Left.Location.Present /= Right.Location.Present then
          return Fail ("Array_Expr.Location.Present");
       elsif Left.Location.Present then
@@ -2940,11 +3159,11 @@ is
             return Fail ("Row_Compare_Expr.Xpr.Value");
          end if;
       end if;
-      if Left.Rctype.Present /= Right.Rctype.Present then
-         return Fail ("Row_Compare_Expr.Rctype.Present");
-      elsif Left.Rctype.Present then
-         if not (Left.Rctype.Value = Right.Rctype.Value) then
-            return Fail ("Row_Compare_Expr.Rctype.Value");
+      if Left.Cmptype.Present /= Right.Cmptype.Present then
+         return Fail ("Row_Compare_Expr.Cmptype.Present");
+      elsif Left.Cmptype.Present then
+         if not (Left.Cmptype.Value = Right.Cmptype.Value) then
+            return Fail ("Row_Compare_Expr.Cmptype.Value");
          end if;
       end if;
       if Left.Opnos.Length /= Right.Opnos.Length then
@@ -3470,6 +3689,293 @@ is
       return True;
    end Equivalent_Record_Json_Is_Predicate;
 
+   function Equivalent_Record_Json_Behavior
+     (Left, Right : Json_Behavior; Depth : Natural) return Boolean
+   is
+   begin
+      if Depth > 256 then
+         raise Constraint_Error with "excessive owned AST recursion";
+      end if;
+      if Left.Btype.Present /= Right.Btype.Present then
+         return Fail ("Json_Behavior.Btype.Present");
+      elsif Left.Btype.Present then
+         if not (Left.Btype.Value = Right.Btype.Value) then
+            return Fail ("Json_Behavior.Btype.Value");
+         end if;
+      end if;
+      if Left.Expr.Present /= Right.Expr.Present then
+         return Fail ("Json_Behavior.Expr.Present");
+      elsif Left.Expr.Present then
+         if not (Equivalent_Node (Left.Expr.Value, Right.Expr.Value, Depth + 1)) then
+            return Fail ("Json_Behavior.Expr.Value");
+         end if;
+      end if;
+      if Left.Coerce.Present /= Right.Coerce.Present then
+         return Fail ("Json_Behavior.Coerce.Present");
+      elsif Left.Coerce.Present then
+         if not (Left.Coerce.Value = Right.Coerce.Value) then
+            return Fail ("Json_Behavior.Coerce.Value");
+         end if;
+      end if;
+      if Left.Location.Present /= Right.Location.Present then
+         return Fail ("Json_Behavior.Location.Present");
+      elsif Left.Location.Present then
+         if not (Left.Location.Value = Right.Location.Value) then
+            return Fail ("Json_Behavior.Location.Value");
+         end if;
+      end if;
+      return True;
+   end Equivalent_Record_Json_Behavior;
+
+   function Equivalent_Json_Behavior
+     (Left, Right : Json_Behavior_Access; Depth : Natural) return Boolean is
+   begin
+      if Left = null or else Right = null then
+         return Left = Right;
+      end if;
+      return Equivalent_Record_Json_Behavior (Left.all, Right.all, Depth);
+   end Equivalent_Json_Behavior;
+
+   function Equivalent_Record_Json_Expr
+     (Left, Right : Json_Expr; Depth : Natural) return Boolean
+   is
+   begin
+      if Depth > 256 then
+         raise Constraint_Error with "excessive owned AST recursion";
+      end if;
+      if Left.Xpr.Present /= Right.Xpr.Present then
+         return Fail ("Json_Expr.Xpr.Present");
+      elsif Left.Xpr.Present then
+         if not (Equivalent_Node (Left.Xpr.Value, Right.Xpr.Value, Depth + 1)) then
+            return Fail ("Json_Expr.Xpr.Value");
+         end if;
+      end if;
+      if Left.Op.Present /= Right.Op.Present then
+         return Fail ("Json_Expr.Op.Present");
+      elsif Left.Op.Present then
+         if not (Left.Op.Value = Right.Op.Value) then
+            return Fail ("Json_Expr.Op.Value");
+         end if;
+      end if;
+      if Left.Column_Name.Present /= Right.Column_Name.Present then
+         return Fail ("Json_Expr.Column_Name.Present");
+      elsif Left.Column_Name.Present then
+         if not (Left.Column_Name.Value = Right.Column_Name.Value) then
+            return Fail ("Json_Expr.Column_Name.Value");
+         end if;
+      end if;
+      if Left.Formatted_Expr.Present /= Right.Formatted_Expr.Present then
+         return Fail ("Json_Expr.Formatted_Expr.Present");
+      elsif Left.Formatted_Expr.Present then
+         if not (Equivalent_Node (Left.Formatted_Expr.Value, Right.Formatted_Expr.Value, Depth + 1)) then
+            return Fail ("Json_Expr.Formatted_Expr.Value");
+         end if;
+      end if;
+      if Left.Format.Present /= Right.Format.Present then
+         return Fail ("Json_Expr.Format.Present");
+      elsif Left.Format.Present then
+         if not (Equivalent_Json_Format (Left.Format.Value, Right.Format.Value, Depth + 1)) then
+            return Fail ("Json_Expr.Format.Value");
+         end if;
+      end if;
+      if Left.Path_Spec.Present /= Right.Path_Spec.Present then
+         return Fail ("Json_Expr.Path_Spec.Present");
+      elsif Left.Path_Spec.Present then
+         if not (Equivalent_Node (Left.Path_Spec.Value, Right.Path_Spec.Value, Depth + 1)) then
+            return Fail ("Json_Expr.Path_Spec.Value");
+         end if;
+      end if;
+      if Left.Returning.Present /= Right.Returning.Present then
+         return Fail ("Json_Expr.Returning.Present");
+      elsif Left.Returning.Present then
+         if not (Equivalent_Json_Returning (Left.Returning.Value, Right.Returning.Value, Depth + 1)) then
+            return Fail ("Json_Expr.Returning.Value");
+         end if;
+      end if;
+      if Left.Passing_Names.Length /= Right.Passing_Names.Length then
+         return Fail ("Json_Expr.Passing_Names.Length");
+      end if;
+      for Index in Left.Passing_Names.First_Index .. Left.Passing_Names.Last_Index loop
+         if not (Equivalent_Node (Left.Passing_Names.Element (Index), Right.Passing_Names.Element (Index), Depth + 1)) then
+            return Fail ("Json_Expr.Passing_Names.Element");
+         end if;
+      end loop;
+      if Left.Passing_Values.Length /= Right.Passing_Values.Length then
+         return Fail ("Json_Expr.Passing_Values.Length");
+      end if;
+      for Index in Left.Passing_Values.First_Index .. Left.Passing_Values.Last_Index loop
+         if not (Equivalent_Node (Left.Passing_Values.Element (Index), Right.Passing_Values.Element (Index), Depth + 1)) then
+            return Fail ("Json_Expr.Passing_Values.Element");
+         end if;
+      end loop;
+      if Left.On_Empty.Present /= Right.On_Empty.Present then
+         return Fail ("Json_Expr.On_Empty.Present");
+      elsif Left.On_Empty.Present then
+         if not (Equivalent_Json_Behavior (Left.On_Empty.Value, Right.On_Empty.Value, Depth + 1)) then
+            return Fail ("Json_Expr.On_Empty.Value");
+         end if;
+      end if;
+      if Left.On_Error.Present /= Right.On_Error.Present then
+         return Fail ("Json_Expr.On_Error.Present");
+      elsif Left.On_Error.Present then
+         if not (Equivalent_Json_Behavior (Left.On_Error.Value, Right.On_Error.Value, Depth + 1)) then
+            return Fail ("Json_Expr.On_Error.Value");
+         end if;
+      end if;
+      if Left.Use_Io_Coercion.Present /= Right.Use_Io_Coercion.Present then
+         return Fail ("Json_Expr.Use_Io_Coercion.Present");
+      elsif Left.Use_Io_Coercion.Present then
+         if not (Left.Use_Io_Coercion.Value = Right.Use_Io_Coercion.Value) then
+            return Fail ("Json_Expr.Use_Io_Coercion.Value");
+         end if;
+      end if;
+      if Left.Use_Json_Coercion.Present /= Right.Use_Json_Coercion.Present then
+         return Fail ("Json_Expr.Use_Json_Coercion.Present");
+      elsif Left.Use_Json_Coercion.Present then
+         if not (Left.Use_Json_Coercion.Value = Right.Use_Json_Coercion.Value) then
+            return Fail ("Json_Expr.Use_Json_Coercion.Value");
+         end if;
+      end if;
+      if Left.Wrapper.Present /= Right.Wrapper.Present then
+         return Fail ("Json_Expr.Wrapper.Present");
+      elsif Left.Wrapper.Present then
+         if not (Left.Wrapper.Value = Right.Wrapper.Value) then
+            return Fail ("Json_Expr.Wrapper.Value");
+         end if;
+      end if;
+      if Left.Omit_Quotes.Present /= Right.Omit_Quotes.Present then
+         return Fail ("Json_Expr.Omit_Quotes.Present");
+      elsif Left.Omit_Quotes.Present then
+         if not (Left.Omit_Quotes.Value = Right.Omit_Quotes.Value) then
+            return Fail ("Json_Expr.Omit_Quotes.Value");
+         end if;
+      end if;
+      if Left.Collation.Present /= Right.Collation.Present then
+         return Fail ("Json_Expr.Collation.Present");
+      elsif Left.Collation.Present then
+         if not (Left.Collation.Value = Right.Collation.Value) then
+            return Fail ("Json_Expr.Collation.Value");
+         end if;
+      end if;
+      if Left.Location.Present /= Right.Location.Present then
+         return Fail ("Json_Expr.Location.Present");
+      elsif Left.Location.Present then
+         if not (Left.Location.Value = Right.Location.Value) then
+            return Fail ("Json_Expr.Location.Value");
+         end if;
+      end if;
+      return True;
+   end Equivalent_Record_Json_Expr;
+
+   function Equivalent_Record_Json_Table_Path
+     (Left, Right : Json_Table_Path; Depth : Natural) return Boolean
+   is
+   begin
+      if Depth > 256 then
+         raise Constraint_Error with "excessive owned AST recursion";
+      end if;
+      if Left.Name.Present /= Right.Name.Present then
+         return Fail ("Json_Table_Path.Name.Present");
+      elsif Left.Name.Present then
+         if not (Left.Name.Value = Right.Name.Value) then
+            return Fail ("Json_Table_Path.Name.Value");
+         end if;
+      end if;
+      return True;
+   end Equivalent_Record_Json_Table_Path;
+
+   function Equivalent_Json_Table_Path
+     (Left, Right : Json_Table_Path_Access; Depth : Natural) return Boolean is
+   begin
+      if Left = null or else Right = null then
+         return Left = Right;
+      end if;
+      return Equivalent_Record_Json_Table_Path (Left.all, Right.all, Depth);
+   end Equivalent_Json_Table_Path;
+
+   function Equivalent_Record_Json_Table_Path_Scan
+     (Left, Right : Json_Table_Path_Scan; Depth : Natural) return Boolean
+   is
+   begin
+      if Depth > 256 then
+         raise Constraint_Error with "excessive owned AST recursion";
+      end if;
+      if Left.Plan.Present /= Right.Plan.Present then
+         return Fail ("Json_Table_Path_Scan.Plan.Present");
+      elsif Left.Plan.Present then
+         if not (Equivalent_Node (Left.Plan.Value, Right.Plan.Value, Depth + 1)) then
+            return Fail ("Json_Table_Path_Scan.Plan.Value");
+         end if;
+      end if;
+      if Left.Path.Present /= Right.Path.Present then
+         return Fail ("Json_Table_Path_Scan.Path.Present");
+      elsif Left.Path.Present then
+         if not (Equivalent_Json_Table_Path (Left.Path.Value, Right.Path.Value, Depth + 1)) then
+            return Fail ("Json_Table_Path_Scan.Path.Value");
+         end if;
+      end if;
+      if Left.Error_On_Error.Present /= Right.Error_On_Error.Present then
+         return Fail ("Json_Table_Path_Scan.Error_On_Error.Present");
+      elsif Left.Error_On_Error.Present then
+         if not (Left.Error_On_Error.Value = Right.Error_On_Error.Value) then
+            return Fail ("Json_Table_Path_Scan.Error_On_Error.Value");
+         end if;
+      end if;
+      if Left.Child.Present /= Right.Child.Present then
+         return Fail ("Json_Table_Path_Scan.Child.Present");
+      elsif Left.Child.Present then
+         if not (Equivalent_Node (Left.Child.Value, Right.Child.Value, Depth + 1)) then
+            return Fail ("Json_Table_Path_Scan.Child.Value");
+         end if;
+      end if;
+      if Left.Col_Min.Present /= Right.Col_Min.Present then
+         return Fail ("Json_Table_Path_Scan.Col_Min.Present");
+      elsif Left.Col_Min.Present then
+         if not (Left.Col_Min.Value = Right.Col_Min.Value) then
+            return Fail ("Json_Table_Path_Scan.Col_Min.Value");
+         end if;
+      end if;
+      if Left.Col_Max.Present /= Right.Col_Max.Present then
+         return Fail ("Json_Table_Path_Scan.Col_Max.Present");
+      elsif Left.Col_Max.Present then
+         if not (Left.Col_Max.Value = Right.Col_Max.Value) then
+            return Fail ("Json_Table_Path_Scan.Col_Max.Value");
+         end if;
+      end if;
+      return True;
+   end Equivalent_Record_Json_Table_Path_Scan;
+
+   function Equivalent_Record_Json_Table_Sibling_Join
+     (Left, Right : Json_Table_Sibling_Join; Depth : Natural) return Boolean
+   is
+   begin
+      if Depth > 256 then
+         raise Constraint_Error with "excessive owned AST recursion";
+      end if;
+      if Left.Plan.Present /= Right.Plan.Present then
+         return Fail ("Json_Table_Sibling_Join.Plan.Present");
+      elsif Left.Plan.Present then
+         if not (Equivalent_Node (Left.Plan.Value, Right.Plan.Value, Depth + 1)) then
+            return Fail ("Json_Table_Sibling_Join.Plan.Value");
+         end if;
+      end if;
+      if Left.Lplan.Present /= Right.Lplan.Present then
+         return Fail ("Json_Table_Sibling_Join.Lplan.Present");
+      elsif Left.Lplan.Present then
+         if not (Equivalent_Node (Left.Lplan.Value, Right.Lplan.Value, Depth + 1)) then
+            return Fail ("Json_Table_Sibling_Join.Lplan.Value");
+         end if;
+      end if;
+      if Left.Rplan.Present /= Right.Rplan.Present then
+         return Fail ("Json_Table_Sibling_Join.Rplan.Present");
+      elsif Left.Rplan.Present then
+         if not (Equivalent_Node (Left.Rplan.Value, Right.Rplan.Value, Depth + 1)) then
+            return Fail ("Json_Table_Sibling_Join.Rplan.Value");
+         end if;
+      end if;
+      return True;
+   end Equivalent_Record_Json_Table_Sibling_Join;
+
    function Equivalent_Record_Null_Test
      (Left, Right : Null_Test; Depth : Natural) return Boolean
    is
@@ -3552,6 +4058,60 @@ is
       end if;
       return True;
    end Equivalent_Record_Boolean_Test;
+
+   function Equivalent_Record_Merge_Action
+     (Left, Right : Merge_Action; Depth : Natural) return Boolean
+   is
+   begin
+      if Depth > 256 then
+         raise Constraint_Error with "excessive owned AST recursion";
+      end if;
+      if Left.Match_Kind.Present /= Right.Match_Kind.Present then
+         return Fail ("Merge_Action.Match_Kind.Present");
+      elsif Left.Match_Kind.Present then
+         if not (Left.Match_Kind.Value = Right.Match_Kind.Value) then
+            return Fail ("Merge_Action.Match_Kind.Value");
+         end if;
+      end if;
+      if Left.Command_Type.Present /= Right.Command_Type.Present then
+         return Fail ("Merge_Action.Command_Type.Present");
+      elsif Left.Command_Type.Present then
+         if not (Left.Command_Type.Value = Right.Command_Type.Value) then
+            return Fail ("Merge_Action.Command_Type.Value");
+         end if;
+      end if;
+      if Left.Override.Present /= Right.Override.Present then
+         return Fail ("Merge_Action.Override.Present");
+      elsif Left.Override.Present then
+         if not (Left.Override.Value = Right.Override.Value) then
+            return Fail ("Merge_Action.Override.Value");
+         end if;
+      end if;
+      if Left.Qual.Present /= Right.Qual.Present then
+         return Fail ("Merge_Action.Qual.Present");
+      elsif Left.Qual.Present then
+         if not (Equivalent_Node (Left.Qual.Value, Right.Qual.Value, Depth + 1)) then
+            return Fail ("Merge_Action.Qual.Value");
+         end if;
+      end if;
+      if Left.Target_List.Length /= Right.Target_List.Length then
+         return Fail ("Merge_Action.Target_List.Length");
+      end if;
+      for Index in Left.Target_List.First_Index .. Left.Target_List.Last_Index loop
+         if not (Equivalent_Node (Left.Target_List.Element (Index), Right.Target_List.Element (Index), Depth + 1)) then
+            return Fail ("Merge_Action.Target_List.Element");
+         end if;
+      end loop;
+      if Left.Update_Colnos.Length /= Right.Update_Colnos.Length then
+         return Fail ("Merge_Action.Update_Colnos.Length");
+      end if;
+      for Index in Left.Update_Colnos.First_Index .. Left.Update_Colnos.Last_Index loop
+         if not (Equivalent_Node (Left.Update_Colnos.Element (Index), Right.Update_Colnos.Element (Index), Depth + 1)) then
+            return Fail ("Merge_Action.Update_Colnos.Element");
+         end if;
+      end loop;
+      return True;
+   end Equivalent_Record_Merge_Action;
 
    function Equivalent_Record_Coerce_To_Domain
      (Left, Right : Coerce_To_Domain; Depth : Natural) return Boolean
@@ -3808,6 +4368,44 @@ is
       end if;
       return True;
    end Equivalent_Record_Inference_Elem;
+
+   function Equivalent_Record_Returning_Expr
+     (Left, Right : Returning_Expr; Depth : Natural) return Boolean
+   is
+   begin
+      if Depth > 256 then
+         raise Constraint_Error with "excessive owned AST recursion";
+      end if;
+      if Left.Xpr.Present /= Right.Xpr.Present then
+         return Fail ("Returning_Expr.Xpr.Present");
+      elsif Left.Xpr.Present then
+         if not (Equivalent_Node (Left.Xpr.Value, Right.Xpr.Value, Depth + 1)) then
+            return Fail ("Returning_Expr.Xpr.Value");
+         end if;
+      end if;
+      if Left.Retlevelsup.Present /= Right.Retlevelsup.Present then
+         return Fail ("Returning_Expr.Retlevelsup.Present");
+      elsif Left.Retlevelsup.Present then
+         if not (Left.Retlevelsup.Value = Right.Retlevelsup.Value) then
+            return Fail ("Returning_Expr.Retlevelsup.Value");
+         end if;
+      end if;
+      if Left.Retold.Present /= Right.Retold.Present then
+         return Fail ("Returning_Expr.Retold.Present");
+      elsif Left.Retold.Present then
+         if not (Left.Retold.Value = Right.Retold.Value) then
+            return Fail ("Returning_Expr.Retold.Value");
+         end if;
+      end if;
+      if Left.Retexpr.Present /= Right.Retexpr.Present then
+         return Fail ("Returning_Expr.Retexpr.Present");
+      elsif Left.Retexpr.Present then
+         if not (Equivalent_Node (Left.Retexpr.Value, Right.Retexpr.Value, Depth + 1)) then
+            return Fail ("Returning_Expr.Retexpr.Value");
+         end if;
+      end if;
+      return True;
+   end Equivalent_Record_Returning_Expr;
 
    function Equivalent_Record_Target_Entry
      (Left, Right : Target_Entry; Depth : Natural) return Boolean
@@ -4183,6 +4781,13 @@ is
             return Fail ("Query.Has_Row_Security.Value");
          end if;
       end if;
+      if Left.Has_Group_Rte.Present /= Right.Has_Group_Rte.Present then
+         return Fail ("Query.Has_Group_Rte.Present");
+      elsif Left.Has_Group_Rte.Present then
+         if not (Left.Has_Group_Rte.Value = Right.Has_Group_Rte.Value) then
+            return Fail ("Query.Has_Group_Rte.Value");
+         end if;
+      end if;
       if Left.Is_Return.Present /= Right.Is_Return.Present then
          return Fail ("Query.Is_Return.Present");
       elsif Left.Is_Return.Present then
@@ -4229,11 +4834,18 @@ is
             return Fail ("Query.Merge_Action_List.Element");
          end if;
       end loop;
-      if Left.Merge_Use_Outer_Join.Present /= Right.Merge_Use_Outer_Join.Present then
-         return Fail ("Query.Merge_Use_Outer_Join.Present");
-      elsif Left.Merge_Use_Outer_Join.Present then
-         if not (Left.Merge_Use_Outer_Join.Value = Right.Merge_Use_Outer_Join.Value) then
-            return Fail ("Query.Merge_Use_Outer_Join.Value");
+      if Left.Merge_Target_Relation.Present /= Right.Merge_Target_Relation.Present then
+         return Fail ("Query.Merge_Target_Relation.Present");
+      elsif Left.Merge_Target_Relation.Present then
+         if not (Left.Merge_Target_Relation.Value = Right.Merge_Target_Relation.Value) then
+            return Fail ("Query.Merge_Target_Relation.Value");
+         end if;
+      end if;
+      if Left.Merge_Join_Condition.Present /= Right.Merge_Join_Condition.Present then
+         return Fail ("Query.Merge_Join_Condition.Present");
+      elsif Left.Merge_Join_Condition.Present then
+         if not (Equivalent_Node (Left.Merge_Join_Condition.Value, Right.Merge_Join_Condition.Value, Depth + 1)) then
+            return Fail ("Query.Merge_Join_Condition.Value");
          end if;
       end if;
       if Left.Target_List.Length /= Right.Target_List.Length then
@@ -4256,6 +4868,20 @@ is
       elsif Left.On_Conflict.Present then
          if not (Equivalent_On_Conflict_Expr (Left.On_Conflict.Value, Right.On_Conflict.Value, Depth + 1)) then
             return Fail ("Query.On_Conflict.Value");
+         end if;
+      end if;
+      if Left.Returning_Old_Alias.Present /= Right.Returning_Old_Alias.Present then
+         return Fail ("Query.Returning_Old_Alias.Present");
+      elsif Left.Returning_Old_Alias.Present then
+         if not (Left.Returning_Old_Alias.Value = Right.Returning_Old_Alias.Value) then
+            return Fail ("Query.Returning_Old_Alias.Value");
+         end if;
+      end if;
+      if Left.Returning_New_Alias.Present /= Right.Returning_New_Alias.Present then
+         return Fail ("Query.Returning_New_Alias.Present");
+      elsif Left.Returning_New_Alias.Present then
+         if not (Left.Returning_New_Alias.Value = Right.Returning_New_Alias.Value) then
+            return Fail ("Query.Returning_New_Alias.Value");
          end if;
       end if;
       if Left.Returning_List.Length /= Right.Returning_List.Length then
@@ -4561,6 +5187,20 @@ is
             return Fail ("A_Expr.Rexpr.Value");
          end if;
       end if;
+      if Left.Rexpr_List_Start.Present /= Right.Rexpr_List_Start.Present then
+         return Fail ("A_Expr.Rexpr_List_Start.Present");
+      elsif Left.Rexpr_List_Start.Present then
+         if not (Left.Rexpr_List_Start.Value = Right.Rexpr_List_Start.Value) then
+            return Fail ("A_Expr.Rexpr_List_Start.Value");
+         end if;
+      end if;
+      if Left.Rexpr_List_End.Present /= Right.Rexpr_List_End.Present then
+         return Fail ("A_Expr.Rexpr_List_End.Present");
+      elsif Left.Rexpr_List_End.Present then
+         if not (Left.Rexpr_List_End.Value = Right.Rexpr_List_End.Value) then
+            return Fail ("A_Expr.Rexpr_List_End.Value");
+         end if;
+      end if;
       if Left.Location.Present /= Right.Location.Present then
          return Fail ("A_Expr.Location.Present");
       elsif Left.Location.Present then
@@ -4864,6 +5504,20 @@ is
             return Fail ("A_Array_Expr.Elements.Element");
          end if;
       end loop;
+      if Left.List_Start.Present /= Right.List_Start.Present then
+         return Fail ("A_Array_Expr.List_Start.Present");
+      elsif Left.List_Start.Present then
+         if not (Left.List_Start.Value = Right.List_Start.Value) then
+            return Fail ("A_Array_Expr.List_Start.Value");
+         end if;
+      end if;
+      if Left.List_End.Present /= Right.List_End.Present then
+         return Fail ("A_Array_Expr.List_End.Present");
+      elsif Left.List_End.Present then
+         if not (Left.List_End.Value = Right.List_End.Value) then
+            return Fail ("A_Array_Expr.List_End.Value");
+         end if;
+      end if;
       if Left.Location.Present /= Right.Location.Present then
          return Fail ("A_Array_Expr.Location.Present");
       elsif Left.Location.Present then
@@ -5921,6 +6575,20 @@ is
       if Depth > 256 then
          raise Constraint_Error with "excessive owned AST recursion";
       end if;
+      if Left.Alias.Present /= Right.Alias.Present then
+         return Fail ("Range_Tbl_Entry.Alias.Present");
+      elsif Left.Alias.Present then
+         if not (Equivalent_Alias (Left.Alias.Value, Right.Alias.Value, Depth + 1)) then
+            return Fail ("Range_Tbl_Entry.Alias.Value");
+         end if;
+      end if;
+      if Left.Eref.Present /= Right.Eref.Present then
+         return Fail ("Range_Tbl_Entry.Eref.Present");
+      elsif Left.Eref.Present then
+         if not (Equivalent_Alias (Left.Eref.Value, Right.Eref.Value, Depth + 1)) then
+            return Fail ("Range_Tbl_Entry.Eref.Value");
+         end if;
+      end if;
       if Left.Rtekind.Present /= Right.Rtekind.Present then
          return Fail ("Range_Tbl_Entry.Rtekind.Present");
       elsif Left.Rtekind.Present then
@@ -5933,6 +6601,13 @@ is
       elsif Left.Relid.Present then
          if not (Left.Relid.Value = Right.Relid.Value) then
             return Fail ("Range_Tbl_Entry.Relid.Value");
+         end if;
+      end if;
+      if Left.Inh.Present /= Right.Inh.Present then
+         return Fail ("Range_Tbl_Entry.Inh.Present");
+      elsif Left.Inh.Present then
+         if not (Left.Inh.Value = Right.Inh.Value) then
+            return Fail ("Range_Tbl_Entry.Inh.Value");
          end if;
       end if;
       if Left.Relkind.Present /= Right.Relkind.Present then
@@ -5949,18 +6624,18 @@ is
             return Fail ("Range_Tbl_Entry.Rellockmode.Value");
          end if;
       end if;
-      if Left.Tablesample.Present /= Right.Tablesample.Present then
-         return Fail ("Range_Tbl_Entry.Tablesample.Present");
-      elsif Left.Tablesample.Present then
-         if not (Equivalent_Table_Sample_Clause (Left.Tablesample.Value, Right.Tablesample.Value, Depth + 1)) then
-            return Fail ("Range_Tbl_Entry.Tablesample.Value");
-         end if;
-      end if;
       if Left.Perminfoindex.Present /= Right.Perminfoindex.Present then
          return Fail ("Range_Tbl_Entry.Perminfoindex.Present");
       elsif Left.Perminfoindex.Present then
          if not (Left.Perminfoindex.Value = Right.Perminfoindex.Value) then
             return Fail ("Range_Tbl_Entry.Perminfoindex.Value");
+         end if;
+      end if;
+      if Left.Tablesample.Present /= Right.Tablesample.Present then
+         return Fail ("Range_Tbl_Entry.Tablesample.Present");
+      elsif Left.Tablesample.Present then
+         if not (Equivalent_Table_Sample_Clause (Left.Tablesample.Value, Right.Tablesample.Value, Depth + 1)) then
+            return Fail ("Range_Tbl_Entry.Tablesample.Value");
          end if;
       end if;
       if Left.Subquery.Present /= Right.Subquery.Present then
@@ -6111,32 +6786,19 @@ is
             return Fail ("Range_Tbl_Entry.Enrtuples.Value");
          end if;
       end if;
-      if Left.Alias.Present /= Right.Alias.Present then
-         return Fail ("Range_Tbl_Entry.Alias.Present");
-      elsif Left.Alias.Present then
-         if not (Equivalent_Alias (Left.Alias.Value, Right.Alias.Value, Depth + 1)) then
-            return Fail ("Range_Tbl_Entry.Alias.Value");
-         end if;
+      if Left.Groupexprs.Length /= Right.Groupexprs.Length then
+         return Fail ("Range_Tbl_Entry.Groupexprs.Length");
       end if;
-      if Left.Eref.Present /= Right.Eref.Present then
-         return Fail ("Range_Tbl_Entry.Eref.Present");
-      elsif Left.Eref.Present then
-         if not (Equivalent_Alias (Left.Eref.Value, Right.Eref.Value, Depth + 1)) then
-            return Fail ("Range_Tbl_Entry.Eref.Value");
+      for Index in Left.Groupexprs.First_Index .. Left.Groupexprs.Last_Index loop
+         if not (Equivalent_Node (Left.Groupexprs.Element (Index), Right.Groupexprs.Element (Index), Depth + 1)) then
+            return Fail ("Range_Tbl_Entry.Groupexprs.Element");
          end if;
-      end if;
+      end loop;
       if Left.Lateral.Present /= Right.Lateral.Present then
          return Fail ("Range_Tbl_Entry.Lateral.Present");
       elsif Left.Lateral.Present then
          if not (Left.Lateral.Value = Right.Lateral.Value) then
             return Fail ("Range_Tbl_Entry.Lateral.Value");
-         end if;
-      end if;
-      if Left.Inh.Present /= Right.Inh.Present then
-         return Fail ("Range_Tbl_Entry.Inh.Present");
-      elsif Left.Inh.Present then
-         if not (Left.Inh.Value = Right.Inh.Value) then
-            return Fail ("Range_Tbl_Entry.Inh.Value");
          end if;
       end if;
       if Left.In_From_Cl.Present /= Right.In_From_Cl.Present then
@@ -6397,6 +7059,13 @@ is
             return Fail ("Sort_Group_Clause.Sortop.Value");
          end if;
       end if;
+      if Left.Reverse_Sort.Present /= Right.Reverse_Sort.Present then
+         return Fail ("Sort_Group_Clause.Reverse_Sort.Present");
+      elsif Left.Reverse_Sort.Present then
+         if not (Left.Reverse_Sort.Value = Right.Reverse_Sort.Value) then
+            return Fail ("Sort_Group_Clause.Reverse_Sort.Value");
+         end if;
+      end if;
       if Left.Nulls_First.Present /= Right.Nulls_First.Present then
          return Fail ("Sort_Group_Clause.Nulls_First.Present");
       elsif Left.Nulls_First.Present then
@@ -6504,14 +7173,6 @@ is
             return Fail ("Window_Clause.End_Offset.Value");
          end if;
       end if;
-      if Left.Run_Condition.Length /= Right.Run_Condition.Length then
-         return Fail ("Window_Clause.Run_Condition.Length");
-      end if;
-      for Index in Left.Run_Condition.First_Index .. Left.Run_Condition.Last_Index loop
-         if not (Equivalent_Node (Left.Run_Condition.Element (Index), Right.Run_Condition.Element (Index), Depth + 1)) then
-            return Fail ("Window_Clause.Run_Condition.Element");
-         end if;
-      end loop;
       if Left.Start_In_Range_Func.Present /= Right.Start_In_Range_Func.Present then
          return Fail ("Window_Clause.Start_In_Range_Func.Present");
       elsif Left.Start_In_Range_Func.Present then
@@ -6997,11 +7658,11 @@ is
       if Depth > 256 then
          raise Constraint_Error with "excessive owned AST recursion";
       end if;
-      if Left.Matched.Present /= Right.Matched.Present then
-         return Fail ("Merge_When_Clause.Matched.Present");
-      elsif Left.Matched.Present then
-         if not (Left.Matched.Value = Right.Matched.Value) then
-            return Fail ("Merge_When_Clause.Matched.Value");
+      if Left.Match_Kind.Present /= Right.Match_Kind.Present then
+         return Fail ("Merge_When_Clause.Match_Kind.Present");
+      elsif Left.Match_Kind.Present then
+         if not (Left.Match_Kind.Value = Right.Match_Kind.Value) then
+            return Fail ("Merge_When_Clause.Match_Kind.Value");
          end if;
       end if;
       if Left.Command_Type.Present /= Right.Command_Type.Present then
@@ -7044,59 +7705,71 @@ is
       return True;
    end Equivalent_Record_Merge_When_Clause;
 
-   function Equivalent_Record_Merge_Action
-     (Left, Right : Merge_Action; Depth : Natural) return Boolean
+   function Equivalent_Record_Returning_Option
+     (Left, Right : Returning_Option; Depth : Natural) return Boolean
    is
    begin
       if Depth > 256 then
          raise Constraint_Error with "excessive owned AST recursion";
       end if;
-      if Left.Matched.Present /= Right.Matched.Present then
-         return Fail ("Merge_Action.Matched.Present");
-      elsif Left.Matched.Present then
-         if not (Left.Matched.Value = Right.Matched.Value) then
-            return Fail ("Merge_Action.Matched.Value");
+      if Left.Option.Present /= Right.Option.Present then
+         return Fail ("Returning_Option.Option.Present");
+      elsif Left.Option.Present then
+         if not (Left.Option.Value = Right.Option.Value) then
+            return Fail ("Returning_Option.Option.Value");
          end if;
       end if;
-      if Left.Command_Type.Present /= Right.Command_Type.Present then
-         return Fail ("Merge_Action.Command_Type.Present");
-      elsif Left.Command_Type.Present then
-         if not (Left.Command_Type.Value = Right.Command_Type.Value) then
-            return Fail ("Merge_Action.Command_Type.Value");
+      if Left.Value.Present /= Right.Value.Present then
+         return Fail ("Returning_Option.Value.Present");
+      elsif Left.Value.Present then
+         if not (Left.Value.Value = Right.Value.Value) then
+            return Fail ("Returning_Option.Value.Value");
          end if;
       end if;
-      if Left.Override.Present /= Right.Override.Present then
-         return Fail ("Merge_Action.Override.Present");
-      elsif Left.Override.Present then
-         if not (Left.Override.Value = Right.Override.Value) then
-            return Fail ("Merge_Action.Override.Value");
+      if Left.Location.Present /= Right.Location.Present then
+         return Fail ("Returning_Option.Location.Present");
+      elsif Left.Location.Present then
+         if not (Left.Location.Value = Right.Location.Value) then
+            return Fail ("Returning_Option.Location.Value");
          end if;
       end if;
-      if Left.Qual.Present /= Right.Qual.Present then
-         return Fail ("Merge_Action.Qual.Present");
-      elsif Left.Qual.Present then
-         if not (Equivalent_Node (Left.Qual.Value, Right.Qual.Value, Depth + 1)) then
-            return Fail ("Merge_Action.Qual.Value");
-         end if;
+      return True;
+   end Equivalent_Record_Returning_Option;
+
+   function Equivalent_Record_Returning_Clause
+     (Left, Right : Returning_Clause; Depth : Natural) return Boolean
+   is
+   begin
+      if Depth > 256 then
+         raise Constraint_Error with "excessive owned AST recursion";
       end if;
-      if Left.Target_List.Length /= Right.Target_List.Length then
-         return Fail ("Merge_Action.Target_List.Length");
+      if Left.Options.Length /= Right.Options.Length then
+         return Fail ("Returning_Clause.Options.Length");
       end if;
-      for Index in Left.Target_List.First_Index .. Left.Target_List.Last_Index loop
-         if not (Equivalent_Node (Left.Target_List.Element (Index), Right.Target_List.Element (Index), Depth + 1)) then
-            return Fail ("Merge_Action.Target_List.Element");
+      for Index in Left.Options.First_Index .. Left.Options.Last_Index loop
+         if not (Equivalent_Node (Left.Options.Element (Index), Right.Options.Element (Index), Depth + 1)) then
+            return Fail ("Returning_Clause.Options.Element");
          end if;
       end loop;
-      if Left.Update_Colnos.Length /= Right.Update_Colnos.Length then
-         return Fail ("Merge_Action.Update_Colnos.Length");
+      if Left.Exprs.Length /= Right.Exprs.Length then
+         return Fail ("Returning_Clause.Exprs.Length");
       end if;
-      for Index in Left.Update_Colnos.First_Index .. Left.Update_Colnos.Last_Index loop
-         if not (Equivalent_Node (Left.Update_Colnos.Element (Index), Right.Update_Colnos.Element (Index), Depth + 1)) then
-            return Fail ("Merge_Action.Update_Colnos.Element");
+      for Index in Left.Exprs.First_Index .. Left.Exprs.Last_Index loop
+         if not (Equivalent_Node (Left.Exprs.Element (Index), Right.Exprs.Element (Index), Depth + 1)) then
+            return Fail ("Returning_Clause.Exprs.Element");
          end if;
       end loop;
       return True;
-   end Equivalent_Record_Merge_Action;
+   end Equivalent_Record_Returning_Clause;
+
+   function Equivalent_Returning_Clause
+     (Left, Right : Returning_Clause_Access; Depth : Natural) return Boolean is
+   begin
+      if Left = null or else Right = null then
+         return Left = Right;
+      end if;
+      return Equivalent_Record_Returning_Clause (Left.all, Right.all, Depth);
+   end Equivalent_Returning_Clause;
 
    function Equivalent_Record_Trigger_Transition
      (Left, Right : Trigger_Transition; Depth : Natural) return Boolean
@@ -7162,6 +7835,321 @@ is
       return Equivalent_Record_Json_Output (Left.all, Right.all, Depth);
    end Equivalent_Json_Output;
 
+   function Equivalent_Record_Json_Argument
+     (Left, Right : Json_Argument; Depth : Natural) return Boolean
+   is
+   begin
+      if Depth > 256 then
+         raise Constraint_Error with "excessive owned AST recursion";
+      end if;
+      if Left.Val.Present /= Right.Val.Present then
+         return Fail ("Json_Argument.Val.Present");
+      elsif Left.Val.Present then
+         if not (Equivalent_Json_Value_Expr (Left.Val.Value, Right.Val.Value, Depth + 1)) then
+            return Fail ("Json_Argument.Val.Value");
+         end if;
+      end if;
+      if Left.Name.Present /= Right.Name.Present then
+         return Fail ("Json_Argument.Name.Present");
+      elsif Left.Name.Present then
+         if not (Left.Name.Value = Right.Name.Value) then
+            return Fail ("Json_Argument.Name.Value");
+         end if;
+      end if;
+      return True;
+   end Equivalent_Record_Json_Argument;
+
+   function Equivalent_Record_Json_Func_Expr
+     (Left, Right : Json_Func_Expr; Depth : Natural) return Boolean
+   is
+   begin
+      if Depth > 256 then
+         raise Constraint_Error with "excessive owned AST recursion";
+      end if;
+      if Left.Op.Present /= Right.Op.Present then
+         return Fail ("Json_Func_Expr.Op.Present");
+      elsif Left.Op.Present then
+         if not (Left.Op.Value = Right.Op.Value) then
+            return Fail ("Json_Func_Expr.Op.Value");
+         end if;
+      end if;
+      if Left.Column_Name.Present /= Right.Column_Name.Present then
+         return Fail ("Json_Func_Expr.Column_Name.Present");
+      elsif Left.Column_Name.Present then
+         if not (Left.Column_Name.Value = Right.Column_Name.Value) then
+            return Fail ("Json_Func_Expr.Column_Name.Value");
+         end if;
+      end if;
+      if Left.Context_Item.Present /= Right.Context_Item.Present then
+         return Fail ("Json_Func_Expr.Context_Item.Present");
+      elsif Left.Context_Item.Present then
+         if not (Equivalent_Json_Value_Expr (Left.Context_Item.Value, Right.Context_Item.Value, Depth + 1)) then
+            return Fail ("Json_Func_Expr.Context_Item.Value");
+         end if;
+      end if;
+      if Left.Pathspec.Present /= Right.Pathspec.Present then
+         return Fail ("Json_Func_Expr.Pathspec.Present");
+      elsif Left.Pathspec.Present then
+         if not (Equivalent_Node (Left.Pathspec.Value, Right.Pathspec.Value, Depth + 1)) then
+            return Fail ("Json_Func_Expr.Pathspec.Value");
+         end if;
+      end if;
+      if Left.Passing.Length /= Right.Passing.Length then
+         return Fail ("Json_Func_Expr.Passing.Length");
+      end if;
+      for Index in Left.Passing.First_Index .. Left.Passing.Last_Index loop
+         if not (Equivalent_Node (Left.Passing.Element (Index), Right.Passing.Element (Index), Depth + 1)) then
+            return Fail ("Json_Func_Expr.Passing.Element");
+         end if;
+      end loop;
+      if Left.Output.Present /= Right.Output.Present then
+         return Fail ("Json_Func_Expr.Output.Present");
+      elsif Left.Output.Present then
+         if not (Equivalent_Json_Output (Left.Output.Value, Right.Output.Value, Depth + 1)) then
+            return Fail ("Json_Func_Expr.Output.Value");
+         end if;
+      end if;
+      if Left.On_Empty.Present /= Right.On_Empty.Present then
+         return Fail ("Json_Func_Expr.On_Empty.Present");
+      elsif Left.On_Empty.Present then
+         if not (Equivalent_Json_Behavior (Left.On_Empty.Value, Right.On_Empty.Value, Depth + 1)) then
+            return Fail ("Json_Func_Expr.On_Empty.Value");
+         end if;
+      end if;
+      if Left.On_Error.Present /= Right.On_Error.Present then
+         return Fail ("Json_Func_Expr.On_Error.Present");
+      elsif Left.On_Error.Present then
+         if not (Equivalent_Json_Behavior (Left.On_Error.Value, Right.On_Error.Value, Depth + 1)) then
+            return Fail ("Json_Func_Expr.On_Error.Value");
+         end if;
+      end if;
+      if Left.Wrapper.Present /= Right.Wrapper.Present then
+         return Fail ("Json_Func_Expr.Wrapper.Present");
+      elsif Left.Wrapper.Present then
+         if not (Left.Wrapper.Value = Right.Wrapper.Value) then
+            return Fail ("Json_Func_Expr.Wrapper.Value");
+         end if;
+      end if;
+      if Left.Quotes.Present /= Right.Quotes.Present then
+         return Fail ("Json_Func_Expr.Quotes.Present");
+      elsif Left.Quotes.Present then
+         if not (Left.Quotes.Value = Right.Quotes.Value) then
+            return Fail ("Json_Func_Expr.Quotes.Value");
+         end if;
+      end if;
+      if Left.Location.Present /= Right.Location.Present then
+         return Fail ("Json_Func_Expr.Location.Present");
+      elsif Left.Location.Present then
+         if not (Left.Location.Value = Right.Location.Value) then
+            return Fail ("Json_Func_Expr.Location.Value");
+         end if;
+      end if;
+      return True;
+   end Equivalent_Record_Json_Func_Expr;
+
+   function Equivalent_Record_Json_Table_Path_Spec
+     (Left, Right : Json_Table_Path_Spec; Depth : Natural) return Boolean
+   is
+   begin
+      if Depth > 256 then
+         raise Constraint_Error with "excessive owned AST recursion";
+      end if;
+      if Left.String.Present /= Right.String.Present then
+         return Fail ("Json_Table_Path_Spec.String.Present");
+      elsif Left.String.Present then
+         if not (Equivalent_Node (Left.String.Value, Right.String.Value, Depth + 1)) then
+            return Fail ("Json_Table_Path_Spec.String.Value");
+         end if;
+      end if;
+      if Left.Name.Present /= Right.Name.Present then
+         return Fail ("Json_Table_Path_Spec.Name.Present");
+      elsif Left.Name.Present then
+         if not (Left.Name.Value = Right.Name.Value) then
+            return Fail ("Json_Table_Path_Spec.Name.Value");
+         end if;
+      end if;
+      if Left.Name_Location.Present /= Right.Name_Location.Present then
+         return Fail ("Json_Table_Path_Spec.Name_Location.Present");
+      elsif Left.Name_Location.Present then
+         if not (Left.Name_Location.Value = Right.Name_Location.Value) then
+            return Fail ("Json_Table_Path_Spec.Name_Location.Value");
+         end if;
+      end if;
+      if Left.Location.Present /= Right.Location.Present then
+         return Fail ("Json_Table_Path_Spec.Location.Present");
+      elsif Left.Location.Present then
+         if not (Left.Location.Value = Right.Location.Value) then
+            return Fail ("Json_Table_Path_Spec.Location.Value");
+         end if;
+      end if;
+      return True;
+   end Equivalent_Record_Json_Table_Path_Spec;
+
+   function Equivalent_Json_Table_Path_Spec
+     (Left, Right : Json_Table_Path_Spec_Access; Depth : Natural) return Boolean is
+   begin
+      if Left = null or else Right = null then
+         return Left = Right;
+      end if;
+      return Equivalent_Record_Json_Table_Path_Spec (Left.all, Right.all, Depth);
+   end Equivalent_Json_Table_Path_Spec;
+
+   function Equivalent_Record_Json_Table
+     (Left, Right : Json_Table; Depth : Natural) return Boolean
+   is
+   begin
+      if Depth > 256 then
+         raise Constraint_Error with "excessive owned AST recursion";
+      end if;
+      if Left.Context_Item.Present /= Right.Context_Item.Present then
+         return Fail ("Json_Table.Context_Item.Present");
+      elsif Left.Context_Item.Present then
+         if not (Equivalent_Json_Value_Expr (Left.Context_Item.Value, Right.Context_Item.Value, Depth + 1)) then
+            return Fail ("Json_Table.Context_Item.Value");
+         end if;
+      end if;
+      if Left.Pathspec.Present /= Right.Pathspec.Present then
+         return Fail ("Json_Table.Pathspec.Present");
+      elsif Left.Pathspec.Present then
+         if not (Equivalent_Json_Table_Path_Spec (Left.Pathspec.Value, Right.Pathspec.Value, Depth + 1)) then
+            return Fail ("Json_Table.Pathspec.Value");
+         end if;
+      end if;
+      if Left.Passing.Length /= Right.Passing.Length then
+         return Fail ("Json_Table.Passing.Length");
+      end if;
+      for Index in Left.Passing.First_Index .. Left.Passing.Last_Index loop
+         if not (Equivalent_Node (Left.Passing.Element (Index), Right.Passing.Element (Index), Depth + 1)) then
+            return Fail ("Json_Table.Passing.Element");
+         end if;
+      end loop;
+      if Left.Columns.Length /= Right.Columns.Length then
+         return Fail ("Json_Table.Columns.Length");
+      end if;
+      for Index in Left.Columns.First_Index .. Left.Columns.Last_Index loop
+         if not (Equivalent_Node (Left.Columns.Element (Index), Right.Columns.Element (Index), Depth + 1)) then
+            return Fail ("Json_Table.Columns.Element");
+         end if;
+      end loop;
+      if Left.On_Error.Present /= Right.On_Error.Present then
+         return Fail ("Json_Table.On_Error.Present");
+      elsif Left.On_Error.Present then
+         if not (Equivalent_Json_Behavior (Left.On_Error.Value, Right.On_Error.Value, Depth + 1)) then
+            return Fail ("Json_Table.On_Error.Value");
+         end if;
+      end if;
+      if Left.Alias.Present /= Right.Alias.Present then
+         return Fail ("Json_Table.Alias.Present");
+      elsif Left.Alias.Present then
+         if not (Equivalent_Alias (Left.Alias.Value, Right.Alias.Value, Depth + 1)) then
+            return Fail ("Json_Table.Alias.Value");
+         end if;
+      end if;
+      if Left.Lateral.Present /= Right.Lateral.Present then
+         return Fail ("Json_Table.Lateral.Present");
+      elsif Left.Lateral.Present then
+         if not (Left.Lateral.Value = Right.Lateral.Value) then
+            return Fail ("Json_Table.Lateral.Value");
+         end if;
+      end if;
+      if Left.Location.Present /= Right.Location.Present then
+         return Fail ("Json_Table.Location.Present");
+      elsif Left.Location.Present then
+         if not (Left.Location.Value = Right.Location.Value) then
+            return Fail ("Json_Table.Location.Value");
+         end if;
+      end if;
+      return True;
+   end Equivalent_Record_Json_Table;
+
+   function Equivalent_Record_Json_Table_Column
+     (Left, Right : Json_Table_Column; Depth : Natural) return Boolean
+   is
+   begin
+      if Depth > 256 then
+         raise Constraint_Error with "excessive owned AST recursion";
+      end if;
+      if Left.Coltype.Present /= Right.Coltype.Present then
+         return Fail ("Json_Table_Column.Coltype.Present");
+      elsif Left.Coltype.Present then
+         if not (Left.Coltype.Value = Right.Coltype.Value) then
+            return Fail ("Json_Table_Column.Coltype.Value");
+         end if;
+      end if;
+      if Left.Name.Present /= Right.Name.Present then
+         return Fail ("Json_Table_Column.Name.Present");
+      elsif Left.Name.Present then
+         if not (Left.Name.Value = Right.Name.Value) then
+            return Fail ("Json_Table_Column.Name.Value");
+         end if;
+      end if;
+      if Left.Type_Name.Present /= Right.Type_Name.Present then
+         return Fail ("Json_Table_Column.Type_Name.Present");
+      elsif Left.Type_Name.Present then
+         if not (Equivalent_Type_Name (Left.Type_Name.Value, Right.Type_Name.Value, Depth + 1)) then
+            return Fail ("Json_Table_Column.Type_Name.Value");
+         end if;
+      end if;
+      if Left.Pathspec.Present /= Right.Pathspec.Present then
+         return Fail ("Json_Table_Column.Pathspec.Present");
+      elsif Left.Pathspec.Present then
+         if not (Equivalent_Json_Table_Path_Spec (Left.Pathspec.Value, Right.Pathspec.Value, Depth + 1)) then
+            return Fail ("Json_Table_Column.Pathspec.Value");
+         end if;
+      end if;
+      if Left.Format.Present /= Right.Format.Present then
+         return Fail ("Json_Table_Column.Format.Present");
+      elsif Left.Format.Present then
+         if not (Equivalent_Json_Format (Left.Format.Value, Right.Format.Value, Depth + 1)) then
+            return Fail ("Json_Table_Column.Format.Value");
+         end if;
+      end if;
+      if Left.Wrapper.Present /= Right.Wrapper.Present then
+         return Fail ("Json_Table_Column.Wrapper.Present");
+      elsif Left.Wrapper.Present then
+         if not (Left.Wrapper.Value = Right.Wrapper.Value) then
+            return Fail ("Json_Table_Column.Wrapper.Value");
+         end if;
+      end if;
+      if Left.Quotes.Present /= Right.Quotes.Present then
+         return Fail ("Json_Table_Column.Quotes.Present");
+      elsif Left.Quotes.Present then
+         if not (Left.Quotes.Value = Right.Quotes.Value) then
+            return Fail ("Json_Table_Column.Quotes.Value");
+         end if;
+      end if;
+      if Left.Columns.Length /= Right.Columns.Length then
+         return Fail ("Json_Table_Column.Columns.Length");
+      end if;
+      for Index in Left.Columns.First_Index .. Left.Columns.Last_Index loop
+         if not (Equivalent_Node (Left.Columns.Element (Index), Right.Columns.Element (Index), Depth + 1)) then
+            return Fail ("Json_Table_Column.Columns.Element");
+         end if;
+      end loop;
+      if Left.On_Empty.Present /= Right.On_Empty.Present then
+         return Fail ("Json_Table_Column.On_Empty.Present");
+      elsif Left.On_Empty.Present then
+         if not (Equivalent_Json_Behavior (Left.On_Empty.Value, Right.On_Empty.Value, Depth + 1)) then
+            return Fail ("Json_Table_Column.On_Empty.Value");
+         end if;
+      end if;
+      if Left.On_Error.Present /= Right.On_Error.Present then
+         return Fail ("Json_Table_Column.On_Error.Present");
+      elsif Left.On_Error.Present then
+         if not (Equivalent_Json_Behavior (Left.On_Error.Value, Right.On_Error.Value, Depth + 1)) then
+            return Fail ("Json_Table_Column.On_Error.Value");
+         end if;
+      end if;
+      if Left.Location.Present /= Right.Location.Present then
+         return Fail ("Json_Table_Column.Location.Present");
+      elsif Left.Location.Present then
+         if not (Left.Location.Value = Right.Location.Value) then
+            return Fail ("Json_Table_Column.Location.Value");
+         end if;
+      end if;
+      return True;
+   end Equivalent_Record_Json_Table_Column;
+
    function Equivalent_Record_Json_Key_Value
      (Left, Right : Json_Key_Value; Depth : Natural) return Boolean
    is
@@ -7194,6 +8182,106 @@ is
       end if;
       return Equivalent_Record_Json_Key_Value (Left.all, Right.all, Depth);
    end Equivalent_Json_Key_Value;
+
+   function Equivalent_Record_Json_Parse_Expr
+     (Left, Right : Json_Parse_Expr; Depth : Natural) return Boolean
+   is
+   begin
+      if Depth > 256 then
+         raise Constraint_Error with "excessive owned AST recursion";
+      end if;
+      if Left.Expr.Present /= Right.Expr.Present then
+         return Fail ("Json_Parse_Expr.Expr.Present");
+      elsif Left.Expr.Present then
+         if not (Equivalent_Json_Value_Expr (Left.Expr.Value, Right.Expr.Value, Depth + 1)) then
+            return Fail ("Json_Parse_Expr.Expr.Value");
+         end if;
+      end if;
+      if Left.Output.Present /= Right.Output.Present then
+         return Fail ("Json_Parse_Expr.Output.Present");
+      elsif Left.Output.Present then
+         if not (Equivalent_Json_Output (Left.Output.Value, Right.Output.Value, Depth + 1)) then
+            return Fail ("Json_Parse_Expr.Output.Value");
+         end if;
+      end if;
+      if Left.Unique_Keys.Present /= Right.Unique_Keys.Present then
+         return Fail ("Json_Parse_Expr.Unique_Keys.Present");
+      elsif Left.Unique_Keys.Present then
+         if not (Left.Unique_Keys.Value = Right.Unique_Keys.Value) then
+            return Fail ("Json_Parse_Expr.Unique_Keys.Value");
+         end if;
+      end if;
+      if Left.Location.Present /= Right.Location.Present then
+         return Fail ("Json_Parse_Expr.Location.Present");
+      elsif Left.Location.Present then
+         if not (Left.Location.Value = Right.Location.Value) then
+            return Fail ("Json_Parse_Expr.Location.Value");
+         end if;
+      end if;
+      return True;
+   end Equivalent_Record_Json_Parse_Expr;
+
+   function Equivalent_Record_Json_Scalar_Expr
+     (Left, Right : Json_Scalar_Expr; Depth : Natural) return Boolean
+   is
+   begin
+      if Depth > 256 then
+         raise Constraint_Error with "excessive owned AST recursion";
+      end if;
+      if Left.Expr.Present /= Right.Expr.Present then
+         return Fail ("Json_Scalar_Expr.Expr.Present");
+      elsif Left.Expr.Present then
+         if not (Equivalent_Node (Left.Expr.Value, Right.Expr.Value, Depth + 1)) then
+            return Fail ("Json_Scalar_Expr.Expr.Value");
+         end if;
+      end if;
+      if Left.Output.Present /= Right.Output.Present then
+         return Fail ("Json_Scalar_Expr.Output.Present");
+      elsif Left.Output.Present then
+         if not (Equivalent_Json_Output (Left.Output.Value, Right.Output.Value, Depth + 1)) then
+            return Fail ("Json_Scalar_Expr.Output.Value");
+         end if;
+      end if;
+      if Left.Location.Present /= Right.Location.Present then
+         return Fail ("Json_Scalar_Expr.Location.Present");
+      elsif Left.Location.Present then
+         if not (Left.Location.Value = Right.Location.Value) then
+            return Fail ("Json_Scalar_Expr.Location.Value");
+         end if;
+      end if;
+      return True;
+   end Equivalent_Record_Json_Scalar_Expr;
+
+   function Equivalent_Record_Json_Serialize_Expr
+     (Left, Right : Json_Serialize_Expr; Depth : Natural) return Boolean
+   is
+   begin
+      if Depth > 256 then
+         raise Constraint_Error with "excessive owned AST recursion";
+      end if;
+      if Left.Expr.Present /= Right.Expr.Present then
+         return Fail ("Json_Serialize_Expr.Expr.Present");
+      elsif Left.Expr.Present then
+         if not (Equivalent_Json_Value_Expr (Left.Expr.Value, Right.Expr.Value, Depth + 1)) then
+            return Fail ("Json_Serialize_Expr.Expr.Value");
+         end if;
+      end if;
+      if Left.Output.Present /= Right.Output.Present then
+         return Fail ("Json_Serialize_Expr.Output.Present");
+      elsif Left.Output.Present then
+         if not (Equivalent_Json_Output (Left.Output.Value, Right.Output.Value, Depth + 1)) then
+            return Fail ("Json_Serialize_Expr.Output.Value");
+         end if;
+      end if;
+      if Left.Location.Present /= Right.Location.Present then
+         return Fail ("Json_Serialize_Expr.Location.Present");
+      elsif Left.Location.Present then
+         if not (Left.Location.Value = Right.Location.Value) then
+            return Fail ("Json_Serialize_Expr.Location.Value");
+         end if;
+      end if;
+      return True;
+   end Equivalent_Record_Json_Serialize_Expr;
 
    function Equivalent_Record_Json_Object_Constructor
      (Left, Right : Json_Object_Constructor; Depth : Natural) return Boolean
@@ -7525,14 +8613,13 @@ is
             return Fail ("Insert_Stmt.On_Conflict_Clause.Value");
          end if;
       end if;
-      if Left.Returning_List.Length /= Right.Returning_List.Length then
-         return Fail ("Insert_Stmt.Returning_List.Length");
-      end if;
-      for Index in Left.Returning_List.First_Index .. Left.Returning_List.Last_Index loop
-         if not (Equivalent_Node (Left.Returning_List.Element (Index), Right.Returning_List.Element (Index), Depth + 1)) then
-            return Fail ("Insert_Stmt.Returning_List.Element");
+      if Left.Returning_Clause.Present /= Right.Returning_Clause.Present then
+         return Fail ("Insert_Stmt.Returning_Clause.Present");
+      elsif Left.Returning_Clause.Present then
+         if not (Equivalent_Returning_Clause (Left.Returning_Clause.Value, Right.Returning_Clause.Value, Depth + 1)) then
+            return Fail ("Insert_Stmt.Returning_Clause.Value");
          end if;
-      end loop;
+      end if;
       if Left.With_Clause.Present /= Right.With_Clause.Present then
          return Fail ("Insert_Stmt.With_Clause.Present");
       elsif Left.With_Clause.Present then
@@ -7579,14 +8666,13 @@ is
             return Fail ("Delete_Stmt.Where_Clause.Value");
          end if;
       end if;
-      if Left.Returning_List.Length /= Right.Returning_List.Length then
-         return Fail ("Delete_Stmt.Returning_List.Length");
-      end if;
-      for Index in Left.Returning_List.First_Index .. Left.Returning_List.Last_Index loop
-         if not (Equivalent_Node (Left.Returning_List.Element (Index), Right.Returning_List.Element (Index), Depth + 1)) then
-            return Fail ("Delete_Stmt.Returning_List.Element");
+      if Left.Returning_Clause.Present /= Right.Returning_Clause.Present then
+         return Fail ("Delete_Stmt.Returning_Clause.Present");
+      elsif Left.Returning_Clause.Present then
+         if not (Equivalent_Returning_Clause (Left.Returning_Clause.Value, Right.Returning_Clause.Value, Depth + 1)) then
+            return Fail ("Delete_Stmt.Returning_Clause.Value");
          end if;
-      end loop;
+      end if;
       if Left.With_Clause.Present /= Right.With_Clause.Present then
          return Fail ("Delete_Stmt.With_Clause.Present");
       elsif Left.With_Clause.Present then
@@ -7634,14 +8720,13 @@ is
             return Fail ("Update_Stmt.From_Clause.Element");
          end if;
       end loop;
-      if Left.Returning_List.Length /= Right.Returning_List.Length then
-         return Fail ("Update_Stmt.Returning_List.Length");
-      end if;
-      for Index in Left.Returning_List.First_Index .. Left.Returning_List.Last_Index loop
-         if not (Equivalent_Node (Left.Returning_List.Element (Index), Right.Returning_List.Element (Index), Depth + 1)) then
-            return Fail ("Update_Stmt.Returning_List.Element");
+      if Left.Returning_Clause.Present /= Right.Returning_Clause.Present then
+         return Fail ("Update_Stmt.Returning_Clause.Present");
+      elsif Left.Returning_Clause.Present then
+         if not (Equivalent_Returning_Clause (Left.Returning_Clause.Value, Right.Returning_Clause.Value, Depth + 1)) then
+            return Fail ("Update_Stmt.Returning_Clause.Value");
          end if;
-      end loop;
+      end if;
       if Left.With_Clause.Present /= Right.With_Clause.Present then
          return Fail ("Update_Stmt.With_Clause.Present");
       elsif Left.With_Clause.Present then
@@ -7688,6 +8773,13 @@ is
             return Fail ("Merge_Stmt.Merge_When_Clauses.Element");
          end if;
       end loop;
+      if Left.Returning_Clause.Present /= Right.Returning_Clause.Present then
+         return Fail ("Merge_Stmt.Returning_Clause.Present");
+      elsif Left.Returning_Clause.Present then
+         if not (Equivalent_Returning_Clause (Left.Returning_Clause.Value, Right.Returning_Clause.Value, Depth + 1)) then
+            return Fail ("Merge_Stmt.Returning_Clause.Value");
+         end if;
+      end if;
       if Left.With_Clause.Present /= Right.With_Clause.Present then
          return Fail ("Merge_Stmt.With_Clause.Present");
       elsif Left.With_Clause.Present then
@@ -8076,30 +9168,6 @@ is
       return True;
    end Equivalent_Record_Alter_Table_Stmt;
 
-   function Equivalent_Record_Replica_Identity_Stmt
-     (Left, Right : Replica_Identity_Stmt; Depth : Natural) return Boolean
-   is
-   begin
-      if Depth > 256 then
-         raise Constraint_Error with "excessive owned AST recursion";
-      end if;
-      if Left.Identity_Type.Present /= Right.Identity_Type.Present then
-         return Fail ("Replica_Identity_Stmt.Identity_Type.Present");
-      elsif Left.Identity_Type.Present then
-         if not (Left.Identity_Type.Value = Right.Identity_Type.Value) then
-            return Fail ("Replica_Identity_Stmt.Identity_Type.Value");
-         end if;
-      end if;
-      if Left.Name.Present /= Right.Name.Present then
-         return Fail ("Replica_Identity_Stmt.Name.Present");
-      elsif Left.Name.Present then
-         if not (Left.Name.Value = Right.Name.Value) then
-            return Fail ("Replica_Identity_Stmt.Name.Value");
-         end if;
-      end if;
-      return True;
-   end Equivalent_Record_Replica_Identity_Stmt;
-
    function Equivalent_Record_Alter_Table_Cmd
      (Left, Right : Alter_Table_Cmd; Depth : Natural) return Boolean
    is
@@ -8165,6 +9233,96 @@ is
       end if;
       return True;
    end Equivalent_Record_Alter_Table_Cmd;
+
+   function Equivalent_Record_At_Alter_Constraint
+     (Left, Right : At_Alter_Constraint; Depth : Natural) return Boolean
+   is
+   begin
+      if Depth > 256 then
+         raise Constraint_Error with "excessive owned AST recursion";
+      end if;
+      if Left.Conname.Present /= Right.Conname.Present then
+         return Fail ("At_Alter_Constraint.Conname.Present");
+      elsif Left.Conname.Present then
+         if not (Left.Conname.Value = Right.Conname.Value) then
+            return Fail ("At_Alter_Constraint.Conname.Value");
+         end if;
+      end if;
+      if Left.Alter_Enforceability.Present /= Right.Alter_Enforceability.Present then
+         return Fail ("At_Alter_Constraint.Alter_Enforceability.Present");
+      elsif Left.Alter_Enforceability.Present then
+         if not (Left.Alter_Enforceability.Value = Right.Alter_Enforceability.Value) then
+            return Fail ("At_Alter_Constraint.Alter_Enforceability.Value");
+         end if;
+      end if;
+      if Left.Is_Enforced.Present /= Right.Is_Enforced.Present then
+         return Fail ("At_Alter_Constraint.Is_Enforced.Present");
+      elsif Left.Is_Enforced.Present then
+         if not (Left.Is_Enforced.Value = Right.Is_Enforced.Value) then
+            return Fail ("At_Alter_Constraint.Is_Enforced.Value");
+         end if;
+      end if;
+      if Left.Alter_Deferrability.Present /= Right.Alter_Deferrability.Present then
+         return Fail ("At_Alter_Constraint.Alter_Deferrability.Present");
+      elsif Left.Alter_Deferrability.Present then
+         if not (Left.Alter_Deferrability.Value = Right.Alter_Deferrability.Value) then
+            return Fail ("At_Alter_Constraint.Alter_Deferrability.Value");
+         end if;
+      end if;
+      if Left.Deferrable.Present /= Right.Deferrable.Present then
+         return Fail ("At_Alter_Constraint.Deferrable.Present");
+      elsif Left.Deferrable.Present then
+         if not (Left.Deferrable.Value = Right.Deferrable.Value) then
+            return Fail ("At_Alter_Constraint.Deferrable.Value");
+         end if;
+      end if;
+      if Left.Initdeferred.Present /= Right.Initdeferred.Present then
+         return Fail ("At_Alter_Constraint.Initdeferred.Present");
+      elsif Left.Initdeferred.Present then
+         if not (Left.Initdeferred.Value = Right.Initdeferred.Value) then
+            return Fail ("At_Alter_Constraint.Initdeferred.Value");
+         end if;
+      end if;
+      if Left.Alter_Inheritability.Present /= Right.Alter_Inheritability.Present then
+         return Fail ("At_Alter_Constraint.Alter_Inheritability.Present");
+      elsif Left.Alter_Inheritability.Present then
+         if not (Left.Alter_Inheritability.Value = Right.Alter_Inheritability.Value) then
+            return Fail ("At_Alter_Constraint.Alter_Inheritability.Value");
+         end if;
+      end if;
+      if Left.Noinherit.Present /= Right.Noinherit.Present then
+         return Fail ("At_Alter_Constraint.Noinherit.Present");
+      elsif Left.Noinherit.Present then
+         if not (Left.Noinherit.Value = Right.Noinherit.Value) then
+            return Fail ("At_Alter_Constraint.Noinherit.Value");
+         end if;
+      end if;
+      return True;
+   end Equivalent_Record_At_Alter_Constraint;
+
+   function Equivalent_Record_Replica_Identity_Stmt
+     (Left, Right : Replica_Identity_Stmt; Depth : Natural) return Boolean
+   is
+   begin
+      if Depth > 256 then
+         raise Constraint_Error with "excessive owned AST recursion";
+      end if;
+      if Left.Identity_Type.Present /= Right.Identity_Type.Present then
+         return Fail ("Replica_Identity_Stmt.Identity_Type.Present");
+      elsif Left.Identity_Type.Present then
+         if not (Left.Identity_Type.Value = Right.Identity_Type.Value) then
+            return Fail ("Replica_Identity_Stmt.Identity_Type.Value");
+         end if;
+      end if;
+      if Left.Name.Present /= Right.Name.Present then
+         return Fail ("Replica_Identity_Stmt.Name.Present");
+      elsif Left.Name.Present then
+         if not (Left.Name.Value = Right.Name.Value) then
+            return Fail ("Replica_Identity_Stmt.Name.Value");
+         end if;
+      end if;
+      return True;
+   end Equivalent_Record_Replica_Identity_Stmt;
 
    function Equivalent_Record_Alter_Collation_Stmt
      (Left, Right : Alter_Collation_Stmt; Depth : Natural) return Boolean
@@ -8574,11 +9732,25 @@ is
             return Fail ("Variable_Set_Stmt.Args.Element");
          end if;
       end loop;
+      if Left.Jumble_Args.Present /= Right.Jumble_Args.Present then
+         return Fail ("Variable_Set_Stmt.Jumble_Args.Present");
+      elsif Left.Jumble_Args.Present then
+         if not (Left.Jumble_Args.Value = Right.Jumble_Args.Value) then
+            return Fail ("Variable_Set_Stmt.Jumble_Args.Value");
+         end if;
+      end if;
       if Left.Is_Local.Present /= Right.Is_Local.Present then
          return Fail ("Variable_Set_Stmt.Is_Local.Present");
       elsif Left.Is_Local.Present then
          if not (Left.Is_Local.Value = Right.Is_Local.Value) then
             return Fail ("Variable_Set_Stmt.Is_Local.Value");
+         end if;
+      end if;
+      if Left.Location.Present /= Right.Location.Present then
+         return Fail ("Variable_Set_Stmt.Location.Present");
+      elsif Left.Location.Present then
+         if not (Left.Location.Value = Right.Location.Value) then
+            return Fail ("Variable_Set_Stmt.Location.Value");
          end if;
       end if;
       return True;
@@ -8669,6 +9841,14 @@ is
             return Fail ("Create_Stmt.Constraints.Element");
          end if;
       end loop;
+      if Left.Nnconstraints.Length /= Right.Nnconstraints.Length then
+         return Fail ("Create_Stmt.Nnconstraints.Length");
+      end if;
+      for Index in Left.Nnconstraints.First_Index .. Left.Nnconstraints.Last_Index loop
+         if not (Equivalent_Node (Left.Nnconstraints.Element (Index), Right.Nnconstraints.Element (Index), Depth + 1)) then
+            return Fail ("Create_Stmt.Nnconstraints.Element");
+         end if;
+      end loop;
       if Left.Options.Length /= Right.Options.Length then
          return Fail ("Create_Stmt.Options.Length");
       end if;
@@ -8752,11 +9932,25 @@ is
             return Fail ("Constraint.Initdeferred.Value");
          end if;
       end if;
-      if Left.Location.Present /= Right.Location.Present then
-         return Fail ("Constraint.Location.Present");
-      elsif Left.Location.Present then
-         if not (Left.Location.Value = Right.Location.Value) then
-            return Fail ("Constraint.Location.Value");
+      if Left.Is_Enforced.Present /= Right.Is_Enforced.Present then
+         return Fail ("Constraint.Is_Enforced.Present");
+      elsif Left.Is_Enforced.Present then
+         if not (Left.Is_Enforced.Value = Right.Is_Enforced.Value) then
+            return Fail ("Constraint.Is_Enforced.Value");
+         end if;
+      end if;
+      if Left.Skip_Validation.Present /= Right.Skip_Validation.Present then
+         return Fail ("Constraint.Skip_Validation.Present");
+      elsif Left.Skip_Validation.Present then
+         if not (Left.Skip_Validation.Value = Right.Skip_Validation.Value) then
+            return Fail ("Constraint.Skip_Validation.Value");
+         end if;
+      end if;
+      if Left.Initially_Valid.Present /= Right.Initially_Valid.Present then
+         return Fail ("Constraint.Initially_Valid.Present");
+      elsif Left.Initially_Valid.Present then
+         if not (Left.Initially_Valid.Value = Right.Initially_Valid.Value) then
+            return Fail ("Constraint.Initially_Valid.Value");
          end if;
       end if;
       if Left.Is_No_Inherit.Present /= Right.Is_No_Inherit.Present then
@@ -8787,6 +9981,13 @@ is
             return Fail ("Constraint.Generated_When.Value");
          end if;
       end if;
+      if Left.Generated_Kind.Present /= Right.Generated_Kind.Present then
+         return Fail ("Constraint.Generated_Kind.Present");
+      elsif Left.Generated_Kind.Present then
+         if not (Left.Generated_Kind.Value = Right.Generated_Kind.Value) then
+            return Fail ("Constraint.Generated_Kind.Value");
+         end if;
+      end if;
       if Left.Nulls_Not_Distinct.Present /= Right.Nulls_Not_Distinct.Present then
          return Fail ("Constraint.Nulls_Not_Distinct.Present");
       elsif Left.Nulls_Not_Distinct.Present then
@@ -8802,6 +10003,13 @@ is
             return Fail ("Constraint.Keys.Element");
          end if;
       end loop;
+      if Left.Without_Overlaps.Present /= Right.Without_Overlaps.Present then
+         return Fail ("Constraint.Without_Overlaps.Present");
+      elsif Left.Without_Overlaps.Present then
+         if not (Left.Without_Overlaps.Value = Right.Without_Overlaps.Value) then
+            return Fail ("Constraint.Without_Overlaps.Value");
+         end if;
+      end if;
       if Left.Including.Length /= Right.Including.Length then
          return Fail ("Constraint.Including.Length");
       end if;
@@ -8884,6 +10092,20 @@ is
             return Fail ("Constraint.Pk_Attrs.Element");
          end if;
       end loop;
+      if Left.Fk_With_Period.Present /= Right.Fk_With_Period.Present then
+         return Fail ("Constraint.Fk_With_Period.Present");
+      elsif Left.Fk_With_Period.Present then
+         if not (Left.Fk_With_Period.Value = Right.Fk_With_Period.Value) then
+            return Fail ("Constraint.Fk_With_Period.Value");
+         end if;
+      end if;
+      if Left.Pk_With_Period.Present /= Right.Pk_With_Period.Present then
+         return Fail ("Constraint.Pk_With_Period.Present");
+      elsif Left.Pk_With_Period.Present then
+         if not (Left.Pk_With_Period.Value = Right.Pk_With_Period.Value) then
+            return Fail ("Constraint.Pk_With_Period.Value");
+         end if;
+      end if;
       if Left.Fk_Matchtype.Present /= Right.Fk_Matchtype.Present then
          return Fail ("Constraint.Fk_Matchtype.Present");
       elsif Left.Fk_Matchtype.Present then
@@ -8928,18 +10150,11 @@ is
             return Fail ("Constraint.Old_Pktable_Oid.Value");
          end if;
       end if;
-      if Left.Skip_Validation.Present /= Right.Skip_Validation.Present then
-         return Fail ("Constraint.Skip_Validation.Present");
-      elsif Left.Skip_Validation.Present then
-         if not (Left.Skip_Validation.Value = Right.Skip_Validation.Value) then
-            return Fail ("Constraint.Skip_Validation.Value");
-         end if;
-      end if;
-      if Left.Initially_Valid.Present /= Right.Initially_Valid.Present then
-         return Fail ("Constraint.Initially_Valid.Present");
-      elsif Left.Initially_Valid.Present then
-         if not (Left.Initially_Valid.Value = Right.Initially_Valid.Value) then
-            return Fail ("Constraint.Initially_Valid.Value");
+      if Left.Location.Present /= Right.Location.Present then
+         return Fail ("Constraint.Location.Present");
+      elsif Left.Location.Present then
+         if not (Left.Location.Value = Right.Location.Value) then
+            return Fail ("Constraint.Location.Value");
          end if;
       end if;
       return True;
@@ -10754,6 +11969,13 @@ is
             return Fail ("Index_Stmt.Isconstraint.Value");
          end if;
       end if;
+      if Left.Iswithoutoverlaps.Present /= Right.Iswithoutoverlaps.Present then
+         return Fail ("Index_Stmt.Iswithoutoverlaps.Present");
+      elsif Left.Iswithoutoverlaps.Present then
+         if not (Left.Iswithoutoverlaps.Value = Right.Iswithoutoverlaps.Value) then
+            return Fail ("Index_Stmt.Iswithoutoverlaps.Value");
+         end if;
+      end if;
       if Left.Deferrable.Present /= Right.Deferrable.Present then
          return Fail ("Index_Stmt.Deferrable.Present");
       elsif Left.Deferrable.Present then
@@ -10904,7 +12126,7 @@ is
       if Left.Stxstattarget.Present /= Right.Stxstattarget.Present then
          return Fail ("Alter_Stats_Stmt.Stxstattarget.Present");
       elsif Left.Stxstattarget.Present then
-         if not (Left.Stxstattarget.Value = Right.Stxstattarget.Value) then
+         if not (Equivalent_Node (Left.Stxstattarget.Value, Right.Stxstattarget.Value, Depth + 1)) then
             return Fail ("Alter_Stats_Stmt.Stxstattarget.Value");
          end if;
       end if;
@@ -11013,6 +12235,13 @@ is
       elsif Left.Defexpr.Present then
          if not (Equivalent_Node (Left.Defexpr.Value, Right.Defexpr.Value, Depth + 1)) then
             return Fail ("Function_Parameter.Defexpr.Value");
+         end if;
+      end if;
+      if Left.Location.Present /= Right.Location.Present then
+         return Fail ("Function_Parameter.Location.Present");
+      elsif Left.Location.Present then
+         if not (Left.Location.Value = Right.Location.Value) then
+            return Fail ("Function_Parameter.Location.Value");
          end if;
       end if;
       return True;
@@ -11559,6 +12788,13 @@ is
       elsif Left.Chain.Present then
          if not (Left.Chain.Value = Right.Chain.Value) then
             return Fail ("Transaction_Stmt.Chain.Value");
+         end if;
+      end if;
+      if Left.Location.Present /= Right.Location.Present then
+         return Fail ("Transaction_Stmt.Location.Present");
+      elsif Left.Location.Present then
+         if not (Left.Location.Value = Right.Location.Value) then
+            return Fail ("Transaction_Stmt.Location.Value");
          end if;
       end if;
       return True;
@@ -12435,6 +13671,20 @@ is
             return Fail ("Deallocate_Stmt.Name.Value");
          end if;
       end if;
+      if Left.Isall.Present /= Right.Isall.Present then
+         return Fail ("Deallocate_Stmt.Isall.Present");
+      elsif Left.Isall.Present then
+         if not (Left.Isall.Value = Right.Isall.Value) then
+            return Fail ("Deallocate_Stmt.Isall.Value");
+         end if;
+      end if;
+      if Left.Location.Present /= Right.Location.Present then
+         return Fail ("Deallocate_Stmt.Location.Present");
+      elsif Left.Location.Present then
+         if not (Left.Location.Value = Right.Location.Value) then
+            return Fail ("Deallocate_Stmt.Location.Value");
+         end if;
+      end if;
       return True;
    end Equivalent_Record_Deallocate_Stmt;
 
@@ -12920,6 +14170,16 @@ is
               (Left => Left.Window_Func_Payload,
                Right => Right.Window_Func_Payload,
                Depth => Depth + 1);
+         when Node_Window_Func_Run_Condition =>
+            return Equivalent_Record_Window_Func_Run_Condition
+              (Left => Left.Window_Func_Run_Condition_Payload,
+               Right => Right.Window_Func_Run_Condition_Payload,
+               Depth => Depth + 1);
+         when Node_Merge_Support_Func =>
+            return Equivalent_Record_Merge_Support_Func
+              (Left => Left.Merge_Support_Func_Payload,
+               Right => Right.Merge_Support_Func_Payload,
+               Depth => Depth + 1);
          when Node_Subscripting_Ref =>
             return Equivalent_Record_Subscripting_Ref
               (Left => Left.Subscripting_Ref_Payload,
@@ -13085,6 +14345,31 @@ is
               (Left => Left.Json_Is_Predicate_Payload,
                Right => Right.Json_Is_Predicate_Payload,
                Depth => Depth + 1);
+         when Node_Json_Behavior =>
+            return Equivalent_Record_Json_Behavior
+              (Left => Left.Json_Behavior_Payload,
+               Right => Right.Json_Behavior_Payload,
+               Depth => Depth + 1);
+         when Node_Json_Expr =>
+            return Equivalent_Record_Json_Expr
+              (Left => Left.Json_Expr_Payload,
+               Right => Right.Json_Expr_Payload,
+               Depth => Depth + 1);
+         when Node_Json_Table_Path =>
+            return Equivalent_Record_Json_Table_Path
+              (Left => Left.Json_Table_Path_Payload,
+               Right => Right.Json_Table_Path_Payload,
+               Depth => Depth + 1);
+         when Node_Json_Table_Path_Scan =>
+            return Equivalent_Record_Json_Table_Path_Scan
+              (Left => Left.Json_Table_Path_Scan_Payload,
+               Right => Right.Json_Table_Path_Scan_Payload,
+               Depth => Depth + 1);
+         when Node_Json_Table_Sibling_Join =>
+            return Equivalent_Record_Json_Table_Sibling_Join
+              (Left => Left.Json_Table_Sibling_Join_Payload,
+               Right => Right.Json_Table_Sibling_Join_Payload,
+               Depth => Depth + 1);
          when Node_Null_Test =>
             return Equivalent_Record_Null_Test
               (Left => Left.Null_Test_Payload,
@@ -13094,6 +14379,11 @@ is
             return Equivalent_Record_Boolean_Test
               (Left => Left.Boolean_Test_Payload,
                Right => Right.Boolean_Test_Payload,
+               Depth => Depth + 1);
+         when Node_Merge_Action =>
+            return Equivalent_Record_Merge_Action
+              (Left => Left.Merge_Action_Payload,
+               Right => Right.Merge_Action_Payload,
                Depth => Depth + 1);
          when Node_Coerce_To_Domain =>
             return Equivalent_Record_Coerce_To_Domain
@@ -13124,6 +14414,11 @@ is
             return Equivalent_Record_Inference_Elem
               (Left => Left.Inference_Elem_Payload,
                Right => Right.Inference_Elem_Payload,
+               Depth => Depth + 1);
+         when Node_Returning_Expr =>
+            return Equivalent_Record_Returning_Expr
+              (Left => Left.Returning_Expr_Payload,
+               Right => Right.Returning_Expr_Payload,
                Depth => Depth + 1);
          when Node_Target_Entry =>
             return Equivalent_Record_Target_Entry
@@ -13395,10 +14690,15 @@ is
               (Left => Left.Merge_When_Clause_Payload,
                Right => Right.Merge_When_Clause_Payload,
                Depth => Depth + 1);
-         when Node_Merge_Action =>
-            return Equivalent_Record_Merge_Action
-              (Left => Left.Merge_Action_Payload,
-               Right => Right.Merge_Action_Payload,
+         when Node_Returning_Option =>
+            return Equivalent_Record_Returning_Option
+              (Left => Left.Returning_Option_Payload,
+               Right => Right.Returning_Option_Payload,
+               Depth => Depth + 1);
+         when Node_Returning_Clause =>
+            return Equivalent_Record_Returning_Clause
+              (Left => Left.Returning_Clause_Payload,
+               Right => Right.Returning_Clause_Payload,
                Depth => Depth + 1);
          when Node_Trigger_Transition =>
             return Equivalent_Record_Trigger_Transition
@@ -13410,10 +14710,50 @@ is
               (Left => Left.Json_Output_Payload,
                Right => Right.Json_Output_Payload,
                Depth => Depth + 1);
+         when Node_Json_Argument =>
+            return Equivalent_Record_Json_Argument
+              (Left => Left.Json_Argument_Payload,
+               Right => Right.Json_Argument_Payload,
+               Depth => Depth + 1);
+         when Node_Json_Func_Expr =>
+            return Equivalent_Record_Json_Func_Expr
+              (Left => Left.Json_Func_Expr_Payload,
+               Right => Right.Json_Func_Expr_Payload,
+               Depth => Depth + 1);
+         when Node_Json_Table_Path_Spec =>
+            return Equivalent_Record_Json_Table_Path_Spec
+              (Left => Left.Json_Table_Path_Spec_Payload,
+               Right => Right.Json_Table_Path_Spec_Payload,
+               Depth => Depth + 1);
+         when Node_Json_Table =>
+            return Equivalent_Record_Json_Table
+              (Left => Left.Json_Table_Payload,
+               Right => Right.Json_Table_Payload,
+               Depth => Depth + 1);
+         when Node_Json_Table_Column =>
+            return Equivalent_Record_Json_Table_Column
+              (Left => Left.Json_Table_Column_Payload,
+               Right => Right.Json_Table_Column_Payload,
+               Depth => Depth + 1);
          when Node_Json_Key_Value =>
             return Equivalent_Record_Json_Key_Value
               (Left => Left.Json_Key_Value_Payload,
                Right => Right.Json_Key_Value_Payload,
+               Depth => Depth + 1);
+         when Node_Json_Parse_Expr =>
+            return Equivalent_Record_Json_Parse_Expr
+              (Left => Left.Json_Parse_Expr_Payload,
+               Right => Right.Json_Parse_Expr_Payload,
+               Depth => Depth + 1);
+         when Node_Json_Scalar_Expr =>
+            return Equivalent_Record_Json_Scalar_Expr
+              (Left => Left.Json_Scalar_Expr_Payload,
+               Right => Right.Json_Scalar_Expr_Payload,
+               Depth => Depth + 1);
+         when Node_Json_Serialize_Expr =>
+            return Equivalent_Record_Json_Serialize_Expr
+              (Left => Left.Json_Serialize_Expr_Payload,
+               Right => Right.Json_Serialize_Expr_Payload,
                Depth => Depth + 1);
          when Node_Json_Object_Constructor =>
             return Equivalent_Record_Json_Object_Constructor
@@ -13500,15 +14840,20 @@ is
               (Left => Left.Alter_Table_Stmt_Payload,
                Right => Right.Alter_Table_Stmt_Payload,
                Depth => Depth + 1);
-         when Node_Replica_Identity_Stmt =>
-            return Equivalent_Record_Replica_Identity_Stmt
-              (Left => Left.Replica_Identity_Stmt_Payload,
-               Right => Right.Replica_Identity_Stmt_Payload,
-               Depth => Depth + 1);
          when Node_Alter_Table_Cmd =>
             return Equivalent_Record_Alter_Table_Cmd
               (Left => Left.Alter_Table_Cmd_Payload,
                Right => Right.Alter_Table_Cmd_Payload,
+               Depth => Depth + 1);
+         when Node_At_Alter_Constraint =>
+            return Equivalent_Record_At_Alter_Constraint
+              (Left => Left.At_Alter_Constraint_Payload,
+               Right => Right.At_Alter_Constraint_Payload,
+               Depth => Depth + 1);
+         when Node_Replica_Identity_Stmt =>
+            return Equivalent_Record_Replica_Identity_Stmt
+              (Left => Left.Replica_Identity_Stmt_Payload,
+               Right => Right.Replica_Identity_Stmt_Payload,
                Depth => Depth + 1);
          when Node_Alter_Collation_Stmt =>
             return Equivalent_Record_Alter_Collation_Stmt
@@ -14147,4 +15492,6 @@ begin
       return Fail ("Owned_Syntax_Tree metadata");
    end if;
    return Equivalent_Parse_Result (Left.Root, Right.Root, 0);
-end Equivalent;
+   end Equivalent;
+
+end Flyology.Postgres.SQL.AST.V18.Testing;

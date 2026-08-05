@@ -6,13 +6,14 @@ for version in 14 15 16 17 18; do
     --major "$version" \
     --proto "../backends/v$version/vendor/pg_query.proto" \
     --output ../src \
+    --oracle-output oracle/src \
     --check
   python3 ../tools/generate_owned_ast.py \
     --major "$version" \
     --proto "../backends/v$version/vendor/pg_query.proto" \
     --output ../src \
     --check
-  python3 ../tools/generate_direct_owned.py \
+  python3 ../tools/generate_owned_parser.py \
     --major "$version" \
     --proto "../backends/v$version/vendor/pg_query.proto" \
     --vendor "../backends/v$version/vendor" \
@@ -21,7 +22,7 @@ for version in 14 15 16 17 18; do
   python3 ../tools/generate_owned_equivalence.py \
     --major "$version" \
     --proto "../backends/v$version/vendor/pg_query.proto" \
-    --output ../src \
+    --output src \
     --check
   python3 ../tools/generate_types.py \
     --major "$version" \
@@ -49,6 +50,18 @@ for version in 14 15 16 17 18; do
 done
 
 alr -n build
+
+production_library=../lib/libFlyology_Postgres_SQL.a
+production_oracle_symbols=$(
+  nm "$production_library" \
+    | awk '$NF ~ /sql__(backends|c_oracle|decoder_v[0-9]+|decoders)/ \
+           || $NF ~ /flyology_pg(14|15|16|17|18)_/ { print $NF }'
+)
+if [ -n "$production_oracle_symbols" ]; then
+  echo "production SQL library contains validation-only symbols:" >&2
+  printf '%s\n' "$production_oracle_symbols" >&2
+  exit 1
+fi
 
 case "$(uname -s)" in
   Darwin)

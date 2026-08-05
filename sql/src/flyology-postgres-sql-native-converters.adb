@@ -2,7 +2,7 @@ with Ada.Exceptions;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Interfaces;
 
-with Flyology.Postgres.SQL.Decoders; use Flyology.Postgres.SQL.Decoders;
+with Flyology.Postgres.SQL.Arena_Storage; use Flyology.Postgres.SQL.Arena_Storage;
 
 package body Flyology.Postgres.SQL.Native.Converters is
 

@@ -5,7 +5,7 @@ pragma Style_Checks ("M160");
 with Ada.Strings.Unbounded;
 with Interfaces;
 
-package Flyology.Postgres.SQL.V14 is
+package Flyology.Postgres.SQL.Views.V15 is
 
    subtype Text is Ada.Strings.Unbounded.Unbounded_String;
 
@@ -91,7 +91,9 @@ package Flyology.Postgres.SQL.V14 is
       Wco_Kind_Wco_View_Check,
       Wco_Kind_Wco_Rls_Insert_Check,
       Wco_Kind_Wco_Rls_Update_Check,
-      Wco_Kind_Wco_Rls_Conflict_Check);
+      Wco_Kind_Wco_Rls_Conflict_Check,
+      Wco_Kind_Wco_Rls_Merge_Update_Check,
+      Wco_Kind_Wco_Rls_Merge_Delete_Check);
 
    type Grouping_Set_Kind is
      (Grouping_Set_Kind_Undefined,
@@ -143,9 +145,11 @@ package Flyology.Postgres.SQL.V14 is
       Object_Type_Object_Opclass,
       Object_Type_Object_Operator,
       Object_Type_Object_Opfamily,
+      Object_Type_Object_Parameter_Acl,
       Object_Type_Object_Policy,
       Object_Type_Object_Procedure,
       Object_Type_Object_Publication,
+      Object_Type_Object_Publication_Namespace,
       Object_Type_Object_Publication_Rel,
       Object_Type_Object_Role,
       Object_Type_Object_Routine,
@@ -211,6 +215,7 @@ package Flyology.Postgres.SQL.V14 is
       Alter_Table_Type_At_Set_Logged,
       Alter_Table_Type_At_Set_Un_Logged,
       Alter_Table_Type_At_Drop_Oids,
+      Alter_Table_Type_At_Set_Access_Method,
       Alter_Table_Type_At_Set_Table_Space,
       Alter_Table_Type_At_Set_Rel_Options,
       Alter_Table_Type_At_Reset_Rel_Options,
@@ -347,6 +352,19 @@ package Flyology.Postgres.SQL.V14 is
       Alter_Ts_Config_Type_Alter_Tsconfig_Replace_Dict_For_Token,
       Alter_Ts_Config_Type_Alter_Tsconfig_Drop_Mapping);
 
+   type Publication_Obj_Spec_Type is
+     (Publication_Obj_Spec_Type_Undefined,
+      Publication_Obj_Spec_Type_Publicationobj_Table,
+      Publication_Obj_Spec_Type_Publicationobj_Tables_In_Schema,
+      Publication_Obj_Spec_Type_Publicationobj_Tables_In_Cur_Schema,
+      Publication_Obj_Spec_Type_Publicationobj_Continuation);
+
+   type Alter_Publication_Action is
+     (Alter_Publication_Action_Undefined,
+      Alter_Publication_Action_Ap_Add_Objects,
+      Alter_Publication_Action_Ap_Drop_Objects,
+      Alter_Publication_Action_Ap_Set_Objects);
+
    type Alter_Subscription_Type is
      (Alter_Subscription_Type_Undefined,
       Alter_Subscription_Type_Alter_Subscription_Options,
@@ -355,7 +373,8 @@ package Flyology.Postgres.SQL.V14 is
       Alter_Subscription_Type_Alter_Subscription_Add_Publication,
       Alter_Subscription_Type_Alter_Subscription_Drop_Publication,
       Alter_Subscription_Type_Alter_Subscription_Refresh,
-      Alter_Subscription_Type_Alter_Subscription_Enabled);
+      Alter_Subscription_Type_Alter_Subscription_Enabled,
+      Alter_Subscription_Type_Alter_Subscription_Skip);
 
    type On_Commit_Action is
      (On_Commit_Action_Undefined,
@@ -471,6 +490,7 @@ package Flyology.Postgres.SQL.V14 is
       Cmd_Type_Cmd_Update,
       Cmd_Type_Cmd_Insert,
       Cmd_Type_Cmd_Delete,
+      Cmd_Type_Cmd_Merge,
       Cmd_Type_Cmd_Utility,
       Cmd_Type_Cmd_Nothing);
 
@@ -521,16 +541,16 @@ package Flyology.Postgres.SQL.V14 is
    type Node_Reference is private;
    type Integer_Value_Reference is private;
    type Float_Value_Reference is private;
+   type Boolean_Value_Reference is private;
    type String_Value_Reference is private;
    type Bit_String_Value_Reference is private;
-   type Field_Null_Reference is private;
    type Node_List_Value_Reference is private;
    type Oid_List_Reference is private;
    type Int_List_Reference is private;
+   type A_Const_Reference is private;
    type Alias_Reference is private;
    type Range_Var_Reference is private;
    type Table_Func_Reference is private;
-   type Expr_Reference is private;
    type Var_Reference is private;
    type Param_Reference is private;
    type Aggref_Reference is private;
@@ -578,11 +598,13 @@ package Flyology.Postgres.SQL.V14 is
    type From_Expr_Reference is private;
    type On_Conflict_Expr_Reference is private;
    type Into_Clause_Reference is private;
+   type Merge_Action_Reference is private;
    type Raw_Stmt_Reference is private;
    type Query_Reference is private;
    type Insert_Stmt_Reference is private;
    type Delete_Stmt_Reference is private;
    type Update_Stmt_Reference is private;
+   type Merge_Stmt_Reference is private;
    type Select_Stmt_Reference is private;
    type Return_Stmt_Reference is private;
    type Pl_Assign_Stmt_Reference is private;
@@ -636,6 +658,7 @@ package Flyology.Postgres.SQL.V14 is
    type Check_Point_Stmt_Reference is private;
    type Create_Schema_Stmt_Reference is private;
    type Alter_Database_Stmt_Reference is private;
+   type Alter_Database_Refresh_Coll_Stmt_Reference is private;
    type Alter_Database_Set_Stmt_Reference is private;
    type Alter_Role_Set_Stmt_Reference is private;
    type Create_Conversion_Stmt_Reference is private;
@@ -698,7 +721,6 @@ package Flyology.Postgres.SQL.V14 is
    type A_Expr_Reference is private;
    type Column_Ref_Reference is private;
    type Param_Ref_Reference is private;
-   type A_Const_Reference is private;
    type Func_Call_Reference is private;
    type A_Star_Reference is private;
    type A_Indices_Reference is private;
@@ -742,6 +764,7 @@ package Flyology.Postgres.SQL.V14 is
    type Cte_Search_Clause_Reference is private;
    type Cte_Cycle_Clause_Reference is private;
    type Common_Table_Expr_Reference is private;
+   type Merge_When_Clause_Reference is private;
    type Role_Spec_Reference is private;
    type Trigger_Transition_Reference is private;
    type Partition_Elem_Reference is private;
@@ -750,6 +773,8 @@ package Flyology.Postgres.SQL.V14 is
    type Partition_Range_Datum_Reference is private;
    type Partition_Cmd_Reference is private;
    type Vacuum_Relation_Reference is private;
+   type Publication_Obj_Spec_Reference is private;
+   type Publication_Table_Reference is private;
    type Inline_Code_Block_Reference is private;
    type Call_Context_Reference is private;
 
@@ -788,15 +813,6 @@ package Flyology.Postgres.SQL.V14 is
       case Present is
          when True =>
             Value : Table_Func_Reference;
-         when False =>
-            null;
-      end case;
-   end record;
-
-   type Optional_Expr_Reference (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Expr_Reference;
          when False =>
             null;
       end case;
@@ -1225,6 +1241,15 @@ package Flyology.Postgres.SQL.V14 is
       end case;
    end record;
 
+   type Optional_Merge_Action_Reference (Present : Standard.Boolean := False) is record
+      case Present is
+         when True =>
+            Value : Merge_Action_Reference;
+         when False =>
+            null;
+      end case;
+   end record;
+
    type Optional_Raw_Stmt_Reference (Present : Standard.Boolean := False) is record
       case Present is
          when True =>
@@ -1265,6 +1290,15 @@ package Flyology.Postgres.SQL.V14 is
       case Present is
          when True =>
             Value : Update_Stmt_Reference;
+         when False =>
+            null;
+      end case;
+   end record;
+
+   type Optional_Merge_Stmt_Reference (Present : Standard.Boolean := False) is record
+      case Present is
+         when True =>
+            Value : Merge_Stmt_Reference;
          when False =>
             null;
       end case;
@@ -1742,6 +1776,15 @@ package Flyology.Postgres.SQL.V14 is
       case Present is
          when True =>
             Value : Alter_Database_Stmt_Reference;
+         when False =>
+            null;
+      end case;
+   end record;
+
+   type Optional_Alter_Database_Refresh_Coll_Stmt_Reference (Present : Standard.Boolean := False) is record
+      case Present is
+         when True =>
+            Value : Alter_Database_Refresh_Coll_Stmt_Reference;
          when False =>
             null;
       end case;
@@ -2305,15 +2348,6 @@ package Flyology.Postgres.SQL.V14 is
       end case;
    end record;
 
-   type Optional_A_Const_Reference (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : A_Const_Reference;
-         when False =>
-            null;
-      end case;
-   end record;
-
    type Optional_Func_Call_Reference (Present : Standard.Boolean := False) is record
       case Present is
          when True =>
@@ -2701,6 +2735,15 @@ package Flyology.Postgres.SQL.V14 is
       end case;
    end record;
 
+   type Optional_Merge_When_Clause_Reference (Present : Standard.Boolean := False) is record
+      case Present is
+         when True =>
+            Value : Merge_When_Clause_Reference;
+         when False =>
+            null;
+      end case;
+   end record;
+
    type Optional_Role_Spec_Reference (Present : Standard.Boolean := False) is record
       case Present is
          when True =>
@@ -2773,6 +2816,24 @@ package Flyology.Postgres.SQL.V14 is
       end case;
    end record;
 
+   type Optional_Publication_Obj_Spec_Reference (Present : Standard.Boolean := False) is record
+      case Present is
+         when True =>
+            Value : Publication_Obj_Spec_Reference;
+         when False =>
+            null;
+      end case;
+   end record;
+
+   type Optional_Publication_Table_Reference (Present : Standard.Boolean := False) is record
+      case Present is
+         when True =>
+            Value : Publication_Table_Reference;
+         when False =>
+            null;
+      end case;
+   end record;
+
    type Optional_Inline_Code_Block_Reference (Present : Standard.Boolean := False) is record
       case Present is
          when True =>
@@ -2809,6 +2870,15 @@ package Flyology.Postgres.SQL.V14 is
       end case;
    end record;
 
+   type Optional_Boolean_Value_Reference (Present : Standard.Boolean := False) is record
+      case Present is
+         when True =>
+            Value : Boolean_Value_Reference;
+         when False =>
+            null;
+      end case;
+   end record;
+
    type Optional_String_Value_Reference (Present : Standard.Boolean := False) is record
       case Present is
          when True =>
@@ -2822,15 +2892,6 @@ package Flyology.Postgres.SQL.V14 is
       case Present is
          when True =>
             Value : Bit_String_Value_Reference;
-         when False =>
-            null;
-      end case;
-   end record;
-
-   type Optional_Field_Null_Reference (Present : Standard.Boolean := False) is record
-      case Present is
-         when True =>
-            Value : Field_Null_Reference;
          when False =>
             null;
       end case;
@@ -2858,6 +2919,15 @@ package Flyology.Postgres.SQL.V14 is
       case Present is
          when True =>
             Value : Oid_List_Reference;
+         when False =>
+            null;
+      end case;
+   end record;
+
+   type Optional_A_Const_Reference (Present : Standard.Boolean := False) is record
+      case Present is
+         when True =>
+            Value : A_Const_Reference;
          when False =>
             null;
       end case;
@@ -3052,19 +3122,19 @@ package Flyology.Postgres.SQL.V14 is
       end case;
    end record;
 
-   type Optional_Query_Source (Present : Standard.Boolean := False) is record
+   type Optional_Overriding_Kind (Present : Standard.Boolean := False) is record
       case Present is
          when True =>
-            Value : Query_Source;
+            Value : Overriding_Kind;
          when False =>
             null;
       end case;
    end record;
 
-   type Optional_Overriding_Kind (Present : Standard.Boolean := False) is record
+   type Optional_Query_Source (Present : Standard.Boolean := False) is record
       case Present is
          when True =>
-            Value : Overriding_Kind;
+            Value : Query_Source;
          when False =>
             null;
       end case;
@@ -3223,10 +3293,10 @@ package Flyology.Postgres.SQL.V14 is
       end case;
    end record;
 
-   type Optional_Def_Elem_Action (Present : Standard.Boolean := False) is record
+   type Optional_Alter_Publication_Action (Present : Standard.Boolean := False) is record
       case Present is
          when True =>
-            Value : Def_Elem_Action;
+            Value : Alter_Publication_Action;
          when False =>
             null;
       end case;
@@ -3272,6 +3342,15 @@ package Flyology.Postgres.SQL.V14 is
       case Present is
          when True =>
             Value : Constr_Type;
+         when False =>
+            null;
+      end case;
+   end record;
+
+   type Optional_Def_Elem_Action (Present : Standard.Boolean := False) is record
+      case Present is
+         when True =>
+            Value : Def_Elem_Action;
          when False =>
             null;
       end case;
@@ -3358,6 +3437,15 @@ package Flyology.Postgres.SQL.V14 is
       end case;
    end record;
 
+   type Optional_Publication_Obj_Spec_Type (Present : Standard.Boolean := False) is record
+      case Present is
+         when True =>
+            Value : Publication_Obj_Spec_Type;
+         when False =>
+            null;
+      end case;
+   end record;
+
    type Parse_Result is record
       Version : Optional_Integer_32;
       Statements : Sequence_Of_Raw_Stmt;
@@ -3367,7 +3455,6 @@ package Flyology.Postgres.SQL.V14 is
       Alias : Optional_Alias_Reference;
       Range_Var : Optional_Range_Var_Reference;
       Table_Func : Optional_Table_Func_Reference;
-      Expr : Optional_Expr_Reference;
       Var : Optional_Var_Reference;
       Param : Optional_Param_Reference;
       Aggref : Optional_Aggref_Reference;
@@ -3415,11 +3502,13 @@ package Flyology.Postgres.SQL.V14 is
       From_Expr : Optional_From_Expr_Reference;
       On_Conflict_Expr : Optional_On_Conflict_Expr_Reference;
       Into_Clause : Optional_Into_Clause_Reference;
+      Merge_Action : Optional_Merge_Action_Reference;
       Raw_Stmt : Optional_Raw_Stmt_Reference;
       Query : Optional_Query_Reference;
       Insert_Stmt : Optional_Insert_Stmt_Reference;
       Delete_Stmt : Optional_Delete_Stmt_Reference;
       Update_Stmt : Optional_Update_Stmt_Reference;
+      Merge_Stmt : Optional_Merge_Stmt_Reference;
       Select_Stmt : Optional_Select_Stmt_Reference;
       Return_Stmt : Optional_Return_Stmt_Reference;
       Plassign_Stmt : Optional_Pl_Assign_Stmt_Reference;
@@ -3473,6 +3562,7 @@ package Flyology.Postgres.SQL.V14 is
       Check_Point_Stmt : Optional_Check_Point_Stmt_Reference;
       Create_Schema_Stmt : Optional_Create_Schema_Stmt_Reference;
       Alter_Database_Stmt : Optional_Alter_Database_Stmt_Reference;
+      Alter_Database_Refresh_Coll_Stmt : Optional_Alter_Database_Refresh_Coll_Stmt_Reference;
       Alter_Database_Set_Stmt : Optional_Alter_Database_Set_Stmt_Reference;
       Alter_Role_Set_Stmt : Optional_Alter_Role_Set_Stmt_Reference;
       Create_Conversion_Stmt : Optional_Create_Conversion_Stmt_Reference;
@@ -3535,7 +3625,6 @@ package Flyology.Postgres.SQL.V14 is
       A_Expr : Optional_A_Expr_Reference;
       Column_Ref : Optional_Column_Ref_Reference;
       Param_Ref : Optional_Param_Ref_Reference;
-      A_Const : Optional_A_Const_Reference;
       Func_Call : Optional_Func_Call_Reference;
       A_Star : Optional_A_Star_Reference;
       A_Indices : Optional_A_Indices_Reference;
@@ -3579,6 +3668,7 @@ package Flyology.Postgres.SQL.V14 is
       Ctesearch_Clause : Optional_Cte_Search_Clause_Reference;
       Ctecycle_Clause : Optional_Cte_Cycle_Clause_Reference;
       Common_Table_Expr : Optional_Common_Table_Expr_Reference;
+      Merge_When_Clause : Optional_Merge_When_Clause_Reference;
       Role_Spec : Optional_Role_Spec_Reference;
       Trigger_Transition : Optional_Trigger_Transition_Reference;
       Partition_Elem : Optional_Partition_Elem_Reference;
@@ -3587,16 +3677,19 @@ package Flyology.Postgres.SQL.V14 is
       Partition_Range_Datum : Optional_Partition_Range_Datum_Reference;
       Partition_Cmd : Optional_Partition_Cmd_Reference;
       Vacuum_Relation : Optional_Vacuum_Relation_Reference;
+      Publication_Obj_Spec : Optional_Publication_Obj_Spec_Reference;
+      Publication_Table : Optional_Publication_Table_Reference;
       Inline_Code_Block : Optional_Inline_Code_Block_Reference;
       Call_Context : Optional_Call_Context_Reference;
       Integer : Optional_Integer_Value_Reference;
       Float : Optional_Float_Value_Reference;
+      Boolean : Optional_Boolean_Value_Reference;
       String : Optional_String_Value_Reference;
       Bit_String : Optional_Bit_String_Value_Reference;
-      Field_Null : Optional_Field_Null_Reference;
       List : Optional_Node_List_Value_Reference;
       Int_List : Optional_Int_List_Reference;
       Oid_List : Optional_Oid_List_Reference;
+      A_Const : Optional_A_Const_Reference;
    end record;
 
    type Integer_Value is record
@@ -3604,18 +3697,20 @@ package Flyology.Postgres.SQL.V14 is
    end record;
 
    type Float_Value is record
-      Str : Optional_Text;
+      Fval : Optional_Text;
+   end record;
+
+   type Boolean_Value is record
+      Boolval : Optional_Boolean;
    end record;
 
    type String_Value is record
-      Str : Optional_Text;
+      Sval : Optional_Text;
    end record;
 
    type Bit_String_Value is record
-      Str : Optional_Text;
+      Bsval : Optional_Text;
    end record;
-
-   type Field_Null is null record;
 
    type Node_List_Value is record
       Items : Sequence_Of_Node;
@@ -3627,6 +3722,16 @@ package Flyology.Postgres.SQL.V14 is
 
    type Int_List is record
       Items : Sequence_Of_Node;
+   end record;
+
+   type A_Const is record
+      Ival : Optional_Integer_Value_Reference;
+      Fval : Optional_Float_Value_Reference;
+      Boolval : Optional_Boolean_Value_Reference;
+      Sval : Optional_String_Value_Reference;
+      Bsval : Optional_Bit_String_Value_Reference;
+      Isnull : Optional_Boolean;
+      Location : Optional_Integer_32;
    end record;
 
    type Alias is record
@@ -3660,11 +3765,9 @@ package Flyology.Postgres.SQL.V14 is
       Location : Optional_Integer_32;
    end record;
 
-   type Expr is null record;
-
    type Var is record
       Xpr : Optional_Node_Reference;
-      Varno : Optional_Unsigned_32;
+      Varno : Optional_Integer_32;
       Varattno : Optional_Integer_32;
       Vartype : Optional_Unsigned_32;
       Vartypmod : Optional_Integer_32;
@@ -3806,6 +3909,7 @@ package Flyology.Postgres.SQL.V14 is
       Opno : Optional_Unsigned_32;
       Opfuncid : Optional_Unsigned_32;
       Hashfuncid : Optional_Unsigned_32;
+      Negfuncid : Optional_Unsigned_32;
       Use_Or : Optional_Boolean;
       Inputcollid : Optional_Unsigned_32;
       Args : Sequence_Of_Node;
@@ -4123,6 +4227,15 @@ package Flyology.Postgres.SQL.V14 is
       Skip_Data : Optional_Boolean;
    end record;
 
+   type Merge_Action is record
+      Matched : Optional_Boolean;
+      Command_Type : Optional_Cmd_Type;
+      Override : Optional_Overriding_Kind;
+      Qual : Optional_Node_Reference;
+      Target_List : Sequence_Of_Node;
+      Update_Colnos : Sequence_Of_Node;
+   end record;
+
    type Raw_Stmt is record
       Statement : Optional_Node_Reference;
       Stmt_Location : Optional_Integer_32;
@@ -4148,6 +4261,8 @@ package Flyology.Postgres.SQL.V14 is
       Cte_List : Sequence_Of_Node;
       Rtable : Sequence_Of_Node;
       Jointree : Optional_From_Expr_Reference;
+      Merge_Action_List : Sequence_Of_Node;
+      Merge_Use_Outer_Join : Optional_Boolean;
       Target_List : Sequence_Of_Node;
       Override : Optional_Overriding_Kind;
       On_Conflict : Optional_On_Conflict_Expr_Reference;
@@ -4194,6 +4309,14 @@ package Flyology.Postgres.SQL.V14 is
       Where_Clause : Optional_Node_Reference;
       From_Clause : Sequence_Of_Node;
       Returning_List : Sequence_Of_Node;
+      With_Clause : Optional_With_Clause_Reference;
+   end record;
+
+   type Merge_Stmt is record
+      Relation : Optional_Range_Var_Reference;
+      Source_Relation : Optional_Node_Reference;
+      Join_Condition : Optional_Node_Reference;
+      Merge_When_Clauses : Sequence_Of_Node;
       With_Clause : Optional_With_Clause_Reference;
    end record;
 
@@ -4385,6 +4508,7 @@ package Flyology.Postgres.SQL.V14 is
       Old_Create_Subid : Optional_Unsigned_32;
       Old_First_Relfilenode_Subid : Optional_Unsigned_32;
       Unique : Optional_Boolean;
+      Nulls_Not_Distinct : Optional_Boolean;
       Primary : Optional_Boolean;
       Isconstraint : Optional_Boolean;
       Deferrable : Optional_Boolean;
@@ -4613,6 +4737,10 @@ package Flyology.Postgres.SQL.V14 is
       Options : Sequence_Of_Node;
    end record;
 
+   type Alter_Database_Refresh_Coll_Stmt is record
+      Dbname : Optional_Text;
+   end record;
+
    type Alter_Database_Set_Stmt is record
       Dbname : Optional_Text;
       Setstmt : Optional_Variable_Set_Stmt_Reference;
@@ -4698,7 +4826,7 @@ package Flyology.Postgres.SQL.V14 is
       Object_Type : Optional_Object_Type;
       Relation : Optional_Range_Var_Reference;
       Object : Optional_Node_Reference;
-      Extname : Optional_Node_Reference;
+      Extname : Optional_String_Value_Reference;
       Remove : Optional_Boolean;
    end record;
 
@@ -4939,16 +5067,16 @@ package Flyology.Postgres.SQL.V14 is
    type Create_Publication_Stmt is record
       Pubname : Optional_Text;
       Options : Sequence_Of_Node;
-      Tables : Sequence_Of_Node;
+      Pubobjects : Sequence_Of_Node;
       For_All_Tables : Optional_Boolean;
    end record;
 
    type Alter_Publication_Stmt is record
       Pubname : Optional_Text;
       Options : Sequence_Of_Node;
-      Tables : Sequence_Of_Node;
+      Pubobjects : Sequence_Of_Node;
       For_All_Tables : Optional_Boolean;
-      Table_Action : Optional_Def_Elem_Action;
+      Action : Optional_Alter_Publication_Action;
    end record;
 
    type Create_Subscription_Stmt is record
@@ -5013,11 +5141,6 @@ package Flyology.Postgres.SQL.V14 is
 
    type Param_Ref is record
       Number : Optional_Integer_32;
-      Location : Optional_Integer_32;
-   end record;
-
-   type A_Const is record
-      Val : Optional_Node_Reference;
       Location : Optional_Integer_32;
    end record;
 
@@ -5198,6 +5321,7 @@ package Flyology.Postgres.SQL.V14 is
       Raw_Expr : Optional_Node_Reference;
       Cooked_Expr : Optional_Text;
       Generated_When : Optional_Text;
+      Nulls_Not_Distinct : Optional_Boolean;
       Keys : Sequence_Of_Node;
       Including : Sequence_Of_Node;
       Exclusions : Sequence_Of_Node;
@@ -5213,6 +5337,7 @@ package Flyology.Postgres.SQL.V14 is
       Fk_Matchtype : Optional_Text;
       Fk_Upd_Action : Optional_Text;
       Fk_Del_Action : Optional_Text;
+      Fk_Del_Set_Cols : Sequence_Of_Node;
       Old_Conpfeqop : Sequence_Of_Node;
       Old_Pktable_Oid : Optional_Unsigned_32;
       Skip_Validation : Optional_Boolean;
@@ -5313,6 +5438,7 @@ package Flyology.Postgres.SQL.V14 is
       Frame_Options : Optional_Integer_32;
       Start_Offset : Optional_Node_Reference;
       End_Offset : Optional_Node_Reference;
+      Run_Condition : Sequence_Of_Node;
       Start_In_Range_Func : Optional_Unsigned_32;
       End_In_Range_Func : Optional_Unsigned_32;
       In_Range_Coll : Optional_Unsigned_32;
@@ -5433,6 +5559,15 @@ package Flyology.Postgres.SQL.V14 is
       Ctecolcollations : Sequence_Of_Node;
    end record;
 
+   type Merge_When_Clause is record
+      Matched : Optional_Boolean;
+      Command_Type : Optional_Cmd_Type;
+      Override : Optional_Overriding_Kind;
+      Condition : Optional_Node_Reference;
+      Target_List : Sequence_Of_Node;
+      Values : Sequence_Of_Node;
+   end record;
+
    type Role_Spec is record
       Roletype : Optional_Role_Spec_Type;
       Rolename : Optional_Text;
@@ -5488,6 +5623,19 @@ package Flyology.Postgres.SQL.V14 is
       Va_Cols : Sequence_Of_Node;
    end record;
 
+   type Publication_Obj_Spec is record
+      Pubobjtype : Optional_Publication_Obj_Spec_Type;
+      Name : Optional_Text;
+      Pubtable : Optional_Publication_Table_Reference;
+      Location : Optional_Integer_32;
+   end record;
+
+   type Publication_Table is record
+      Relation : Optional_Range_Var_Reference;
+      Where_Clause : Optional_Node_Reference;
+      Columns : Sequence_Of_Node;
+   end record;
+
    type Inline_Code_Block is record
       Source_Text : Optional_Text;
       Lang_Oid : Optional_Unsigned_32;
@@ -5503,7 +5651,6 @@ package Flyology.Postgres.SQL.V14 is
      (Node_Alias,
       Node_Range_Var,
       Node_Table_Func,
-      Node_Expr,
       Node_Var,
       Node_Param,
       Node_Aggref,
@@ -5551,11 +5698,13 @@ package Flyology.Postgres.SQL.V14 is
       Node_From_Expr,
       Node_On_Conflict_Expr,
       Node_Into_Clause,
+      Node_Merge_Action,
       Node_Raw_Stmt,
       Node_Query,
       Node_Insert_Stmt,
       Node_Delete_Stmt,
       Node_Update_Stmt,
+      Node_Merge_Stmt,
       Node_Select_Stmt,
       Node_Return_Stmt,
       Node_Pl_Assign_Stmt,
@@ -5609,6 +5758,7 @@ package Flyology.Postgres.SQL.V14 is
       Node_Check_Point_Stmt,
       Node_Create_Schema_Stmt,
       Node_Alter_Database_Stmt,
+      Node_Alter_Database_Refresh_Coll_Stmt,
       Node_Alter_Database_Set_Stmt,
       Node_Alter_Role_Set_Stmt,
       Node_Create_Conversion_Stmt,
@@ -5671,7 +5821,6 @@ package Flyology.Postgres.SQL.V14 is
       Node_A_Expr,
       Node_Column_Ref,
       Node_Param_Ref,
-      Node_A_Const,
       Node_Func_Call,
       Node_A_Star,
       Node_A_Indices,
@@ -5715,6 +5864,7 @@ package Flyology.Postgres.SQL.V14 is
       Node_Cte_Search_Clause,
       Node_Cte_Cycle_Clause,
       Node_Common_Table_Expr,
+      Node_Merge_When_Clause,
       Node_Role_Spec,
       Node_Trigger_Transition,
       Node_Partition_Elem,
@@ -5723,19 +5873,22 @@ package Flyology.Postgres.SQL.V14 is
       Node_Partition_Range_Datum,
       Node_Partition_Cmd,
       Node_Vacuum_Relation,
+      Node_Publication_Obj_Spec,
+      Node_Publication_Table,
       Node_Inline_Code_Block,
       Node_Call_Context,
       Node_Integer_Value,
       Node_Float_Value,
+      Node_Boolean_Value,
       Node_String_Value,
       Node_Bit_String_Value,
-      Node_Field_Null,
       Node_Node_List_Value,
       Node_Int_List,
-      Node_Oid_List);
+      Node_Oid_List,
+      Node_A_Const);
 
    function Root (Tree : Syntax_Tree) return Parse_Result_Reference
-     with Pre => Is_Valid (Tree) and then Version (Tree) = PostgreSQL_14;
+     with Pre => Is_Valid (Tree) and then Version (Tree) = PostgreSQL_15;
    function Kind (Tree : Syntax_Tree; Item : Node_Reference) return Node_Kind;
 
    function As_Alias (Tree : Syntax_Tree; Item : Node_Reference) return Alias_Reference
@@ -5744,8 +5897,6 @@ package Flyology.Postgres.SQL.V14 is
      with Pre => Kind (Tree, Item) = Node_Range_Var;
    function As_Table_Func (Tree : Syntax_Tree; Item : Node_Reference) return Table_Func_Reference
      with Pre => Kind (Tree, Item) = Node_Table_Func;
-   function As_Expr (Tree : Syntax_Tree; Item : Node_Reference) return Expr_Reference
-     with Pre => Kind (Tree, Item) = Node_Expr;
    function As_Var (Tree : Syntax_Tree; Item : Node_Reference) return Var_Reference
      with Pre => Kind (Tree, Item) = Node_Var;
    function As_Param (Tree : Syntax_Tree; Item : Node_Reference) return Param_Reference
@@ -5840,6 +5991,8 @@ package Flyology.Postgres.SQL.V14 is
      with Pre => Kind (Tree, Item) = Node_On_Conflict_Expr;
    function As_Into_Clause (Tree : Syntax_Tree; Item : Node_Reference) return Into_Clause_Reference
      with Pre => Kind (Tree, Item) = Node_Into_Clause;
+   function As_Merge_Action (Tree : Syntax_Tree; Item : Node_Reference) return Merge_Action_Reference
+     with Pre => Kind (Tree, Item) = Node_Merge_Action;
    function As_Raw_Stmt (Tree : Syntax_Tree; Item : Node_Reference) return Raw_Stmt_Reference
      with Pre => Kind (Tree, Item) = Node_Raw_Stmt;
    function As_Query (Tree : Syntax_Tree; Item : Node_Reference) return Query_Reference
@@ -5850,6 +6003,8 @@ package Flyology.Postgres.SQL.V14 is
      with Pre => Kind (Tree, Item) = Node_Delete_Stmt;
    function As_Update_Stmt (Tree : Syntax_Tree; Item : Node_Reference) return Update_Stmt_Reference
      with Pre => Kind (Tree, Item) = Node_Update_Stmt;
+   function As_Merge_Stmt (Tree : Syntax_Tree; Item : Node_Reference) return Merge_Stmt_Reference
+     with Pre => Kind (Tree, Item) = Node_Merge_Stmt;
    function As_Select_Stmt (Tree : Syntax_Tree; Item : Node_Reference) return Select_Stmt_Reference
      with Pre => Kind (Tree, Item) = Node_Select_Stmt;
    function As_Return_Stmt (Tree : Syntax_Tree; Item : Node_Reference) return Return_Stmt_Reference
@@ -5956,6 +6111,8 @@ package Flyology.Postgres.SQL.V14 is
      with Pre => Kind (Tree, Item) = Node_Create_Schema_Stmt;
    function As_Alter_Database_Stmt (Tree : Syntax_Tree; Item : Node_Reference) return Alter_Database_Stmt_Reference
      with Pre => Kind (Tree, Item) = Node_Alter_Database_Stmt;
+   function As_Alter_Database_Refresh_Coll_Stmt (Tree : Syntax_Tree; Item : Node_Reference) return Alter_Database_Refresh_Coll_Stmt_Reference
+     with Pre => Kind (Tree, Item) = Node_Alter_Database_Refresh_Coll_Stmt;
    function As_Alter_Database_Set_Stmt (Tree : Syntax_Tree; Item : Node_Reference) return Alter_Database_Set_Stmt_Reference
      with Pre => Kind (Tree, Item) = Node_Alter_Database_Set_Stmt;
    function As_Alter_Role_Set_Stmt (Tree : Syntax_Tree; Item : Node_Reference) return Alter_Role_Set_Stmt_Reference
@@ -6080,8 +6237,6 @@ package Flyology.Postgres.SQL.V14 is
      with Pre => Kind (Tree, Item) = Node_Column_Ref;
    function As_Param_Ref (Tree : Syntax_Tree; Item : Node_Reference) return Param_Ref_Reference
      with Pre => Kind (Tree, Item) = Node_Param_Ref;
-   function As_A_Const (Tree : Syntax_Tree; Item : Node_Reference) return A_Const_Reference
-     with Pre => Kind (Tree, Item) = Node_A_Const;
    function As_Func_Call (Tree : Syntax_Tree; Item : Node_Reference) return Func_Call_Reference
      with Pre => Kind (Tree, Item) = Node_Func_Call;
    function As_A_Star (Tree : Syntax_Tree; Item : Node_Reference) return A_Star_Reference
@@ -6168,6 +6323,8 @@ package Flyology.Postgres.SQL.V14 is
      with Pre => Kind (Tree, Item) = Node_Cte_Cycle_Clause;
    function As_Common_Table_Expr (Tree : Syntax_Tree; Item : Node_Reference) return Common_Table_Expr_Reference
      with Pre => Kind (Tree, Item) = Node_Common_Table_Expr;
+   function As_Merge_When_Clause (Tree : Syntax_Tree; Item : Node_Reference) return Merge_When_Clause_Reference
+     with Pre => Kind (Tree, Item) = Node_Merge_When_Clause;
    function As_Role_Spec (Tree : Syntax_Tree; Item : Node_Reference) return Role_Spec_Reference
      with Pre => Kind (Tree, Item) = Node_Role_Spec;
    function As_Trigger_Transition (Tree : Syntax_Tree; Item : Node_Reference) return Trigger_Transition_Reference
@@ -6184,6 +6341,10 @@ package Flyology.Postgres.SQL.V14 is
      with Pre => Kind (Tree, Item) = Node_Partition_Cmd;
    function As_Vacuum_Relation (Tree : Syntax_Tree; Item : Node_Reference) return Vacuum_Relation_Reference
      with Pre => Kind (Tree, Item) = Node_Vacuum_Relation;
+   function As_Publication_Obj_Spec (Tree : Syntax_Tree; Item : Node_Reference) return Publication_Obj_Spec_Reference
+     with Pre => Kind (Tree, Item) = Node_Publication_Obj_Spec;
+   function As_Publication_Table (Tree : Syntax_Tree; Item : Node_Reference) return Publication_Table_Reference
+     with Pre => Kind (Tree, Item) = Node_Publication_Table;
    function As_Inline_Code_Block (Tree : Syntax_Tree; Item : Node_Reference) return Inline_Code_Block_Reference
      with Pre => Kind (Tree, Item) = Node_Inline_Code_Block;
    function As_Call_Context (Tree : Syntax_Tree; Item : Node_Reference) return Call_Context_Reference
@@ -6192,18 +6353,20 @@ package Flyology.Postgres.SQL.V14 is
      with Pre => Kind (Tree, Item) = Node_Integer_Value;
    function As_Float_Value (Tree : Syntax_Tree; Item : Node_Reference) return Float_Value_Reference
      with Pre => Kind (Tree, Item) = Node_Float_Value;
+   function As_Boolean_Value (Tree : Syntax_Tree; Item : Node_Reference) return Boolean_Value_Reference
+     with Pre => Kind (Tree, Item) = Node_Boolean_Value;
    function As_String_Value (Tree : Syntax_Tree; Item : Node_Reference) return String_Value_Reference
      with Pre => Kind (Tree, Item) = Node_String_Value;
    function As_Bit_String_Value (Tree : Syntax_Tree; Item : Node_Reference) return Bit_String_Value_Reference
      with Pre => Kind (Tree, Item) = Node_Bit_String_Value;
-   function As_Field_Null (Tree : Syntax_Tree; Item : Node_Reference) return Field_Null_Reference
-     with Pre => Kind (Tree, Item) = Node_Field_Null;
    function As_Node_List_Value (Tree : Syntax_Tree; Item : Node_Reference) return Node_List_Value_Reference
      with Pre => Kind (Tree, Item) = Node_Node_List_Value;
    function As_Int_List (Tree : Syntax_Tree; Item : Node_Reference) return Int_List_Reference
      with Pre => Kind (Tree, Item) = Node_Int_List;
    function As_Oid_List (Tree : Syntax_Tree; Item : Node_Reference) return Oid_List_Reference
      with Pre => Kind (Tree, Item) = Node_Oid_List;
+   function As_A_Const (Tree : Syntax_Tree; Item : Node_Reference) return A_Const_Reference
+     with Pre => Kind (Tree, Item) = Node_A_Const;
 
    function Length (Tree : Syntax_Tree; Items : Sequence_Of_Raw_Stmt) return Natural;
    function Element (Tree : Syntax_Tree; Items : Sequence_Of_Raw_Stmt; Index : Positive) return Raw_Stmt_Reference
@@ -6221,16 +6384,16 @@ package Flyology.Postgres.SQL.V14 is
    function View (Tree : Syntax_Tree; Item : Node_Reference) return Node;
    function View (Tree : Syntax_Tree; Item : Integer_Value_Reference) return Integer_Value;
    function View (Tree : Syntax_Tree; Item : Float_Value_Reference) return Float_Value;
+   function View (Tree : Syntax_Tree; Item : Boolean_Value_Reference) return Boolean_Value;
    function View (Tree : Syntax_Tree; Item : String_Value_Reference) return String_Value;
    function View (Tree : Syntax_Tree; Item : Bit_String_Value_Reference) return Bit_String_Value;
-   function View (Tree : Syntax_Tree; Item : Field_Null_Reference) return Field_Null;
    function View (Tree : Syntax_Tree; Item : Node_List_Value_Reference) return Node_List_Value;
    function View (Tree : Syntax_Tree; Item : Oid_List_Reference) return Oid_List;
    function View (Tree : Syntax_Tree; Item : Int_List_Reference) return Int_List;
+   function View (Tree : Syntax_Tree; Item : A_Const_Reference) return A_Const;
    function View (Tree : Syntax_Tree; Item : Alias_Reference) return Alias;
    function View (Tree : Syntax_Tree; Item : Range_Var_Reference) return Range_Var;
    function View (Tree : Syntax_Tree; Item : Table_Func_Reference) return Table_Func;
-   function View (Tree : Syntax_Tree; Item : Expr_Reference) return Expr;
    function View (Tree : Syntax_Tree; Item : Var_Reference) return Var;
    function View (Tree : Syntax_Tree; Item : Param_Reference) return Param;
    function View (Tree : Syntax_Tree; Item : Aggref_Reference) return Aggref;
@@ -6278,11 +6441,13 @@ package Flyology.Postgres.SQL.V14 is
    function View (Tree : Syntax_Tree; Item : From_Expr_Reference) return From_Expr;
    function View (Tree : Syntax_Tree; Item : On_Conflict_Expr_Reference) return On_Conflict_Expr;
    function View (Tree : Syntax_Tree; Item : Into_Clause_Reference) return Into_Clause;
+   function View (Tree : Syntax_Tree; Item : Merge_Action_Reference) return Merge_Action;
    function View (Tree : Syntax_Tree; Item : Raw_Stmt_Reference) return Raw_Stmt;
    function View (Tree : Syntax_Tree; Item : Query_Reference) return Query;
    function View (Tree : Syntax_Tree; Item : Insert_Stmt_Reference) return Insert_Stmt;
    function View (Tree : Syntax_Tree; Item : Delete_Stmt_Reference) return Delete_Stmt;
    function View (Tree : Syntax_Tree; Item : Update_Stmt_Reference) return Update_Stmt;
+   function View (Tree : Syntax_Tree; Item : Merge_Stmt_Reference) return Merge_Stmt;
    function View (Tree : Syntax_Tree; Item : Select_Stmt_Reference) return Select_Stmt;
    function View (Tree : Syntax_Tree; Item : Return_Stmt_Reference) return Return_Stmt;
    function View (Tree : Syntax_Tree; Item : Pl_Assign_Stmt_Reference) return Pl_Assign_Stmt;
@@ -6336,6 +6501,7 @@ package Flyology.Postgres.SQL.V14 is
    function View (Tree : Syntax_Tree; Item : Check_Point_Stmt_Reference) return Check_Point_Stmt;
    function View (Tree : Syntax_Tree; Item : Create_Schema_Stmt_Reference) return Create_Schema_Stmt;
    function View (Tree : Syntax_Tree; Item : Alter_Database_Stmt_Reference) return Alter_Database_Stmt;
+   function View (Tree : Syntax_Tree; Item : Alter_Database_Refresh_Coll_Stmt_Reference) return Alter_Database_Refresh_Coll_Stmt;
    function View (Tree : Syntax_Tree; Item : Alter_Database_Set_Stmt_Reference) return Alter_Database_Set_Stmt;
    function View (Tree : Syntax_Tree; Item : Alter_Role_Set_Stmt_Reference) return Alter_Role_Set_Stmt;
    function View (Tree : Syntax_Tree; Item : Create_Conversion_Stmt_Reference) return Create_Conversion_Stmt;
@@ -6398,7 +6564,6 @@ package Flyology.Postgres.SQL.V14 is
    function View (Tree : Syntax_Tree; Item : A_Expr_Reference) return A_Expr;
    function View (Tree : Syntax_Tree; Item : Column_Ref_Reference) return Column_Ref;
    function View (Tree : Syntax_Tree; Item : Param_Ref_Reference) return Param_Ref;
-   function View (Tree : Syntax_Tree; Item : A_Const_Reference) return A_Const;
    function View (Tree : Syntax_Tree; Item : Func_Call_Reference) return Func_Call;
    function View (Tree : Syntax_Tree; Item : A_Star_Reference) return A_Star;
    function View (Tree : Syntax_Tree; Item : A_Indices_Reference) return A_Indices;
@@ -6442,6 +6607,7 @@ package Flyology.Postgres.SQL.V14 is
    function View (Tree : Syntax_Tree; Item : Cte_Search_Clause_Reference) return Cte_Search_Clause;
    function View (Tree : Syntax_Tree; Item : Cte_Cycle_Clause_Reference) return Cte_Cycle_Clause;
    function View (Tree : Syntax_Tree; Item : Common_Table_Expr_Reference) return Common_Table_Expr;
+   function View (Tree : Syntax_Tree; Item : Merge_When_Clause_Reference) return Merge_When_Clause;
    function View (Tree : Syntax_Tree; Item : Role_Spec_Reference) return Role_Spec;
    function View (Tree : Syntax_Tree; Item : Trigger_Transition_Reference) return Trigger_Transition;
    function View (Tree : Syntax_Tree; Item : Partition_Elem_Reference) return Partition_Elem;
@@ -6450,6 +6616,8 @@ package Flyology.Postgres.SQL.V14 is
    function View (Tree : Syntax_Tree; Item : Partition_Range_Datum_Reference) return Partition_Range_Datum;
    function View (Tree : Syntax_Tree; Item : Partition_Cmd_Reference) return Partition_Cmd;
    function View (Tree : Syntax_Tree; Item : Vacuum_Relation_Reference) return Vacuum_Relation;
+   function View (Tree : Syntax_Tree; Item : Publication_Obj_Spec_Reference) return Publication_Obj_Spec;
+   function View (Tree : Syntax_Tree; Item : Publication_Table_Reference) return Publication_Table;
    function View (Tree : Syntax_Tree; Item : Inline_Code_Block_Reference) return Inline_Code_Block;
    function View (Tree : Syntax_Tree; Item : Call_Context_Reference) return Call_Context;
 
@@ -6465,16 +6633,16 @@ private
    type Node_Reference is record Value : Value_Id := No_Value; end record;
    type Integer_Value_Reference is record Value : Value_Id := No_Value; end record;
    type Float_Value_Reference is record Value : Value_Id := No_Value; end record;
+   type Boolean_Value_Reference is record Value : Value_Id := No_Value; end record;
    type String_Value_Reference is record Value : Value_Id := No_Value; end record;
    type Bit_String_Value_Reference is record Value : Value_Id := No_Value; end record;
-   type Field_Null_Reference is record Value : Value_Id := No_Value; end record;
    type Node_List_Value_Reference is record Value : Value_Id := No_Value; end record;
    type Oid_List_Reference is record Value : Value_Id := No_Value; end record;
    type Int_List_Reference is record Value : Value_Id := No_Value; end record;
+   type A_Const_Reference is record Value : Value_Id := No_Value; end record;
    type Alias_Reference is record Value : Value_Id := No_Value; end record;
    type Range_Var_Reference is record Value : Value_Id := No_Value; end record;
    type Table_Func_Reference is record Value : Value_Id := No_Value; end record;
-   type Expr_Reference is record Value : Value_Id := No_Value; end record;
    type Var_Reference is record Value : Value_Id := No_Value; end record;
    type Param_Reference is record Value : Value_Id := No_Value; end record;
    type Aggref_Reference is record Value : Value_Id := No_Value; end record;
@@ -6522,11 +6690,13 @@ private
    type From_Expr_Reference is record Value : Value_Id := No_Value; end record;
    type On_Conflict_Expr_Reference is record Value : Value_Id := No_Value; end record;
    type Into_Clause_Reference is record Value : Value_Id := No_Value; end record;
+   type Merge_Action_Reference is record Value : Value_Id := No_Value; end record;
    type Raw_Stmt_Reference is record Value : Value_Id := No_Value; end record;
    type Query_Reference is record Value : Value_Id := No_Value; end record;
    type Insert_Stmt_Reference is record Value : Value_Id := No_Value; end record;
    type Delete_Stmt_Reference is record Value : Value_Id := No_Value; end record;
    type Update_Stmt_Reference is record Value : Value_Id := No_Value; end record;
+   type Merge_Stmt_Reference is record Value : Value_Id := No_Value; end record;
    type Select_Stmt_Reference is record Value : Value_Id := No_Value; end record;
    type Return_Stmt_Reference is record Value : Value_Id := No_Value; end record;
    type Pl_Assign_Stmt_Reference is record Value : Value_Id := No_Value; end record;
@@ -6580,6 +6750,7 @@ private
    type Check_Point_Stmt_Reference is record Value : Value_Id := No_Value; end record;
    type Create_Schema_Stmt_Reference is record Value : Value_Id := No_Value; end record;
    type Alter_Database_Stmt_Reference is record Value : Value_Id := No_Value; end record;
+   type Alter_Database_Refresh_Coll_Stmt_Reference is record Value : Value_Id := No_Value; end record;
    type Alter_Database_Set_Stmt_Reference is record Value : Value_Id := No_Value; end record;
    type Alter_Role_Set_Stmt_Reference is record Value : Value_Id := No_Value; end record;
    type Create_Conversion_Stmt_Reference is record Value : Value_Id := No_Value; end record;
@@ -6642,7 +6813,6 @@ private
    type A_Expr_Reference is record Value : Value_Id := No_Value; end record;
    type Column_Ref_Reference is record Value : Value_Id := No_Value; end record;
    type Param_Ref_Reference is record Value : Value_Id := No_Value; end record;
-   type A_Const_Reference is record Value : Value_Id := No_Value; end record;
    type Func_Call_Reference is record Value : Value_Id := No_Value; end record;
    type A_Star_Reference is record Value : Value_Id := No_Value; end record;
    type A_Indices_Reference is record Value : Value_Id := No_Value; end record;
@@ -6686,6 +6856,7 @@ private
    type Cte_Search_Clause_Reference is record Value : Value_Id := No_Value; end record;
    type Cte_Cycle_Clause_Reference is record Value : Value_Id := No_Value; end record;
    type Common_Table_Expr_Reference is record Value : Value_Id := No_Value; end record;
+   type Merge_When_Clause_Reference is record Value : Value_Id := No_Value; end record;
    type Role_Spec_Reference is record Value : Value_Id := No_Value; end record;
    type Trigger_Transition_Reference is record Value : Value_Id := No_Value; end record;
    type Partition_Elem_Reference is record Value : Value_Id := No_Value; end record;
@@ -6694,10 +6865,12 @@ private
    type Partition_Range_Datum_Reference is record Value : Value_Id := No_Value; end record;
    type Partition_Cmd_Reference is record Value : Value_Id := No_Value; end record;
    type Vacuum_Relation_Reference is record Value : Value_Id := No_Value; end record;
+   type Publication_Obj_Spec_Reference is record Value : Value_Id := No_Value; end record;
+   type Publication_Table_Reference is record Value : Value_Id := No_Value; end record;
    type Inline_Code_Block_Reference is record Value : Value_Id := No_Value; end record;
    type Call_Context_Reference is record Value : Value_Id := No_Value; end record;
    type Sequence_Of_Raw_Stmt is record Value : Value_Id := No_Value; end record;
    type Sequence_Of_Node is record Value : Value_Id := No_Value; end record;
    type Sequence_Of_Unsigned_64 is record Value : Value_Id := No_Value; end record;
 
-end Flyology.Postgres.SQL.V14;
+end Flyology.Postgres.SQL.Views.V15;

@@ -1,5 +1,6 @@
 with "aunit";
 with "sql";
+with "sql_oracle.gpr";
 
 project Sql_Tests is
 

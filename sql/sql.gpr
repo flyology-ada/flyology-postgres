@@ -1,9 +1,4 @@
 with "flyology_postgres.gpr";
-with "backends/backend_14.gpr";
-with "backends/backend_15.gpr";
-with "backends/backend_16.gpr";
-with "backends/backend_17.gpr";
-with "backends/backend_18.gpr";
 with "config/sql_config.gpr";
 project Sql is
 

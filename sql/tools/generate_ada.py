@@ -566,7 +566,7 @@ def generate_spec(major: int, messages: list[Message], enums: list[Enum]) -> str
         "with Ada.Strings.Unbounded;",
         "with Interfaces;",
         "",
-        f"package Flyology.Postgres.SQL.V{major} is",
+        f"package Flyology.Postgres.SQL.Views.V{major} is",
         "",
         "   subtype Text is Ada.Strings.Unbounded.Unbounded_String;",
         "",
@@ -665,7 +665,7 @@ def generate_spec(major: int, messages: list[Message], enums: list[Enum]) -> str
         lines.append(
             f"   type {name} is record Value : Value_Id := No_Value; end record;"
         )
-    lines.extend(["", f"end Flyology.Postgres.SQL.V{major};", ""])
+    lines.extend(["", f"end Flyology.Postgres.SQL.Views.V{major};", ""])
     return "\n".join(lines)
 
 
@@ -685,7 +685,7 @@ def generate_body(major: int, messages: list[Message], enums: list[Enum]) -> str
         "with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;",
         "with Flyology.Postgres.SQL.Internals;",
         "",
-        f"package body Flyology.Postgres.SQL.V{major} is",
+        f"package body Flyology.Postgres.SQL.Views.V{major} is",
         "",
     ]
 
@@ -806,7 +806,7 @@ def generate_body(major: int, messages: list[Message], enums: list[Enum]) -> str
         "     (View (Tree, Item).Statement.Value);",
         "",
     ])
-    lines.extend([f"end Flyology.Postgres.SQL.V{major};", ""])
+    lines.extend([f"end Flyology.Postgres.SQL.Views.V{major};", ""])
     return "\n".join(lines)
 
 
@@ -815,12 +815,14 @@ def main() -> None:
     parser.add_argument("--major", type=int, required=True)
     parser.add_argument("--proto", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--oracle-output", type=Path, required=True)
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     messages, enums = parse_proto(args.proto)
     selected_messages, selected_enums = reachable_schema(messages, enums)
     args.output.mkdir(parents=True, exist_ok=True)
-    stem = f"flyology-postgres-sql-v{args.major}"
+    args.oracle_output.mkdir(parents=True, exist_ok=True)
+    stem = f"flyology-postgres-sql-views-v{args.major}"
     generated = {
         args.output / f"{stem}.ads": generate_spec(
             args.major, selected_messages, selected_enums
@@ -828,9 +830,9 @@ def main() -> None:
         args.output / f"{stem}.adb": generate_body(
             args.major, selected_messages, selected_enums
         ),
-        args.output / f"flyology-postgres-sql-decoder_v{args.major}.ads":
+        args.oracle_output / f"flyology-postgres-sql-decoder_v{args.major}.ads":
             generate_decoder_spec(args.major),
-        args.output / f"flyology-postgres-sql-decoder_v{args.major}.adb":
+        args.oracle_output / f"flyology-postgres-sql-decoder_v{args.major}.adb":
             generate_decoder_body(args.major, selected_messages, selected_enums),
     }
     for path, contents in generated.items():

@@ -6,84 +6,11 @@ tables, parser tables, semantic reductions, schema metadata, an Ada 2022
 syntax-tree API, and built-in type metadata. Consumer builds use checked-in
 source and do not access the network.
 
-## Shallow Ada syntax trees
+## Owned Ada ASTs
 
-`Syntax_Tree` is limited and owns a flat Ada arena. The public version packages
-(`Flyology.Postgres.SQL.V14` through `V18`) expose three kinds of values:
-
-- opaque `*_Reference` values for protobuf messages;
-- public shallow record views, with the protobuf message name; and
-- opaque `Sequence_Of_*` handles for repeated fields.
-
-`View (Tree, Reference)` materializes one shallow record. Scalars and enums are
-ordinary Ada values, and strings are owned `Unbounded_String` values. Child
-messages remain opaque references, so recursive and mutually recursive
-PostgreSQL nodes never become a heap-allocated Ada object graph.
-
-Every non-repeated field has a definite discriminated `Optional_*` wrapper.
-Consequently an omitted wire field remains different from an explicitly
-encoded field whose value equals the protobuf default. Proto3 fields omitted
-by the native serializer are necessarily absent because that distinction is
-not present in the wire stream. Repeated fields appear directly as typed
-sequence components.
-
-```ada
-with Flyology.Postgres.SQL;
-with Flyology.Postgres.SQL.V18;
-
-declare
-   package SQL renames Flyology.Postgres.SQL;
-   package V18 renames Flyology.Postgres.SQL.V18;
-
-   Tree : SQL.Syntax_Tree;
-begin
-   SQL.Parse ("select id, payload from events", SQL.PostgreSQL_18, Tree);
-
-   if SQL.Is_Valid (Tree) then
-      declare
-         Item : constant V18.Node_Reference :=
-           V18.Statement
-             (Tree,
-              V18.Element
-                (Tree, V18.Statements (Tree, V18.Root (Tree)), 1));
-         Select_Ref : constant V18.Select_Stmt_Reference :=
-           V18.As_Select_Stmt (Tree, Item);
-         Statement : constant V18.Select_Stmt :=
-           V18.View (Tree, Select_Ref);
-         Targets : constant V18.Sequence_Of_Node := Statement.Target_List;
-      begin
-         for Index in 1 .. V18.Length (Tree, Targets) loop
-            declare
-               Target : constant V18.Node_Reference :=
-                 V18.Element (Tree, Targets, Index);
-            begin
-               --  Inspect V18.Kind, convert with As_*, then call View.
-               null;
-            end;
-         end loop;
-      end;
-   else
-      --  SQL.Message and SQL.Cursor_Position retain PostgreSQL's diagnostic.
-      null;
-   end if;
-end;
-```
-
-### Reference lifetime
-
-A reference or sequence is meaningful only with the exact `Syntax_Tree` that
-created it. Calling `Parse` again on that tree resets its arena and invalidates
-all earlier references and sequence handles. Destroying the tree does the same.
-Passing a handle to another tree is erroneous application logic and is not a
-supported operation. Scalar, enum, and owned text components already copied
-into a view remain ordinary Ada values, but references and sequences contained
-in that view retain the tree lifetime rule.
-
-## Fully owned Ada ASTs
-
-`Flyology.Postgres.SQL.AST.V14` through `AST.V18` provide a second output from
-the same native parser. These packages materialize the shallow arena into an
-ordinary, recursively navigable Ada object graph:
+`Flyology.Postgres.SQL.AST.V14` through `AST.V18` are the primary consumer API.
+Each version parses directly into an ordinary, recursively navigable Ada object
+graph:
 
 - every reachable protobuf message is a generated public record;
 - `Node` is a generated discriminated record whose variant embeds the concrete
@@ -94,12 +21,11 @@ ordinary, recursively navigable Ada object graph:
 - recursive fields are typed Ada access values such as `Node_Access` and
   `Select_Stmt_Access`.
 
-An `Owned_Syntax_Tree` is limited and controlled. It owns the complete graph,
-releases it on `Clear`, replacement, or finalization, and is independent of the
-flat `Syntax_Tree` after `Materialize` returns. The access values and vectors in
-its records remain valid until that owning tree is cleared, parsed into again,
-or finalized. Consumers must not deallocate or graft those access values into a
-different owner.
+An `Owned_Syntax_Tree` is limited and controlled. It owns the complete graph and
+releases it on `Clear`, replacement, or finalization. The access values and
+vectors in its records remain valid until that owning tree is cleared, parsed
+into again, or finalized. Consumers must not deallocate or graft those access
+values into a different owner.
 
 ```ada
 with Flyology.Postgres.SQL.AST.V18;
@@ -131,39 +57,70 @@ begin
 end;
 ```
 
-`Materialize` is useful when both representations are needed. The versioned
-`AST.Parse` procedure is the Phase 2 path: it parses into the shallow arena and
-then materializes the owned form. `AST.Parse_Direct` is the Phase 3 path: it
-uses the same native scanner, LR engine, and generated reductions, but its
-schema-generated converter writes from the private semantic builder directly
-to the owned records. It never constructs an intermediate public
-`Syntax_Tree`.
+`AST.Parse` is the sole owned parser entry point. It writes from the native
+semantic builder directly to the owned records and never constructs an
+intermediate shallow arena. Arena materialization and exhaustive structural
+comparison exist only in the test project as an independent validation
+baseline; they are not installed consumer APIs.
+
+## Advanced shallow views
+
+Consumers optimizing for fewer allocations can explicitly opt into
+`Flyology.Postgres.SQL.Views`. `Syntax_Tree` is limited and owns a flat Ada
+arena. `Views.V14` through `Views.V18` expose opaque `*_Reference` values,
+public shallow record views, and opaque `Sequence_Of_*` handles.
 
 ```ada
+with Flyology.Postgres.SQL;
+with Flyology.Postgres.SQL.Views;
+with Flyology.Postgres.SQL.Views.V18;
+
 declare
-   Tree : AST.Owned_Syntax_Tree;
+   package SQL renames Flyology.Postgres.SQL;
+   package Views renames Flyology.Postgres.SQL.Views;
+   package V18 renames Flyology.Postgres.SQL.Views.V18;
+
+   Tree : Views.Syntax_Tree;
 begin
-   AST.Parse_Direct ("SELECT id FROM events", Tree);
-   if Tree.Valid then
-      --  Tree.Root is the same fully owned record graph shown above.
-      null;
+   Views.Parse ("select id, payload from events", SQL.PostgreSQL_18, Tree);
+
+   if Views.Is_Valid (Tree) then
+      declare
+         Item : constant V18.Node_Reference :=
+           V18.Statement
+             (Tree,
+              V18.Element
+                (Tree, V18.Statements (Tree, V18.Root (Tree)), 1));
+         Select_Ref : constant V18.Select_Stmt_Reference :=
+           V18.As_Select_Stmt (Tree, Item);
+         Statement : constant V18.Select_Stmt := V18.View (Tree, Select_Ref);
+      begin
+         null;
+      end;
    end if;
 end;
 ```
 
-Both paths remain available while the direct path is validated. `Equivalent`
-is a generated exhaustive structural comparator used to check every record,
-node variant, optional discriminant, vector element, scalar, enum, diagnostic,
-and source/version field. The C/libpg_query backends remain validation oracles
-and are not used by either production output.
+Every non-repeated field has a definite discriminated `Optional_*` wrapper.
+Repeated fields appear directly as typed sequence handles. Scalars and enums
+are ordinary Ada values, strings are owned `Unbounded_String` values, and child
+messages remain opaque references.
+
+### Reference lifetime
+
+A reference or sequence is meaningful only with the exact `Syntax_Tree` that
+created it. Calling `Views.Parse` again on that tree invalidates all earlier
+references and sequence handles. Scalar, enum, and owned text components copied
+into a view remain ordinary Ada values, but references and sequences contained
+in that view retain the tree lifetime rule.
 
 ## Version and option behavior
 
-Pass the required `Major_Version` to `Parse`, then use the matching `V14`–`V18`
-package. The version precondition on `Root` prevents accidental cross-version
-interpretation. PostgreSQL 15–18 support the parser-mode and lexer-GUC fields in
-`Parse_Options`. The PostgreSQL 14 extraction predates that upstream API;
-`Supports_Parse_Options` reports this, and non-default options raise
+Select the owned package matching the required PostgreSQL major. Advanced
+shallow consumers pass the same `Major_Version` to `Views.Parse` and then use
+the matching `Views.V14`–`Views.V18` package. PostgreSQL 15–18 support the
+parser-mode and lexer-GUC fields in `Parse_Options`. The PostgreSQL 14
+extraction predates that upstream API; non-default options raise
 `Unsupported_Parse_Options` instead of being silently ignored.
 
 Normal parsing is entirely Ada: it does not call `libpg_query`, serialize
@@ -175,20 +132,7 @@ identifiers are not part of the public API.
 
 ## Native parser architecture
 
-The production pipeline is:
-
-```text
-SQL text
-  -> generated Flex DFA scanner
-  -> generated Bison LALR tables
-  -> generated Ada semantic reductions
-  -> private flat semantic arena
-  -> generated protobuf-schema mapping
-  -> public Syntax_Tree arena and shallow views
-```
-
-The direct-owned production pipeline shares the parsing front end but omits
-both public-arena stages:
+The primary production pipeline is:
 
 ```text
 SQL text
@@ -204,10 +148,11 @@ The scanner implements PostgreSQL's start conditions, longest-match behavior,
 keywords, lookahead filters, comments, quoted and Unicode identifiers, ordinary
 and escape strings, dollar quoting, parameters, operators, and numeric forms.
 The parser runtime applies the checked-in version's LALR tables and generated
-reductions. Semantic values are stored in a private flat builder; recursive
-grammar relationships therefore do not allocate an Ada object graph. A
-schema-driven converter maps those values to the same logical arena shape as
-the former protobuf decoder.
+reductions. Semantic values are stored in a private flat builder. Generated
+schema-aware converters then produce either the primary owned records or the
+advanced shallow arena without involving C or protobuf. The explicitly
+selected `Views.Parse` path shares this parser front end and maps into a flat
+`Syntax_Tree` arena instead.
 
 The validation-only pipeline is:
 
@@ -224,7 +169,9 @@ The comparison is member-order independent for objects and order sensitive for
 sequences. It preserves scalar kinds, enum values, omitted fields, array
 contents, parse validity, diagnostics, and cursor positions. The C result and
 its protobuf buffer are freed on every path after the oracle tree has copied
-the data.
+the data. These units and their native libraries are compiled by
+`tests/sql_oracle.gpr`, not by production `sql.gpr`. The test action also checks
+the production archive for oracle, protobuf-decoder, and C-wrapper symbols.
 
 ## Catalog types
 
@@ -256,7 +203,7 @@ the parser and AST toolchain:
 - `generate_owned_ast.py` uses that same reachable schema to emit every owned
   record, discriminated node variant, optional and vector type, arena-to-record
   converter, and graph finalizer for `AST.V14` through `AST.V18`.
-- `generate_direct_owned.py` combines the protobuf schema with Clang-derived
+- `generate_owned_parser.py` combines the protobuf schema with Clang-derived
   PostgreSQL node and enum definitions to emit the private-builder-to-owned
   converter for every reachable message and all five majors.
 - `generate_owned_equivalence.py` emits the exhaustive structural comparator
@@ -275,7 +222,8 @@ checked-in `pg_type.dat`.
 python3 tools/generate_ada.py \
   --major 18 \
   --proto backends/v18/vendor/pg_query.proto \
-  --output src
+  --output src \
+  --oracle-output tests/oracle/src
 
 python3 tools/generate_types.py \
   --major 18 \
@@ -287,7 +235,7 @@ python3 tools/generate_owned_ast.py \
   --proto backends/v18/vendor/pg_query.proto \
   --output src
 
-python3 tools/generate_direct_owned.py \
+python3 tools/generate_owned_parser.py \
   --major 18 \
   --proto backends/v18/vendor/pg_query.proto \
   --vendor backends/v18/vendor \
@@ -296,7 +244,7 @@ python3 tools/generate_direct_owned.py \
 python3 tools/generate_owned_equivalence.py \
   --major 18 \
   --proto backends/v18/vendor/pg_query.proto \
-  --output src
+  --output tests/src
 
 python3 tools/generate_native_parser.py \
   --major 18 \
@@ -339,9 +287,9 @@ The tests cover the native scanner, parser tables, semantic builder and
 generated reductions; every protobuf scalar encoding and malformed wire case
 used by the oracle; all five shallow and owned typed roots; field notation,
 optionals, vectors, nested owned nodes, enum fields, ownership replacement, and
-diagnostics. Each direct-owned result is exhaustively compared with the Phase 2
-arena-materialized result, which is itself checked against the version-pinned C
-oracle. The differential corpus
+diagnostics. Each owned result is exhaustively compared with the test-only
+arena-materialized baseline, which is itself checked against the version-pinned
+C oracle. The differential corpus
 includes empty and multi-statement inputs, quoted identifiers, Unicode,
 comments, dollar and escape strings, embedded NUL rejection, invalid SQL, and
 representative SELECT, CTE, join, expression, MERGE, DML, DDL, and utility
@@ -365,11 +313,9 @@ actions stay reproducibly generated from the pinned upstream grammar. This
 keeps exact PostgreSQL behavior reviewable and makes all version differences
 data rather than five drifting parser implementations. Replacing the imported
 Bison automaton remains possible only if an in-repository `gram.y`-to-LALR
-generator can reproduce it exactly; it is not a prerequisite for the native or
-direct-owned runtime paths.
+generator can reproduce it exactly; it is not a prerequisite for the native
+runtime paths.
 
-The shallow arena remains the compact production representation. The owned AST
-is the natural-navigation representation for consumers that prefer ordinary
-Ada records and accept the allocation cost of a recursive object graph; the
-direct path avoids paying for both representations when only the latter is
-needed.
+The owned AST is the default natural-navigation representation. The shallow
+arena remains an explicit advanced choice for consumers that value fewer
+allocations enough to manage reference lifetimes themselves.

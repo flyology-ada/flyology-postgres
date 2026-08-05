@@ -4537,29 +4537,20 @@ package Flyology.Postgres.SQL.AST.V15 is
 
    procedure Clear (Tree : in out Owned_Syntax_Tree);
 
-   procedure Materialize
-     (Arena : Syntax_Tree; Result : in out Owned_Syntax_Tree)
-     with Pre =>
-       Is_Valid (Arena) and then Version (Arena) = PostgreSQL_15;
-
    procedure Parse
-     (SQL     : String;
-      Result  : in out Owned_Syntax_Tree;
-      Options : Parse_Options := Default_Options);
-   --  Parse through the shallow arena, then materialize the owned tree.
-   --  This path is retained as the independent Phase 2 baseline.
-
-   procedure Parse_Direct
      (SQL     : String;
       Result  : in out Owned_Syntax_Tree;
       Options : Parse_Options := Default_Options);
    --  Parse native semantic values directly into the owned tree, without
    --  constructing an intermediate public Syntax_Tree arena.
 
-   function Equivalent (Left, Right : Owned_Syntax_Tree) return Boolean;
-   --  Exhaustive generated structural comparison, including presence.
-
 private
+
+   procedure Materialize
+     (Arena : Syntax_Tree; Result : in out Owned_Syntax_Tree)
+     with Pre =>
+       Is_Valid (Arena) and then Version (Arena) = PostgreSQL_15;
+   --  Validation baseline support for the non-installed Testing child.
 
    overriding procedure Finalize (Tree : in out Owned_Syntax_Tree);
 

@@ -3,7 +3,7 @@ pragma Style_Checks ("M160");
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Flyology.Postgres.SQL.Internals;
 
-package body Flyology.Postgres.SQL.V15 is
+package body Flyology.Postgres.SQL.Views.V14 is
 
    function Decode_Overriding_Kind
      (Tree : Syntax_Tree; Value : Value_Id) return Overriding_Kind
@@ -228,10 +228,6 @@ package body Flyology.Postgres.SQL.V15 is
          return Wco_Kind_Wco_Rls_Update_Check;
       elsif Text_Value = "WCO_RLS_CONFLICT_CHECK" then
          return Wco_Kind_Wco_Rls_Conflict_Check;
-      elsif Text_Value = "WCO_RLS_MERGE_UPDATE_CHECK" then
-         return Wco_Kind_Wco_Rls_Merge_Update_Check;
-      elsif Text_Value = "WCO_RLS_MERGE_DELETE_CHECK" then
-         return Wco_Kind_Wco_Rls_Merge_Delete_Check;
       else
          raise Constraint_Error with "unknown Wco_Kind value: " & Text_Value;
       end if;
@@ -358,16 +354,12 @@ package body Flyology.Postgres.SQL.V15 is
          return Object_Type_Object_Operator;
       elsif Text_Value = "OBJECT_OPFAMILY" then
          return Object_Type_Object_Opfamily;
-      elsif Text_Value = "OBJECT_PARAMETER_ACL" then
-         return Object_Type_Object_Parameter_Acl;
       elsif Text_Value = "OBJECT_POLICY" then
          return Object_Type_Object_Policy;
       elsif Text_Value = "OBJECT_PROCEDURE" then
          return Object_Type_Object_Procedure;
       elsif Text_Value = "OBJECT_PUBLICATION" then
          return Object_Type_Object_Publication;
-      elsif Text_Value = "OBJECT_PUBLICATION_NAMESPACE" then
-         return Object_Type_Object_Publication_Namespace;
       elsif Text_Value = "OBJECT_PUBLICATION_REL" then
          return Object_Type_Object_Publication_Rel;
       elsif Text_Value = "OBJECT_ROLE" then
@@ -510,8 +502,6 @@ package body Flyology.Postgres.SQL.V15 is
          return Alter_Table_Type_At_Set_Un_Logged;
       elsif Text_Value = "AT_DropOids" then
          return Alter_Table_Type_At_Drop_Oids;
-      elsif Text_Value = "AT_SetAccessMethod" then
-         return Alter_Table_Type_At_Set_Access_Method;
       elsif Text_Value = "AT_SetTableSpace" then
          return Alter_Table_Type_At_Set_Table_Space;
       elsif Text_Value = "AT_SetRelOptions" then
@@ -859,44 +849,6 @@ package body Flyology.Postgres.SQL.V15 is
       end if;
    end Decode_Alter_Ts_Config_Type;
 
-   function Decode_Publication_Obj_Spec_Type
-     (Tree : Syntax_Tree; Value : Value_Id) return Publication_Obj_Spec_Type
-   is
-      Text_Value : constant String := Internals.String_Data (Tree, Value);
-   begin
-      if Text_Value = "PUBLICATION_OBJ_SPEC_TYPE_UNDEFINED" then
-         return Publication_Obj_Spec_Type_Undefined;
-      elsif Text_Value = "PUBLICATIONOBJ_TABLE" then
-         return Publication_Obj_Spec_Type_Publicationobj_Table;
-      elsif Text_Value = "PUBLICATIONOBJ_TABLES_IN_SCHEMA" then
-         return Publication_Obj_Spec_Type_Publicationobj_Tables_In_Schema;
-      elsif Text_Value = "PUBLICATIONOBJ_TABLES_IN_CUR_SCHEMA" then
-         return Publication_Obj_Spec_Type_Publicationobj_Tables_In_Cur_Schema;
-      elsif Text_Value = "PUBLICATIONOBJ_CONTINUATION" then
-         return Publication_Obj_Spec_Type_Publicationobj_Continuation;
-      else
-         raise Constraint_Error with "unknown Publication_Obj_Spec_Type value: " & Text_Value;
-      end if;
-   end Decode_Publication_Obj_Spec_Type;
-
-   function Decode_Alter_Publication_Action
-     (Tree : Syntax_Tree; Value : Value_Id) return Alter_Publication_Action
-   is
-      Text_Value : constant String := Internals.String_Data (Tree, Value);
-   begin
-      if Text_Value = "ALTER_PUBLICATION_ACTION_UNDEFINED" then
-         return Alter_Publication_Action_Undefined;
-      elsif Text_Value = "AP_AddObjects" then
-         return Alter_Publication_Action_Ap_Add_Objects;
-      elsif Text_Value = "AP_DropObjects" then
-         return Alter_Publication_Action_Ap_Drop_Objects;
-      elsif Text_Value = "AP_SetObjects" then
-         return Alter_Publication_Action_Ap_Set_Objects;
-      else
-         raise Constraint_Error with "unknown Alter_Publication_Action value: " & Text_Value;
-      end if;
-   end Decode_Alter_Publication_Action;
-
    function Decode_Alter_Subscription_Type
      (Tree : Syntax_Tree; Value : Value_Id) return Alter_Subscription_Type
    is
@@ -918,8 +870,6 @@ package body Flyology.Postgres.SQL.V15 is
          return Alter_Subscription_Type_Alter_Subscription_Refresh;
       elsif Text_Value = "ALTER_SUBSCRIPTION_ENABLED" then
          return Alter_Subscription_Type_Alter_Subscription_Enabled;
-      elsif Text_Value = "ALTER_SUBSCRIPTION_SKIP" then
-         return Alter_Subscription_Type_Alter_Subscription_Skip;
       else
          raise Constraint_Error with "unknown Alter_Subscription_Type value: " & Text_Value;
       end if;
@@ -1234,8 +1184,6 @@ package body Flyology.Postgres.SQL.V15 is
          return Cmd_Type_Cmd_Insert;
       elsif Text_Value = "CMD_DELETE" then
          return Cmd_Type_Cmd_Delete;
-      elsif Text_Value = "CMD_MERGE" then
-         return Cmd_Type_Cmd_Merge;
       elsif Text_Value = "CMD_UTILITY" then
          return Cmd_Type_Cmd_Utility;
       elsif Text_Value = "CMD_NOTHING" then
@@ -1379,6 +1327,8 @@ package body Flyology.Postgres.SQL.V15 is
          return Node_Range_Var;
       elsif Name = "TableFunc" then
          return Node_Table_Func;
+      elsif Name = "Expr" then
+         return Node_Expr;
       elsif Name = "Var" then
          return Node_Var;
       elsif Name = "Param" then
@@ -1473,8 +1423,6 @@ package body Flyology.Postgres.SQL.V15 is
          return Node_On_Conflict_Expr;
       elsif Name = "IntoClause" then
          return Node_Into_Clause;
-      elsif Name = "MergeAction" then
-         return Node_Merge_Action;
       elsif Name = "RawStmt" then
          return Node_Raw_Stmt;
       elsif Name = "Query" then
@@ -1485,8 +1433,6 @@ package body Flyology.Postgres.SQL.V15 is
          return Node_Delete_Stmt;
       elsif Name = "UpdateStmt" then
          return Node_Update_Stmt;
-      elsif Name = "MergeStmt" then
-         return Node_Merge_Stmt;
       elsif Name = "SelectStmt" then
          return Node_Select_Stmt;
       elsif Name = "ReturnStmt" then
@@ -1593,8 +1539,6 @@ package body Flyology.Postgres.SQL.V15 is
          return Node_Create_Schema_Stmt;
       elsif Name = "AlterDatabaseStmt" then
          return Node_Alter_Database_Stmt;
-      elsif Name = "AlterDatabaseRefreshCollStmt" then
-         return Node_Alter_Database_Refresh_Coll_Stmt;
       elsif Name = "AlterDatabaseSetStmt" then
          return Node_Alter_Database_Set_Stmt;
       elsif Name = "AlterRoleSetStmt" then
@@ -1719,6 +1663,8 @@ package body Flyology.Postgres.SQL.V15 is
          return Node_Column_Ref;
       elsif Name = "ParamRef" then
          return Node_Param_Ref;
+      elsif Name = "A_Const" then
+         return Node_A_Const;
       elsif Name = "FuncCall" then
          return Node_Func_Call;
       elsif Name = "A_Star" then
@@ -1805,8 +1751,6 @@ package body Flyology.Postgres.SQL.V15 is
          return Node_Cte_Cycle_Clause;
       elsif Name = "CommonTableExpr" then
          return Node_Common_Table_Expr;
-      elsif Name = "MergeWhenClause" then
-         return Node_Merge_When_Clause;
       elsif Name = "RoleSpec" then
          return Node_Role_Spec;
       elsif Name = "TriggerTransition" then
@@ -1823,10 +1767,6 @@ package body Flyology.Postgres.SQL.V15 is
          return Node_Partition_Cmd;
       elsif Name = "VacuumRelation" then
          return Node_Vacuum_Relation;
-      elsif Name = "PublicationObjSpec" then
-         return Node_Publication_Obj_Spec;
-      elsif Name = "PublicationTable" then
-         return Node_Publication_Table;
       elsif Name = "InlineCodeBlock" then
          return Node_Inline_Code_Block;
       elsif Name = "CallContext" then
@@ -1835,20 +1775,18 @@ package body Flyology.Postgres.SQL.V15 is
          return Node_Integer_Value;
       elsif Name = "Float" then
          return Node_Float_Value;
-      elsif Name = "Boolean" then
-         return Node_Boolean_Value;
       elsif Name = "String" then
          return Node_String_Value;
       elsif Name = "BitString" then
          return Node_Bit_String_Value;
+      elsif Name = "Null" then
+         return Node_Field_Null;
       elsif Name = "List" then
          return Node_Node_List_Value;
       elsif Name = "IntList" then
          return Node_Int_List;
       elsif Name = "OidList" then
          return Node_Oid_List;
-      elsif Name = "A_Const" then
-         return Node_A_Const;
       else
          raise Constraint_Error with "unknown PostgreSQL node kind: " & Name;
       end if;
@@ -1864,6 +1802,10 @@ package body Flyology.Postgres.SQL.V15 is
 
    function As_Table_Func
      (Tree : Syntax_Tree; Item : Node_Reference) return Table_Func_Reference is
+     (Value => Internals.Only_Field_Value (Tree, Item.Value));
+
+   function As_Expr
+     (Tree : Syntax_Tree; Item : Node_Reference) return Expr_Reference is
      (Value => Internals.Only_Field_Value (Tree, Item.Value));
 
    function As_Var
@@ -2054,10 +1996,6 @@ package body Flyology.Postgres.SQL.V15 is
      (Tree : Syntax_Tree; Item : Node_Reference) return Into_Clause_Reference is
      (Value => Internals.Only_Field_Value (Tree, Item.Value));
 
-   function As_Merge_Action
-     (Tree : Syntax_Tree; Item : Node_Reference) return Merge_Action_Reference is
-     (Value => Internals.Only_Field_Value (Tree, Item.Value));
-
    function As_Raw_Stmt
      (Tree : Syntax_Tree; Item : Node_Reference) return Raw_Stmt_Reference is
      (Value => Internals.Only_Field_Value (Tree, Item.Value));
@@ -2076,10 +2014,6 @@ package body Flyology.Postgres.SQL.V15 is
 
    function As_Update_Stmt
      (Tree : Syntax_Tree; Item : Node_Reference) return Update_Stmt_Reference is
-     (Value => Internals.Only_Field_Value (Tree, Item.Value));
-
-   function As_Merge_Stmt
-     (Tree : Syntax_Tree; Item : Node_Reference) return Merge_Stmt_Reference is
      (Value => Internals.Only_Field_Value (Tree, Item.Value));
 
    function As_Select_Stmt
@@ -2292,10 +2226,6 @@ package body Flyology.Postgres.SQL.V15 is
 
    function As_Alter_Database_Stmt
      (Tree : Syntax_Tree; Item : Node_Reference) return Alter_Database_Stmt_Reference is
-     (Value => Internals.Only_Field_Value (Tree, Item.Value));
-
-   function As_Alter_Database_Refresh_Coll_Stmt
-     (Tree : Syntax_Tree; Item : Node_Reference) return Alter_Database_Refresh_Coll_Stmt_Reference is
      (Value => Internals.Only_Field_Value (Tree, Item.Value));
 
    function As_Alter_Database_Set_Stmt
@@ -2546,6 +2476,10 @@ package body Flyology.Postgres.SQL.V15 is
      (Tree : Syntax_Tree; Item : Node_Reference) return Param_Ref_Reference is
      (Value => Internals.Only_Field_Value (Tree, Item.Value));
 
+   function As_A_Const
+     (Tree : Syntax_Tree; Item : Node_Reference) return A_Const_Reference is
+     (Value => Internals.Only_Field_Value (Tree, Item.Value));
+
    function As_Func_Call
      (Tree : Syntax_Tree; Item : Node_Reference) return Func_Call_Reference is
      (Value => Internals.Only_Field_Value (Tree, Item.Value));
@@ -2718,10 +2652,6 @@ package body Flyology.Postgres.SQL.V15 is
      (Tree : Syntax_Tree; Item : Node_Reference) return Common_Table_Expr_Reference is
      (Value => Internals.Only_Field_Value (Tree, Item.Value));
 
-   function As_Merge_When_Clause
-     (Tree : Syntax_Tree; Item : Node_Reference) return Merge_When_Clause_Reference is
-     (Value => Internals.Only_Field_Value (Tree, Item.Value));
-
    function As_Role_Spec
      (Tree : Syntax_Tree; Item : Node_Reference) return Role_Spec_Reference is
      (Value => Internals.Only_Field_Value (Tree, Item.Value));
@@ -2754,14 +2684,6 @@ package body Flyology.Postgres.SQL.V15 is
      (Tree : Syntax_Tree; Item : Node_Reference) return Vacuum_Relation_Reference is
      (Value => Internals.Only_Field_Value (Tree, Item.Value));
 
-   function As_Publication_Obj_Spec
-     (Tree : Syntax_Tree; Item : Node_Reference) return Publication_Obj_Spec_Reference is
-     (Value => Internals.Only_Field_Value (Tree, Item.Value));
-
-   function As_Publication_Table
-     (Tree : Syntax_Tree; Item : Node_Reference) return Publication_Table_Reference is
-     (Value => Internals.Only_Field_Value (Tree, Item.Value));
-
    function As_Inline_Code_Block
      (Tree : Syntax_Tree; Item : Node_Reference) return Inline_Code_Block_Reference is
      (Value => Internals.Only_Field_Value (Tree, Item.Value));
@@ -2778,16 +2700,16 @@ package body Flyology.Postgres.SQL.V15 is
      (Tree : Syntax_Tree; Item : Node_Reference) return Float_Value_Reference is
      (Value => Internals.Only_Field_Value (Tree, Item.Value));
 
-   function As_Boolean_Value
-     (Tree : Syntax_Tree; Item : Node_Reference) return Boolean_Value_Reference is
-     (Value => Internals.Only_Field_Value (Tree, Item.Value));
-
    function As_String_Value
      (Tree : Syntax_Tree; Item : Node_Reference) return String_Value_Reference is
      (Value => Internals.Only_Field_Value (Tree, Item.Value));
 
    function As_Bit_String_Value
      (Tree : Syntax_Tree; Item : Node_Reference) return Bit_String_Value_Reference is
+     (Value => Internals.Only_Field_Value (Tree, Item.Value));
+
+   function As_Field_Null
+     (Tree : Syntax_Tree; Item : Node_Reference) return Field_Null_Reference is
      (Value => Internals.Only_Field_Value (Tree, Item.Value));
 
    function As_Node_List_Value
@@ -2800,10 +2722,6 @@ package body Flyology.Postgres.SQL.V15 is
 
    function As_Oid_List
      (Tree : Syntax_Tree; Item : Node_Reference) return Oid_List_Reference is
-     (Value => Internals.Only_Field_Value (Tree, Item.Value));
-
-   function As_A_Const
-     (Tree : Syntax_Tree; Item : Node_Reference) return A_Const_Reference is
      (Value => Internals.Only_Field_Value (Tree, Item.Value));
 
    function Length (Tree : Syntax_Tree; Items : Sequence_Of_Raw_Stmt) return Natural is
@@ -2853,6 +2771,11 @@ package body Flyology.Postgres.SQL.V15 is
         (if Internals.Has_Field (Tree, Item.Value, "TableFunc") then
             (Present => True,
              Value   => (Value => Internals.Field (Tree, Item.Value, "TableFunc")))
+         else (Present => False)),
+      Expr =>
+        (if Internals.Has_Field (Tree, Item.Value, "Expr") then
+            (Present => True,
+             Value   => (Value => Internals.Field (Tree, Item.Value, "Expr")))
          else (Present => False)),
       Var =>
         (if Internals.Has_Field (Tree, Item.Value, "Var") then
@@ -3089,11 +3012,6 @@ package body Flyology.Postgres.SQL.V15 is
             (Present => True,
              Value   => (Value => Internals.Field (Tree, Item.Value, "IntoClause")))
          else (Present => False)),
-      Merge_Action =>
-        (if Internals.Has_Field (Tree, Item.Value, "MergeAction") then
-            (Present => True,
-             Value   => (Value => Internals.Field (Tree, Item.Value, "MergeAction")))
-         else (Present => False)),
       Raw_Stmt =>
         (if Internals.Has_Field (Tree, Item.Value, "RawStmt") then
             (Present => True,
@@ -3118,11 +3036,6 @@ package body Flyology.Postgres.SQL.V15 is
         (if Internals.Has_Field (Tree, Item.Value, "UpdateStmt") then
             (Present => True,
              Value   => (Value => Internals.Field (Tree, Item.Value, "UpdateStmt")))
-         else (Present => False)),
-      Merge_Stmt =>
-        (if Internals.Has_Field (Tree, Item.Value, "MergeStmt") then
-            (Present => True,
-             Value   => (Value => Internals.Field (Tree, Item.Value, "MergeStmt")))
          else (Present => False)),
       Select_Stmt =>
         (if Internals.Has_Field (Tree, Item.Value, "SelectStmt") then
@@ -3388,11 +3301,6 @@ package body Flyology.Postgres.SQL.V15 is
         (if Internals.Has_Field (Tree, Item.Value, "AlterDatabaseStmt") then
             (Present => True,
              Value   => (Value => Internals.Field (Tree, Item.Value, "AlterDatabaseStmt")))
-         else (Present => False)),
-      Alter_Database_Refresh_Coll_Stmt =>
-        (if Internals.Has_Field (Tree, Item.Value, "AlterDatabaseRefreshCollStmt") then
-            (Present => True,
-             Value   => (Value => Internals.Field (Tree, Item.Value, "AlterDatabaseRefreshCollStmt")))
          else (Present => False)),
       Alter_Database_Set_Stmt =>
         (if Internals.Has_Field (Tree, Item.Value, "AlterDatabaseSetStmt") then
@@ -3704,6 +3612,11 @@ package body Flyology.Postgres.SQL.V15 is
             (Present => True,
              Value   => (Value => Internals.Field (Tree, Item.Value, "ParamRef")))
          else (Present => False)),
+      A_Const =>
+        (if Internals.Has_Field (Tree, Item.Value, "A_Const") then
+            (Present => True,
+             Value   => (Value => Internals.Field (Tree, Item.Value, "A_Const")))
+         else (Present => False)),
       Func_Call =>
         (if Internals.Has_Field (Tree, Item.Value, "FuncCall") then
             (Present => True,
@@ -3919,11 +3832,6 @@ package body Flyology.Postgres.SQL.V15 is
             (Present => True,
              Value   => (Value => Internals.Field (Tree, Item.Value, "CommonTableExpr")))
          else (Present => False)),
-      Merge_When_Clause =>
-        (if Internals.Has_Field (Tree, Item.Value, "MergeWhenClause") then
-            (Present => True,
-             Value   => (Value => Internals.Field (Tree, Item.Value, "MergeWhenClause")))
-         else (Present => False)),
       Role_Spec =>
         (if Internals.Has_Field (Tree, Item.Value, "RoleSpec") then
             (Present => True,
@@ -3964,16 +3872,6 @@ package body Flyology.Postgres.SQL.V15 is
             (Present => True,
              Value   => (Value => Internals.Field (Tree, Item.Value, "VacuumRelation")))
          else (Present => False)),
-      Publication_Obj_Spec =>
-        (if Internals.Has_Field (Tree, Item.Value, "PublicationObjSpec") then
-            (Present => True,
-             Value   => (Value => Internals.Field (Tree, Item.Value, "PublicationObjSpec")))
-         else (Present => False)),
-      Publication_Table =>
-        (if Internals.Has_Field (Tree, Item.Value, "PublicationTable") then
-            (Present => True,
-             Value   => (Value => Internals.Field (Tree, Item.Value, "PublicationTable")))
-         else (Present => False)),
       Inline_Code_Block =>
         (if Internals.Has_Field (Tree, Item.Value, "InlineCodeBlock") then
             (Present => True,
@@ -3994,11 +3892,6 @@ package body Flyology.Postgres.SQL.V15 is
             (Present => True,
              Value   => (Value => Internals.Field (Tree, Item.Value, "Float")))
          else (Present => False)),
-      Boolean =>
-        (if Internals.Has_Field (Tree, Item.Value, "Boolean") then
-            (Present => True,
-             Value   => (Value => Internals.Field (Tree, Item.Value, "Boolean")))
-         else (Present => False)),
       String =>
         (if Internals.Has_Field (Tree, Item.Value, "String") then
             (Present => True,
@@ -4008,6 +3901,11 @@ package body Flyology.Postgres.SQL.V15 is
         (if Internals.Has_Field (Tree, Item.Value, "BitString") then
             (Present => True,
              Value   => (Value => Internals.Field (Tree, Item.Value, "BitString")))
+         else (Present => False)),
+      Field_Null =>
+        (if Internals.Has_Field (Tree, Item.Value, "Null") then
+            (Present => True,
+             Value   => (Value => Internals.Field (Tree, Item.Value, "Null")))
          else (Present => False)),
       List =>
         (if Internals.Has_Field (Tree, Item.Value, "List") then
@@ -4023,11 +3921,6 @@ package body Flyology.Postgres.SQL.V15 is
         (if Internals.Has_Field (Tree, Item.Value, "OidList") then
             (Present => True,
              Value   => (Value => Internals.Field (Tree, Item.Value, "OidList")))
-         else (Present => False)),
-      A_Const =>
-        (if Internals.Has_Field (Tree, Item.Value, "A_Const") then
-            (Present => True,
-             Value   => (Value => Internals.Field (Tree, Item.Value, "A_Const")))
          else (Present => False)));
 
    function View (Tree : Syntax_Tree; Item : Integer_Value_Reference) return Integer_Value is
@@ -4040,35 +3933,30 @@ package body Flyology.Postgres.SQL.V15 is
 
    function View (Tree : Syntax_Tree; Item : Float_Value_Reference) return Float_Value is
      (
-      Fval =>
-        (if Internals.Has_Field (Tree, Item.Value, "fval") then
+      Str =>
+        (if Internals.Has_Field (Tree, Item.Value, "str") then
             (Present => True,
-             Value   => To_Unbounded_String (Internals.String_Data (Tree, Internals.Field (Tree, Item.Value, "fval"))))
-         else (Present => False)));
-
-   function View (Tree : Syntax_Tree; Item : Boolean_Value_Reference) return Boolean_Value is
-     (
-      Boolval =>
-        (if Internals.Has_Field (Tree, Item.Value, "boolval") then
-            (Present => True,
-             Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "boolval")))
+             Value   => To_Unbounded_String (Internals.String_Data (Tree, Internals.Field (Tree, Item.Value, "str"))))
          else (Present => False)));
 
    function View (Tree : Syntax_Tree; Item : String_Value_Reference) return String_Value is
      (
-      Sval =>
-        (if Internals.Has_Field (Tree, Item.Value, "sval") then
+      Str =>
+        (if Internals.Has_Field (Tree, Item.Value, "str") then
             (Present => True,
-             Value   => To_Unbounded_String (Internals.String_Data (Tree, Internals.Field (Tree, Item.Value, "sval"))))
+             Value   => To_Unbounded_String (Internals.String_Data (Tree, Internals.Field (Tree, Item.Value, "str"))))
          else (Present => False)));
 
    function View (Tree : Syntax_Tree; Item : Bit_String_Value_Reference) return Bit_String_Value is
      (
-      Bsval =>
-        (if Internals.Has_Field (Tree, Item.Value, "bsval") then
+      Str =>
+        (if Internals.Has_Field (Tree, Item.Value, "str") then
             (Present => True,
-             Value   => To_Unbounded_String (Internals.String_Data (Tree, Internals.Field (Tree, Item.Value, "bsval"))))
+             Value   => To_Unbounded_String (Internals.String_Data (Tree, Internals.Field (Tree, Item.Value, "str"))))
          else (Present => False)));
+
+   function View (Tree : Syntax_Tree; Item : Field_Null_Reference) return Field_Null is
+     (null record);
 
    function View (Tree : Syntax_Tree; Item : Node_List_Value_Reference) return Node_List_Value is
      (
@@ -4093,44 +3981,6 @@ package body Flyology.Postgres.SQL.V15 is
            (if Internals.Has_Field (Tree, Item.Value, "items")
             then Internals.Field (Tree, Item.Value, "items")
             else No_Value)));
-
-   function View (Tree : Syntax_Tree; Item : A_Const_Reference) return A_Const is
-     (
-      Ival =>
-        (if Internals.Has_Field (Tree, Item.Value, "ival") then
-            (Present => True,
-             Value   => (Value => Internals.Field (Tree, Item.Value, "ival")))
-         else (Present => False)),
-      Fval =>
-        (if Internals.Has_Field (Tree, Item.Value, "fval") then
-            (Present => True,
-             Value   => (Value => Internals.Field (Tree, Item.Value, "fval")))
-         else (Present => False)),
-      Boolval =>
-        (if Internals.Has_Field (Tree, Item.Value, "boolval") then
-            (Present => True,
-             Value   => (Value => Internals.Field (Tree, Item.Value, "boolval")))
-         else (Present => False)),
-      Sval =>
-        (if Internals.Has_Field (Tree, Item.Value, "sval") then
-            (Present => True,
-             Value   => (Value => Internals.Field (Tree, Item.Value, "sval")))
-         else (Present => False)),
-      Bsval =>
-        (if Internals.Has_Field (Tree, Item.Value, "bsval") then
-            (Present => True,
-             Value   => (Value => Internals.Field (Tree, Item.Value, "bsval")))
-         else (Present => False)),
-      Isnull =>
-        (if Internals.Has_Field (Tree, Item.Value, "isnull") then
-            (Present => True,
-             Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "isnull")))
-         else (Present => False)),
-      Location =>
-        (if Internals.Has_Field (Tree, Item.Value, "location") then
-            (Present => True,
-             Value   => Interfaces.Integer_32 (Internals.Signed_Data (Tree, Internals.Field (Tree, Item.Value, "location"))))
-         else (Present => False)));
 
    function View (Tree : Syntax_Tree; Item : Alias_Reference) return Alias is
      (
@@ -4251,6 +4101,9 @@ package body Flyology.Postgres.SQL.V15 is
              Value   => Interfaces.Integer_32 (Internals.Signed_Data (Tree, Internals.Field (Tree, Item.Value, "location"))))
          else (Present => False)));
 
+   function View (Tree : Syntax_Tree; Item : Expr_Reference) return Expr is
+     (null record);
+
    function View (Tree : Syntax_Tree; Item : Var_Reference) return Var is
      (
       Xpr =>
@@ -4261,7 +4114,7 @@ package body Flyology.Postgres.SQL.V15 is
       Varno =>
         (if Internals.Has_Field (Tree, Item.Value, "varno") then
             (Present => True,
-             Value   => Interfaces.Integer_32 (Internals.Signed_Data (Tree, Internals.Field (Tree, Item.Value, "varno"))))
+             Value   => Interfaces.Unsigned_32 (Internals.Unsigned_Data (Tree, Internals.Field (Tree, Item.Value, "varno"))))
          else (Present => False)),
       Varattno =>
         (if Internals.Has_Field (Tree, Item.Value, "varattno") then
@@ -4835,11 +4688,6 @@ package body Flyology.Postgres.SQL.V15 is
         (if Internals.Has_Field (Tree, Item.Value, "hashfuncid") then
             (Present => True,
              Value   => Interfaces.Unsigned_32 (Internals.Unsigned_Data (Tree, Internals.Field (Tree, Item.Value, "hashfuncid"))))
-         else (Present => False)),
-      Negfuncid =>
-        (if Internals.Has_Field (Tree, Item.Value, "negfuncid") then
-            (Present => True,
-             Value   => Interfaces.Unsigned_32 (Internals.Unsigned_Data (Tree, Internals.Field (Tree, Item.Value, "negfuncid"))))
          else (Present => False)),
       Use_Or =>
         (if Internals.Has_Field (Tree, Item.Value, "useOr") then
@@ -5997,39 +5845,6 @@ package body Flyology.Postgres.SQL.V15 is
              Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "skipData")))
          else (Present => False)));
 
-   function View (Tree : Syntax_Tree; Item : Merge_Action_Reference) return Merge_Action is
-     (
-      Matched =>
-        (if Internals.Has_Field (Tree, Item.Value, "matched") then
-            (Present => True,
-             Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "matched")))
-         else (Present => False)),
-      Command_Type =>
-        (if Internals.Has_Field (Tree, Item.Value, "commandType") then
-            (Present => True,
-             Value   => Decode_Cmd_Type (Tree, Internals.Field (Tree, Item.Value, "commandType")))
-         else (Present => False)),
-      Override =>
-        (if Internals.Has_Field (Tree, Item.Value, "override") then
-            (Present => True,
-             Value   => Decode_Overriding_Kind (Tree, Internals.Field (Tree, Item.Value, "override")))
-         else (Present => False)),
-      Qual =>
-        (if Internals.Has_Field (Tree, Item.Value, "qual") then
-            (Present => True,
-             Value   => (Value => Internals.Field (Tree, Item.Value, "qual")))
-         else (Present => False)),
-      Target_List =>
-        (Value =>
-           (if Internals.Has_Field (Tree, Item.Value, "targetList")
-            then Internals.Field (Tree, Item.Value, "targetList")
-            else No_Value)),
-      Update_Colnos =>
-        (Value =>
-           (if Internals.Has_Field (Tree, Item.Value, "updateColnos")
-            then Internals.Field (Tree, Item.Value, "updateColnos")
-            else No_Value)));
-
    function View (Tree : Syntax_Tree; Item : Raw_Stmt_Reference) return Raw_Stmt is
      (
       Statement =>
@@ -6139,16 +5954,6 @@ package body Flyology.Postgres.SQL.V15 is
         (if Internals.Has_Field (Tree, Item.Value, "jointree") then
             (Present => True,
              Value   => (Value => Internals.Field (Tree, Item.Value, "jointree")))
-         else (Present => False)),
-      Merge_Action_List =>
-        (Value =>
-           (if Internals.Has_Field (Tree, Item.Value, "mergeActionList")
-            then Internals.Field (Tree, Item.Value, "mergeActionList")
-            else No_Value)),
-      Merge_Use_Outer_Join =>
-        (if Internals.Has_Field (Tree, Item.Value, "mergeUseOuterJoin") then
-            (Present => True,
-             Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "mergeUseOuterJoin")))
          else (Present => False)),
       Target_List =>
         (Value =>
@@ -6343,34 +6148,6 @@ package body Flyology.Postgres.SQL.V15 is
         (Value =>
            (if Internals.Has_Field (Tree, Item.Value, "returningList")
             then Internals.Field (Tree, Item.Value, "returningList")
-            else No_Value)),
-      With_Clause =>
-        (if Internals.Has_Field (Tree, Item.Value, "withClause") then
-            (Present => True,
-             Value   => (Value => Internals.Field (Tree, Item.Value, "withClause")))
-         else (Present => False)));
-
-   function View (Tree : Syntax_Tree; Item : Merge_Stmt_Reference) return Merge_Stmt is
-     (
-      Relation =>
-        (if Internals.Has_Field (Tree, Item.Value, "relation") then
-            (Present => True,
-             Value   => (Value => Internals.Field (Tree, Item.Value, "relation")))
-         else (Present => False)),
-      Source_Relation =>
-        (if Internals.Has_Field (Tree, Item.Value, "sourceRelation") then
-            (Present => True,
-             Value   => (Value => Internals.Field (Tree, Item.Value, "sourceRelation")))
-         else (Present => False)),
-      Join_Condition =>
-        (if Internals.Has_Field (Tree, Item.Value, "joinCondition") then
-            (Present => True,
-             Value   => (Value => Internals.Field (Tree, Item.Value, "joinCondition")))
-         else (Present => False)),
-      Merge_When_Clauses =>
-        (Value =>
-           (if Internals.Has_Field (Tree, Item.Value, "mergeWhenClauses")
-            then Internals.Field (Tree, Item.Value, "mergeWhenClauses")
             else No_Value)),
       With_Clause =>
         (if Internals.Has_Field (Tree, Item.Value, "withClause") then
@@ -7086,11 +6863,6 @@ package body Flyology.Postgres.SQL.V15 is
         (if Internals.Has_Field (Tree, Item.Value, "unique") then
             (Present => True,
              Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "unique")))
-         else (Present => False)),
-      Nulls_Not_Distinct =>
-        (if Internals.Has_Field (Tree, Item.Value, "nulls_not_distinct") then
-            (Present => True,
-             Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "nulls_not_distinct")))
          else (Present => False)),
       Primary =>
         (if Internals.Has_Field (Tree, Item.Value, "primary") then
@@ -7831,14 +7603,6 @@ package body Flyology.Postgres.SQL.V15 is
            (if Internals.Has_Field (Tree, Item.Value, "options")
             then Internals.Field (Tree, Item.Value, "options")
             else No_Value)));
-
-   function View (Tree : Syntax_Tree; Item : Alter_Database_Refresh_Coll_Stmt_Reference) return Alter_Database_Refresh_Coll_Stmt is
-     (
-      Dbname =>
-        (if Internals.Has_Field (Tree, Item.Value, "dbname") then
-            (Present => True,
-             Value   => To_Unbounded_String (Internals.String_Data (Tree, Internals.Field (Tree, Item.Value, "dbname"))))
-         else (Present => False)));
 
    function View (Tree : Syntax_Tree; Item : Alter_Database_Set_Stmt_Reference) return Alter_Database_Set_Stmt is
      (
@@ -8867,10 +8631,10 @@ package body Flyology.Postgres.SQL.V15 is
            (if Internals.Has_Field (Tree, Item.Value, "options")
             then Internals.Field (Tree, Item.Value, "options")
             else No_Value)),
-      Pubobjects =>
+      Tables =>
         (Value =>
-           (if Internals.Has_Field (Tree, Item.Value, "pubobjects")
-            then Internals.Field (Tree, Item.Value, "pubobjects")
+           (if Internals.Has_Field (Tree, Item.Value, "tables")
+            then Internals.Field (Tree, Item.Value, "tables")
             else No_Value)),
       For_All_Tables =>
         (if Internals.Has_Field (Tree, Item.Value, "for_all_tables") then
@@ -8890,20 +8654,20 @@ package body Flyology.Postgres.SQL.V15 is
            (if Internals.Has_Field (Tree, Item.Value, "options")
             then Internals.Field (Tree, Item.Value, "options")
             else No_Value)),
-      Pubobjects =>
+      Tables =>
         (Value =>
-           (if Internals.Has_Field (Tree, Item.Value, "pubobjects")
-            then Internals.Field (Tree, Item.Value, "pubobjects")
+           (if Internals.Has_Field (Tree, Item.Value, "tables")
+            then Internals.Field (Tree, Item.Value, "tables")
             else No_Value)),
       For_All_Tables =>
         (if Internals.Has_Field (Tree, Item.Value, "for_all_tables") then
             (Present => True,
              Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "for_all_tables")))
          else (Present => False)),
-      Action =>
-        (if Internals.Has_Field (Tree, Item.Value, "action") then
+      Table_Action =>
+        (if Internals.Has_Field (Tree, Item.Value, "tableAction") then
             (Present => True,
-             Value   => Decode_Alter_Publication_Action (Tree, Internals.Field (Tree, Item.Value, "action")))
+             Value   => Decode_Def_Elem_Action (Tree, Internals.Field (Tree, Item.Value, "tableAction")))
          else (Present => False)));
 
    function View (Tree : Syntax_Tree; Item : Create_Subscription_Stmt_Reference) return Create_Subscription_Stmt is
@@ -9104,6 +8868,19 @@ package body Flyology.Postgres.SQL.V15 is
         (if Internals.Has_Field (Tree, Item.Value, "number") then
             (Present => True,
              Value   => Interfaces.Integer_32 (Internals.Signed_Data (Tree, Internals.Field (Tree, Item.Value, "number"))))
+         else (Present => False)),
+      Location =>
+        (if Internals.Has_Field (Tree, Item.Value, "location") then
+            (Present => True,
+             Value   => Interfaces.Integer_32 (Internals.Signed_Data (Tree, Internals.Field (Tree, Item.Value, "location"))))
+         else (Present => False)));
+
+   function View (Tree : Syntax_Tree; Item : A_Const_Reference) return A_Const is
+     (
+      Val =>
+        (if Internals.Has_Field (Tree, Item.Value, "val") then
+            (Present => True,
+             Value   => (Value => Internals.Field (Tree, Item.Value, "val")))
          else (Present => False)),
       Location =>
         (if Internals.Has_Field (Tree, Item.Value, "location") then
@@ -9758,11 +9535,6 @@ package body Flyology.Postgres.SQL.V15 is
             (Present => True,
              Value   => To_Unbounded_String (Internals.String_Data (Tree, Internals.Field (Tree, Item.Value, "generated_when"))))
          else (Present => False)),
-      Nulls_Not_Distinct =>
-        (if Internals.Has_Field (Tree, Item.Value, "nulls_not_distinct") then
-            (Present => True,
-             Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "nulls_not_distinct")))
-         else (Present => False)),
       Keys =>
         (Value =>
            (if Internals.Has_Field (Tree, Item.Value, "keys")
@@ -9838,11 +9610,6 @@ package body Flyology.Postgres.SQL.V15 is
             (Present => True,
              Value   => To_Unbounded_String (Internals.String_Data (Tree, Internals.Field (Tree, Item.Value, "fk_del_action"))))
          else (Present => False)),
-      Fk_Del_Set_Cols =>
-        (Value =>
-           (if Internals.Has_Field (Tree, Item.Value, "fk_del_set_cols")
-            then Internals.Field (Tree, Item.Value, "fk_del_set_cols")
-            else No_Value)),
       Old_Conpfeqop =>
         (Value =>
            (if Internals.Has_Field (Tree, Item.Value, "old_conpfeqop")
@@ -10247,11 +10014,6 @@ package body Flyology.Postgres.SQL.V15 is
             (Present => True,
              Value   => (Value => Internals.Field (Tree, Item.Value, "endOffset")))
          else (Present => False)),
-      Run_Condition =>
-        (Value =>
-           (if Internals.Has_Field (Tree, Item.Value, "runCondition")
-            then Internals.Field (Tree, Item.Value, "runCondition")
-            else No_Value)),
       Start_In_Range_Func =>
         (if Internals.Has_Field (Tree, Item.Value, "startInRangeFunc") then
             (Present => True,
@@ -10675,39 +10437,6 @@ package body Flyology.Postgres.SQL.V15 is
             then Internals.Field (Tree, Item.Value, "ctecolcollations")
             else No_Value)));
 
-   function View (Tree : Syntax_Tree; Item : Merge_When_Clause_Reference) return Merge_When_Clause is
-     (
-      Matched =>
-        (if Internals.Has_Field (Tree, Item.Value, "matched") then
-            (Present => True,
-             Value   => Internals.Boolean_Data (Tree, Internals.Field (Tree, Item.Value, "matched")))
-         else (Present => False)),
-      Command_Type =>
-        (if Internals.Has_Field (Tree, Item.Value, "commandType") then
-            (Present => True,
-             Value   => Decode_Cmd_Type (Tree, Internals.Field (Tree, Item.Value, "commandType")))
-         else (Present => False)),
-      Override =>
-        (if Internals.Has_Field (Tree, Item.Value, "override") then
-            (Present => True,
-             Value   => Decode_Overriding_Kind (Tree, Internals.Field (Tree, Item.Value, "override")))
-         else (Present => False)),
-      Condition =>
-        (if Internals.Has_Field (Tree, Item.Value, "condition") then
-            (Present => True,
-             Value   => (Value => Internals.Field (Tree, Item.Value, "condition")))
-         else (Present => False)),
-      Target_List =>
-        (Value =>
-           (if Internals.Has_Field (Tree, Item.Value, "targetList")
-            then Internals.Field (Tree, Item.Value, "targetList")
-            else No_Value)),
-      Values =>
-        (Value =>
-           (if Internals.Has_Field (Tree, Item.Value, "values")
-            then Internals.Field (Tree, Item.Value, "values")
-            else No_Value)));
-
    function View (Tree : Syntax_Tree; Item : Role_Spec_Reference) return Role_Spec is
      (
       Roletype =>
@@ -10887,47 +10616,6 @@ package body Flyology.Postgres.SQL.V15 is
             then Internals.Field (Tree, Item.Value, "va_cols")
             else No_Value)));
 
-   function View (Tree : Syntax_Tree; Item : Publication_Obj_Spec_Reference) return Publication_Obj_Spec is
-     (
-      Pubobjtype =>
-        (if Internals.Has_Field (Tree, Item.Value, "pubobjtype") then
-            (Present => True,
-             Value   => Decode_Publication_Obj_Spec_Type (Tree, Internals.Field (Tree, Item.Value, "pubobjtype")))
-         else (Present => False)),
-      Name =>
-        (if Internals.Has_Field (Tree, Item.Value, "name") then
-            (Present => True,
-             Value   => To_Unbounded_String (Internals.String_Data (Tree, Internals.Field (Tree, Item.Value, "name"))))
-         else (Present => False)),
-      Pubtable =>
-        (if Internals.Has_Field (Tree, Item.Value, "pubtable") then
-            (Present => True,
-             Value   => (Value => Internals.Field (Tree, Item.Value, "pubtable")))
-         else (Present => False)),
-      Location =>
-        (if Internals.Has_Field (Tree, Item.Value, "location") then
-            (Present => True,
-             Value   => Interfaces.Integer_32 (Internals.Signed_Data (Tree, Internals.Field (Tree, Item.Value, "location"))))
-         else (Present => False)));
-
-   function View (Tree : Syntax_Tree; Item : Publication_Table_Reference) return Publication_Table is
-     (
-      Relation =>
-        (if Internals.Has_Field (Tree, Item.Value, "relation") then
-            (Present => True,
-             Value   => (Value => Internals.Field (Tree, Item.Value, "relation")))
-         else (Present => False)),
-      Where_Clause =>
-        (if Internals.Has_Field (Tree, Item.Value, "whereClause") then
-            (Present => True,
-             Value   => (Value => Internals.Field (Tree, Item.Value, "whereClause")))
-         else (Present => False)),
-      Columns =>
-        (Value =>
-           (if Internals.Has_Field (Tree, Item.Value, "columns")
-            then Internals.Field (Tree, Item.Value, "columns")
-            else No_Value)));
-
    function View (Tree : Syntax_Tree; Item : Inline_Code_Block_Reference) return Inline_Code_Block is
      (
       Source_Text =>
@@ -10967,4 +10655,4 @@ package body Flyology.Postgres.SQL.V15 is
      (Tree : Syntax_Tree; Item : Raw_Stmt_Reference) return Node_Reference is
      (View (Tree, Item).Statement.Value);
 
-end Flyology.Postgres.SQL.V15;
+end Flyology.Postgres.SQL.Views.V14;

@@ -3,10 +3,11 @@ with Interfaces; use Interfaces;
 
 with Flyology.Postgres.SQL.Decoders; use Flyology.Postgres.SQL.Decoders;
 with Flyology.Postgres.SQL.Decoder_V18;
-with Flyology.Postgres.SQL.V18;
+with Flyology.Postgres.SQL.Views.V18;
 
 package body Flyology.Postgres.SQL.Decoder_Testing is
 
+   package V18 renames Flyology.Postgres.SQL.Views.V18;
    use type V18.Node_Kind;
 
    type Byte_Array is array (Positive range <>) of aliased Unsigned_8;
