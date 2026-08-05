@@ -1,0 +1,30 @@
+.model-note-native .model-direction {
+  color: var(--teal-deep);
+}
+
+.model-note-native[aria-pressed="true"] {
+  border-color: color-mix(in oklch, var(--teal) 68%, var(--line));
+  background: color-mix(in oklch, var(--paper) 92%, var(--teal));
+}
+
+.code-window .hero-code-sample {
+  min-height: 11.5rem;
+}
+
+.io-band {
+  background: var(--violet-deep);
+}
+
+.io-band .eyebrow {
+  color: var(--ink-soft);
+}
+
+.io-band .eyebrow::before {
+  background: linear-gradient(90deg, var(--violet) 50%, var(--teal) 50%);
+}
+
+@media (max-width: 640px) {
+  .hero-visual {
+    min-height: 29rem;
+  }
+}
