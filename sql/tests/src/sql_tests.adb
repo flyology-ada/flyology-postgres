@@ -12,6 +12,7 @@ with Flyology.Postgres.SQL.V17;
 with Flyology.Postgres.SQL.V18;
 with Flyology.Postgres.Types;
 with Flyology.Postgres.Types.V18;
+with Owned_AST_Tests;
 
 procedure SQL_Tests is
 
@@ -363,6 +364,8 @@ begin
    Test_Every_Typed_Root;
    Ada.Text_IO.Put_Line ("Test_Complex_Record_Views");
    Test_Complex_Record_Views;
+   Ada.Text_IO.Put_Line ("Test_Owned_ASTs");
+   Owned_AST_Tests.Run;
    Ada.Text_IO.Put_Line ("Test_Catalog_Types");
    Test_Catalog_Types;
    Ada.Text_IO.Put_Line ("All PostgreSQL SQL parser tests passed");

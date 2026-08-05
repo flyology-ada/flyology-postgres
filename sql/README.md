@@ -79,6 +79,64 @@ supported operation. Scalar, enum, and owned text components already copied
 into a view remain ordinary Ada values, but references and sequences contained
 in that view retain the tree lifetime rule.
 
+## Fully owned Ada ASTs
+
+`Flyology.Postgres.SQL.AST.V14` through `AST.V18` provide a second output from
+the same native parser. These packages materialize the shallow arena into an
+ordinary, recursively navigable Ada object graph:
+
+- every reachable protobuf message is a generated public record;
+- `Node` is a generated discriminated record whose variant embeds the concrete
+  PostgreSQL node record;
+- optional fields retain their generated `Present` discriminant;
+- repeated fields are typed `Ada.Containers.Vectors`;
+- strings are owned `Unbounded_String` values; and
+- recursive fields are typed Ada access values such as `Node_Access` and
+  `Select_Stmt_Access`.
+
+An `Owned_Syntax_Tree` is limited and controlled. It owns the complete graph,
+releases it on `Clear`, replacement, or finalization, and is independent of the
+flat `Syntax_Tree` after `Materialize` returns. The access values and vectors in
+its records remain valid until that owning tree is cleared, parsed into again,
+or finalized. Consumers must not deallocate or graft those access values into a
+different owner.
+
+```ada
+with Flyology.Postgres.SQL.AST.V18;
+
+declare
+   package AST renames Flyology.Postgres.SQL.AST.V18;
+
+   Tree : AST.Owned_Syntax_Tree;
+begin
+   AST.Parse
+     ("WITH recent AS (SELECT id FROM events) SELECT id FROM recent",
+      Tree);
+
+   if Tree.Valid then
+      declare
+         Item : constant AST.Node_Access :=
+           Tree.Root.Statements.Element (1).Statement.Value;
+         Selection : constant AST.Select_Stmt :=
+           Item.Select_Stmt_Payload;
+         CTE : constant AST.Node_Access :=
+           Selection.With_Clause.Value.Ctes.Element (1);
+      begin
+         --  Navigation uses ordinary record field notation and vector methods.
+         if CTE.Kind = AST.Node_Common_Table_Expr then
+            null;
+         end if;
+      end;
+   end if;
+end;
+```
+
+`Materialize` is useful when both representations are needed. The versioned
+`AST.Parse` convenience procedure otherwise parses with the production native
+Ada parser and immediately returns only the owned form. The C/libpg_query
+backends remain validation oracles and are not used by either production
+output.
+
 ## Version and option behavior
 
 Pass the required `Major_Version` to `Parse`, then use the matching `V14`–`V18`
@@ -148,7 +206,7 @@ SHA-256 values and source URLs are recorded under `catalog/v*/UPSTREAM.toml`.
 
 ## Reproducible generation
 
-The generated `V14`–`V18` units are never edited by hand. Four generators form
+The generated `V14`–`V18` units are never edited by hand. Five generators form
 the parser and AST toolchain:
 
 - `generate_native_parser.py` extracts the version's Bison tables and token
@@ -162,6 +220,9 @@ the parser and AST toolchain:
 - `generate_ada.py` reads `pg_query.proto`, computes every message and enum
   reachable from `ParseResult` and `Node`, and emits the public shallow views
   and the private protobuf decoder used by the C oracle.
+- `generate_owned_ast.py` uses that same reachable schema to emit every owned
+  record, discriminated node variant, optional and vector type, arena-to-record
+  converter, and graph finalizer for `AST.V14` through `AST.V18`.
 
 The native tables and reductions come from the exact generated `gram.c` and
 `scan.c` shipped by the pinned `libpg_query` extraction, including its required
@@ -180,6 +241,11 @@ python3 tools/generate_ada.py \
 python3 tools/generate_types.py \
   --major 18 \
   --catalog catalog/v18/pg_type.dat \
+  --output src
+
+python3 tools/generate_owned_ast.py \
+  --major 18 \
+  --proto backends/v18/vendor/pg_query.proto \
   --output src
 
 python3 tools/generate_native_parser.py \
@@ -221,8 +287,9 @@ cd sql/tests
 
 The tests cover the native scanner, parser tables, semantic builder and
 generated reductions; every protobuf scalar encoding and malformed wire case
-used by the oracle; all five typed roots; field notation, optionals, sequences,
-nested references, enum fields, and diagnostics. The differential corpus
+used by the oracle; all five shallow and owned typed roots; field notation,
+optionals, vectors, nested owned nodes, enum fields, ownership replacement, and
+diagnostics. The differential corpus
 includes empty and multi-statement inputs, quoted identifiers, Unicode,
 comments, dollar and escape strings, embedded NUL rejection, invalid SQL, and
 representative SELECT, CTE, join, expression, MERGE, DML, DDL, and utility
@@ -230,6 +297,7 @@ statements across all applicable majors. The SQL crate and generated units
 compile with strict Ada 2022 switches. The earlier JSON/protobuf migration is
 recorded in `tests/PROTOBUF_MIGRATION.md`.
 
-This is the Phase 1 output: the native parser populates the existing limited,
-arena-owning `Syntax_Tree` and its public shallow record views. A separate,
-fully owned recursive Ada record AST is deliberately outside this phase.
+The shallow arena is the compact production representation and conversion
+source. The owned AST is the natural-navigation representation for consumers
+that prefer ordinary Ada records and accept the allocation cost of a recursive
+object graph.

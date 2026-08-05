@@ -7,6 +7,11 @@ for version in 14 15 16 17 18; do
     --proto "../backends/v$version/vendor/pg_query.proto" \
     --output ../src \
     --check
+  python3 ../tools/generate_owned_ast.py \
+    --major "$version" \
+    --proto "../backends/v$version/vendor/pg_query.proto" \
+    --output ../src \
+    --check
   python3 ../tools/generate_types.py \
     --major "$version" \
     --catalog "../catalog/v$version/pg_type.dat" \
