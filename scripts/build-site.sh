@@ -3,6 +3,13 @@ set -eu
 
 project_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 site_output="$project_root/build/site"
+website_kit="$project_root/vendor/website-kit"
+
+if [ ! -f "$website_kit/scripts/install-assets.mjs" ]; then
+   printf '%s\n' \
+     "website kit is unavailable; run: git submodule update --init" >&2
+   exit 1
+fi
 
 case "$site_output" in
    "$project_root"/build/site) ;;
@@ -16,6 +23,7 @@ rm -rf "$site_output"
 mkdir -p "$site_output/assets" "$site_output/api"
 
 cp -R "$project_root/website/." "$site_output/"
+node "$website_kit/scripts/install-assets.mjs" "$site_output"
 cp -R "$project_root/assets/brand" "$site_output/assets/brand"
 
 asset_version=${GITHUB_SHA:-$(git -C "$project_root" rev-parse HEAD)}
@@ -24,6 +32,7 @@ for page in "$site_output/index.html" "$site_output/guide/index.html"; do
    versioned_page="$page.versioned"
    sed \
       -e "s|site.css\"|site.css?v=$asset_version\"|g" \
+      -e "s|postgres.css\"|postgres.css?v=$asset_version\"|g" \
       -e "s|ada-highlight.js\"|ada-highlight.js?v=$asset_version\"|g" \
       -e "s|site.js\"|site.js?v=$asset_version\"|g" \
       "$page" > "$versioned_page"

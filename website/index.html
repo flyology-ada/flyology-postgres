@@ -9,6 +9,7 @@
     <link rel="canonical" href="https://postgres.flyology.org/">
     <link rel="icon" href="assets/brand/flyology-primary-icon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="assets/styles/site.css">
+    <link rel="stylesheet" href="assets/styles/postgres.css">
     <script src="assets/scripts/ada-highlight.js"></script>
     <script src="assets/scripts/site.js"></script>
   </head>
@@ -59,18 +60,18 @@
           </div>
         </div>
 
-        <div class="hero-visual" aria-label="A Postgres exchange: frontend commands move from client to server, then backend rows and status events return from server to client">
+        <div class="hero-visual" data-code-preview aria-label="A Postgres exchange: frontend commands move from client to server, then backend rows and status events return from server to client">
           <div class="orbit" aria-hidden="true">
             <div class="orbit-ring"></div>
             <img class="orbit-mark" src="assets/brand/flyology-mark-transparent.svg" alt="">
           </div>
           <div class="model-switcher" role="group" aria-label="Preview a Postgres protocol direction">
-            <button class="model-note model-note-light" type="button" data-model-sample="frontend" data-model-file="client.adb" aria-pressed="true" aria-controls="hero-code-preview">
+            <button class="model-note model-note-light" type="button" data-preview-sample="frontend" data-preview-file="client.adb" aria-pressed="true" aria-controls="hero-code-preview">
               <strong>Frontend</strong>
               <span class="model-direction">Client → server</span>
               Send queries, prepared statements, and COPY streams.
             </button>
-            <button class="model-note model-note-native" type="button" data-model-sample="backend" data-model-file="server.adb" aria-pressed="false" aria-controls="hero-code-preview">
+            <button class="model-note model-note-native" type="button" data-preview-sample="backend" data-preview-file="server.adb" aria-pressed="false" aria-controls="hero-code-preview">
               <strong>Backend</strong>
               <span class="model-direction">Server → client</span>
               Send rows, notices, errors, and readiness events.
@@ -79,13 +80,13 @@
           <div class="code-window" id="hero-code-preview">
             <div class="code-titlebar">
               <div class="window-dots" aria-hidden="true"><span></span><span></span><span></span></div>
-              <span data-model-filename aria-live="polite">client.adb</span>
+              <span data-preview-filename aria-live="polite">client.adb</span>
             </div>
-            <pre class="hero-code-sample" data-model-code="frontend"><code><span class="token-keyword">Client</span>.Send_Query
+            <pre class="hero-code-sample" data-preview-code="frontend"><code><span class="token-keyword">Client</span>.Send_Query
   (Session,
    <span class="token-string">"select id, value from items"</span>,
    Timeout => <span class="token-number">5.0</span>);</code></pre>
-            <pre class="hero-code-sample" data-model-code="backend" hidden><code><span class="token-keyword">Sessions</span>.Send_Data_Row
+            <pre class="hero-code-sample" data-preview-code="backend" hidden><code><span class="token-keyword">Sessions</span>.Send_Data_Row
   (Client, <span class="token-string">"Ada"</span>, Timeout => <span class="token-number">5.0</span>);
 
 <span class="token-keyword">Sessions</span>.Send_Command_Complete

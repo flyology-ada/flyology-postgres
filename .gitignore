@@ -4,6 +4,7 @@
 /config/
 /build/
 /docs/api/
+/docs/gnatdoc/html/
 /tests/.cache/
 /tests/tmp/
 /proof-status.md
