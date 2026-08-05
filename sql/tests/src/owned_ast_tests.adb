@@ -1,5 +1,6 @@
 with Ada.Containers;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
+with Ada.Text_IO;
 with AUnit.Assertions; use AUnit.Assertions;
 with Flyology.Postgres.SQL;
 with Flyology.Postgres.SQL.AST.V14;
@@ -7,6 +8,7 @@ with Flyology.Postgres.SQL.AST.V15;
 with Flyology.Postgres.SQL.AST.V16;
 with Flyology.Postgres.SQL.AST.V17;
 with Flyology.Postgres.SQL.AST.V18;
+with Interfaces;
 
 package body Owned_AST_Tests is
 
@@ -24,6 +26,7 @@ package body Owned_AST_Tests is
    use type AST_18.A_Expr_Kind;
    use type AST_18.Node_Kind;
    use type Ada.Containers.Count_Type;
+   use type Interfaces.Integer_32;
 
    function First_Node
      (Tree : AST_18.Owned_Syntax_Tree) return AST_18.Node_Access
@@ -41,12 +44,33 @@ package body Owned_AST_Tests is
       T16 : AST_16.Owned_Syntax_Tree;
       T17 : AST_17.Owned_Syntax_Tree;
       T18 : AST_18.Owned_Syntax_Tree;
+      D14 : AST_14.Owned_Syntax_Tree;
+      D15 : AST_15.Owned_Syntax_Tree;
+      D16 : AST_16.Owned_Syntax_Tree;
+      D17 : AST_17.Owned_Syntax_Tree;
+      D18 : AST_18.Owned_Syntax_Tree;
    begin
       AST_14.Parse ("SELECT 14", T14);
       AST_15.Parse ("SELECT 15", T15);
       AST_16.Parse ("SELECT 16", T16);
       AST_17.Parse ("SELECT 17", T17);
       AST_18.Parse ("SELECT 18", T18);
+      AST_14.Parse_Direct ("SELECT 14", D14);
+      AST_15.Parse_Direct ("SELECT 15", D15);
+      AST_16.Parse_Direct ("SELECT 16", D16);
+      AST_17.Parse_Direct ("SELECT 17", D17);
+      AST_18.Parse_Direct ("SELECT 18", D18);
+
+      Assert (AST_14.Equivalent (T14, D14),
+              "PostgreSQL 14 direct output equals Phase 2");
+      Assert (AST_15.Equivalent (T15, D15),
+              "PostgreSQL 15 direct output equals Phase 2");
+      Assert (AST_16.Equivalent (T16, D16),
+              "PostgreSQL 16 direct output equals Phase 2");
+      Assert (AST_17.Equivalent (T17, D17),
+              "PostgreSQL 17 direct output equals Phase 2");
+      Assert (AST_18.Equivalent (T18, D18),
+              "PostgreSQL 18 direct output equals Phase 2");
 
       Assert (T14.Valid and T14.Root.Statements.Length = 1,
               "PostgreSQL 14 produces an owned root");
@@ -245,12 +269,189 @@ package body Owned_AST_Tests is
               "explicit Clear is idempotent and leaves an empty owner");
    end Test_Ownership_And_Replacement;
 
+   procedure Test_Direct_Path is
+      Baseline : AST_18.Owned_Syntax_Tree;
+      Direct   : AST_18.Owned_Syntax_Tree;
+      Text     : constant String :=
+        "WITH active AS (SELECT id FROM accounts WHERE enabled) "
+        & "SELECT a.id FROM active AS a JOIN audit AS b ON a.id = b.id "
+        & "WHERE a.id > 10";
+   begin
+      AST_18.Parse (Text, Baseline);
+      AST_18.Parse_Direct (Text, Direct);
+      Assert (Direct.Valid, "direct semantic construction succeeds");
+      Assert
+        (AST_18.Equivalent (Baseline, Direct),
+         "every owned field matches the Phase 2 baseline");
+      Assert
+        (Direct.Root.Version.Present
+         and then Baseline.Root.Version.Present
+         and then Direct.Root.Version.Value = Baseline.Root.Version.Value,
+         "direct root retains the exact PostgreSQL version");
+      declare
+         Expected : constant AST_18.Select_Stmt :=
+           First_Node (Baseline).Select_Stmt_Payload;
+         Actual : constant AST_18.Select_Stmt :=
+           First_Node (Direct).Select_Stmt_Payload;
+      begin
+         Assert
+           (Actual.Target_List.Length = Expected.Target_List.Length,
+            "direct target sequence matches the Phase 2 baseline");
+         Assert
+           (Actual.From_Clause.Length = Expected.From_Clause.Length,
+            "direct FROM sequence matches the Phase 2 baseline");
+         Assert
+           (Actual.With_Clause.Present = Expected.With_Clause.Present,
+            "direct optional presence matches the Phase 2 baseline");
+         Assert
+           (Actual.Where_Clause.Present = Expected.Where_Clause.Present,
+            "direct expression presence matches the Phase 2 baseline");
+      end;
+   end Test_Direct_Path;
+
+   procedure Test_Direct_Corpus is
+      procedure Compare_14 (Text : String) is
+         Baseline, Direct : AST_14.Owned_Syntax_Tree;
+      begin
+         AST_14.Parse (Text, Baseline);
+         AST_14.Parse_Direct (Text, Direct);
+         Assert (AST_14.Equivalent (Baseline, Direct),
+                 "V14 direct AST differs for: " & Text);
+      end Compare_14;
+
+      procedure Compare_15 (Text : String) is
+         Baseline, Direct : AST_15.Owned_Syntax_Tree;
+      begin
+         AST_15.Parse (Text, Baseline);
+         AST_15.Parse_Direct (Text, Direct);
+         Assert (AST_15.Equivalent (Baseline, Direct),
+                 "V15 direct AST differs for: " & Text);
+      end Compare_15;
+
+      procedure Compare_16 (Text : String) is
+         Baseline, Direct : AST_16.Owned_Syntax_Tree;
+      begin
+         AST_16.Parse (Text, Baseline);
+         AST_16.Parse_Direct (Text, Direct);
+         Assert (AST_16.Equivalent (Baseline, Direct),
+                 "V16 direct AST differs for: " & Text);
+      end Compare_16;
+
+      procedure Compare_17 (Text : String) is
+         Baseline, Direct : AST_17.Owned_Syntax_Tree;
+      begin
+         AST_17.Parse (Text, Baseline);
+         AST_17.Parse_Direct (Text, Direct);
+         Assert (AST_17.Equivalent (Baseline, Direct),
+                 "V17 direct AST differs for: " & Text);
+      end Compare_17;
+
+      procedure Compare_18 (Text : String) is
+         Baseline, Direct : AST_18.Owned_Syntax_Tree;
+      begin
+         AST_18.Parse (Text, Baseline);
+         AST_18.Parse_Direct (Text, Direct);
+         Assert (AST_18.Equivalent (Baseline, Direct),
+                 "V18 direct AST differs for: " & Text);
+      end Compare_18;
+
+      procedure Compare_Common (Text : String) is
+      begin
+         Compare_14 (Text);
+         Compare_15 (Text);
+         Compare_16 (Text);
+         Compare_17 (Text);
+         Compare_18 (Text);
+      end Compare_Common;
+
+      Merge_SQL : constant String :=
+        "MERGE INTO inventory AS i USING changes AS c ON i.id = c.id "
+        & "WHEN MATCHED THEN UPDATE SET quantity = c.quantity "
+        & "WHEN NOT MATCHED THEN INSERT (id, quantity) "
+        & "VALUES (c.id, c.quantity)";
+   begin
+      Compare_Common ("");
+      Compare_Common ("SELECT 0, FALSE, NULL, 'é雪' AS text");
+      Compare_Common ("SELECT 1; SELECT 2;");
+      Compare_Common ("SELECT ""Mixed Case"" FROM ""Quoted Table""");
+      Compare_Common
+        ("-- leading" & ASCII.LF
+         & "SELECT /* nested /* block */ ok */ 42");
+      Compare_Common
+        ("WITH q AS (SELECT id FROM events) "
+         & "SELECT q.id FROM q JOIN audit a ON q.id = a.id WHERE q.id > 1");
+      Compare_Common ("SELECT E'line\n', U&'d\0061t\+000061'");
+      Compare_Common ("INSERT INTO t (a, b) VALUES (1, 'x') RETURNING a");
+      Compare_Common ("UPDATE t SET a = a + 1 WHERE b IS NOT NULL RETURNING *");
+      Compare_Common ("DELETE FROM t USING u WHERE t.id = u.id RETURNING t.id");
+      Compare_Common
+        ("CREATE TABLE direct_test "
+         & "(id bigint PRIMARY KEY, payload jsonb NOT NULL)");
+      Compare_Common
+        ("ALTER TABLE direct_test ADD COLUMN created_at timestamptz "
+         & "DEFAULT now()");
+      Compare_Common
+        ("CREATE INDEX ON direct_test ((payload->>'kind')) WHERE id > 0");
+      Compare_Common
+        ("EXPLAIN (ANALYZE false, VERBOSE true) SELECT * FROM direct_test");
+      Compare_Common ("COPY direct_test FROM STDIN WITH (FORMAT csv, HEADER true)");
+      Compare_Common ("SHOW search_path");
+      Compare_Common ("SET LOCAL work_mem = '16MB'");
+      Compare_Common ("BEGIN ISOLATION LEVEL SERIALIZABLE; COMMIT");
+      Compare_Common ("-- comment" & ASCII.LF & "SELECT $$dollar text$$");
+      Compare_Common ("SELECT 'unterminated");
+      Compare_Common ("SELECT $$unterminated");
+      Compare_Common ("SELECT /* unterminated");
+      Compare_Common ("SELECT FROM WHERE");
+      Compare_Common ("CREATE TABLE (");
+      Compare_Common ("SELECT foo.*.bar FROM foo");
+      Compare_Common ("SELECT 1" & Character'Val (0) & "SELECT 2");
+      Compare_15 (Merge_SQL);
+      Compare_16 (Merge_SQL);
+      Compare_17 (Merge_SQL);
+      Compare_18 (Merge_SQL);
+
+      declare
+         Baseline, Direct : AST_15.Owned_Syntax_Tree;
+         Options : constant SQL.Parse_Options :=
+           (Mode => SQL.Type_Name, others => <>);
+      begin
+         AST_15.Parse ("integer", Baseline, Options);
+         AST_15.Parse_Direct ("integer", Direct, Options);
+         Assert
+           (AST_15.Equivalent (Baseline, Direct),
+            "V15 direct AST differs in type-name parse mode");
+      end;
+
+      declare
+         Direct : AST_14.Owned_Syntax_Tree;
+         Raised : Boolean := False;
+      begin
+         begin
+            AST_14.Parse_Direct
+              ("integer", Direct, (Mode => SQL.Type_Name, others => <>));
+         exception
+            when SQL.Unsupported_Parse_Options =>
+               Raised := True;
+         end;
+         Assert (Raised, "V14 direct path rejects unsupported parse options");
+      end;
+   end Test_Direct_Corpus;
+
    procedure Run is
    begin
+      Ada.Text_IO.Put_Line ("  owned roots and direct equivalence");
       Test_Every_Version;
+      Ada.Text_IO.Put_Line ("  owned complex traversal");
       Test_Complex_Traversal;
+      Ada.Text_IO.Put_Line ("  owned presence");
       Test_Presence;
+      Ada.Text_IO.Put_Line ("  owned lifetime");
       Test_Ownership_And_Replacement;
+      Ada.Text_IO.Put_Line ("  owned direct complex equivalence");
+      Test_Direct_Path;
+      Ada.Text_IO.Put_Line ("  owned direct corpus equivalence");
+      Test_Direct_Corpus;
    end Run;
 
 end Owned_AST_Tests;

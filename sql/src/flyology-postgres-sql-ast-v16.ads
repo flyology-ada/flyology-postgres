@@ -4845,6 +4845,18 @@ package Flyology.Postgres.SQL.AST.V16 is
      (SQL     : String;
       Result  : in out Owned_Syntax_Tree;
       Options : Parse_Options := Default_Options);
+   --  Parse through the shallow arena, then materialize the owned tree.
+   --  This path is retained as the independent Phase 2 baseline.
+
+   procedure Parse_Direct
+     (SQL     : String;
+      Result  : in out Owned_Syntax_Tree;
+      Options : Parse_Options := Default_Options);
+   --  Parse native semantic values directly into the owned tree, without
+   --  constructing an intermediate public Syntax_Tree arena.
+
+   function Equivalent (Left, Right : Owned_Syntax_Tree) return Boolean;
+   --  Exhaustive generated structural comparison, including presence.
 
 private
 

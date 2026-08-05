@@ -17242,4 +17242,12 @@ package body Flyology.Postgres.SQL.AST.V15 is
       end if;
    end Parse;
 
+   procedure Parse_Direct
+     (SQL     : String;
+      Result  : in out Owned_Syntax_Tree;
+      Options : Parse_Options := Default_Options) is separate;
+
+   function Equivalent
+     (Left, Right : Owned_Syntax_Tree) return Boolean is separate;
+
 end Flyology.Postgres.SQL.AST.V15;

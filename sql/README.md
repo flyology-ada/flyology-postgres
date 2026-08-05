@@ -132,10 +132,30 @@ end;
 ```
 
 `Materialize` is useful when both representations are needed. The versioned
-`AST.Parse` convenience procedure otherwise parses with the production native
-Ada parser and immediately returns only the owned form. The C/libpg_query
-backends remain validation oracles and are not used by either production
-output.
+`AST.Parse` procedure is the Phase 2 path: it parses into the shallow arena and
+then materializes the owned form. `AST.Parse_Direct` is the Phase 3 path: it
+uses the same native scanner, LR engine, and generated reductions, but its
+schema-generated converter writes from the private semantic builder directly
+to the owned records. It never constructs an intermediate public
+`Syntax_Tree`.
+
+```ada
+declare
+   Tree : AST.Owned_Syntax_Tree;
+begin
+   AST.Parse_Direct ("SELECT id FROM events", Tree);
+   if Tree.Valid then
+      --  Tree.Root is the same fully owned record graph shown above.
+      null;
+   end if;
+end;
+```
+
+Both paths remain available while the direct path is validated. `Equivalent`
+is a generated exhaustive structural comparator used to check every record,
+node variant, optional discriminant, vector element, scalar, enum, diagnostic,
+and source/version field. The C/libpg_query backends remain validation oracles
+and are not used by either production output.
 
 ## Version and option behavior
 
@@ -165,6 +185,19 @@ SQL text
   -> private flat semantic arena
   -> generated protobuf-schema mapping
   -> public Syntax_Tree arena and shallow views
+```
+
+The direct-owned production pipeline shares the parsing front end but omits
+both public-arena stages:
+
+```text
+SQL text
+  -> generated Flex DFA scanner
+  -> compact generated LALR automaton interpreted by the Ada LR engine
+  -> generated Ada semantic reductions
+  -> private flat semantic builder
+  -> generated schema-aware owned converter
+  -> Owned_Syntax_Tree records
 ```
 
 The scanner implements PostgreSQL's start conditions, longest-match behavior,
@@ -206,7 +239,7 @@ SHA-256 values and source URLs are recorded under `catalog/v*/UPSTREAM.toml`.
 
 ## Reproducible generation
 
-The generated `V14`–`V18` units are never edited by hand. Five generators form
+The generated `V14`–`V18` units are never edited by hand. Seven generators form
 the parser and AST toolchain:
 
 - `generate_native_parser.py` extracts the version's Bison tables and token
@@ -223,6 +256,12 @@ the parser and AST toolchain:
 - `generate_owned_ast.py` uses that same reachable schema to emit every owned
   record, discriminated node variant, optional and vector type, arena-to-record
   converter, and graph finalizer for `AST.V14` through `AST.V18`.
+- `generate_direct_owned.py` combines the protobuf schema with Clang-derived
+  PostgreSQL node and enum definitions to emit the private-builder-to-owned
+  converter for every reachable message and all five majors.
+- `generate_owned_equivalence.py` emits the exhaustive structural comparator
+  used by differential tests; comparison logic therefore grows automatically
+  when an upstream field, message, or enum is added.
 
 The native tables and reductions come from the exact generated `gram.c` and
 `scan.c` shipped by the pinned `libpg_query` extraction, including its required
@@ -244,6 +283,17 @@ python3 tools/generate_types.py \
   --output src
 
 python3 tools/generate_owned_ast.py \
+  --major 18 \
+  --proto backends/v18/vendor/pg_query.proto \
+  --output src
+
+python3 tools/generate_direct_owned.py \
+  --major 18 \
+  --proto backends/v18/vendor/pg_query.proto \
+  --vendor backends/v18/vendor \
+  --output src
+
+python3 tools/generate_owned_equivalence.py \
   --major 18 \
   --proto backends/v18/vendor/pg_query.proto \
   --output src
@@ -289,7 +339,9 @@ The tests cover the native scanner, parser tables, semantic builder and
 generated reductions; every protobuf scalar encoding and malformed wire case
 used by the oracle; all five shallow and owned typed roots; field notation,
 optionals, vectors, nested owned nodes, enum fields, ownership replacement, and
-diagnostics. The differential corpus
+diagnostics. Each direct-owned result is exhaustively compared with the Phase 2
+arena-materialized result, which is itself checked against the version-pinned C
+oracle. The differential corpus
 includes empty and multi-statement inputs, quoted identifiers, Unicode,
 comments, dollar and escape strings, embedded NUL rejection, invalid SQL, and
 representative SELECT, CTE, join, expression, MERGE, DML, DDL, and utility
@@ -297,7 +349,27 @@ statements across all applicable majors. The SQL crate and generated units
 compile with strict Ada 2022 switches. The earlier JSON/protobuf migration is
 recorded in `tests/PROTOBUF_MIGRATION.md`.
 
-The shallow arena is the compact production representation and conversion
-source. The owned AST is the natural-navigation representation for consumers
-that prefer ordinary Ada records and accept the allocation cost of a recursive
-object graph.
+### Why the LR automaton remains compact data
+
+Expanding PostgreSQL's automaton into hand-written or generated per-state Ada
+branches was evaluated and rejected. A current major contains thousands of
+grammar reductions and hundreds of thousands of state/token decisions. The
+expanded source would be much larger, slower to compile, and less friendly to
+the instruction cache without changing the accepted language. Ayacc likewise
+generates an LR automaton represented by tables, so changing generators would
+not remove the numeric representation.
+
+The intentionally hand-written part is therefore the small Ada scanner/LR
+runtime and its safety checks; version-specific language data and semantic
+actions stay reproducibly generated from the pinned upstream grammar. This
+keeps exact PostgreSQL behavior reviewable and makes all version differences
+data rather than five drifting parser implementations. Replacing the imported
+Bison automaton remains possible only if an in-repository `gram.y`-to-LALR
+generator can reproduce it exactly; it is not a prerequisite for the native or
+direct-owned runtime paths.
+
+The shallow arena remains the compact production representation. The owned AST
+is the natural-navigation representation for consumers that prefer ordinary
+Ada records and accept the allocation cost of a recursive object graph; the
+direct path avoids paying for both representations when only the latter is
+needed.
