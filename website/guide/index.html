@@ -60,6 +60,7 @@
             <li><a href="#copy">Stream COPY</a></li>
             <li><a href="#cancel">Cancel work</a></li>
             <li><a href="#server">Build a server</a></li>
+            <li><a href="#parse-sql">Parse SQL</a></li>
             <li><a href="#examples">Run the examples</a></li>
             <li><a href="#boundaries">Boundaries</a></li>
           </ol>
@@ -263,8 +264,68 @@ end;
             <p><a href="../api/">Search the generated server and session API</a></p>
           </section>
 
-          <section id="examples">
+          <section id="parse-sql">
             <span class="step-label">STEP 09</span>
+            <h2>Parse SQL into versioned Ada records.</h2>
+            <p>The separate <code>flyology_postgres_sql</code> crate parses PostgreSQL 14 through 18 syntax with a native Ada parser generated from each pinned upstream grammar. Choose the package matching the PostgreSQL major whose syntax you accept. For ordinary application code, use the owned AST package.</p>
+            <figure class="code-panel">
+              <figcaption>add the SQL parser crate</figcaption>
+              <button class="copy-button" type="button" data-copy>Copy</button>
+              <pre><code>alr with flyology_postgres_sql</code></pre>
+            </figure>
+            <figure class="code-panel">
+              <figcaption>parse and inspect a PostgreSQL 18 SELECT</figcaption>
+              <button class="copy-button" type="button" data-copy>Copy</button>
+              <pre><code class="language-ada">with Flyology.Postgres.SQL.AST.V18;
+
+declare
+   package AST renames Flyology.Postgres.SQL.AST.V18;
+   Tree : AST.Owned_Syntax_Tree;
+begin
+   AST.Parse
+     ("SELECT id, payload FROM events WHERE archived = false",
+      Tree);
+
+   if Tree.Valid and then not Tree.Root.Statements.Is_Empty then
+      declare
+         Raw : constant AST.Raw_Stmt :=
+           Tree.Root.Statements.First_Element;
+      begin
+         if Raw.Statement.Present
+           and then Raw.Statement.Value.Kind = AST.Node_Select_Stmt
+         then
+            declare
+               Selection : constant AST.Select_Stmt :=
+                 Raw.Statement.Value.Select_Stmt_Payload;
+            begin
+               Inspect_Targets (Selection.Target_List);
+
+               if Selection.Where_Clause.Present then
+                  Inspect_Expression (Selection.Where_Clause.Value);
+               end if;
+            end;
+         end if;
+      end;
+   end if;
+end;</code></pre>
+            </figure>
+            <div class="decision-list">
+              <dl>
+                <div class="decision-row"><dt>Owned AST</dt><dd><code>SQL.AST.V14</code> through <code>V18</code> expose records, typed vectors, enums, access values, and explicit <code>Present</code> discriminants. This is the default API.</dd></div>
+                <div class="decision-row"><dt>Lifetime</dt><dd><code>Owned_Syntax_Tree</code> controls the complete graph. Do not retain its access values after clearing, reparsing, or finalizing that tree.</dd></div>
+                <div class="decision-row"><dt>Shallow views</dt><dd><code>SQL.Views.V14</code> through <code>V18</code> avoid the recursive object graph. Use them only when allocation pressure justifies resolving opaque references against their owning <code>Syntax_Tree</code>.</dd></div>
+                <div class="decision-row"><dt>Diagnostics</dt><dd>A failed owned parse leaves <code>Tree.Valid</code> false and records the message and cursor position in the owning tree.</dd></div>
+              </dl>
+            </div>
+            <aside class="callout callout-teal">
+              <span class="callout-symbol" aria-hidden="true">i</span>
+              <p>Normal parsing is pure Ada and does not load PostgreSQL, C, or protobuf code. Version-pinned C parsers remain test-only conformance oracles.</p>
+            </aside>
+            <p><a href="https://github.com/flyology-ada/flyology-postgres/tree/main/sql">Read the complete parser API and architecture guide</a></p>
+          </section>
+
+          <section id="examples">
+            <span class="step-label">STEP 10</span>
             <h2>Exercise both ends with the example crates.</h2>
             <p>The examples are independent nested Alire crates. <code>pgish</code> can require TLS from a configured certificate and key; <code>psqlish</code> supports verified TLS with separate certificate and connection host settings. Their integration uses an ephemeral CA in both directions.</p>
             <figure class="code-panel">
@@ -279,7 +340,7 @@ alr run</code></pre>
           </section>
 
           <section id="boundaries">
-            <span class="step-label">STEP 10</span>
+            <span class="step-label">STEP 11</span>
             <h2>Evaluate the current boundaries.</h2>
             <p>The library is experimental. Treat these constraints as part of its public contract, not as incidental implementation details.</p>
             <div class="decision-list">
