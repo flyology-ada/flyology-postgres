@@ -165,6 +165,14 @@ jobs:
             --add=git+https://github.com/flyology-ada/alire-index.git \
             --name=flyology \
             --before=community
+      - name: Cache SQL backend build
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: |
+            sql/backends/obj
+            sql/backends/lib
+          key: >-
+            sql-backends-v1-gnat-16.1.0-gprbuild-26.0.1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('sql/backends/**') }}
       - name: Run SQL parser tests
         working-directory: sql/tests
         run: |
