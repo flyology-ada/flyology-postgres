@@ -1,0 +1,17 @@
+name = "flyology_postgres_sql_v18_example"
+description = "Selective-build smoke test for the PostgreSQL 18 owned AST"
+version = "0.1.0-dev"
+
+authors = ["Yurii Rashkovskii"]
+maintainers = ["Yurii Rashkovskii <yrashk@gmail.com>"]
+maintainers-logins = ["yrashk"]
+licenses = "MIT OR Apache-2.0"
+
+executables = ["unregistered_views_example", "v18_owned_example"]
+project-files = ["v18_example.gpr"]
+
+[[depends-on]]
+flyology_postgres_sql_v18 = "*"
+
+[[pins]]
+flyology_postgres_sql_v18 = { path = ".." }

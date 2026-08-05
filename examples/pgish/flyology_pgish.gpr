@@ -1,5 +1,5 @@
 with "flyology_postgres.gpr";
-with "sql.gpr";
+with "sql_v18.gpr";
 with "config/flyology_pgish_config.gpr";
 
 project Flyology_Pgish is

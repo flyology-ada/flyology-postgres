@@ -21,10 +21,10 @@ flyology_postgres = "*"
 flyology_postgres = { path = "../.." }
 
 [[depends-on]]
-flyology_postgres_sql = "*"
+flyology_postgres_sql_v18 = "*"
 
 [[pins]]
-flyology_postgres_sql = { path = "../../sql" }
+flyology_postgres_sql_v18 = { path = "../../sql/v18" }
 
 [[actions]]
 type = "test"

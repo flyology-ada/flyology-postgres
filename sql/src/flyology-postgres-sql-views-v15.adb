@@ -2,6 +2,8 @@
 pragma Style_Checks ("M160");
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Flyology.Postgres.SQL.Internals;
+with Flyology.Postgres.SQL.Native.Backend_V15;
+pragma Elaborate_All (Flyology.Postgres.SQL.Native.Backend_V15);
 
 package body Flyology.Postgres.SQL.Views.V15 is
 

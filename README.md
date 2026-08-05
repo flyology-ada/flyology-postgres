@@ -60,14 +60,19 @@ ephemeral CA so `psqlish` and real `psql` exercise verified TLS against `pgish`.
 
 ## Versioned SQL parser and catalog types
 
-The nested [`flyology_postgres_sql`](sql/README.md) crate contains isolated
-native PostgreSQL 14–18 raw parsers and fully generated Ada 2022 syntax-tree
-APIs. The default `SQL.AST.V14`–`V18` packages return fully owned, naturally
-navigable Ada records. Allocation-sensitive consumers can explicitly select
-the flat-arena `SQL.Views.V14`–`V18` API. Both retain discriminated optionals,
-exact-width scalars, generated enums, and owned text. Generated catalog layers
-also expose built-in PostgreSQL type metadata and OID constants for every
-supported major.
+The nested SQL crates contain isolated native PostgreSQL 14–18 raw parsers and
+fully generated Ada 2022 syntax-tree APIs. Normal applications depend on a
+single `flyology_postgres_sql_vNN` crate, such as
+`flyology_postgres_sql_v18`; applications may combine several version crates,
+which link their shared core once. The `flyology_postgres_sql` crate remains the
+all-version compatibility umbrella. These build choices do not change the Ada
+package names. The default `SQL.AST.V14`–`V18` packages return fully owned,
+naturally navigable Ada records. Allocation-sensitive consumers can explicitly
+select the flat-arena `SQL.Views.V14`–`V18` API. Both retain discriminated
+optionals, exact-width scalars, generated enums, and owned text. Generated
+catalog layers also expose built-in PostgreSQL type metadata and OID constants
+for every supported major. See the [SQL guide](sql/README.md) for dependency
+and GPR examples.
 
 `pgish` validates input with the PostgreSQL 18 grammar before applying its
 deliberately bounded read-only evaluator subset.

@@ -6,6 +6,47 @@ tables, parser tables, semantic reductions, schema metadata, an Ada 2022
 syntax-tree API, and built-in type metadata. Consumer builds use checked-in
 source and do not access the network.
 
+## Selecting parser versions at build time
+
+Applications that use one PostgreSQL major should depend on its version crate,
+for example:
+
+```toml
+[[depends-on]]
+flyology_postgres_sql_v18 = "*"
+```
+
+and import `sql_v18.gpr` from their project. The Ada API remains
+`Flyology.Postgres.SQL.AST.V18`; selecting a crate changes the compilation
+closure, not the generated package names. Version crates share
+`flyology_postgres_sql_core`, so a V18-only build compiles the common scanner,
+LALR runtime, and semantic helpers once plus only the V18 grammar, schema, AST,
+views, visitors, and catalog metadata.
+
+The `flyology_postgres_sql` crate and `sql.gpr` remain the compatibility
+umbrella for applications that select PostgreSQL versions at runtime. They
+depend on all five version crates. V14 through V18 can also be combined by
+depending on just the desired version crates and importing their corresponding
+`sql_vNN.gpr` projects.
+
+```toml
+[[depends-on]]
+flyology_postgres_sql_v14 = "*"
+flyology_postgres_sql_v18 = "*"
+```
+
+```ada
+with "sql_v14.gpr";
+with "sql_v18.gpr";
+project My_Application is
+   --  with Flyology.Postgres.SQL.AST.V14 and AST.V18 from Ada sources.
+end My_Application;
+```
+
+Both version libraries import the same `sql_core.gpr`; GPR and Alire resolve
+that shared core once. The generated AST types remain deliberately distinct
+between majors.
+
 ## Owned Ada ASTs
 
 `Flyology.Postgres.SQL.AST.V14` through `AST.V18` are the primary consumer API.
@@ -204,6 +245,14 @@ begin
 end;
 ```
 
+Elaborating a versioned `Views.VNN` package registers that version with the
+generic `Views.Parse` dispatcher. An application using the all-version umbrella
+but dispatching only through the unversioned `Views` package should also add a
+context clause for `Flyology.Postgres.SQL.All_Versions`; elaborating that
+package registers all five backends. Calling generic `Views.Parse` for a backend
+that was not linked and registered raises `Parser_Backend_Error` with an
+actionable message—it never falls back to another PostgreSQL grammar.
+
 Every non-repeated field has a definite discriminated `Optional_*` wrapper.
 Repeated fields appear directly as typed sequence handles. Scalars and enums
 are ordinary Ada values, strings are owned `Unbounded_String` values, and child
@@ -378,6 +427,13 @@ python3 tools/generate_native_schema.py \
 All parser/AST generators accept `--check`; the test action checks deterministic
 output for all five versions before compiling and running traversal and
 differential tests.
+
+`tools/generate_build_layout.py` generates the version registration adapters
+and the complete deterministic GPR source lists for the shared core, V14–V18,
+and compatibility umbrella. Its classifier uses stable `_vNN`/`-vNN` filename
+markers; version-neutral generated action catalogs and runtime units belong to
+the core. Run it with `--check` to detect an unclassified or stale project
+layout without rewriting files.
 
 `tools/import_upstream.py` imports a pinned `libpg_query` release, removes
 unrelated entry points, adds the version-prefixed oracle wrapper, imports the

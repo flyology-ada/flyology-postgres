@@ -2,6 +2,8 @@ with Ada.Text_IO;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with AUnit.Assertions; use AUnit.Assertions;
 with Flyology.Postgres.SQL;
+with Flyology.Postgres.SQL.All_Versions;
+pragma Elaborate_All (Flyology.Postgres.SQL.All_Versions);
 with Flyology.Postgres.SQL.Views;
 with Flyology.Postgres.SQL.Decoder_Testing;
 with Flyology.Postgres.SQL.Differential_Testing;

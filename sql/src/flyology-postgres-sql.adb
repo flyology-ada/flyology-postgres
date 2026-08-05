@@ -1,4 +1,4 @@
-with Flyology.Postgres.SQL.Native;
+with Flyology.Postgres.SQL_Backends;
 
 package body Flyology.Postgres.SQL is
 
@@ -57,7 +57,7 @@ package body Flyology.Postgres.SQL is
          raise Unsupported_Parse_Options with
            "PostgreSQL 14's native parser supports only Default_Options";
       end if;
-      Native.Parse (SQL, Version, Result, Options);
+      SQL_Backends.Parse (SQL, Version, Result, Options);
    end Parse;
 
 end Flyology.Postgres.SQL;

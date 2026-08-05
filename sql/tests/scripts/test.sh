@@ -41,12 +41,6 @@ check_generated_version() {
     --vendor "../backends/v$version/vendor" \
     --output ../src \
     --check
-  python3 ../tools/generate_native_actions.py \
-    --major "$version" \
-    --vendor "../backends/v$version/vendor" \
-    --output ../src \
-    --check \
-    --audit
   python3 ../tools/generate_native_schema.py \
     --major "$version" \
     --proto "../backends/v$version/vendor/pg_query.proto" \
@@ -55,6 +49,8 @@ check_generated_version() {
     --output ../src \
     --check
 }
+
+python3 ../tools/generate_build_layout.py --check
 
 generator_check_dir=$(mktemp -d "${TMPDIR:-/tmp}/flyology-sql-generator-checks.XXXXXX")
 
@@ -81,13 +77,39 @@ stop_generator_checks() {
 trap cleanup_generator_checks EXIT
 trap stop_generator_checks HUP INT TERM
 
+generator_check_status=0
+
+python3 ../tools/generate_native_actions.py \
+  --all \
+  --vendor-root ../backends \
+  --output ../src \
+  --check \
+  --audit \
+  >"$generator_check_dir/actions.log" 2>&1 &
+printf '%s\n' "$!" >"$generator_check_dir/actions.pid"
+
 for version in 14 15 16 17 18; do
   check_generated_version "$version" \
     >"$generator_check_dir/v$version.log" 2>&1 &
   printf '%s\n' "$!" >"$generator_check_dir/v$version.pid"
 done
 
-generator_check_status=0
+actions_pid=$(sed -n '1p' "$generator_check_dir/actions.pid")
+if wait "$actions_pid"; then
+  actions_status=0
+else
+  actions_status=$?
+  generator_check_status=1
+fi
+rm -f "$generator_check_dir/actions.pid"
+
+printf '\n== Shared PostgreSQL semantic action generator check ==\n'
+cat "$generator_check_dir/actions.log"
+if [ "$actions_status" -ne 0 ]; then
+  printf 'Shared PostgreSQL semantic action generator check failed with status %s\n' \
+    "$actions_status" >&2
+fi
+
 for version in 14 15 16 17 18; do
   pid_file="$generator_check_dir/v$version.pid"
   pid=$(sed -n '1p' "$pid_file")
@@ -120,6 +142,20 @@ alr -n build
   cd ../examples
   alr -n build
   ./scripts/test.sh
+)
+
+(
+  cd ../v18/example
+  alr -n build
+  ./bin/unregistered_views_example
+  ./bin/v18_owned_example
+)
+
+(
+  cd ../multi_example
+  alr -n build
+  test "$(grep -c 'crate = \"flyology_postgres_sql_core\"' alire/alire.lock)" -eq 1
+  ./bin/multi_version_example
 )
 
 production_library=../lib/libFlyology_Postgres_SQL.a

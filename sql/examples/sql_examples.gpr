@@ -1,4 +1,4 @@
-with "sql.gpr";
+with "sql_v18.gpr";
 
 project SQL_Examples is
    for Runtime ("Ada") use external ("FLYOLOGY_ROOT") & "/build/alire-rts";

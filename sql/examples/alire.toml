@@ -11,10 +11,10 @@ executables = ["analyze_sql", "transform_sql_ast"]
 project-files = ["sql_examples.gpr"]
 
 [[depends-on]]
-flyology_postgres_sql = "*"
+flyology_postgres_sql_v18 = "*"
 
 [[pins]]
-flyology_postgres_sql = { path = ".." }
+flyology_postgres_sql_v18 = { path = "../v18" }
 
 [[actions]]
 type = "test"

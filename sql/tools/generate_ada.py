@@ -686,6 +686,8 @@ def generate_body(major: int, messages: list[Message], enums: list[Enum]) -> str
         'pragma Style_Checks ("M160");',
         "with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;",
         "with Flyology.Postgres.SQL.Internals;",
+        f"with Flyology.Postgres.SQL.Native.Backend_V{major};",
+        f"pragma Elaborate_All (Flyology.Postgres.SQL.Native.Backend_V{major});",
         "",
         f"package body Flyology.Postgres.SQL.Views.V{major} is",
         "",

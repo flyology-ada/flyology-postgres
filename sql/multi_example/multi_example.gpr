@@ -1,0 +1,19 @@
+with "sql_v14.gpr";
+with "sql_v16.gpr";
+with "sql_v18.gpr";
+with "config/flyology_postgres_sql_multi_example_config.gpr";
+project Multi_Example is
+   for Languages use ("Ada");
+   for Source_Dirs use ("src", "config");
+   for Object_Dir use
+     "obj/" & Flyology_Postgres_Sql_Multi_Example_Config.Build_Profile;
+   for Exec_Dir use "bin";
+   for Create_Missing_Dirs use "True";
+   for Main use ("multi_version_example.adb");
+
+   package Compiler is
+      for Default_Switches ("Ada") use
+        Flyology_Postgres_Sql_Multi_Example_Config.Ada_Compiler_Switches
+        & ("-gnat2022", "-gnatwa", "-gnatwJ", "-gnatyM120", "-gnaty-S");
+   end Compiler;
+end Multi_Example;

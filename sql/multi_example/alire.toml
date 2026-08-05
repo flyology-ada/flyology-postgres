@@ -1,0 +1,21 @@
+name = "flyology_postgres_sql_multi_example"
+description = "Selective-build smoke test for coexisting PostgreSQL parsers"
+version = "0.1.0-dev"
+
+authors = ["Yurii Rashkovskii"]
+maintainers = ["Yurii Rashkovskii <yrashk@gmail.com>"]
+maintainers-logins = ["yrashk"]
+licenses = "MIT OR Apache-2.0"
+
+executables = ["multi_version_example"]
+project-files = ["multi_example.gpr"]
+
+[[depends-on]]
+flyology_postgres_sql_v14 = "*"
+flyology_postgres_sql_v16 = "*"
+flyology_postgres_sql_v18 = "*"
+
+[[pins]]
+flyology_postgres_sql_v14 = { path = "../v14" }
+flyology_postgres_sql_v16 = { path = "../v16" }
+flyology_postgres_sql_v18 = { path = "../v18" }

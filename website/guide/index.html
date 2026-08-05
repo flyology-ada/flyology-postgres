@@ -267,11 +267,22 @@ end;
           <section id="parse-sql">
             <span class="step-label">STEP 09</span>
             <h2>Parse, analyze, and transform SQL.</h2>
-            <p>The separate <code>flyology_postgres_sql</code> crate parses PostgreSQL 14 through 18 syntax with a native Ada parser generated from each pinned upstream grammar. Choose the package matching the PostgreSQL major whose syntax you accept. For ordinary application code, use the owned AST package.</p>
+            <p>The versioned SQL crates parse PostgreSQL 14 through 18 syntax with native Ada parsers generated from each pinned upstream grammar. Normal applications should choose the crate matching the PostgreSQL major whose syntax they accept. The generated Ada package names remain unchanged. For ordinary application code, use the owned AST package.</p>
             <figure class="code-panel">
-              <figcaption>add the SQL parser crate</figcaption>
+              <figcaption>add only the PostgreSQL 18 parser</figcaption>
               <button class="copy-button" type="button" data-copy>Copy</button>
-              <pre><code>alr with flyology_postgres_sql</code></pre>
+              <pre><code>alr with flyology_postgres_sql_v18</code></pre>
+            </figure>
+            <p>Import <code>sql_v18.gpr</code> from the application project. To support several majors, depend on and import each desired <code>flyology_postgres_sql_vNN</code>/<code>sql_vNN.gpr</code> pair; they link the shared parser core once and keep distinct versioned AST types. Use <code>flyology_postgres_sql</code> and <code>sql.gpr</code> only as the compatibility umbrella when all five majors must be available at runtime.</p>
+            <figure class="code-panel">
+              <figcaption>combine selected PostgreSQL majors</figcaption>
+              <button class="copy-button" type="button" data-copy>Copy</button>
+              <pre><code>alr with flyology_postgres_sql_v14
+alr with flyology_postgres_sql_v18
+
+# In the application GPR project:
+with "sql_v14.gpr";
+with "sql_v18.gpr";</code></pre>
             </figure>
             <figure class="code-panel">
               <figcaption>parse and inspect a PostgreSQL 18 SELECT</figcaption>
