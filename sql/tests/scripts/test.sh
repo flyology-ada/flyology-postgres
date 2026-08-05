@@ -50,9 +50,60 @@ check_generated_version() {
     --check
 }
 
-python3 ../tools/generate_build_layout.py --check
+check_shared_generated() {
+  python3 ../tools/generate_build_layout.py --check
+  python3 ../tools/generate_native_actions.py \
+    --all \
+    --vendor-root ../backends \
+    --output ../src \
+    --check \
+    --audit
+}
 
-generator_check_dir=$(mktemp -d "${TMPDIR:-/tmp}/flyology-sql-generator-checks.XXXXXX")
+case "${1:-}" in
+  --check-generated)
+    if [ "$#" -ne 2 ]; then
+      echo "usage: $0 --check-generated 14|15|16|17|18" >&2
+      exit 2
+    fi
+    case "$2" in
+      14|15|16|17|18)
+        check_generated_version "$2"
+        ;;
+      *)
+        echo "unsupported PostgreSQL major: $2" >&2
+        exit 2
+        ;;
+    esac
+    exit 0
+    ;;
+  --check-shared-generated)
+    if [ "$#" -ne 1 ]; then
+      echo "usage: $0 --check-shared-generated" >&2
+      exit 2
+    fi
+    check_shared_generated
+    exit 0
+    ;;
+  --runtime)
+    if [ "$#" -ne 1 ]; then
+      echo "usage: $0 --runtime" >&2
+      exit 2
+    fi
+    run_generator_checks=0
+    ;;
+  '')
+    run_generator_checks=1
+    ;;
+  *)
+    echo "usage: $0 [--check-generated MAJOR|--check-shared-generated|--runtime]" >&2
+    exit 2
+    ;;
+esac
+
+if [ "$run_generator_checks" -eq 1 ]; then
+
+  generator_check_dir=$(mktemp -d "${TMPDIR:-/tmp}/flyology-sql-generator-checks.XXXXXX")
 
 cleanup_generator_checks() {
   for pid_file in "$generator_check_dir"/*.pid; do
@@ -125,13 +176,7 @@ finish_generator_check() {
   fi
 }
 
-start_generator_check actions \
-  python3 ../tools/generate_native_actions.py \
-    --all \
-    --vendor-root ../backends \
-    --output ../src \
-    --check \
-    --audit
+  start_generator_check actions check_shared_generated
 
 for version in 14 15 16 17 18; do
   start_generator_check "v$version" check_generated_version "$version"
@@ -143,7 +188,7 @@ if [ "$actions_status" -ne 0 ]; then
   generator_check_status=1
 fi
 
-printf '\n== Shared PostgreSQL semantic action generator check ==\n'
+printf '\n== Shared PostgreSQL generated source checks ==\n'
 cat "$generator_check_dir/actions.log"
 if [ "$actions_status" -ne 0 ]; then
   printf 'Shared PostgreSQL semantic action generator check failed with status %s\n' \
@@ -168,8 +213,9 @@ done
 cleanup_generator_checks
 trap - EXIT HUP INT TERM
 
-if [ "$generator_check_status" -ne 0 ]; then
-  exit "$generator_check_status"
+  if [ "$generator_check_status" -ne 0 ]; then
+    exit "$generator_check_status"
+  fi
 fi
 
 alr -n build
