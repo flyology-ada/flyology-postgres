@@ -12,6 +12,9 @@ procedure Pgish_Tests is
    package Catalog renames Pgish_Catalog;
    package State renames Pgish_State;
 
+   use type SQL.Comparison_Operator;
+   use type SQL.Statement_Kind;
+
    Failures : Natural := 0;
 
    procedure Check (Condition : Boolean; Message : String) is
@@ -64,12 +67,65 @@ begin
       Check (SQL.Image (Query.Table_Name) = "information_schema.tables",
              "quoted qualified identifiers parse");
    end;
+   declare
+      Query : constant SQL.Query := SQL.Parse
+        ("SELECT -12 AS signed_value FROM metrics " &
+         "WHERE a != 1 AND b <> 2 AND c < 3 AND d <= 4 " &
+         "AND e > 5 AND f >= 6");
+   begin
+      Check
+        (SQL.Image (Query.Projections (1).Literal) = "-12",
+         "signed integer literals lower from A_Const");
+      Check
+        (Query.Predicate_Count = 6
+         and then Query.Predicates (1).Operator = SQL.Not_Equal_To
+         and then Query.Predicates (2).Operator = SQL.Not_Equal_To
+         and then Query.Predicates (3).Operator = SQL.Less_Than
+         and then Query.Predicates (4).Operator = SQL.Less_Or_Equal
+         and then Query.Predicates (5).Operator = SQL.Greater_Than
+         and then Query.Predicates (6).Operator = SQL.Greater_Or_Equal,
+         "all supported comparison operators lower from A_Expr");
+   end;
+   declare
+      Query : constant SQL.Query := SQL.Parse
+        ("SELECT '' AS empty_value, 0 AS zero_value;");
+   begin
+      Check
+        (SQL.Image (Query.Projections (1).Literal) = ""
+         and then SQL.Image (Query.Projections (2).Literal) = "0",
+         "protobuf-default literals retain their SQL values");
+   end;
+   declare
+      Query : constant SQL.Query := SQL.Parse ("SHOW server_version");
+   begin
+      Check
+        (Query.Kind = SQL.Show_Statement
+         and then SQL.Image (Query.Show_Name) = "server_version",
+         "SHOW lowers from Variable_Show_Stmt");
+   end;
    Reject ("SELECT FROM flyology_tables", "missing projection is rejected");
    Reject
      ("SELECT * FROM flyology_tables LIMIT 65",
       "oversized LIMIT is rejected");
    Reject ("DELETE FROM flyology_tables", "unsupported statement is rejected");
    Reject ("SELECT 1; SELECT 2", "multiple statements are rejected");
+   Reject ("SELECT DISTINCT name FROM flyology_tables",
+           "DISTINCT remains outside the pgish subset");
+   Reject ("SELECT * FROM a JOIN b ON a.id = b.id",
+           "joins remain outside the pgish subset");
+   Reject ("SELECT * FROM flyology_tables AS t",
+           "table aliases remain outside the pgish subset");
+   Reject ("SELECT value + 1 FROM flyology_settings",
+           "computed projections remain outside the pgish subset");
+   Reject ("SELECT arbitrary_function()",
+           "arbitrary functions remain outside the pgish subset");
+   Reject ("SELECT * FROM flyology_settings WHERE a = 1 OR b = 2",
+           "OR predicates remain outside the pgish subset");
+   Reject ("SELECT * FROM flyology_settings OFFSET 1",
+           "OFFSET remains outside the pgish subset");
+   Reject ("SELECT 1.5", "non-integer numeric projections remain unsupported");
+   Reject ("SELECT * FROM flyology_tables LIMIT -1",
+           "negative LIMIT remains unsupported");
 
    State.Initialize
      (Context,

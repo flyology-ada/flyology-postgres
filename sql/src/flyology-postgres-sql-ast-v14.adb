@@ -12618,6 +12618,8 @@ package body Flyology.Postgres.SQL.AST.V14 is
    is
    begin
       case Shallow.Kind (Arena, Item) is
+         when Shallow.No_Node =>
+            return new Node'(Kind => No_Node);
          when Shallow.Node_Alias =>
             declare
                Value : Alias :=

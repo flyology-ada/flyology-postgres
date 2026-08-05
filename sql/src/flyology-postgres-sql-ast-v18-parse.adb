@@ -17093,7 +17093,9 @@ is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind = Builders.List_Value then
+      if Item.Kind = Builders.Null_Value then
+         return new Node'(Kind => No_Node);
+      elsif Item.Kind = Builders.List_Value then
          return new Node'(Kind => Node_Node_List_Value,
                           Node_List_Value_Payload =>
                             Convert_Native_Node_List_Value (Build, Item, Depth + 1));

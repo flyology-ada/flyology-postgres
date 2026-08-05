@@ -88,6 +88,10 @@ package body Flyology.Postgres.SQL.Native.Converters is
             raise Converter_Error with "excessive native AST recursion";
          end if;
          Value := Begin_Object (Tree);
+         if Item.Kind = Builders.Null_Value then
+            Finish_Object (Tree, Value, Members);
+            return Value;
+         end if;
          declare
             Node_Descriptor : constant Schema.Message_Descriptor :=
               Messages (Node_Message);

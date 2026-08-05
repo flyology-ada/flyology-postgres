@@ -1,7 +1,9 @@
 package Pgish_SQL is
 
    Maximum_Query_Length : constant := 8_192;
-   Maximum_Tokens       : constant := 128;
+   Maximum_AST_Nodes    : constant := 128;
+   Maximum_Tokens       : constant := Maximum_AST_Nodes;
+   --  Compatibility name for the former hand-written lexer budget.
    Maximum_Projections  : constant := 16;
    Maximum_Predicates   : constant := 8;
    Maximum_Name_Length  : constant := 128;

@@ -62,7 +62,8 @@ independent of event-loop progress.
 
 ## Supported SQL
 
-The hand-written lexer/parser intentionally accepts only:
+PostgreSQL 18 SQL is parsed by the generated native Ada parser into the owned
+AST. A typed generated visitor lowers the deliberately bounded pgish subset:
 
 ```text
 SELECT projection [, ...]

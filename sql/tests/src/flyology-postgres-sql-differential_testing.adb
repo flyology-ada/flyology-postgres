@@ -39,6 +39,7 @@ package body Flyology.Postgres.SQL.Differential_Testing is
    begin
       Check ("");
       Check ("SELECT 0, FALSE, NULL");
+      Check ("SELECT DISTINCT name FROM events");
       Check ("SELECT 1; SELECT 2;");
       Check ("SELECT ""Mixed Case"" FROM ""Quoted Table""");
       Check ("SELECT 'é雪' AS unicode_text");

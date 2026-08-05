@@ -614,7 +614,9 @@ def generate_spec(major: int, messages: list[Message], enums: list[Enum]) -> str
             lines.append(f"      {component} : {target};")
         lines.extend(["   end record;", ""])
 
-    kinds = ["Node_" + message_name(field.type_name) for field in node.fields]
+    kinds = ["No_Node"] + [
+        "Node_" + message_name(field.type_name) for field in node.fields
+    ]
     lines.append("   type Node_Kind is")
     lines.append("     (" + ",\n      ".join(kinds) + ");")
     lines.extend([
@@ -715,14 +717,18 @@ def generate_body(major: int, messages: list[Message], enums: list[Enum]) -> str
         "     (Value => Internals.Root (Tree));",
         "",
         "   function Kind (Tree : Syntax_Tree; Item : Node_Reference) return Node_Kind is",
-        "      Name : constant String := Internals.Only_Field_Name (Tree, Item.Value);",
+        "      Count : constant Natural := Internals.Field_Count (Tree, Item.Value);",
+        "      Name  : constant String :=",
+        "        (if Count = 0 then \"\"",
+        "         else Internals.Only_Field_Name (Tree, Item.Value));",
         "   begin",
+        "      if Name = \"\" then",
+        "         return No_Node;",
     ])
-    for index, field in enumerate(node.fields):
-        prefix = "if" if index == 0 else "elsif"
+    for field in node.fields:
         target = message_name(field.type_name)
         json_name = field.json_name
-        lines.append(f'      {prefix} Name = "{json_name}" then')
+        lines.append(f'      elsif Name = "{json_name}" then')
         lines.append(f"         return Node_{target};")
     lines.extend([
         "      else",

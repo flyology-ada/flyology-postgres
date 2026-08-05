@@ -607,6 +607,7 @@ package body Owned_AST_Tests is
    begin
       Compare_Common ("");
       Compare_Common ("SELECT 0, FALSE, NULL, 'é雪' AS text");
+      Compare_Common ("SELECT DISTINCT name FROM events");
       Compare_Common ("SELECT 1; SELECT 2;");
       Compare_Common ("SELECT ""Mixed Case"" FROM ""Quoted Table""");
       Compare_Common

@@ -50,6 +50,15 @@ package body Flyology.Postgres.SQL.Internals is
       raise Constraint_Error with "JSON object field is absent: " & Name;
    end Field;
 
+   function Field_Count (Tree : Syntax_Tree; Object : Value_Id) return Natural is
+      Item : constant Stored_Value := Stored (Tree, Object);
+   begin
+      if Item.Kind /= Object_Value then
+         raise Constraint_Error with "expected a PostgreSQL node object";
+      end if;
+      return Item.Length;
+   end Field_Count;
+
    function Kind (Tree : Syntax_Tree; Value : Value_Id) return Stored_Kind is
      (Stored (Tree, Value).Kind);
 

@@ -1657,9 +1657,14 @@ package body Flyology.Postgres.SQL.Views.V18 is
      (Value => Internals.Root (Tree));
 
    function Kind (Tree : Syntax_Tree; Item : Node_Reference) return Node_Kind is
-      Name : constant String := Internals.Only_Field_Name (Tree, Item.Value);
+      Count : constant Natural := Internals.Field_Count (Tree, Item.Value);
+      Name  : constant String :=
+        (if Count = 0 then ""
+         else Internals.Only_Field_Name (Tree, Item.Value));
    begin
-      if Name = "Alias" then
+      if Name = "" then
+         return No_Node;
+      elsif Name = "Alias" then
          return Node_Alias;
       elsif Name = "RangeVar" then
          return Node_Range_Var;

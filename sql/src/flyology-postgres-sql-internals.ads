@@ -10,6 +10,7 @@ private package Flyology.Postgres.SQL.Internals is
    function Field
      (Tree : Syntax_Tree; Object : Value_Id; Name : String) return Value_Id
      with Pre => Has_Field (Tree, Object, Name);
+   function Field_Count (Tree : Syntax_Tree; Object : Value_Id) return Natural;
 
    function Kind (Tree : Syntax_Tree; Value : Value_Id) return Stored_Kind;
    function String_Data (Tree : Syntax_Tree; Value : Value_Id) return String;

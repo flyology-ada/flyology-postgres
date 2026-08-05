@@ -523,7 +523,9 @@ def generate(
         f"      if Depth > {MAXIMUM_DEPTH} then",
         "         raise Constraint_Error with \"excessive native AST recursion\";",
         "      end if;",
-        "      if Item.Kind = Builders.List_Value then",
+        "      if Item.Kind = Builders.Null_Value then",
+        "         return new Node'(Kind => No_Node);",
+        "      elsif Item.Kind = Builders.List_Value then",
     ])
     list_target = message_name("List")
     lines.extend([

@@ -295,7 +295,9 @@ package body Pgish_Catalog is
       Add_Column (Result, "unit");
       Add_Column (Result, "description");
       Add ("maximum_query_length", Trim_Image (SQL.Maximum_Query_Length'Image), "bytes", "Maximum accepted SQL text");
-      Add ("maximum_tokens", Trim_Image (SQL.Maximum_Tokens'Image), "tokens", "Lexer token budget");
+      Add
+        ("maximum_tokens", Trim_Image (SQL.Maximum_Tokens'Image), "nodes",
+         "Compatibility name for the AST node budget");
       Add ("maximum_result_rows", Trim_Image (Maximum_Rows'Image), "rows", "Hard result and LIMIT bound");
       Add ("maximum_sessions", Trim_Image (State.Maximum_Sessions'Image), "sessions", "Server admission capacity");
       Add ("authentication", "trust", "", "Default local demonstration mode");

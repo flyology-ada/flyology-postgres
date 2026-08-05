@@ -563,6 +563,8 @@ def generate_body(major: int, messages: list[Message], enums: list[Enum]) -> str
         "   is",
         "   begin",
         "      case Shallow.Kind (Arena, Item) is",
+        "         when Shallow.No_Node =>",
+        "            return new Node'(Kind => No_Node);",
     ])
     for field in node.fields:
         target = message_name(field.type_name)

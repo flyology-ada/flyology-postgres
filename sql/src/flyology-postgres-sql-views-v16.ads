@@ -5977,7 +5977,8 @@ package Flyology.Postgres.SQL.Views.V16 is
    end record;
 
    type Node_Kind is
-     (Node_Alias,
+     (No_Node,
+      Node_Alias,
       Node_Range_Var,
       Node_Table_Func,
       Node_Into_Clause,
