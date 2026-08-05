@@ -1,7 +1,9 @@
 #!/bin/sh
 set -eu
 
-for version in 14 15 16 17 18; do
+check_generated_version() {
+  version=$1
+
   python3 ../tools/generate_ada.py \
     --major "$version" \
     --proto "../backends/v$version/vendor/pg_query.proto" \
@@ -52,7 +54,65 @@ for version in 14 15 16 17 18; do
     --vendor "../backends/v$version/vendor" \
     --output ../src \
     --check
+}
+
+generator_check_dir=$(mktemp -d "${TMPDIR:-/tmp}/flyology-sql-generator-checks.XXXXXX")
+
+cleanup_generator_checks() {
+  for pid_file in "$generator_check_dir"/*.pid; do
+    [ -f "$pid_file" ] || continue
+    pid=$(sed -n '1p' "$pid_file")
+    kill "$pid" 2>/dev/null || true
+  done
+  for pid_file in "$generator_check_dir"/*.pid; do
+    [ -f "$pid_file" ] || continue
+    pid=$(sed -n '1p' "$pid_file")
+    wait "$pid" 2>/dev/null || true
+  done
+  rm -rf "$generator_check_dir"
+}
+
+stop_generator_checks() {
+  trap - EXIT HUP INT TERM
+  cleanup_generator_checks
+  exit 1
+}
+
+trap cleanup_generator_checks EXIT
+trap stop_generator_checks HUP INT TERM
+
+for version in 14 15 16 17 18; do
+  check_generated_version "$version" \
+    >"$generator_check_dir/v$version.log" 2>&1 &
+  printf '%s\n' "$!" >"$generator_check_dir/v$version.pid"
 done
+
+generator_check_status=0
+for version in 14 15 16 17 18; do
+  pid_file="$generator_check_dir/v$version.pid"
+  pid=$(sed -n '1p' "$pid_file")
+  if wait "$pid"; then
+    version_status=0
+  else
+    version_status=$?
+    generator_check_status=1
+  fi
+  rm -f "$pid_file"
+
+  printf '\n== PostgreSQL %s generator checks ==\n' "$version"
+  cat "$generator_check_dir/v$version.log"
+  if [ "$version_status" -ne 0 ]; then
+    printf 'PostgreSQL %s generator checks failed with status %s\n' \
+      "$version" "$version_status" >&2
+  fi
+done
+
+cleanup_generator_checks
+trap - EXIT HUP INT TERM
+
+if [ "$generator_check_status" -ne 0 ]; then
+  exit "$generator_check_status"
+fi
 
 alr -n build
 
