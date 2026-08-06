@@ -1,5 +1,6 @@
 with Ada.Characters.Handling;
 with Ada.Environment_Variables;
+with Ada.Real_Time;
 with Ada.Streams.Stream_IO;
 with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
@@ -28,6 +29,7 @@ procedure Postgres_Test_Replication_Server is
 
    use type Ada.Streams.Stream_Element_Offset;
    use type Ada.Streams.Stream_IO.Count;
+   use type Ada.Real_Time.Time;
    use type Protocol.Replication_Connection_Mode;
    use type Replication.Command_Kind;
    use type Replication.LSN;
@@ -109,6 +111,47 @@ procedure Postgres_Test_Replication_Server is
       Start  : Replication.LSN) is
       Chunk_Size : constant Replication.UInt64 := 32 * 1_024;
       Current    : Replication.LSN := Start;
+
+      procedure Await_Exact_Feedback
+        (Label : String; Timeout : Duration) is
+         Deadline : constant Ada.Real_Time.Time :=
+           Ada.Real_Time.Clock + Ada.Real_Time.To_Time_Span (Timeout);
+      begin
+         loop
+            declare
+               Feedback : constant Replication.Stream_Message :=
+                 Replication_Sessions.Read_Standby_Message
+                   (Client, Timeout => Timeout);
+            begin
+               if Replication.Kind (Feedback) =
+                 Replication.Standby_Status_Update
+                 and then Replication.Received_LSN (Feedback) =
+                   State.Current_WAL
+                 and then Replication.Flushed_LSN (Feedback) =
+                   State.Current_WAL
+                 and then Replication.Applied_LSN (Feedback) =
+                   State.Current_WAL
+               then
+                  if Ada.Real_Time.Clock > Deadline then
+                     raise Protocol.Protocol_Error with
+                       Label & " missed its feedback deadline";
+                  end if;
+                  Ada.Text_IO.Put_Line
+                    (Label & " received="
+                     & Replication.Image
+                       (Replication.Received_LSN (Feedback))
+                     & " flushed="
+                     & Replication.Image
+                       (Replication.Flushed_LSN (Feedback))
+                     & " applied="
+                     & Replication.Image
+                       (Replication.Applied_LSN (Feedback)));
+                  Ada.Text_IO.Flush;
+                  return;
+               end if;
+            end;
+         end loop;
+      end Await_Exact_Feedback;
    begin
       if Current > State.Current_WAL then
          raise Protocol.Protocol_Error with
@@ -155,36 +198,15 @@ procedure Postgres_Test_Replication_Server is
          Reply_Requested => True,
          Timeout         => 10.0);
 
-      loop
-         declare
-            Feedback : constant Replication.Stream_Message :=
-              Replication_Sessions.Read_Standby_Message
-                (Client, Timeout => 30.0);
-         begin
-            if Replication.Kind (Feedback) =
-              Replication.Standby_Status_Update
-              and then Replication.Received_LSN (Feedback) =
-                State.Current_WAL
-              and then Replication.Flushed_LSN (Feedback) =
-                State.Current_WAL
-              and then Replication.Applied_LSN (Feedback) =
-                State.Current_WAL
-            then
-               Ada.Text_IO.Put_Line
-                 ("standby feedback received="
-                  & Replication.Image
-                    (Replication.Received_LSN (Feedback))
-                  & " flushed="
-                  & Replication.Image
-                    (Replication.Flushed_LSN (Feedback))
-                  & " applied="
-                  & Replication.Image
-                    (Replication.Applied_LSN (Feedback)));
-               Ada.Text_IO.Flush;
-               exit;
-            end if;
-         end;
-      end loop;
+      Await_Exact_Feedback ("standby feedback", Timeout => 30.0);
+
+      Replication_Sessions.Send_Primary_Keepalive
+        (Client,
+         WAL_End         => State.Current_WAL,
+         Sent_At         => 0,
+         Reply_Requested => True,
+         Timeout         => 10.0);
+      Await_Exact_Feedback ("standby keepalive reply", Timeout => 2.0);
 
       Replication_Sessions.Finish_Streaming (Client, Timeout => 10.0);
       loop

@@ -495,6 +495,7 @@ SQL
   standby_options="$standby_options -c max_wal_senders=20"
   standby_options="$standby_options -c max_replication_slots=20"
   standby_options="$standby_options -c max_prepared_transactions=20"
+  standby_options="$standby_options -c wal_receiver_status_interval=10s"
   if ! "$postgres_prefix/bin/pg_ctl" \
     -D "$standby_dir" -l "$standby_log" \
     -o "$standby_options" -w start >/dev/null
@@ -545,6 +546,13 @@ SQL
     fi
     sleep 0.05
   done
+  if ! grep -q '^standby keepalive reply received=' \
+    "$replication_server_log"
+  then
+    cat "$replication_server_log" >&2
+    printf '%s\n' "PostgreSQL $major standby missed requested keepalive reply" >&2
+    return 1
+  fi
 
   "$postgres_prefix/bin/pg_ctl" \
     -D "$standby_dir" -m fast -w stop >/dev/null

@@ -35,7 +35,9 @@ TLS private keys are excluded.
   crossed feedback until the standby's `CopyDone`, sends `CommandComplete` and
   `ReadyForQuery`, and serves the restarted standby data directory again. The
   standby connects with SCRAM-SHA-256 over TLS using `sslmode=verify-full`, a
-  test CA, and a hostname-verified server certificate.
+  test CA, and a hostname-verified server certificate. With periodic standby
+  feedback configured to ten seconds, a second reply-requesting keepalive with
+  no intervening WAL requires another exact-LSN response within two seconds.
 - Supported releases exercise streamed transactions, two-phase prepare, commit
   and rollback, parallel abort, binary tuples, and origins against real
   PostgreSQL through that same committed-state model while also validating the
@@ -70,8 +72,5 @@ implementation to test.
    `RollbackPrepared`.
 3. Add timeline and history callbacks plus promotion state, then run a promoted
    real standby through `TIMELINE_HISTORY` and a new timeline's WAL.
-4. Add monotonic-clock assertions for keepalive reply-request deadlines rather
-   than only proving that the real peer responds and the requested feedback is
-   accepted.
-5. Once a logical output producer exists, use `pg_recvlogical` first, followed
+4. Once a logical output producer exists, use `pg_recvlogical` first, followed
    by a real subscription worker, as the primary-side logical oracle.
