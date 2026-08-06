@@ -244,18 +244,19 @@ end;
           <section id="replication">
             <span class="step-label">STEP 07</span>
             <h2>Stream physical or logical replication in either direction.</h2>
-            <p><code>Flyology.Postgres.Replication</code> handles replication startup, LSN text, replication commands, physical stream envelopes, keepalives, status updates, and hot-standby feedback. <code>Flyology.Postgres.Replication.Logical</code> adds typed <code>pgoutput</code> messages. Both use the existing bounded COPY BOTH state machine, so replication data is delivered one frame at a time.</p>
+            <p><code>Flyology.Postgres.Replication</code> handles replication startup, LSN text, replication commands, physical stream envelopes, keepalives, status updates, and hot-standby feedback. <code>Flyology.Postgres.Replication.Logical</code> adds typed <code>pgoutput</code> messages, while <code>Logical.Producer</code> validates and encodes those messages in the primary direction. Both use the existing bounded COPY BOTH state machine, so replication data is delivered one frame at a time.</p>
             <div class="decision-list">
               <dl>
                 <div class="decision-row"><dt>Physical standby</dt><dd>Start with <code>Physical_Replication_Connection</code>, send <code>Start_Physical</code>, and consume the raw WAL bytes carried by each <code>XLogData</code> frame.</dd></div>
                 <div class="decision-row"><dt>Logical consumer</dt><dd>Start with <code>Logical_Replication_Connection</code>, send <code>Start_Logical</code>, then decode each <code>XLogData</code> payload with a configured logical decoder.</dd></div>
                 <div class="decision-row"><dt>Protocol levels</dt><dd>Logical protocol v1 covers committed transactions, v2 streamed transactions, v3 two-phase transactions, and v4 parallel-stream abort metadata.</dd></div>
-                <div class="decision-row"><dt>Primary server</dt><dd><code>Replication.Server_Sessions</code> answers replication commands, opens COPY BOTH, sends WAL and keepalives, reads standby feedback, and completes the crossed shutdown sequence.</dd></div>
+                <div class="decision-row"><dt>Primary server</dt><dd><code>Managed_Primary</code> composes application-owned slots, WAL, timelines, and logical changes into a complete replication-command handler. Use <code>Replication.Server_Sessions</code> directly when the application needs lower-level control.</dd></div>
+                <div class="decision-row"><dt>Durable state</dt><dd><code>Replication.Persistence</code> defines interfaces for slots, retained WAL, timeline history, and prepared-consumer recovery. The application chooses and supplies the storage technology.</dd></div>
               </dl>
             </div>
 
             <h3>Consume a logical stream without buffering WAL.</h3>
-            <p>Replication startup uses the normal client authentication path with an explicit replication mode. Logical options preserve valueless, empty, and quoted values. Configure the stateful decoder once with the same protocol level and streaming mode sent to PostgreSQL.</p>
+            <p>Replication startup uses the normal client authentication path with an explicit replication mode. Logical options preserve valueless, empty, and quoted values. Configure the stateful decoder once with the same protocol level and streaming mode sent to PostgreSQL. Decode frames as they arrive, but do not acknowledge an LSN merely because its bytes were received: advance the durable acknowledgement only after the complete transaction is durably applied.</p>
             <figure class="code-panel">
               <figcaption>logical pgoutput v4 consumer</figcaption>
               <button class="copy-button" type="button" data-copy>Copy</button>
@@ -286,15 +287,23 @@ loop
 
       if Replication.Kind (Frame) = Replication.XLog_Data then
          Change := Logical.Decode (Decoder, Replication.Data (Frame));
-         Apply (Change);  -- Dispatch on Logical.Kind and Logical.Level.
+         Stage (Change);  -- Application-owned transaction state.
 
-         Client.Send_Command
-           (Session,
-            Replication.Make_Standby_Status_Update
-              (Received_LSN =&gt; Replication.WAL_End (Frame),
-               Flushed_LSN  =&gt; Replication.WAL_End (Frame),
-               Applied_LSN  =&gt; Replication.WAL_End (Frame),
-               Sent_At      =&gt; Now));
+         if Logical.Kind (Change) = Logical.Commit_Message then
+            Durable_End := Logical.End_LSN (Change);
+
+            -- Atomically commit the target changes and persist Durable_End,
+            -- or make replay idempotent if those use separate stores.
+            Commit_Target_And_Checkpoint (Durable_End);
+
+            Client.Send_Command
+              (Session,
+               Replication.Make_Standby_Status_Update
+                 (Received_LSN =&gt; Durable_End,
+                  Flushed_LSN  =&gt; Durable_End,
+                  Applied_LSN  =&gt; Durable_End,
+                  Sent_At      =&gt; Now));
+         end if;
       end if;
    end if;
 end loop;</code></pre>
@@ -303,9 +312,34 @@ end loop;</code></pre>
               <span class="callout-symbol" aria-hidden="true">i</span>
               <p><code>Logical.Message</code> retains transaction boundaries, streamed XIDs, relation metadata, text or binary tuple values, replica identity, origins, logical messages, truncate flags, and prepared-transaction GIDs. Accessors reject message kinds that do not carry the requested field.</p>
             </aside>
+            <p>The abbreviated example shows the regular <code>Commit</code> path. Apply the same rule at <code>StreamCommit</code>. For two-phase traffic, <code>Prepared_Consumer</code> coordinates durable prepare, idempotent target application, an applied marker, source acknowledgement, and final removal. Its target callback must remain idempotent unless the target commit and applied marker share one atomic transaction.</p>
 
-            <h3>Serve a real PostgreSQL standby as a primary.</h3>
-            <p>Decode the handler's simple-query message before responding. The command exposes the requested slot, position, timeline, parameter, and logical options as typed values. Physical and logical streams share the same server-side COPY BOTH helpers; logical WAL data is an encoded <code>Logical.Message</code> inside <code>XLogData</code>.</p>
+            <h3>Compose a managed primary from application state.</h3>
+            <p><code>Managed_Primary</code> accepts the public persistence interfaces plus an application callback that supplies typed logical changes. It handles identification, timeline history, logical slot creation, slot removal, physical and logical WAL streaming, feedback persistence, retention, keepalives, and graceful COPY BOTH completion. Physical slots are created through the supplied slot store before a standby starts. <code>Logical.Producer</code> rejects invalid transaction ordering or regressing WAL envelopes before bytes are sent.</p>
+            <figure class="code-panel">
+              <figcaption>application-owned managed primary</figcaption>
+              <button class="copy-button" type="button" data-copy>Copy</button>
+              <pre><code class="language-ada">package Managed is new
+  Flyology.Postgres.Replication.Managed_Primary
+  (Logical_Context =&gt; Application_Changes,
+   Next_Logical    =&gt; Next_Logical);
+
+Primary : Managed.Primary
+  (Slots          =&gt; Slot_Store'Access,
+   WAL            =&gt; WAL_Store'Access,
+   Timelines      =&gt; Timeline_Store'Access,
+   Logical_Source =&gt; Changes'Access);
+
+Managed.Initialize
+  (Primary, System_Id =&gt; System_Id, Database =&gt; "app");
+
+Command := Replication.Decode_Command (Message);
+Managed.Handle (Primary, Client, Command);</code></pre>
+            </figure>
+            <p>The generic <code>Persistence.Memory</code> child is a bounded reference implementation for tests and ephemeral single-owner servers. It is volatile, is not a production durability backend, and deliberately does not claim process locking or crash recovery. External stores can run the reusable conformance fixture against the same interfaces.</p>
+
+            <h3>Control COPY BOTH directly when needed.</h3>
+            <p>The lower-level path begins by decoding the handler's simple-query message. Commands expose slot creation plugin and snapshot policy, slot removal and <code>WAIT</code>, requested position and timeline, parameters, and logical options as typed values. Physical and logical streams share the same server-side COPY BOTH helpers; logical WAL data is an encoded <code>Logical.Message</code> inside <code>XLogData</code>.</p>
             <figure class="code-panel">
               <figcaption>primary-side replication handler</figcaption>
               <button class="copy-button" type="button" data-copy>Copy</button>
@@ -336,6 +370,11 @@ case Replication.Kind (Command) is
 end case;</code></pre>
             </figure>
             <p>For graceful shutdown, call <code>Finish_Streaming</code> to close the primary-to-standby direction, continue reading feedback until the frontend <code>CopyDone</code> arrives, then call <code>Complete_Streaming</code>. A frontend <code>CopyFail</code> should instead receive an error response.</p>
+            <p>Promotion belongs to the application-owned timeline and WAL stores. Persist the new timeline and its history before advertising it as current, retain WAL across the fork point, and then let the follower request <code>TIMELINE_HISTORY</code> and reconnect on the promoted timeline. The live PostgreSQL 18 test promotes a real standby and proves replay of WAL written only on timeline 2.</p>
+            <aside class="callout callout-teal">
+              <span class="callout-symbol" aria-hidden="true">i</span>
+              <p>Real PostgreSQL 14 through 18 clients exercise Flyology in both directions, including TLS and SCRAM standbys, restart and exact feedback positions, <code>pg_recvlogical</code>, transport adversity, and reconnect from a persisted acknowledgement. PostgreSQL 18 additionally exercises promotion and an initial-copy subscription worker. Read the <a href="https://github.com/flyology-ada/flyology-postgres/blob/main/tests/REPLICATION_VALIDATION.md">replication validation boundaries and evidence</a> for the exact assertions.</p>
+            </aside>
             <p><a href="../api/">Search the generated replication API reference</a></p>
           </section>
 
@@ -554,7 +593,7 @@ alr run</code></pre>
                 <div class="decision-row"><dt>Authentication</dt><dd>Trust, cleartext password, and SCRAM-SHA-256 only. No MD5, GSSAPI, SSPI, certificate authentication, or SCRAM-SHA-256-PLUS.</dd></div>
                 <div class="decision-row"><dt>Cleartext</dt><dd>Use cleartext-password authentication only over verified TLS or a comparably trusted transport.</dd></div>
                 <div class="decision-row"><dt>Fairness</dt><dd>A continuously readable COPY socket may require an explicit Flyology fairness point so another task on the same group can run.</dd></div>
-                <div class="decision-row"><dt>Replication</dt><dd>Protocol support covers PostgreSQL physical streaming and <code>pgoutput</code> v1 through v4. Slot creation, publication management, WAL retention policy, and applying decoded changes remain application responsibilities.</dd></div>
+                <div class="decision-row"><dt>Replication</dt><dd>Protocol support covers PostgreSQL physical streaming and <code>pgoutput</code> v1 through v4. Flyology supplies managed slot lifecycle and storage interfaces, but applications still supply the durability technology, retained WAL and logical-change sources, publication catalog, stable initial snapshot, and target application of decoded changes.</dd></div>
                 <div class="decision-row"><dt>Limits</dt><dd>SCRAM messages are bounded to 4 KiB; iteration counts range from 4,096 through 1,000,000.</dd></div>
               </dl>
             </div>
