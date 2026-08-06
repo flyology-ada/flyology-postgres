@@ -132,6 +132,55 @@ run_parallel_abort () {
   cat "$client_log"
 }
 
+run_reconnect_resume () {
+  major=$1
+  slot=$2
+
+  initial_lsn=$(psql -qAtc \
+    "select confirmed_flush_lsn from pg_replication_slots where slot_name = '$slot'")
+  psql -qAtc \
+    "insert into flyology_replication values (800000, 'checkpoint', 0, 'watchful')" \
+    >/dev/null
+  seed_large_commit 800000
+
+  run_client logical_resume_first "$major" 1 "$slot" "$initial_lsn"
+
+  attempt=0
+  acknowledged_lsn=$initial_lsn
+  while [ "$(psql -qAtc \
+    "select '$acknowledged_lsn'::pg_lsn > '$initial_lsn'::pg_lsn")" != t ]
+  do
+    attempt=$((attempt + 1))
+    if [ "$attempt" -ge 100 ]; then
+      printf '%s\n' \
+        "logical resume did not persist its acknowledged checkpoint" >&2
+      return 1
+    fi
+    sleep 0.05
+    acknowledged_lsn=$(psql -qAtc \
+      "select confirmed_flush_lsn from pg_replication_slots where slot_name = '$slot'")
+  done
+
+  restart_lsn=$(psql -qAtc \
+    "select restart_lsn from pg_replication_slots where slot_name = '$slot'")
+  if [ "$(psql -qAtc \
+    "select '$restart_lsn'::pg_lsn <= '$acknowledged_lsn'::pg_lsn")" != t ]; then
+    printf '%s\n' "logical slot restart LSN advanced beyond its acknowledgement" >&2
+    return 1
+  fi
+
+  run_client logical_resume_second "$major" 1 "$slot" "$acknowledged_lsn"
+  final_lsn=$(psql -qAtc \
+    "select confirmed_flush_lsn from pg_replication_slots where slot_name = '$slot'")
+  if [ "$(psql -qAtc \
+    "select '$final_lsn'::pg_lsn > '$acknowledged_lsn'::pg_lsn")" != t ]; then
+    printf '%s\n' "logical resume did not acknowledge the replayed transaction" >&2
+    return 1
+  fi
+  printf '%s\n' \
+    "PostgreSQL $major reconnect resumed $acknowledged_lsn -> $final_lsn"
+}
+
 drop_slot () {
   slot=$1
   slot_query="select pg_drop_replication_slot(slot_name) "
@@ -199,6 +248,7 @@ run_real_standby () {
   standby_log="$version_root/standby.log"
   replication_server_log="$version_root/replication-server.log"
   marker="replayed-by-flyology-$major"
+  physical_slot="flyology_physical_$major"
 
   psql -q <<'SQL'
 create table flyology_standby_probe (value text primary key);
@@ -229,6 +279,7 @@ SQL
   POSTGRES_PRIMARY_END_LSN=$primary_end_lsn \
   POSTGRES_PRIMARY_WAL_DIR="$data_dir/pg_wal" \
   POSTGRES_PRIMARY_WAL_SEGMENT_SIZE=16777216 \
+  POSTGRES_PRIMARY_SLOT=$physical_slot \
     "$tests_root/bin/postgres_test_replication_server" \
     >"$replication_server_log" 2>&1 &
   replication_server_pid=$!
@@ -256,6 +307,7 @@ SQL
   primary_conninfo="$primary_conninfo application_name=flyology_standby_$major'"
   {
     printf '%s\n' "$primary_conninfo"
+    printf '%s\n' "primary_slot_name = '$physical_slot'"
     printf '%s\n' "wal_retrieve_retry_interval = '100ms'"
   } >> "$standby_dir/postgresql.auto.conf"
 
@@ -294,7 +346,7 @@ SQL
   done
 
   attempt=0
-  until grep -q '^standby feedback ' "$replication_server_log"; do
+  until grep -q '^standby feedback received=' "$replication_server_log"; do
     attempt=$((attempt + 1))
     if [ "$attempt" -ge 100 ]; then
       printf '%s\n' "PostgreSQL $major standby did not send feedback" >&2
@@ -304,8 +356,50 @@ SQL
     sleep 0.05
   done
 
+  attempt=0
+  until grep -q '^streaming complete$' "$replication_server_log"; do
+    attempt=$((attempt + 1))
+    if [ "$attempt" -ge 100 ]; then
+      printf '%s\n' "PostgreSQL $major COPY BOTH did not finish" >&2
+      cat "$replication_server_log" >&2
+      return 1
+    fi
+    sleep 0.05
+  done
+
   "$postgres_prefix/bin/pg_ctl" \
-    -D "$standby_dir" -m immediate -w stop >/dev/null
+    -D "$standby_dir" -m fast -w stop >/dev/null
+  standby_started=false
+
+  feedback_before_restart=$(grep -c '^standby feedback received=' \
+    "$replication_server_log")
+  if ! "$postgres_prefix/bin/pg_ctl" \
+    -D "$standby_dir" -l "$standby_log" \
+    -o "$standby_options" -w start >/dev/null
+  then
+    cat "$replication_server_log" >&2
+    cat "$standby_log" >&2
+    return 1
+  fi
+  standby_started=true
+
+  attempt=0
+  feedback_after_restart=$feedback_before_restart
+  while [ "$feedback_after_restart" -le "$feedback_before_restart" ]; do
+    attempt=$((attempt + 1))
+    if [ "$attempt" -ge 200 ]; then
+      printf '%s\n' "PostgreSQL $major restarted standby sent no feedback" >&2
+      cat "$replication_server_log" >&2
+      cat "$standby_log" >&2
+      return 1
+    fi
+    sleep 0.05
+    feedback_after_restart=$(grep -c '^standby feedback received=' \
+      "$replication_server_log")
+  done
+
+  "$postgres_prefix/bin/pg_ctl" \
+    -D "$standby_dir" -m fast -w stop >/dev/null
   standby_started=false
   kill "$replication_server_pid" >/dev/null 2>&1 || true
   wait "$replication_server_pid" >/dev/null 2>&1 || true
@@ -381,15 +475,27 @@ SQL
 begin;
 insert into flyology_replication values
   (1001, null, 1, 'happy'),
-  (1002, repeat('toast-', 2000), 1, 'watchful');
-update flyology_replication set marker = 2 where id = 1001;
-delete from flyology_replication where id = 1002;
+  (1002,
+   (select string_agg(md5(g::text), '')
+    from generate_series(1, 1000) as g),
+   1,
+   'watchful');
+update flyology_replication set marker = 2 where id = 1002;
+delete from flyology_replication where id = 1001;
 select pg_logical_emit_message
   (true, 'flyology', 'real-message');
 commit;
 truncate flyology_replication restart identity cascade;
+insert into flyology_replication values
+  (1003, 'final-state', 3, 'happy');
 SQL
   run_client logical_v1 "$major" 1 "$slot"
+  drop_slot "$slot"
+
+  psql -qAtc 'truncate flyology_replication' >/dev/null
+  slot="flyology_resume_$major"
+  create_slot "$slot"
+  run_reconnect_resume "$major" "$slot"
   drop_slot "$slot"
 
   psql -qAtc 'truncate flyology_replication' >/dev/null

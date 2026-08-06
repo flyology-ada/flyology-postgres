@@ -1,5 +1,6 @@
 with Ada.Environment_Variables;
 with Ada.Exceptions;
+with Ada.Strings.Unbounded;
 with Ada.Text_IO;
 with Flyology;
 with Flyology.Bytes;
@@ -19,6 +20,7 @@ procedure Postgres_Test_Replication is
    package Protocol renames Flyology.Postgres.Protocol;
    package Replication renames Flyology.Postgres.Replication;
    package Sockets renames Flyology.IO.Sockets;
+   package Unbounded renames Ada.Strings.Unbounded;
    package Transports renames
      Flyology.Postgres.Transports.TLS_Sockets;
 
@@ -299,6 +301,170 @@ procedure Postgres_Test_Replication is
          Finish_Stream;
       end Test_Physical;
 
+      procedure Test_Logical_Resume is
+         Slot : constant String :=
+           Environment ("POSTGRES_REPLICATION_SLOT");
+         Start_Text : constant String :=
+           Environment ("POSTGRES_REPLICATION_START_LSN", "0/0");
+         Start : constant Replication.LSN := Replication.Value (Start_Text);
+         First_Run : constant Boolean :=
+           Scenario = "logical_resume_first";
+         Decoder : Logical.Decoder;
+         Saw_Begin : Boolean := False;
+         Saw_Checkpoint_Row : Boolean := False;
+         Checkpoint_Commits : Natural := 0;
+         Interrupted_Rows   : Natural := 0;
+         Expected_Id        : Natural := 800_001;
+         Messages           : Natural := 0;
+         Finished           : Boolean := False;
+         Acknowledged       : Replication.LSN := Start;
+
+         function Tuple_Id (Item : Logical.Tuple_Data) return Natural is
+            Column : constant Logical.Tuple_Value :=
+              Logical.Column (Item, 1);
+         begin
+            Require
+              (Logical.Kind (Column) = Logical.Text_Value,
+               "resume oracle received a non-text primary key");
+            return Natural'Value (Logical.Text (Column));
+         end Tuple_Id;
+
+         procedure Acknowledge (Position : Replication.LSN) is
+         begin
+            Require (Position > 0, "resume oracle cannot acknowledge zero");
+            Client.Send_Command
+              (Session,
+               Replication.Make_Standby_Status_Update
+                 (Position, Position, Position, Sent_At => 0),
+               Timeout => 10.0);
+            Acknowledged := Position;
+         end Acknowledge;
+
+         procedure Observe (Item : Logical.Message) is
+         begin
+            case Logical.Kind (Item) is
+               when Logical.Begin_Message =>
+                  Saw_Begin := True;
+
+               when Logical.Insert_Message =>
+                  declare
+                     Id : constant Natural :=
+                       Tuple_Id (Logical.New_Tuple (Item));
+                  begin
+                     if Id = 800_000 then
+                        Require
+                          (not Saw_Checkpoint_Row
+                           and then Interrupted_Rows = 0,
+                           "checkpoint transaction was replayed more than"
+                           & " once");
+                        Saw_Checkpoint_Row := True;
+                     elsif Id in 800_001 .. 801_000 then
+                        Require
+                          (Saw_Begin,
+                           "resume started inside the interrupted"
+                           & " transaction");
+                        Require
+                          (Id = Expected_Id,
+                           "resume oracle found a gap or duplicate at row"
+                           & Natural'Image (Expected_Id));
+                        Interrupted_Rows := Interrupted_Rows + 1;
+                        Expected_Id := Expected_Id + 1;
+                     end if;
+                  end;
+
+               when Logical.Commit_Message =>
+                  if Interrupted_Rows = 0 then
+                     Require
+                       (Saw_Checkpoint_Row,
+                        "resume oracle observed an unrelated transaction");
+                     Checkpoint_Commits := Checkpoint_Commits + 1;
+                     Require
+                       (Checkpoint_Commits = 1,
+                        "more than one acknowledged transaction was replayed");
+                     if First_Run then
+                        Acknowledge (Logical.End_LSN (Item));
+                     end if;
+                  elsif not First_Run then
+                     Require
+                       (Interrupted_Rows = 1_000,
+                        "resumed transaction committed with missing rows");
+                     Acknowledge (Logical.End_LSN (Item));
+                     Finished := True;
+                  end if;
+                  Saw_Begin := False;
+
+               when others =>
+                  null;
+            end case;
+         end Observe;
+      begin
+         Check_Logical_Server;
+         Logical.Configure (Decoder, Version => 1);
+         Start_Copy
+           (Replication.Start_Logical
+              (Slot,
+               Start,
+               (Replication.Option ("proto_version", "1"),
+                Replication.Option
+                  ("publication_names", "flyology_publication"))));
+
+         while not Finished loop
+            Messages := Messages + 1;
+            Require
+              (Messages <= 100_000,
+               "logical resume scenario did not converge");
+            declare
+               Event : constant Client.Copy_Event :=
+                 Client.Receive_Copy_Event (Session, Timeout => 20.0);
+            begin
+               Raise_Server_Error (Event);
+               if Protocol.Response_Kind (Event) =
+                 Protocol.Copy_Data_Response
+               then
+                  declare
+                     Frame : constant Replication.Stream_Message :=
+                       Replication.Decode
+                         (Protocol.Original_Message (Event));
+                  begin
+                     if Replication.Kind (Frame) = Replication.XLog_Data then
+                        Observe
+                          (Logical.Decode
+                             (Decoder, Replication.Data (Frame)));
+                        if First_Run and then Interrupted_Rows = 50 then
+                           Require
+                             (Checkpoint_Commits = 1,
+                              "interrupted before the checkpoint was"
+                              & " acknowledged");
+                           Sockets.Close_Socket (Socket);
+                           Finished := True;
+                        end if;
+                     elsif Replication.Kind (Frame) =
+                       Replication.Primary_Keepalive
+                       and then Replication.Reply_Requested (Frame)
+                     then
+                        Client.Send_Command
+                          (Session,
+                           Replication.Make_Standby_Status_Update
+                             (Acknowledged,
+                              Acknowledged,
+                              Acknowledged,
+                              Sent_At => 0),
+                           Timeout => 10.0);
+                     end if;
+                  end;
+               end if;
+            end;
+         end loop;
+
+         if not First_Run then
+            Require
+              (Expected_Id = 801_001,
+               "resume oracle did not apply the exact interrupted"
+               & " transaction");
+            Finish_Stream;
+         end if;
+      end Test_Logical_Resume;
+
       procedure Test_Logical is
          Slot : constant String :=
            Environment ("POSTGRES_REPLICATION_SLOT");
@@ -333,8 +499,117 @@ procedure Postgres_Test_Replication is
          Saw_Stream_Prepare : Boolean := False;
          Saw_Binary         : Boolean := False;
          Saw_Origin         : Boolean := False;
+         Saw_Unchanged_Toast : Boolean := False;
          Last_WAL_End       : Replication.LSN := 0;
          Messages           : Natural := 0;
+
+         subtype Model_Id is Natural range 1_001 .. 1_003;
+         type Model_Row is record
+            Present      : Boolean := False;
+            Payload_Null : Boolean := False;
+            Payload      : Unbounded.Unbounded_String;
+            Marker       : Natural := 0;
+            Mood         : Unbounded.Unbounded_String;
+         end record;
+         type Model_State is array (Model_Id) of Model_Row;
+         Empty_State : constant Model_State :=
+           (others => (others => <>));
+         Committed_State : Model_State := Empty_State;
+         Pending_State   : Model_State := Empty_State;
+         In_Transaction  : Boolean := False;
+         Applied_Transactions : Natural := 0;
+
+         function Tuple_Id (Item : Logical.Tuple_Data) return Model_Id is
+            Value : constant Logical.Tuple_Value :=
+              Logical.Column (Item, 1);
+         begin
+            Require
+              (Logical.Kind (Value) = Logical.Text_Value,
+               "logical apply received a non-text primary key");
+            return Model_Id'Value (Logical.Text (Value));
+         end Tuple_Id;
+
+         function Tuple_Text
+           (Item : Logical.Tuple_Data; Index : Positive) return String is
+            Value : constant Logical.Tuple_Value :=
+              Logical.Column (Item, Index);
+         begin
+            Require
+              (Logical.Kind (Value) = Logical.Text_Value,
+               "logical apply received an unexpected non-text value");
+            return Logical.Text (Value);
+         end Tuple_Text;
+
+         procedure Verify_Old (Item : Logical.Tuple_Data) is
+            Id  : constant Model_Id := Tuple_Id (Item);
+            Row : constant Model_Row := Pending_State (Id);
+            Payload : constant Logical.Tuple_Value :=
+              Logical.Column (Item, 2);
+         begin
+            Require (Row.Present, "logical old tuple names a missing row");
+            if Row.Payload_Null then
+               Require
+                 (Logical.Kind (Payload) = Logical.Null_Value,
+                  "logical old tuple lost a NULL payload");
+            else
+               Require
+                 (Logical.Kind (Payload) = Logical.Text_Value
+                  and then Logical.Text (Payload) =
+                    Unbounded.To_String (Row.Payload),
+                  "logical old tuple payload differs from applied state");
+            end if;
+            Require
+              (Natural'Value (Tuple_Text (Item, 3)) = Row.Marker
+               and then Tuple_Text (Item, 4) =
+                 Unbounded.To_String (Row.Mood),
+               "logical old tuple scalar values differ from applied state");
+         end Verify_Old;
+
+         procedure Apply_New
+           (Item : Logical.Tuple_Data; Must_Exist : Boolean) is
+            Id      : constant Model_Id := Tuple_Id (Item);
+            Payload : constant Logical.Tuple_Value :=
+              Logical.Column (Item, 2);
+            Row     : Model_Row := Pending_State (Id);
+         begin
+            Require
+              (Row.Present = Must_Exist,
+               "logical apply row existence precondition changed");
+            Row.Present := True;
+            case Logical.Kind (Payload) is
+               when Logical.Null_Value =>
+                  Row.Payload_Null := True;
+                  Row.Payload := Unbounded.Null_Unbounded_String;
+               when Logical.Unchanged_Toast_Value =>
+                  Require
+                    (Must_Exist and then not Row.Payload_Null,
+                     "unchanged TOAST has no prior applied value");
+                  Saw_Unchanged_Toast := True;
+               when Logical.Text_Value =>
+                  Row.Payload_Null := False;
+                  Row.Payload := Unbounded.To_Unbounded_String
+                    (Logical.Text (Payload));
+               when Logical.Binary_Value =>
+                  raise Program_Error with
+                    "logical v1 apply received a binary tuple";
+            end case;
+            Row.Marker := Natural'Value (Tuple_Text (Item, 3));
+            Row.Mood := Unbounded.To_Unbounded_String
+              (Tuple_Text (Item, 4));
+            Pending_State (Id) := Row;
+         end Apply_New;
+
+         function Applied_State_Is_Exact return Boolean is
+           (Applied_Transactions = 3
+            and then not Committed_State (1_001).Present
+            and then not Committed_State (1_002).Present
+            and then Committed_State (1_003).Present
+            and then not Committed_State (1_003).Payload_Null
+            and then Unbounded.To_String
+              (Committed_State (1_003).Payload) = "final-state"
+            and then Committed_State (1_003).Marker = 3
+            and then Unbounded.To_String
+              (Committed_State (1_003).Mood) = "happy");
 
          function Tuple_Has_Binary
            (Item : Logical.Tuple_Data) return Boolean is
@@ -352,9 +627,11 @@ procedure Postgres_Test_Replication is
          function Complete return Boolean is
          begin
             if Scenario = "logical_v1" then
-               return Saw_Begin and Saw_Commit and Saw_Relation
-                 and Saw_Type and Saw_Insert and Saw_Update and Saw_Delete
-                 and Saw_Truncate and Saw_Message;
+               return
+                 (Saw_Begin and Saw_Commit and Saw_Relation
+                  and Saw_Type and Saw_Insert and Saw_Update and Saw_Delete
+                  and Saw_Truncate and Saw_Message and Saw_Unchanged_Toast)
+                 and then Applied_State_Is_Exact;
             elsif Scenario = "logical_v2" then
                return Saw_Stream_Start and Saw_Stream_Stop
                  and Saw_Stream_Commit and Saw_Insert;
@@ -388,12 +665,27 @@ procedure Postgres_Test_Replication is
                     (Logical.Final_LSN (Item) > 0
                      and then Logical.Transaction (Item) > 0,
                      "real Begin has invalid transaction metadata");
+                  if Scenario = "logical_v1" then
+                     Require
+                       (not In_Transaction,
+                        "logical apply observed a nested transaction");
+                     Pending_State := Committed_State;
+                     In_Transaction := True;
+                  end if;
                when Logical.Commit_Message =>
                   Saw_Commit := True;
                   Require
                     (Logical.Commit_LSN (Item) > 0
                      and then Logical.End_LSN (Item) > 0,
                      "real Commit has invalid LSNs");
+                  if Scenario = "logical_v1" then
+                     Require
+                       (In_Transaction,
+                        "logical apply committed outside a transaction");
+                     Committed_State := Pending_State;
+                     Applied_Transactions := Applied_Transactions + 1;
+                     In_Transaction := False;
+                  end if;
                when Logical.Origin_Message =>
                   Saw_Origin := True;
                   Require
@@ -431,24 +723,55 @@ procedure Postgres_Test_Replication is
                         and then Logical.Transaction (Item) > 0,
                         "streamed Insert is missing its XID");
                   end if;
+                  if Scenario = "logical_v1" then
+                     Require
+                       (In_Transaction,
+                        "logical apply inserted outside a transaction");
+                     Apply_New (Logical.New_Tuple (Item), False);
+                  end if;
                when Logical.Update_Message =>
                   Saw_Update := True;
                   Require
-                    (Logical.Old_Kind (Item) =
+                     (Logical.Old_Kind (Item) =
                        Logical.Full_Old_Tuple,
                      "real Update lost REPLICA IDENTITY FULL data");
+                  if Scenario = "logical_v1" then
+                     Require
+                       (In_Transaction,
+                        "logical apply updated outside a transaction");
+                     Verify_Old (Logical.Old_Tuple (Item));
+                     Apply_New (Logical.New_Tuple (Item), True);
+                  end if;
                when Logical.Delete_Message =>
                   Saw_Delete := True;
                   Require
-                    (Logical.Old_Kind (Item) =
+                     (Logical.Old_Kind (Item) =
                        Logical.Full_Old_Tuple,
                      "real Delete lost REPLICA IDENTITY FULL data");
+                  if Scenario = "logical_v1" then
+                     Require
+                       (In_Transaction,
+                        "logical apply deleted outside a transaction");
+                     declare
+                        Id : constant Model_Id :=
+                          Tuple_Id (Logical.Old_Tuple (Item));
+                     begin
+                        Verify_Old (Logical.Old_Tuple (Item));
+                        Pending_State (Id) := (others => <>);
+                     end;
+                  end if;
                when Logical.Truncate_Message =>
                   Saw_Truncate := True;
                   Require
                     (Logical.Cascade (Item)
                      and then Logical.Restart_Identity (Item),
                      "real Truncate flags changed");
+                  if Scenario = "logical_v1" then
+                     Require
+                       (In_Transaction,
+                        "logical apply truncated outside a transaction");
+                     Pending_State := Empty_State;
+                  end if;
                when Logical.Stream_Start_Message =>
                   Saw_Stream_Start := True;
                   Require
@@ -655,12 +978,18 @@ procedure Postgres_Test_Replication is
 
       if Scenario = "physical" then
          Test_Physical;
+      elsif Scenario in
+        "logical_resume_first" | "logical_resume_second"
+      then
+         Test_Logical_Resume;
       else
          Test_Logical;
       end if;
 
-      Client.Send_Command
-        (Session, Protocol.Make_Empty_Message ('X'), Timeout => 10.0);
+      if Scenario /= "logical_resume_first" then
+         Client.Send_Command
+           (Session, Protocol.Make_Empty_Message ('X'), Timeout => 10.0);
+      end if;
       Ada.Text_IO.Put_Line
         ("PostgreSQL " & Server_Major & " " & Scenario & " passed");
       Result.Pass;

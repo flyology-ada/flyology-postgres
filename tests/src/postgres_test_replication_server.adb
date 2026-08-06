@@ -27,12 +27,14 @@ procedure Postgres_Test_Replication_Server is
    use type Protocol.Replication_Connection_Mode;
    use type Replication.Command_Kind;
    use type Replication.LSN;
+   use type Replication.Stream_Message_Kind;
    use type Replication.UInt32;
 
    type Context is limited record
       System_Id    : Replication.UInt64 := 0;
       Current_WAL  : Replication.LSN := 0;
       WAL_Directory : Unbounded_String;
+      Expected_Slot : Unbounded_String;
       Segment_Size : Replication.UInt64 := 16 * 1_024 * 1_024;
    end record;
 
@@ -140,25 +142,69 @@ procedure Postgres_Test_Replication_Server is
          Reply_Requested => True,
          Timeout         => 10.0);
 
-      declare
-         Feedback : constant Replication.Stream_Message :=
-           Replication_Sessions.Read_Standby_Message
-             (Client, Timeout => 30.0);
-      begin
-         Ada.Text_IO.Put_Line
-           ("standby feedback " & Replication.Kind (Feedback)'Image);
-         Ada.Text_IO.Flush;
-      end;
-
       loop
-         delay 1.0;
-         Replication_Sessions.Send_Primary_Keepalive
-           (Client,
-            WAL_End         => State.Current_WAL,
-            Sent_At         => 0,
-            Reply_Requested => False,
-            Timeout         => 10.0);
+         declare
+            Feedback : constant Replication.Stream_Message :=
+              Replication_Sessions.Read_Standby_Message
+                (Client, Timeout => 30.0);
+         begin
+            if Replication.Kind (Feedback) =
+              Replication.Standby_Status_Update
+              and then Replication.Received_LSN (Feedback) =
+                State.Current_WAL
+              and then Replication.Flushed_LSN (Feedback) =
+                State.Current_WAL
+              and then Replication.Applied_LSN (Feedback) =
+                State.Current_WAL
+            then
+               Ada.Text_IO.Put_Line
+                 ("standby feedback received="
+                  & Replication.Image
+                    (Replication.Received_LSN (Feedback))
+                  & " flushed="
+                  & Replication.Image
+                    (Replication.Flushed_LSN (Feedback))
+                  & " applied="
+                  & Replication.Image
+                    (Replication.Applied_LSN (Feedback)));
+               Ada.Text_IO.Flush;
+               exit;
+            end if;
+         end;
       end loop;
+
+      Replication_Sessions.Finish_Streaming (Client, Timeout => 10.0);
+      loop
+         declare
+            Copy_Command : constant Protocol.Frontend_Copy_Message :=
+              Sessions.Read_Copy_Command (Client, Timeout => 30.0);
+         begin
+            case Protocol.Copy_Kind (Copy_Command) is
+               when Protocol.Frontend_Copy_Data =>
+                  declare
+                     Feedback : constant Replication.Stream_Message :=
+                       Replication.Decode
+                         (Protocol.Original_Message (Copy_Command));
+                  begin
+                     if Replication.Kind (Feedback) not in
+                       Replication.Standby_Status_Update |
+                       Replication.Hot_Standby_Feedback
+                     then
+                        raise Protocol.Protocol_Error with
+                          "standby sent backend replication data";
+                     end if;
+                  end;
+               when Protocol.Frontend_Copy_Done =>
+                  exit;
+               when Protocol.Frontend_Copy_Fail =>
+                  raise Protocol.Protocol_Error with
+                    "standby aborted graceful COPY BOTH completion";
+            end case;
+         end;
+      end loop;
+      Replication_Sessions.Complete_Streaming (Client, Timeout => 10.0);
+      Ada.Text_IO.Put_Line ("streaming complete");
+      Ada.Text_IO.Flush;
    end Stream_WAL;
 
    procedure Handle
@@ -201,6 +247,13 @@ procedure Postgres_Test_Replication_Server is
               "timeline 1 does not have a history file";
 
          when Replication.Start_Physical_Command =>
+            if Length (State.Expected_Slot) > 0
+              and then Replication.Slot_Name (Command) /=
+                To_String (State.Expected_Slot)
+            then
+               raise Protocol.Protocol_Error with
+                 "standby did not request the configured physical slot";
+            end if;
             if Replication.Has_Timeline (Command)
               and then Replication.Timeline (Command) /= 1
             then
@@ -233,6 +286,9 @@ begin
      (Ada.Environment_Variables.Value ("POSTGRES_PRIMARY_END_LSN"));
    State.WAL_Directory := To_Unbounded_String
      (Ada.Environment_Variables.Value ("POSTGRES_PRIMARY_WAL_DIR"));
+   State.Expected_Slot := To_Unbounded_String
+     (Ada.Environment_Variables.Value
+        ("POSTGRES_PRIMARY_SLOT", ""));
    State.Segment_Size := Replication.UInt64'Value
      (Ada.Environment_Variables.Value
         ("POSTGRES_PRIMARY_WAL_SEGMENT_SIZE", "16777216"));
