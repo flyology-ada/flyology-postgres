@@ -5,6 +5,7 @@ with Ada.Strings.Unbounded;
 with Ada.Text_IO;
 with Flyology;
 with Flyology.Bytes;
+with Flyology.IO;
 with Flyology.IO.Sockets;
 with Flyology.IO.TLS.OpenSSL;
 with Flyology.Postgres.Client;
@@ -310,7 +311,10 @@ procedure Postgres_Test_Replication is
            Environment ("POSTGRES_REPLICATION_START_LSN", "0/0");
          Start : constant Replication.LSN := Replication.Value (Start_Text);
          First_Run : constant Boolean :=
-           Scenario = "logical_resume_first";
+           Scenario in "logical_resume_first" | "logical_resume_reset" |
+             "logical_resume_timeout";
+         Receive_Timeout : constant Duration := Duration'Value
+           (Environment ("POSTGRES_REPLICATION_RECEIVE_TIMEOUT", "20.0"));
          Decoder : Logical.Decoder;
          Saw_Begin : Boolean := False;
          Saw_Checkpoint_Row : Boolean := False;
@@ -417,7 +421,8 @@ procedure Postgres_Test_Replication is
                "logical resume scenario did not converge");
             declare
                Event : constant Client.Copy_Event :=
-                 Client.Receive_Copy_Event (Session, Timeout => 20.0);
+                 Client.Receive_Copy_Event
+                   (Session, Timeout => Receive_Timeout);
             begin
                Raise_Server_Error (Event);
                if Protocol.Response_Kind (Event) =
@@ -432,7 +437,9 @@ procedure Postgres_Test_Replication is
                         Observe
                           (Logical.Decode
                              (Decoder, Replication.Data (Frame)));
-                        if First_Run and then Interrupted_Rows = 50 then
+                        if Scenario = "logical_resume_first"
+                          and then Interrupted_Rows = 50
+                        then
                            Require
                              (Checkpoint_Commits = 1,
                               "interrupted before the checkpoint was"
@@ -465,6 +472,12 @@ procedure Postgres_Test_Replication is
                & " transaction");
             Finish_Stream;
          end if;
+      exception
+         when Flyology.IO.Timeout_Error =>
+            Require
+              (Scenario = "logical_resume_timeout",
+               "unexpected replication receive timeout");
+            Sockets.Close_Socket (Socket);
       end Test_Logical_Resume;
 
       procedure Test_Logical is
@@ -1222,14 +1235,17 @@ procedure Postgres_Test_Replication is
       if Scenario = "physical" then
          Test_Physical;
       elsif Scenario in
-        "logical_resume_first" | "logical_resume_second"
+        "logical_resume_first" | "logical_resume_reset" |
+        "logical_resume_timeout" | "logical_resume_second"
       then
          Test_Logical_Resume;
       else
          Test_Logical;
       end if;
 
-      if Scenario /= "logical_resume_first" then
+      if Scenario not in
+        "logical_resume_first" | "logical_resume_timeout"
+      then
          Client.Send_Command
            (Session, Protocol.Make_Empty_Message ('X'), Timeout => 10.0);
       end if;

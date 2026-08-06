@@ -16,11 +16,14 @@ five independent CI jobs for PostgreSQL 14.23, 15.18, 16.14, 17.10, and 18.4.
   replica-identity-full old tuples, a large TOAST value represented as unchanged
   by an update, and a transactional message.
 - The reconnect flow acknowledges a checkpoint commit by its logical end LSN,
-  verifies the slot persisted that acknowledgement, disconnects after row 50
-  of a 1,000-row transaction, creates a fresh session and decoder, and requires
-  rows 800001 through 801000 in exact order before advancing the acknowledgement.
-  The acknowledged checkpoint may be replayed once; a second replay or any
-  duplicate or gap in the interrupted transaction fails the oracle.
+  verifies the slot persisted that acknowledgement, and interrupts a 1,000-row
+  transaction three ways: a deliberate disconnect after row 50, a seeded TCP
+  reset after 20,000 encrypted server bytes, and a one-second transport stall
+  against a 200-millisecond receive timeout. Each creates a fresh process,
+  session, and decoder and requires rows 800001 through 801000 in exact order
+  before advancing the acknowledgement. The acknowledged checkpoint may be
+  replayed once; a second replay or any duplicate or gap in the interrupted
+  transaction fails the oracle.
 - Real PostgreSQL standbys consume WAL from Flyology across a WAL segment
   boundary, name a physical slot using PostgreSQL's quoted identifier syntax,
   replay the target row, and report received, flushed, and applied LSNs exactly
@@ -33,6 +36,12 @@ five independent CI jobs for PostgreSQL 14.23, 15.18, 16.14, 17.10, and 18.4.
   and rollback, parallel abort, binary tuples, and origins against real
   PostgreSQL through that same committed-state model while also validating the
   decoded protocol metadata.
+- Both replication directions run through a seeded TCP proxy with 4 KiB socket
+  buffers, bounded reads, deterministic short writes, and per-write delay. The
+  proxy records byte and write counts and the injection seed, and the matrix
+  requires bidirectional traffic. This adversity remains below TLS, so the real
+  TLS record and replication framing paths absorb the fragmentation and
+  backpressure.
 
 ## Exact server boundaries
 
@@ -57,8 +66,8 @@ implementation to test.
    `RollbackPrepared`.
 3. Add timeline and history callbacks plus promotion state, then run a promoted
    real standby through `TIMELINE_HISTORY` and a new timeline's WAL.
-4. Add deterministic adverse transports around both replication directions:
-   fragmented frames, bounded slow-consumer backpressure, timeout and reset
-   injection, and exact keepalive reply-request timing.
+4. Add monotonic-clock assertions for keepalive reply-request deadlines rather
+   than only proving that the real peer responds and the requested feedback is
+   accepted.
 5. Once a logical output producer exists, use `pg_recvlogical` first, followed
    by a real subscription worker, as the primary-side logical oracle.

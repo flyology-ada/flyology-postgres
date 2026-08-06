@@ -19,6 +19,10 @@ postgres_log=
 postgres_started=false
 replication_client_pid=
 replication_server_pid=
+replication_proxy_pid=
+primary_proxy_pid=
+reset_proxy_pid=
+replication_client_port=$port
 standby_started=false
 standby_dir=
 
@@ -27,6 +31,10 @@ cleanup () {
     kill "$replication_client_pid" >/dev/null 2>&1 || true
     wait "$replication_client_pid" >/dev/null 2>&1 || true
   fi
+  if [ -n "$primary_proxy_pid" ]; then
+    kill "$primary_proxy_pid" >/dev/null 2>&1 || true
+    wait "$primary_proxy_pid" >/dev/null 2>&1 || true
+  fi
   if [ "$standby_started" = true ]; then
     "$postgres_prefix/bin/pg_ctl" -D "$standby_dir" -m immediate -w stop \
       >/dev/null 2>&1 || true
@@ -34,6 +42,14 @@ cleanup () {
   if [ -n "$replication_server_pid" ]; then
     kill "$replication_server_pid" >/dev/null 2>&1 || true
     wait "$replication_server_pid" >/dev/null 2>&1 || true
+  fi
+  if [ -n "$replication_proxy_pid" ]; then
+    kill "$replication_proxy_pid" >/dev/null 2>&1 || true
+    wait "$replication_proxy_pid" >/dev/null 2>&1 || true
+  fi
+  if [ -n "$reset_proxy_pid" ]; then
+    kill "$reset_proxy_pid" >/dev/null 2>&1 || true
+    wait "$reset_proxy_pid" >/dev/null 2>&1 || true
   fi
   if [ "$postgres_started" = true ]; then
     "$postgres_prefix/bin/pg_ctl" -D "$data_dir" -m immediate -w stop \
@@ -75,7 +91,7 @@ run_client () {
   slot=${4:-}
   start_lsn=${5:-}
 
-  if ! POSTGRES_REPLICATION_PORT=$port \
+  if ! POSTGRES_REPLICATION_PORT=$replication_client_port \
     POSTGRES_TLS_CA_FILE=$ca_cert \
     POSTGRES_REPLICATION_SCENARIO=$scenario \
     POSTGRES_SERVER_MAJOR=$major \
@@ -95,7 +111,7 @@ run_parallel_abort () {
   slot=$2
   client_log="$version_root/logical_v4-client.log"
 
-  POSTGRES_REPLICATION_PORT=$port \
+  POSTGRES_REPLICATION_PORT=$replication_client_port \
   POSTGRES_TLS_CA_FILE=$ca_cert \
   POSTGRES_REPLICATION_SCENARIO=logical_v4 \
   POSTGRES_SERVER_MAJOR=$major \
@@ -135,6 +151,7 @@ run_parallel_abort () {
 run_reconnect_resume () {
   major=$1
   slot=$2
+  adversity=${3:-graceful}
 
   initial_lsn=$(psql -qAtc \
     "select confirmed_flush_lsn from pg_replication_slots where slot_name = '$slot'")
@@ -143,7 +160,118 @@ run_reconnect_resume () {
     >/dev/null
   seed_large_commit 800000
 
-  run_client logical_resume_first "$major" 1 "$slot" "$initial_lsn"
+  if [ "$adversity" = reset ]; then
+    reset_proxy_port=$((port + 12))
+    reset_proxy_log="$version_root/reset-proxy.log"
+    python3 "$script_dir/fragmenting-proxy.py" \
+      --listen-port "$reset_proxy_port" \
+      --upstream-port "$port" \
+      --seed "$((major * 1009 + 3))" \
+      --reset-server-bytes 20000 \
+      >"$reset_proxy_log" 2>&1 &
+    reset_proxy_pid=$!
+    attempt=0
+    until grep -q '^ready seed=' "$reset_proxy_log"; do
+      attempt=$((attempt + 1))
+      if ! kill -0 "$reset_proxy_pid" >/dev/null 2>&1; then
+        cat "$reset_proxy_log" >&2
+        printf '%s\n' "reset transport proxy exited early" >&2
+        return 1
+      fi
+      if [ "$attempt" -ge 100 ]; then
+        cat "$reset_proxy_log" >&2
+        printf '%s\n' "reset transport proxy did not become ready" >&2
+        return 1
+      fi
+      sleep 0.05
+    done
+    if POSTGRES_REPLICATION_PORT=$reset_proxy_port \
+      POSTGRES_TLS_CA_FILE=$ca_cert \
+      POSTGRES_REPLICATION_SCENARIO=logical_resume_reset \
+      POSTGRES_SERVER_MAJOR=$major \
+      POSTGRES_LOGICAL_VERSION=1 \
+      POSTGRES_REPLICATION_SLOT=$slot \
+      POSTGRES_REPLICATION_START_LSN=$initial_lsn \
+        "$tests_root/bin/postgres_test_replication" \
+        >"$version_root/reset-client.log" 2>&1
+    then
+      printf '%s\n' "reset replication client unexpectedly succeeded" >&2
+      return 1
+    fi
+    attempt=0
+    until grep -q '^reset server_bytes=20000$' "$reset_proxy_log"; do
+      attempt=$((attempt + 1))
+      if [ "$attempt" -ge 100 ]; then
+        cat "$reset_proxy_log" >&2
+        cat "$version_root/reset-client.log" >&2
+        printf '%s\n' "transport reset was not injected" >&2
+        return 1
+      fi
+      sleep 0.05
+    done
+    kill "$reset_proxy_pid" >/dev/null 2>&1 || true
+    wait "$reset_proxy_pid" >/dev/null 2>&1 || true
+    reset_proxy_pid=
+  elif [ "$adversity" = timeout ]; then
+    timeout_proxy_port=$((port + 13))
+    timeout_proxy_log="$version_root/timeout-proxy.log"
+    python3 "$script_dir/fragmenting-proxy.py" \
+      --listen-port "$timeout_proxy_port" \
+      --upstream-port "$port" \
+      --seed "$((major * 1009 + 4))" \
+      --stall-server-bytes 20000 \
+      --stall-seconds 1 \
+      >"$timeout_proxy_log" 2>&1 &
+    reset_proxy_pid=$!
+    attempt=0
+    until grep -q '^ready seed=' "$timeout_proxy_log"; do
+      attempt=$((attempt + 1))
+      if ! kill -0 "$reset_proxy_pid" >/dev/null 2>&1; then
+        cat "$timeout_proxy_log" >&2
+        printf '%s\n' "timeout transport proxy exited early" >&2
+        return 1
+      fi
+      if [ "$attempt" -ge 100 ]; then
+        cat "$timeout_proxy_log" >&2
+        printf '%s\n' "timeout transport proxy did not become ready" >&2
+        return 1
+      fi
+      sleep 0.05
+    done
+    if ! POSTGRES_REPLICATION_PORT=$timeout_proxy_port \
+      POSTGRES_TLS_CA_FILE=$ca_cert \
+      POSTGRES_REPLICATION_SCENARIO=logical_resume_timeout \
+      POSTGRES_REPLICATION_RECEIVE_TIMEOUT=0.2 \
+      POSTGRES_SERVER_MAJOR=$major \
+      POSTGRES_LOGICAL_VERSION=1 \
+      POSTGRES_REPLICATION_SLOT=$slot \
+      POSTGRES_REPLICATION_START_LSN=$initial_lsn \
+        "$tests_root/bin/postgres_test_replication" \
+        >"$version_root/timeout-client.log" 2>&1
+    then
+      cat "$version_root/timeout-client.log" >&2
+      printf '%s\n' "timed replication client did not report its timeout" >&2
+      return 1
+    fi
+    attempt=0
+    until grep -Eq '^stall server_bytes=[0-9]+ seconds=1.0$' \
+      "$timeout_proxy_log"
+    do
+      attempt=$((attempt + 1))
+      if [ "$attempt" -ge 100 ]; then
+        cat "$timeout_proxy_log" >&2
+        cat "$version_root/timeout-client.log" >&2
+        printf '%s\n' "transport stall was not injected" >&2
+        return 1
+      fi
+      sleep 0.05
+    done
+    kill "$reset_proxy_pid" >/dev/null 2>&1 || true
+    wait "$reset_proxy_pid" >/dev/null 2>&1 || true
+    reset_proxy_pid=
+  else
+    run_client logical_resume_first "$major" 1 "$slot" "$initial_lsn"
+  fi
 
   attempt=0
   acknowledged_lsn=$initial_lsn
@@ -178,7 +306,7 @@ run_reconnect_resume () {
     return 1
   fi
   printf '%s\n' \
-    "PostgreSQL $major reconnect resumed $acknowledged_lsn -> $final_lsn"
+    "PostgreSQL $major $adversity reconnect resumed $acknowledged_lsn -> $final_lsn"
 }
 
 drop_slot () {
@@ -244,9 +372,11 @@ run_real_standby () {
   major=$1
   replication_server_port=$((port + 1))
   standby_port=$((port + 2))
+  primary_proxy_port=$((port + 11))
   standby_dir="$version_root/standby"
   standby_log="$version_root/standby.log"
   replication_server_log="$version_root/replication-server.log"
+  primary_proxy_log="$version_root/primary-proxy.log"
   marker="replayed-by-flyology-$major"
   physical_slot="flyology_physical_$major"
 
@@ -302,9 +432,31 @@ SQL
     sleep 0.05
   done
 
+  python3 "$script_dir/fragmenting-proxy.py" \
+    --listen-port "$primary_proxy_port" \
+    --upstream-port "$replication_server_port" \
+    --seed "$((major * 1009 + 2))" \
+    >"$primary_proxy_log" 2>&1 &
+  primary_proxy_pid=$!
+  attempt=0
+  until grep -q '^ready seed=' "$primary_proxy_log"; do
+    attempt=$((attempt + 1))
+    if ! kill -0 "$primary_proxy_pid" >/dev/null 2>&1; then
+      cat "$primary_proxy_log" >&2
+      printf '%s\n' "standby transport proxy exited early" >&2
+      return 1
+    fi
+    if [ "$attempt" -ge 100 ]; then
+      cat "$primary_proxy_log" >&2
+      printf '%s\n' "standby transport proxy did not become ready" >&2
+      return 1
+    fi
+    sleep 0.05
+  done
+
   : > "$standby_dir/standby.signal"
   primary_conninfo="primary_conninfo = 'host=localhost hostaddr=127.0.0.1"
-  primary_conninfo="$primary_conninfo port=$replication_server_port"
+  primary_conninfo="$primary_conninfo port=$primary_proxy_port"
   primary_conninfo="$primary_conninfo user=flyology password=flyology-secret"
   primary_conninfo="$primary_conninfo sslmode=verify-full sslrootcert=$ca_cert"
   primary_conninfo="$primary_conninfo application_name=flyology_standby_$major'"
@@ -407,6 +559,16 @@ SQL
   kill "$replication_server_pid" >/dev/null 2>&1 || true
   wait "$replication_server_pid" >/dev/null 2>&1 || true
   replication_server_pid=
+  kill "$primary_proxy_pid" >/dev/null 2>&1 || true
+  wait "$primary_proxy_pid" >/dev/null 2>&1 || true
+  primary_proxy_pid=
+  if ! grep -Eq '^connection [0-9]+ .*client_writes=[1-9][0-9]* .*server_writes=[1-9][0-9]*$' \
+    "$primary_proxy_log"
+  then
+    cat "$primary_proxy_log" >&2
+    printf '%s\n' "standby transport proxy moved no bidirectional data" >&2
+    return 1
+  fi
   printf '%s\n' "PostgreSQL $major real standby passed"
 }
 
@@ -448,6 +610,30 @@ for version in $versions; do
     -w start \
     >/dev/null
   postgres_started=true
+
+  replication_client_port=$((port + 10))
+  replication_proxy_log="$version_root/replication-proxy.log"
+  python3 "$script_dir/fragmenting-proxy.py" \
+    --listen-port "$replication_client_port" \
+    --upstream-port "$port" \
+    --seed "$((major * 1009 + 1))" \
+    >"$replication_proxy_log" 2>&1 &
+  replication_proxy_pid=$!
+  attempt=0
+  until grep -q '^ready seed=' "$replication_proxy_log"; do
+    attempt=$((attempt + 1))
+    if ! kill -0 "$replication_proxy_pid" >/dev/null 2>&1; then
+      cat "$replication_proxy_log" >&2
+      printf '%s\n' "replication transport proxy exited early" >&2
+      exit 1
+    fi
+    if [ "$attempt" -ge 100 ]; then
+      cat "$replication_proxy_log" >&2
+      printf '%s\n' "replication transport proxy did not become ready" >&2
+      exit 1
+    fi
+    sleep 0.05
+  done
 
   printf '%s\n' "Testing real PostgreSQL $version replication"
   psql -q <<'SQL'
@@ -499,6 +685,18 @@ SQL
   slot="flyology_resume_$major"
   create_slot "$slot"
   run_reconnect_resume "$major" "$slot"
+  drop_slot "$slot"
+
+  psql -qAtc 'truncate flyology_replication' >/dev/null
+  slot="flyology_reset_$major"
+  create_slot "$slot"
+  run_reconnect_resume "$major" "$slot" reset
+  drop_slot "$slot"
+
+  psql -qAtc 'truncate flyology_replication' >/dev/null
+  slot="flyology_timeout_$major"
+  create_slot "$slot"
+  run_reconnect_resume "$major" "$slot" timeout
   drop_slot "$slot"
 
   psql -qAtc 'truncate flyology_replication' >/dev/null
@@ -576,6 +774,17 @@ SQL
   fi
 
   run_real_standby "$major"
+
+  kill "$replication_proxy_pid" >/dev/null 2>&1 || true
+  wait "$replication_proxy_pid" >/dev/null 2>&1 || true
+  replication_proxy_pid=
+  if ! grep -Eq '^connection [0-9]+ .*client_writes=[1-9][0-9]* .*server_writes=[1-9][0-9]*$' \
+    "$replication_proxy_log"
+  then
+    cat "$replication_proxy_log" >&2
+    printf '%s\n' "replication transport proxy moved no bidirectional data" >&2
+    exit 1
+  fi
 done
 
 printf '%s\n' \
