@@ -266,11 +266,15 @@ procedure Tests is
    procedure Test_Proved_Wire_Core is
       package Wire renames Flyology.Postgres.Wire;
       use type Wire.Byte_View;
+      use type Wire.Int64;
+      use type Wire.UInt64;
       Data     : Protocol.Byte_Array (-3 .. 0) := (others => 0);
+      Data64   : Protocol.Byte_Array (-7 .. 0) := (others => 0);
       Found    : Boolean;
       Position : Wire.Wire_Length;
       Cursor   : Wire.Wire_Length;
       Value16  : Wire.UInt16;
+      Value64  : Wire.UInt64;
       Success  : Boolean;
       View     : Wire.Byte_View;
    begin
@@ -278,6 +282,28 @@ procedure Tests is
       Assert
         (Wire.Decode_U32 (Data, Position => 0) = 16#1234_ABCD#,
          "proved endian primitives handle arbitrary array bounds");
+
+      Wire.Encode_U64
+        (Data64, Position => 0, Value => 16#FEDC_BA98_7654_3210#);
+      Assert
+        (Wire.Decode_U64 (Data64, Position => 0) =
+           16#FEDC_BA98_7654_3210#,
+         "proved 64-bit endian primitives round trip replication fields");
+      Cursor := 0;
+      Wire.Try_Read_U64 (Data64, Cursor, Value64, Success);
+      Assert
+        (Success
+         and then Cursor = 8
+         and then Value64 = 16#FEDC_BA98_7654_3210#,
+         "proved 64-bit total reads advance by exactly eight bytes");
+
+      Assert
+        (Wire.To_Int32_Bits (16#FFFF_FFFF#) = -1
+         and then Wire.To_UInt32_Bits (Wire.Int32'First) = 16#8000_0000#
+         and then Wire.To_Int64_Bits (16#FFFF_FFFF_FFFF_FFFF#) = -1
+         and then Wire.To_UInt64_Bits (Wire.Int64'First) =
+           16#8000_0000_0000_0000#,
+         "proved signed bit-pattern conversions cover negative boundaries");
 
       Data :=
         (-3 => Protocol.Byte (Character'Pos ('a')),

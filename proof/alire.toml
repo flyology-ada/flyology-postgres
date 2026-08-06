@@ -1,5 +1,5 @@
 name = "flyology_postgres_proof"
-description = "Proof environment for the Flyology Postgres wire core"
+description = "Proof environment for the Flyology Postgres wire and SCRAM cores"
 version = "0.1.0-dev"
 
 authors = ["Yurii Rashkovskii"]

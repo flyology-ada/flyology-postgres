@@ -22,6 +22,11 @@ is
       or Shift_Left (UInt32 (Element_At (Data, Position + 2)), 8)
       or UInt32 (Element_At (Data, Position + 3)));
 
+   function Decode_U64
+     (Data : Byte_Array; Position : Wire_Length) return UInt64 is
+     (Shift_Left (UInt64 (Decode_U32 (Data, Position)), 32)
+      or UInt64 (Decode_U32 (Data, Position + 4)));
+
    procedure Try_Read_U16
      (Data     : Byte_Array;
       Cursor   : in out Wire_Length;
@@ -53,6 +58,22 @@ is
          Success := False;
       end if;
    end Try_Read_U32;
+
+   procedure Try_Read_U64
+     (Data     : Byte_Array;
+      Cursor   : in out Wire_Length;
+      Value    : out UInt64;
+      Success  : out Boolean) is
+   begin
+      if Can_Read (Data, Cursor, 8) then
+         Value := Decode_U64 (Data, Cursor);
+         Cursor := Cursor + 8;
+         Success := True;
+      else
+         Value := 0;
+         Success := False;
+      end if;
+   end Try_Read_U64;
 
    procedure Try_Read_Bytes
      (Data    : Byte_Array;
@@ -96,6 +117,29 @@ is
       Data (Data'First + Ada.Streams.Stream_Element_Offset (Position + 3)) :=
         Byte (Value and 16#FF#);
    end Encode_U32;
+
+   procedure Encode_U64
+     (Data     : in out Byte_Array;
+      Position : Wire_Length;
+      Value    : UInt64) is
+   begin
+      Data (Data'First + Ada.Streams.Stream_Element_Offset (Position)) :=
+        Byte (Shift_Right (Value, 56) and 16#FF#);
+      Data (Data'First + Ada.Streams.Stream_Element_Offset (Position + 1)) :=
+        Byte (Shift_Right (Value, 48) and 16#FF#);
+      Data (Data'First + Ada.Streams.Stream_Element_Offset (Position + 2)) :=
+        Byte (Shift_Right (Value, 40) and 16#FF#);
+      Data (Data'First + Ada.Streams.Stream_Element_Offset (Position + 3)) :=
+        Byte (Shift_Right (Value, 32) and 16#FF#);
+      Data (Data'First + Ada.Streams.Stream_Element_Offset (Position + 4)) :=
+        Byte (Shift_Right (Value, 24) and 16#FF#);
+      Data (Data'First + Ada.Streams.Stream_Element_Offset (Position + 5)) :=
+        Byte (Shift_Right (Value, 16) and 16#FF#);
+      Data (Data'First + Ada.Streams.Stream_Element_Offset (Position + 6)) :=
+        Byte (Shift_Right (Value, 8) and 16#FF#);
+      Data (Data'First + Ada.Streams.Stream_Element_Offset (Position + 7)) :=
+        Byte (Value and 16#FF#);
+   end Encode_U64;
 
    procedure Find_Nul
      (Data     : Byte_Array;

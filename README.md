@@ -501,7 +501,8 @@ RNG dependency.
 protocol facade. `Flyology.Postgres.SCRAM_Core` adds bounded PBKDF2-HMAC-SHA-256,
 digest hashing/XOR, and wipe glue over the proved `hmac_ada` primitives. GNATprove
 verifies arbitrary-bound array indexing, endian encoding and decoding, total
-status-returning cursor reads, bounded byte views, frame-length conversions,
+status-returning cursor reads, two's-complement signed-field conversion, bounded
+byte views, frame-length conversions,
 extended-protocol format-count validity, exact COPY-response lengths and format-code
 validity, earliest-NUL search, initial/startup packet structure, protocol 3.2
 variable cancellation keys, SSLRequest classification, exact source correspondence
@@ -513,8 +514,9 @@ The Flyology transports, heap-backed owned messages, tasking, and socket adapter
 remain conventional Ada outside this boundary.
 
 The cancellation registry, cryptographic credential generation, and token routing are
-intentionally conventional Ada. `Encode_Cancel_Request` composes the already-proved
-endian primitives without expanding the SPARK proof boundary.
+intentionally conventional Ada. `Encode_Cancel_Request` and the physical/logical
+replication codecs compose the already-proved 16-, 32-, and 64-bit endian and
+signed-bit-pattern primitives without expanding the SPARK proof boundary.
 
 GNATprove is intentionally not a library dependency. It lives in the nested proof
 environment and can be run with:
@@ -522,17 +524,17 @@ environment and can be run with:
 ```sh
 cd proof
 alr gnatprove \
-  -P ../flyology_postgres.gpr \
   -u flyology-postgres-wire.adb \
-  -j0 --level=1 --output=oneline --output-header -f
+  -j0 --level=1 --output=oneline --output-header -f \
+  2>&1 | tee gnatprove-run.txt
 alr gnatprove \
-  -P ../flyology_postgres.gpr \
   -u flyology-postgres-scram_core.adb \
-  -j0 --level=1 --output=oneline --output-header -f
+  -j0 --level=1 --output=oneline --output-header -f \
+  2>&1 | tee gnatprove-run.txt
 ```
 
-The current GNATprove FSF 16.1.0 result on the combined source is 291 of 291
-checks proved: 257 wire-core checks and 34 SCRAM-core checks. The wire core adds
+The current GNATprove FSF 16.1.0 result on the combined source is 326 of 326
+checks proved: 292 wire-core checks and 34 SCRAM-core checks. The wire core adds
 no warnings or assumptions. The SCRAM core reports five termination assumptions
 at calls into `hmac_ada`'s SHA-256 and HMAC operations because those dependency
 entry points do not expose `Always_Terminates`; no run-time or functional check

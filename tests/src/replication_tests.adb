@@ -1,17 +1,17 @@
 with Ada.Streams;
-with Ada.Unchecked_Conversion;
 with AUnit.Assertions; use AUnit.Assertions;
 with Flyology.Bytes;
 with Flyology.Postgres.Protocol;
 with Flyology.Postgres.Replication;
 with Flyology.Postgres.Replication.Logical;
-with Interfaces;
+with Flyology.Postgres.Wire;
 
 package body Replication_Tests is
 
    package Protocol renames Flyology.Postgres.Protocol;
    package Replication renames Flyology.Postgres.Replication;
    package Logical renames Flyology.Postgres.Replication.Logical;
+   package Wire renames Flyology.Postgres.Wire;
 
    use type Ada.Streams.Stream_Element;
    use type Ada.Streams.Stream_Element_Array;
@@ -30,25 +30,20 @@ package body Replication_Tests is
    use type Replication.LSN;
    use type Replication.Stream_Message_Kind;
 
-   function To_UInt64 is new Ada.Unchecked_Conversion
-     (Source => Replication.Int64, Target => Replication.UInt64);
-
    procedure Append_U64
      (Target : in out Flyology.Bytes.Unbounded_Bytes;
       Value  : Replication.UInt64) is
+      Data : Protocol.Byte_Array (1 .. 8);
    begin
-      Protocol.Append_U32
-        (Target,
-         Protocol.UInt32 (Interfaces.Shift_Right (Value, 32)));
-      Protocol.Append_U32
-        (Target, Protocol.UInt32 (Value and 16#FFFF_FFFF#));
+      Wire.Encode_U64 (Data, Position => 0, Value => Value);
+      Protocol.Append_Bytes (Target, Data);
    end Append_U64;
 
    procedure Append_Time
      (Target : in out Flyology.Bytes.Unbounded_Bytes;
       Value  : Replication.Replication_Timestamp) is
    begin
-      Append_U64 (Target, To_UInt64 (Value));
+      Append_U64 (Target, Wire.To_UInt64_Bits (Value));
    end Append_Time;
 
    function Logical_Message

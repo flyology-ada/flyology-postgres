@@ -8,13 +8,41 @@ package Flyology.Postgres.Wire
 is
 
    use type Ada.Streams.Stream_Element;
+   use type Interfaces.Integer_32;
+   use type Interfaces.Integer_64;
    use type Interfaces.Unsigned_16;
    use type Interfaces.Unsigned_32;
+   use type Interfaces.Unsigned_64;
 
    subtype Byte is Ada.Streams.Stream_Element;
    subtype Byte_Array is Ada.Streams.Stream_Element_Array;
    subtype UInt16 is Interfaces.Unsigned_16;
    subtype UInt32 is Interfaces.Unsigned_32;
+   subtype UInt64 is Interfaces.Unsigned_64;
+   subtype Int32 is Interfaces.Integer_32;
+   subtype Int64 is Interfaces.Integer_64;
+
+   --  Interpret signed protocol fields by their two's-complement bit pattern.
+   --  These total conversions avoid unchecked conversion at codec call sites.
+   function To_Int32_Bits (Value : UInt32) return Int32 is
+     (if Value <= UInt32 (Int32'Last)
+      then Int32 (Value)
+      else Int32'First + Int32 (Value - 16#8000_0000#));
+
+   function To_UInt32_Bits (Value : Int32) return UInt32 is
+     (if Value >= 0
+      then UInt32 (Value)
+      else 16#8000_0000# + UInt32 (Value - Int32'First));
+
+   function To_Int64_Bits (Value : UInt64) return Int64 is
+     (if Value <= UInt64 (Int64'Last)
+      then Int64 (Value)
+      else Int64'First + Int64 (Value - 16#8000_0000_0000_0000#));
+
+   function To_UInt64_Bits (Value : Int64) return UInt64 is
+     (if Value >= 0
+      then UInt64 (Value)
+      else 16#8000_0000_0000_0000# + UInt64 (Value - Int64'First));
 
    Maximum_Frame_Size : constant := Flyology.Postgres.Maximum_Message_Size;
    subtype Wire_Length is Natural range 0 .. Maximum_Frame_Size;
@@ -67,6 +95,11 @@ is
    with
      Pre => Can_Read (Data, Position, 4);
 
+   function Decode_U64
+     (Data : Byte_Array; Position : Wire_Length) return UInt64
+   with
+     Pre => Can_Read (Data, Position, 8);
+
    procedure Try_Read_U16
      (Data     : Byte_Array;
       Cursor   : in out Wire_Length;
@@ -93,6 +126,21 @@ is
         then Success
           and then Cursor = Cursor'Old + 4
           and then Value = Decode_U32 (Data, Cursor'Old)
+        else not Success
+          and then Cursor = Cursor'Old
+          and then Value = 0);
+
+   procedure Try_Read_U64
+     (Data     : Byte_Array;
+      Cursor   : in out Wire_Length;
+      Value    : out UInt64;
+      Success  : out Boolean)
+   with
+     Post =>
+       (if Can_Read (Data, Cursor'Old, 8)
+        then Success
+          and then Cursor = Cursor'Old + 8
+          and then Value = Decode_U64 (Data, Cursor'Old)
         else not Success
           and then Cursor = Cursor'Old
           and then Value = 0);
@@ -222,6 +270,30 @@ is
        and then Element_At (Data, Position + 2) =
          Byte (Interfaces.Shift_Right (Value, 8) and 16#FF#)
        and then Element_At (Data, Position + 3) =
+         Byte (Value and 16#FF#);
+
+   procedure Encode_U64
+     (Data     : in out Byte_Array;
+      Position : Wire_Length;
+      Value    : UInt64)
+   with
+     Pre  => Can_Read (Data, Position, 8),
+     Post =>
+       Element_At (Data, Position) =
+         Byte (Interfaces.Shift_Right (Value, 56) and 16#FF#)
+       and then Element_At (Data, Position + 1) =
+         Byte (Interfaces.Shift_Right (Value, 48) and 16#FF#)
+       and then Element_At (Data, Position + 2) =
+         Byte (Interfaces.Shift_Right (Value, 40) and 16#FF#)
+       and then Element_At (Data, Position + 3) =
+         Byte (Interfaces.Shift_Right (Value, 32) and 16#FF#)
+       and then Element_At (Data, Position + 4) =
+         Byte (Interfaces.Shift_Right (Value, 24) and 16#FF#)
+       and then Element_At (Data, Position + 5) =
+         Byte (Interfaces.Shift_Right (Value, 16) and 16#FF#)
+       and then Element_At (Data, Position + 6) =
+         Byte (Interfaces.Shift_Right (Value, 8) and 16#FF#)
+       and then Element_At (Data, Position + 7) =
          Byte (Value and 16#FF#);
 
    procedure Find_Nul

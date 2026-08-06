@@ -2,19 +2,16 @@ with Ada.Characters.Handling;
 with Ada.Containers.Vectors;
 with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded;
-with Ada.Unchecked_Conversion;
+with Flyology.Postgres.Wire;
 
 package body Flyology.Postgres.Replication is
+
+   package Wire renames Flyology.Postgres.Wire;
 
    use type Ada.Streams.Stream_Element_Offset;
    use type Ada.Streams.Stream_Element;
    use type Interfaces.Unsigned_32;
    use type Interfaces.Unsigned_64;
-
-   function To_UInt64 is new Ada.Unchecked_Conversion
-     (Source => Int64, Target => UInt64);
-   function To_Int64 is new Ada.Unchecked_Conversion
-     (Source => UInt64, Target => Int64);
 
    function Byte_String (Value : String) return Byte_Array is
       Result : Byte_Array (1 .. Ada.Streams.Stream_Element_Offset
@@ -582,26 +579,36 @@ package body Flyology.Postgres.Replication is
 
    procedure Append_U64
      (Target : in out Flyology.Bytes.Unbounded_Bytes; Value : UInt64) is
+      Data : Byte_Array (1 .. 8);
    begin
-      Protocol.Append_U32
-        (Target, UInt32 (Interfaces.Shift_Right (Value, 32)));
-      Protocol.Append_U32 (Target, UInt32 (Value and 16#FFFF_FFFF#));
+      Wire.Encode_U64 (Data, Position => 0, Value => Value);
+      Protocol.Append_Bytes (Target, Data);
    end Append_U64;
 
    function Read_U64
      (Source : Byte_Array;
       Cursor : in out Ada.Streams.Stream_Element_Offset) return UInt64 is
-      High : constant UInt32 := Protocol.Read_U32 (Source, Cursor);
-      Low  : constant UInt32 := Protocol.Read_U32 (Source, Cursor);
+      Position : Wire.Wire_Length;
+      Result   : UInt64;
+      Success  : Boolean;
    begin
-      return Interfaces.Shift_Left (UInt64 (High), 32) or UInt64 (Low);
+      Require
+        (Source'Length <= Protocol.Maximum_Message_Size
+         and then Cursor >= Source'First
+         and then Cursor <= Source'Last,
+         "truncated 64-bit replication field");
+      Position := Wire.Wire_Length (Cursor - Source'First);
+      Wire.Try_Read_U64 (Source, Position, Result, Success);
+      Require (Success, "truncated 64-bit replication field");
+      Cursor := Source'First + Ada.Streams.Stream_Element_Offset (Position);
+      return Result;
    end Read_U64;
 
    procedure Append_Timestamp
      (Target : in out Flyology.Bytes.Unbounded_Bytes;
       Value  : Replication_Timestamp) is
    begin
-      Append_U64 (Target, To_UInt64 (Value));
+      Append_U64 (Target, Wire.To_UInt64_Bits (Value));
    end Append_Timestamp;
 
    function Read_Timestamp
@@ -609,7 +616,7 @@ package body Flyology.Postgres.Replication is
       Cursor : in out Ada.Streams.Stream_Element_Offset)
       return Replication_Timestamp is
    begin
-      return To_Int64 (Read_U64 (Source, Cursor));
+      return Wire.To_Int64_Bits (Read_U64 (Source, Cursor));
    end Read_Timestamp;
 
    function Boolean_Byte (Value : Boolean) return Byte is

@@ -1,4 +1,3 @@
-with Ada.Unchecked_Conversion;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Flyology.Postgres.Protocol;
 with Flyology.Postgres.Wire;
@@ -15,15 +14,6 @@ package body Flyology.Postgres.Replication.Logical is
 
    subtype UInt16 is Interfaces.Unsigned_16;
    subtype UInt64 is Interfaces.Unsigned_64;
-
-   function To_Int32 is new Ada.Unchecked_Conversion
-     (Source => UInt32, Target => Int32);
-   function To_UInt32 is new Ada.Unchecked_Conversion
-     (Source => Int32, Target => UInt32);
-   function To_Int64 is new Ada.Unchecked_Conversion
-     (Source => UInt64, Target => Replication_Timestamp);
-   function To_UInt64 is new Ada.Unchecked_Conversion
-     (Source => Replication_Timestamp, Target => UInt64);
 
    procedure Require (Condition : Boolean; Information : String) is
    begin
@@ -115,10 +105,12 @@ package body Flyology.Postgres.Replication.Logical is
      (Data    : Byte_Array;
       Cursor  : in out Wire.Wire_Length;
       Context : String) return UInt64 is
-      High : constant UInt32 := Read_U32 (Data, Cursor, Context);
-      Low  : constant UInt32 := Read_U32 (Data, Cursor, Context);
+      Result  : UInt64;
+      Success : Boolean;
    begin
-      return Interfaces.Shift_Left (UInt64 (High), 32) or UInt64 (Low);
+      Wire.Try_Read_U64 (Data, Cursor, Result, Success);
+      Require (Success, "truncated " & Context);
+      return Result;
    end Read_U64;
 
    function Read_LSN
@@ -131,7 +123,7 @@ package body Flyology.Postgres.Replication.Logical is
      (Data    : Byte_Array;
       Cursor  : in out Wire.Wire_Length;
       Context : String) return Replication_Timestamp is
-     (To_Int64 (Read_U64 (Data, Cursor, Context)));
+     (Wire.To_Int64_Bits (Read_U64 (Data, Cursor, Context)));
 
    function Read_String
      (Data    : Byte_Array;
@@ -575,10 +567,10 @@ package body Flyology.Postgres.Replication.Logical is
 
    procedure Append_U64
      (Target : in out Flyology.Bytes.Unbounded_Bytes; Value : UInt64) is
+      Data : Byte_Array (1 .. 8);
    begin
-      Protocol.Append_U32
-        (Target, UInt32 (Interfaces.Shift_Right (Value, 32)));
-      Protocol.Append_U32 (Target, UInt32 (Value and 16#FFFF_FFFF#));
+      Wire.Encode_U64 (Data, Position => 0, Value => Value);
+      Protocol.Append_Bytes (Target, Data);
    end Append_U64;
 
    procedure Append_LSN
@@ -591,7 +583,7 @@ package body Flyology.Postgres.Replication.Logical is
      (Target : in out Flyology.Bytes.Unbounded_Bytes;
       Value  : Replication_Timestamp) is
    begin
-      Append_U64 (Target, To_UInt64 (Value));
+      Append_U64 (Target, Wire.To_UInt64_Bits (Value));
    end Append_Time;
 
    procedure Append_Tag
@@ -732,7 +724,8 @@ package body Flyology.Postgres.Replication.Logical is
                  (Result, (if Column.Key then 1 else 0));
                Protocol.Append_C_String (Result, To_String (Column.Label));
                Protocol.Append_U32 (Result, Column.Oid);
-               Protocol.Append_U32 (Result, To_UInt32 (Column.Modifier));
+               Protocol.Append_U32
+                 (Result, Wire.To_UInt32_Bits (Column.Modifier));
             end loop;
 
          when Type_Message =>
@@ -973,7 +966,7 @@ package body Flyology.Postgres.Replication.Logical is
                        (Read_String (Data, Cursor, "Relation column name"));
                      Column.Oid := Read_U32
                        (Data, Cursor, "Relation column type OID");
-                     Column.Modifier := To_Int32
+                     Column.Modifier := Wire.To_Int32_Bits
                        (Read_U32
                           (Data, Cursor, "Relation column type modifier"));
                      Result.Relation_Columns.Append (Column);

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Connect Flyology Ada tasks to Postgres, stream queries and COPY data, and build protocol servers.">
+    <meta name="description" content="Connect Flyology Ada tasks to Postgres, stream queries, COPY and replication data, and build protocol servers or primaries.">
     <meta name="theme-color" content="#17213d">
     <title>Guide · Flyology Postgres</title>
     <link rel="canonical" href="https://postgres.flyology.org/guide/">
@@ -45,7 +45,7 @@
           <ol class="breadcrumb" aria-label="Breadcrumb"><li><a href="../">Flyology Postgres</a></li><li aria-current="page">Guide</li></ol>
           <h1>From socket to bounded result stream.</h1>
         </div>
-        <p class="doc-hero-copy">Add the crate, connect a Flyology socket, complete Postgres startup, then choose simple queries, prepared portals, COPY streams, or a protocol server.</p>
+        <p class="doc-hero-copy">Add the crate, connect a Flyology socket, complete Postgres startup, then choose simple queries, prepared portals, COPY or replication streams, or a protocol server.</p>
       </header>
 
       <div class="docs-layout">
@@ -58,6 +58,7 @@
             <li><a href="#simple">Simple queries</a></li>
             <li><a href="#extended">Extended queries</a></li>
             <li><a href="#copy">Stream COPY</a></li>
+            <li><a href="#replication">Stream replication</a></li>
             <li><a href="#cancel">Cancel work</a></li>
             <li><a href="#server">Build a server</a></li>
             <li><a href="#parse-sql">Parse and transform SQL</a></li>
@@ -79,7 +80,7 @@
             <div class="decision-list">
               <dl>
                 <div class="decision-row"><dt>Flyology</dt><dd>Use the runtime and toolchain preparation documented by the main project.</dd></div>
-                <div class="decision-row"><dt>Postgres</dt><dd>Interoperability is exercised against Postgres 18.4 and the protocol 3.0/3.2 startup shapes.</dd></div>
+                <div class="decision-row"><dt>Postgres</dt><dd>Normal protocol interoperability is exercised with Postgres 18.4. Physical and logical replication are exercised against real Postgres 14 through 18 servers and recovery-mode standbys.</dd></div>
                 <div class="decision-row"><dt>Transport</dt><dd>The included adapters support plaintext sockets, verified TLS upgrades, and accepted Flyology connections.</dd></div>
               </dl>
             </div>
@@ -232,8 +233,106 @@ end;
             <p><code>Abort_Copy</code> sends <code>CopyFail</code> with a server-visible reason. For extended COPY, synchronization remains mandatory before the session returns to ready.</p>
           </section>
 
-          <section id="cancel">
+          <section id="replication">
             <span class="step-label">STEP 07</span>
+            <h2>Stream physical or logical replication in either direction.</h2>
+            <p><code>Flyology.Postgres.Replication</code> handles replication startup, LSN text, replication commands, physical stream envelopes, keepalives, status updates, and hot-standby feedback. <code>Flyology.Postgres.Replication.Logical</code> adds typed <code>pgoutput</code> messages. Both use the existing bounded COPY BOTH state machine, so replication data is delivered one frame at a time.</p>
+            <div class="decision-list">
+              <dl>
+                <div class="decision-row"><dt>Physical standby</dt><dd>Start with <code>Physical_Replication_Connection</code>, send <code>Start_Physical</code>, and consume the raw WAL bytes carried by each <code>XLogData</code> frame.</dd></div>
+                <div class="decision-row"><dt>Logical consumer</dt><dd>Start with <code>Logical_Replication_Connection</code>, send <code>Start_Logical</code>, then decode each <code>XLogData</code> payload with a configured logical decoder.</dd></div>
+                <div class="decision-row"><dt>Protocol levels</dt><dd>Logical protocol v1 covers committed transactions, v2 streamed transactions, v3 two-phase transactions, and v4 parallel-stream abort metadata.</dd></div>
+                <div class="decision-row"><dt>Primary server</dt><dd><code>Replication.Server_Sessions</code> answers replication commands, opens COPY BOTH, sends WAL and keepalives, reads standby feedback, and completes the crossed shutdown sequence.</dd></div>
+              </dl>
+            </div>
+
+            <h3>Consume a logical stream without buffering WAL.</h3>
+            <p>Replication startup uses the normal client authentication path with an explicit replication mode. Logical options preserve valueless, empty, and quoted values. Configure the stateful decoder once with the same protocol level and streaming mode sent to PostgreSQL.</p>
+            <figure class="code-panel">
+              <figcaption>logical pgoutput v4 consumer</figcaption>
+              <button class="copy-button" type="button" data-copy>Copy</button>
+              <pre><code class="language-ada">Client.Startup
+  (Session,
+   User             =&gt; "replicator",
+   Database         =&gt; "app",
+   Password         =&gt; Password,
+   Replication_Mode =&gt; Protocol.Logical_Replication_Connection);
+
+Client.Send_Command
+  (Session,
+   Replication.Start_Logical
+     ("subscriber_1",
+      Start_LSN,
+      (Replication.Option ("proto_version", "4"),
+       Replication.Option ("publication_names", "app_publication"),
+       Replication.Option ("streaming", "parallel"))));
+
+-- Receive and validate CopyBothResponse before reading COPY events.
+Started := Client.Receive_Query_Event (Session);
+Logical.Configure (Decoder, Version =&gt; 4, Streaming =&gt; Logical.Parallel);
+
+loop
+   Event := Client.Receive_Copy_Event (Session);
+   if Protocol.Response_Kind (Event) = Protocol.Copy_Data_Response then
+      Frame := Replication.Decode (Protocol.Original_Message (Event));
+
+      if Replication.Kind (Frame) = Replication.XLog_Data then
+         Change := Logical.Decode (Decoder, Replication.Data (Frame));
+         Apply (Change);  -- Dispatch on Logical.Kind and Logical.Level.
+
+         Client.Send_Command
+           (Session,
+            Replication.Make_Standby_Status_Update
+              (Received_LSN =&gt; Replication.WAL_End (Frame),
+               Flushed_LSN  =&gt; Replication.WAL_End (Frame),
+               Applied_LSN  =&gt; Replication.WAL_End (Frame),
+               Sent_At      =&gt; Now));
+      end if;
+   end if;
+end loop;</code></pre>
+            </figure>
+            <aside class="callout callout-teal">
+              <span class="callout-symbol" aria-hidden="true">i</span>
+              <p><code>Logical.Message</code> retains transaction boundaries, streamed XIDs, relation metadata, text or binary tuple values, replica identity, origins, logical messages, truncate flags, and prepared-transaction GIDs. Accessors reject message kinds that do not carry the requested field.</p>
+            </aside>
+
+            <h3>Serve a real PostgreSQL standby as a primary.</h3>
+            <p>Decode the handler's simple-query message before responding. The command exposes the requested slot, position, timeline, parameter, and logical options as typed values. Physical and logical streams share the same server-side COPY BOTH helpers; logical WAL data is an encoded <code>Logical.Message</code> inside <code>XLogData</code>.</p>
+            <figure class="code-panel">
+              <figcaption>primary-side replication handler</figcaption>
+              <button class="copy-button" type="button" data-copy>Copy</button>
+              <pre><code class="language-ada">Command := Replication.Decode_Command (Message);
+
+case Replication.Kind (Command) is
+   when Replication.Identify_System_Command =&gt;
+      Replication_Sessions.Send_Identify_System
+        (Client, System_Id, Timeline, Current_WAL, Timeout =&gt; 10.0);
+
+   when Replication.Start_Physical_Command =&gt;
+      Replication_Sessions.Begin_Streaming (Client, Timeout =&gt; 10.0);
+      Replication_Sessions.Send_XLog_Data
+        (Client,
+         WAL_Start =&gt; Replication.Position (Command),
+         WAL_End   =&gt; Current_WAL,
+         Sent_At   =&gt; Now,
+         Data      =&gt; WAL_Chunk,
+         Timeout   =&gt; 10.0);
+
+      Feedback := Replication_Sessions.Read_Standby_Message
+        (Client, Timeout =&gt; 10.0);
+      Apply_Feedback (Feedback);
+
+   when others =&gt;
+      -- Send_Show, Send_Timeline_History, or start a logical stream.
+      null;
+end case;</code></pre>
+            </figure>
+            <p>For graceful shutdown, call <code>Finish_Streaming</code> to close the primary-to-standby direction, continue reading feedback until the frontend <code>CopyDone</code> arrives, then call <code>Complete_Streaming</code>. A frontend <code>CopyFail</code> should instead receive an error response.</p>
+            <p><a href="../api/">Search the generated replication API reference</a></p>
+          </section>
+
+          <section id="cancel">
+            <span class="step-label">STEP 08</span>
             <h2>Cancel on a separate connection.</h2>
             <p>Postgres cancellation never travels on the active query connection. Startup stores the backend process ID and variable-length secret. The TLS socket helper opens and verifies a separate encrypted connection, sends those credentials, and closes it without waiting for a response.</p>
             <figure class="code-panel">
@@ -249,7 +348,7 @@ end;
           </section>
 
           <section id="server">
-            <span class="step-label">STEP 08</span>
+            <span class="step-label">STEP 09</span>
             <h2>Build a Postgres protocol server.</h2>
             <p><code>Flyology.Postgres.Server</code> is generic over application context, authentication callbacks, SCRAM verifier lookup, and a command handler. Each accepted connection receives its own Flyology handler task.</p>
             <div class="decision-list">
@@ -265,7 +364,7 @@ end;
           </section>
 
           <section id="parse-sql">
-            <span class="step-label">STEP 09</span>
+            <span class="step-label">STEP 10</span>
             <h2>Parse, analyze, and transform SQL.</h2>
             <p>The versioned SQL crates parse PostgreSQL 14 through 18 syntax with native Ada parsers generated from each pinned upstream grammar. Normal applications should choose the crate matching the PostgreSQL major whose syntax they accept. The generated Ada package names remain unchanged. For ordinary application code, use the owned AST package.</p>
             <figure class="code-panel">
@@ -423,7 +522,7 @@ alr -n build
           </section>
 
           <section id="examples">
-            <span class="step-label">STEP 10</span>
+            <span class="step-label">STEP 11</span>
             <h2>Exercise both ends with the example crates.</h2>
             <p>The examples are independent nested Alire crates. <code>pgish</code> can require TLS from a configured certificate and key; <code>psqlish</code> supports verified TLS with separate certificate and connection host settings. Their integration uses an ephemeral CA in both directions.</p>
             <figure class="code-panel">
@@ -438,7 +537,7 @@ alr run</code></pre>
           </section>
 
           <section id="boundaries">
-            <span class="step-label">STEP 11</span>
+            <span class="step-label">STEP 12</span>
             <h2>Evaluate the current boundaries.</h2>
             <p>The library is experimental. Treat these constraints as part of its public contract, not as incidental implementation details.</p>
             <div class="decision-list">
@@ -447,6 +546,7 @@ alr run</code></pre>
                 <div class="decision-row"><dt>Authentication</dt><dd>Trust, cleartext password, and SCRAM-SHA-256 only. No MD5, GSSAPI, SSPI, certificate authentication, or SCRAM-SHA-256-PLUS.</dd></div>
                 <div class="decision-row"><dt>Cleartext</dt><dd>Use cleartext-password authentication only over verified TLS or a comparably trusted transport.</dd></div>
                 <div class="decision-row"><dt>Fairness</dt><dd>A continuously readable COPY socket may require an explicit Flyology fairness point so another task on the same group can run.</dd></div>
+                <div class="decision-row"><dt>Replication</dt><dd>Protocol support covers PostgreSQL physical streaming and <code>pgoutput</code> v1 through v4. Slot creation, publication management, WAL retention policy, and applying decoded changes remain application responsibilities.</dd></div>
                 <div class="decision-row"><dt>Limits</dt><dd>SCRAM messages are bounded to 4 KiB; iteration counts range from 4,096 through 1,000,000.</dd></div>
               </dl>
             </div>
