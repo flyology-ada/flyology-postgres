@@ -67,8 +67,11 @@ package Flyology.Postgres.Replication.Managed_Primary is
    --  and performs graceful COPY BOTH completion.
    --  @param Item Initialized managed primary.
    --  @param Client Authenticated replication-mode server session.
-   --  @param Command Decoded IDENTIFY_SYSTEM, SHOW, TIMELINE_HISTORY, or
-   --     START_REPLICATION command.
+   --  @param Command Decoded IDENTIFY_SYSTEM, SHOW, TIMELINE_HISTORY, slot
+   --     lifecycle, or START_REPLICATION command. Slot creation supports
+   --     SNAPSHOT 'use' and 'nothing'; an exported snapshot must be composed
+   --     with an application SQL snapshot provider. DROP WAIT polls until the
+   --     slot becomes inactive or the configured operation timeout expires.
    --  @exception Protocol_Error Configuration, source ordering,
    --     feedback, slot state, or protocol completion is invalid.
 

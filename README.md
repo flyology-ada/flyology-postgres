@@ -627,9 +627,14 @@ PostgreSQL releases as independent shards with version-specific installation
 caches. Every major also runs its unmodified `pg_recvlogical` against a
 memory-backed managed Flyology primary, consumes an exact `pgoutput` row through
 LSN `0/140`, and proves that feedback advances the application-owned logical
-slot. [Replication validation boundaries and follow-ups](tests/REPLICATION_VALIDATION.md)
-separate these semantics from durability obligations of an application store
-and the remaining subscription-worker catalog surface.
+slot. PostgreSQL 18 additionally promotes the real standby and follows
+persisted timeline history into exact WAL on timeline 2, then runs an
+unmodified subscription worker through publication discovery, repeatable-read
+sync-slot creation, and initial `COPY TO STDOUT`. A crash-durable external test
+backend runs the reusable store conformance fixture across `SIGKILL`, torn-tail
+repair, and process locking. [Replication validation boundaries and evidence](tests/REPLICATION_VALIDATION.md)
+separate these semantics from the durability technology and SQL catalog that
+applications still supply.
 
 Useful environment variables:
 

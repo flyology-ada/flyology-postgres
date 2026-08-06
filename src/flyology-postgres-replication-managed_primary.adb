@@ -1,4 +1,5 @@
 with Ada.Streams;
+with Ada.Real_Time;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Flyology.Postgres.Protocol;
 with Flyology.Postgres.Replication.Logical.Producer;
@@ -11,10 +12,12 @@ package body Flyology.Postgres.Replication.Managed_Primary is
      Flyology.Postgres.Replication.Server_Sessions;
 
    use type Ada.Streams.Stream_Element_Offset;
+   use type Ada.Real_Time.Time;
    use type Logical.Streaming_Mode;
    use type Protocol.Frontend_Copy_Kind;
    use type Stream_Message_Kind;
    use type Stores.Acquire_Result;
+   use type Stores.Create_Result;
    use type Stores.Slot_Kind;
    use type LSN;
    use type Producer.Transaction_State;
@@ -132,9 +135,6 @@ package body Flyology.Postgres.Replication.Managed_Primary is
             Acquired, Lease, State);
          Require (Acquired = Stores.Acquired, "physical slot is unavailable");
          Has_Lease := True;
-         if Position < Stores.Restart_LSN (State) then
-            Position := Stores.Restart_LSN (State);
-         end if;
       end if;
       Require
         (Position >= Stores.First_LSN (Item.WAL.all)
@@ -335,6 +335,60 @@ package body Flyology.Postgres.Replication.Managed_Primary is
                Stores.History
                  (Item.Timelines.all, Replication.Timeline (Command)),
                Timeout => Item.Operation_Timeout);
+         when Create_Logical_Slot_Command =>
+            declare
+               Position : constant LSN := Stores.Current_LSN (Item.WAL.all);
+               Result   : Stores.Create_Result;
+            begin
+               Require
+                 (Replication.Plugin (Command) = "pgoutput",
+                  "managed logical primary only supports pgoutput slots");
+               Require
+                 (Replication.Snapshot (Command) /= Export_Snapshot,
+                  "exported snapshots require an application SQL provider");
+               Stores.Create
+                 (Item.Slots.all,
+                  Replication.Slot_Name (Command),
+                  Stores.Make_Slot
+                    (Stores.Logical_Slot,
+                     Restart_LSN   => Position,
+                     Confirmed_LSN => Position,
+                     Plugin        => Replication.Plugin (Command)),
+                  Result);
+               Require
+                 (Result = Stores.Created,
+                  "replication slot already exists");
+               Replication_Sessions.Send_Create_Logical_Slot
+                 (Client,
+                  Replication.Slot_Name (Command),
+                  Position,
+                  Replication.Plugin (Command),
+                  Timeout => Item.Operation_Timeout);
+               Apply_Retention (Item);
+            end;
+         when Drop_Replication_Slot_Command =>
+            declare
+               Dropped  : Boolean;
+               Deadline : constant Ada.Real_Time.Time :=
+                 Ada.Real_Time.Clock
+                   + Ada.Real_Time.To_Time_Span (Item.Operation_Timeout);
+            begin
+               loop
+                  Stores.Drop
+                    (Item.Slots.all,
+                     Replication.Slot_Name (Command),
+                     Dropped);
+                  exit when Dropped or else not Replication.Wait (Command);
+                  Require
+                    (Ada.Real_Time.Clock < Deadline,
+                     "timed out waiting for active replication slot");
+                  delay 0.01;
+               end loop;
+               Require (Dropped, "replication slot is missing or active");
+               Replication_Sessions.Send_Drop_Replication_Slot
+                 (Client, Timeout => Item.Operation_Timeout);
+               Apply_Retention (Item);
+            end;
          when Start_Physical_Command =>
             Stream_Physical (Item, Client, Command);
          when Start_Logical_Command =>

@@ -194,6 +194,33 @@ package body Flyology.Postgres.Replication is
       return Query ("TIMELINE_HISTORY " & Decimal_Image (Timeline));
    end Timeline_History;
 
+   function Create_Logical_Slot
+     (Slot_Name : String;
+      Plugin    : String := "pgoutput";
+      Snapshot  : Snapshot_Action := Export_Snapshot) return Protocol.Message
+   is
+      Snapshot_Text : constant String :=
+        (case Snapshot is
+           when Export_Snapshot => "export",
+           when No_Snapshot     => "nothing",
+           when Use_Snapshot    => "use");
+   begin
+      Require (Is_Slot_Name (Slot_Name), "invalid replication slot name");
+      Require (Is_Option_Name (Plugin), "invalid logical output plugin name");
+      return Query
+        ("CREATE_REPLICATION_SLOT " & Slot_Name & " LOGICAL " & Plugin
+         & " (SNAPSHOT " & SQL_Literal (Snapshot_Text) & ")");
+   end Create_Logical_Slot;
+
+   function Drop_Replication_Slot
+     (Slot_Name : String; Wait : Boolean := False) return Protocol.Message is
+   begin
+      Require (Is_Slot_Name (Slot_Name), "invalid replication slot name");
+      return Query
+        ("DROP_REPLICATION_SLOT " & Slot_Name
+         & (if Wait then " WAIT" else ""));
+   end Drop_Replication_Slot;
+
    function Start_Physical
      (Position  : LSN;
       Slot_Name : String := "";
@@ -473,6 +500,77 @@ package body Flyology.Postgres.Replication is
          Result.Message_Kind := Timeline_History_Command;
          Set_Timeline;
          Expect_End (Text, Cursor);
+      elsif Is_Keyword (First, "CREATE_REPLICATION_SLOT") then
+         Result.Message_Kind := Create_Logical_Slot_Command;
+         declare
+            Name : constant String := Next_Identifier (Text, Cursor);
+         begin
+            Require (Is_Slot_Name (Name), "invalid replication slot name");
+            Result.Slot_Data := Flyology.Bytes.From_Byte_String (Name);
+         end;
+         Expect_Keyword (Text, Cursor, "LOGICAL");
+         declare
+            Output_Plugin : constant String := Next_Identifier (Text, Cursor);
+         begin
+            Require
+              (Is_Option_Name (Output_Plugin),
+               "invalid logical output plugin name");
+            Result.Plugin_Data :=
+              Flyology.Bytes.From_Byte_String (Output_Plugin);
+         end;
+         if More then
+            declare
+               Values : constant Logical_Option_Array :=
+                 Parse_Options (Text (Cursor .. Text'Last));
+               Snapshot_Seen : Boolean := False;
+            begin
+               for Item of Values loop
+                  if Ada.Characters.Handling.To_Lower
+                    (Option_Name (Item)) = "snapshot"
+                  then
+                     Require
+                       (not Snapshot_Seen,
+                        "duplicate replication slot SNAPSHOT option");
+                     Snapshot_Seen := True;
+                     Require
+                       (Option_Has_Value (Item),
+                        "SNAPSHOT requires a value");
+                     declare
+                        Choice : constant String :=
+                          Ada.Characters.Handling.To_Lower
+                            (Option_Value (Item));
+                     begin
+                        if Choice = "export" then
+                           Result.Snapshot_Value := Export_Snapshot;
+                        elsif Choice = "nothing" then
+                           Result.Snapshot_Value := No_Snapshot;
+                        elsif Choice = "use" then
+                           Result.Snapshot_Value := Use_Snapshot;
+                        else
+                           raise Protocol.Protocol_Error with
+                             "invalid replication slot snapshot action";
+                        end if;
+                     end;
+                  else
+                     raise Protocol.Protocol_Error with
+                       "unsupported logical slot option " & Option_Name (Item);
+                  end if;
+               end loop;
+            end;
+         end if;
+      elsif Is_Keyword (First, "DROP_REPLICATION_SLOT") then
+         Result.Message_Kind := Drop_Replication_Slot_Command;
+         declare
+            Name : constant String := Next_Identifier (Text, Cursor);
+         begin
+            Require (Is_Slot_Name (Name), "invalid replication slot name");
+            Result.Slot_Data := Flyology.Bytes.From_Byte_String (Name);
+         end;
+         if More then
+            Expect_Keyword (Text, Cursor, "WAIT");
+            Result.Wait_Value := True;
+         end if;
+         Expect_End (Text, Cursor);
       elsif Is_Keyword (First, "START_REPLICATION") then
          declare
             Token : Ada.Strings.Unbounded.Unbounded_String :=
@@ -556,11 +654,36 @@ package body Flyology.Postgres.Replication is
    function Slot_Name (Item : Command) return String is
    begin
       Require
-        (Item.Message_Kind in Start_Physical_Command |
+        (Item.Message_Kind in Create_Logical_Slot_Command |
+           Drop_Replication_Slot_Command | Start_Physical_Command |
            Start_Logical_Command,
          "replication command does not contain a slot");
       return Flyology.Bytes.To_Byte_String (Item.Slot_Data);
    end Slot_Name;
+
+   function Plugin (Item : Command) return String is
+   begin
+      Require
+        (Item.Message_Kind = Create_Logical_Slot_Command,
+         "replication command does not contain a plugin");
+      return Flyology.Bytes.To_Byte_String (Item.Plugin_Data);
+   end Plugin;
+
+   function Snapshot (Item : Command) return Snapshot_Action is
+   begin
+      Require
+        (Item.Message_Kind = Create_Logical_Slot_Command,
+         "replication command does not contain a snapshot action");
+      return Item.Snapshot_Value;
+   end Snapshot;
+
+   function Wait (Item : Command) return Boolean is
+   begin
+      Require
+        (Item.Message_Kind = Drop_Replication_Slot_Command,
+         "replication command does not contain a WAIT option");
+      return Item.Wait_Value;
+   end Wait;
 
    function Position (Item : Command) return LSN is
    begin

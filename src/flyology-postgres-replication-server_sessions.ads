@@ -21,13 +21,28 @@ package Flyology.Postgres.Replication.Server_Sessions is
       Value     : String;
       Timeout   : Duration);
 
-   --  Timeline history is returned as PostgreSQL bytea text, including the
-   --  standard hexadecimal prefix expected by libpq replication clients.
+   --  PostgreSQL declares both result columns as text and sends history-file
+   --  contents verbatim; walreceivers persist the returned bytes directly.
    procedure Send_Timeline_History
      (Client   : in out Sessions.Session;
       Timeline : UInt32;
       Contents : Byte_Array;
       Timeout  : Duration);
+
+   procedure Send_Create_Logical_Slot
+     (Client           : in out Sessions.Session;
+      Slot_Name        : String;
+      Consistent_Point : LSN;
+      Plugin           : String;
+      Snapshot_Name    : String := "";
+      Timeout          : Duration);
+   --  Send the four-column CREATE_REPLICATION_SLOT result and ReadyForQuery.
+   --  Snapshot_Name is SQL NULL when empty, as required for SNAPSHOT 'use'
+   --  and SNAPSHOT 'nothing'.
+
+   procedure Send_Drop_Replication_Slot
+     (Client : in out Sessions.Session; Timeout : Duration);
+   --  Send DROP_REPLICATION_SLOT completion and ReadyForQuery.
 
    procedure Begin_Streaming
      (Client : in out Sessions.Session; Timeout : Duration);

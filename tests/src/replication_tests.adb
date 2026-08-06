@@ -74,6 +74,7 @@ package body Replication_Tests is
    use type Replication.Int64;
    use type Replication.Command_Kind;
    use type Replication.LSN;
+   use type Replication.Snapshot_Action;
    use type Replication.Stream_Message_Kind;
    use type Persistence.Acquire_Result;
    use type Persistence.Create_Result;
@@ -218,6 +219,17 @@ package body Replication_Tests is
          "timeline history command is typed");
       Assert
         (Query_Text
+           (Replication.Create_Logical_Slot
+              ("sync_slot", Snapshot => Replication.Use_Snapshot)) =
+           "CREATE_REPLICATION_SLOT sync_slot LOGICAL pgoutput"
+           & " (SNAPSHOT 'use')",
+         "logical slot creation command is typed");
+      Assert
+        (Query_Text (Replication.Drop_Replication_Slot ("sync_slot", True)) =
+           "DROP_REPLICATION_SLOT sync_slot WAIT",
+         "replication slot drop command is typed");
+      Assert
+        (Query_Text
            (Replication.Start_Physical
               (16#16_B374_D848#,
                Slot_Name => "standby_1",
@@ -233,6 +245,34 @@ package body Replication_Tests is
            & " (proto_version '4', publication_names 'one''pub',"
            & " messages, custom_empty '')",
          "valued, valueless, and empty logical options remain distinct");
+
+      declare
+         Item : constant Replication.Command := Replication.Decode_Command
+           (Query
+              ("CREATE_REPLICATION_SLOT ""sync_slot"" LOGICAL pgoutput"
+               & " (SNAPSHOT 'use')"));
+      begin
+         Assert
+           (Replication.Kind (Item) =
+              Replication.Create_Logical_Slot_Command
+            and then Replication.Slot_Name (Item) = "sync_slot"
+            and then Replication.Plugin (Item) = "pgoutput"
+            and then Replication.Snapshot (Item) =
+              Replication.Use_Snapshot,
+            "primary-side decoding exposes logical slot creation");
+      end;
+
+      declare
+         Item : constant Replication.Command := Replication.Decode_Command
+           (Query ("DROP_REPLICATION_SLOT ""sync_slot"" WAIT"));
+      begin
+         Assert
+           (Replication.Kind (Item) =
+              Replication.Drop_Replication_Slot_Command
+            and then Replication.Slot_Name (Item) = "sync_slot"
+            and then Replication.Wait (Item),
+            "primary-side decoding exposes replication slot drop");
+      end;
 
       declare
          Item : constant Replication.Command := Replication.Decode_Command
@@ -343,6 +383,12 @@ package body Replication_Tests is
       Assert_Command_Rejected
         ("START_REPLICATION SLOT subscriber_1 LOGICAL 0/0"
          & " (proto_version '4' trailing)");
+      Assert_Command_Rejected
+        ("CREATE_REPLICATION_SLOT sync_slot LOGICAL pgoutput"
+         & " (TWO_PHASE)");
+      Assert_Command_Rejected
+        ("CREATE_REPLICATION_SLOT sync_slot LOGICAL pgoutput"
+         & " (SNAPSHOT 'use', SNAPSHOT 'nothing')");
       Check_Startup (Protocol.Physical_Replication_Connection);
       Check_Startup (Protocol.Logical_Replication_Connection);
    end Test_Commands_And_LSN;

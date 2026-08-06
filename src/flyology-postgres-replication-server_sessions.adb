@@ -33,26 +33,16 @@ package body Flyology.Postgres.Replication.Server_Sessions is
       return Result & ".history";
    end Timeline_File_Name;
 
-   function Hex_Byte (Value : Byte) return String is
-      Hexadecimal : constant String := "0123456789abcdef";
-   begin
-      return
-        (1 => Hexadecimal (Natural (Value) / 16 + 1),
-         2 => Hexadecimal (Natural (Value) mod 16 + 1));
-   end Hex_Byte;
-
-   function Bytea_Text (Contents : Byte_Array) return String is
-      Result : String (1 .. 2 + 2 * Contents'Length);
+   function History_Text (Contents : Byte_Array) return String is
+      Result : String (1 .. Contents'Length);
       Cursor : Positive := Result'First;
    begin
-      Result (Cursor .. Cursor + 1) := "\x";
-      Cursor := Cursor + 2;
       for Item of Contents loop
-         Result (Cursor .. Cursor + 1) := Hex_Byte (Item);
-         Cursor := Cursor + 2;
+         Result (Cursor) := Character'Val (Item);
+         Cursor := Cursor + 1;
       end loop;
       return Result;
-   end Bytea_Text;
+   end History_Text;
 
    procedure Send_Identify_System
      (Client         : in out Sessions.Session;
@@ -110,24 +100,65 @@ package body Flyology.Postgres.Replication.Server_Sessions is
    begin
       Require (Timeline > 0, "a timeline history number must be positive");
       Require
-        (Contents'Length <= (Protocol.Maximum_Message_Size - 64) / 2,
+        (Contents'Length <= Protocol.Maximum_Message_Size - 64,
          "timeline history exceeds the configured message limit");
       Sessions.Send_Row_Description
         (Client,
          Columns =>
            (Protocol.Make_Field_Description ("filename"),
-            Protocol.Make_Field_Description ("content", Type_Oid => 17)),
+            Protocol.Make_Field_Description ("content")),
          Timeout => Timeout);
       Sessions.Send_Data_Row
         (Client,
          Values =>
            (Protocol.Text_Column (File_Name),
-            Protocol.Text_Column (Bytea_Text (Contents))),
+            Protocol.Text_Column (History_Text (Contents))),
          Timeout => Timeout);
       Sessions.Send_Command_Complete
         (Client, "TIMELINE_HISTORY", Timeout);
       Sessions.Send_Ready (Client, Timeout => Timeout);
    end Send_Timeline_History;
+
+   procedure Send_Create_Logical_Slot
+     (Client           : in out Sessions.Session;
+      Slot_Name        : String;
+      Consistent_Point : LSN;
+      Plugin           : String;
+      Snapshot_Name    : String := "";
+      Timeout          : Duration) is
+   begin
+      Require (Slot_Name'Length > 0, "a replication slot name is required");
+      Require (Plugin'Length > 0, "a logical output plugin is required");
+      Sessions.Send_Row_Description
+        (Client,
+         Columns =>
+           (Protocol.Make_Field_Description ("slot_name"),
+            Protocol.Make_Field_Description ("consistent_point"),
+            Protocol.Make_Field_Description ("snapshot_name"),
+            Protocol.Make_Field_Description ("output_plugin")),
+         Timeout => Timeout);
+      Sessions.Send_Data_Row
+        (Client,
+         Values =>
+           (Protocol.Text_Column (Slot_Name),
+            Protocol.Text_Column (Image (Consistent_Point)),
+            (if Snapshot_Name'Length = 0
+             then Protocol.Null_Column
+             else Protocol.Text_Column (Snapshot_Name)),
+            Protocol.Text_Column (Plugin)),
+         Timeout => Timeout);
+      Sessions.Send_Command_Complete
+        (Client, "CREATE_REPLICATION_SLOT", Timeout);
+      Sessions.Send_Ready (Client, Timeout => Timeout);
+   end Send_Create_Logical_Slot;
+
+   procedure Send_Drop_Replication_Slot
+     (Client : in out Sessions.Session; Timeout : Duration) is
+   begin
+      Sessions.Send_Command_Complete
+        (Client, "DROP_REPLICATION_SLOT", Timeout);
+      Sessions.Send_Ready (Client, Timeout => Timeout);
+   end Send_Drop_Replication_Slot;
 
    procedure Begin_Streaming
      (Client : in out Sessions.Session; Timeout : Duration) is

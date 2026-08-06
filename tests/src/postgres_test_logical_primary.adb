@@ -1,4 +1,6 @@
 with Ada.Environment_Variables;
+with Ada.Streams;
+with Ada.Strings.Fixed;
 with Ada.Text_IO;
 with Flyology;
 with Flyology.IO.Sockets;
@@ -30,6 +32,10 @@ procedure Postgres_Test_Logical_Primary is
    use type Replication.LSN;
    use type Persistence.Create_Result;
 
+   Subscription_Mode : constant Boolean :=
+     Ada.Environment_Variables.Value
+       ("POSTGRES_LOGICAL_PRIMARY_SUBSCRIPTION", "0") = "1";
+
    type Logical_Event is record
       Start_LSN : Replication.LSN := 0;
       End_LSN   : Replication.LSN := 0;
@@ -38,6 +44,7 @@ procedure Postgres_Test_Logical_Primary is
    type Logical_Event_Array is array (Positive range <>) of Logical_Event;
 
    type Logical_Source is limited record
+      Enabled : Boolean := True;
       Events : Logical_Event_Array (1 .. 4);
    end record;
 
@@ -51,6 +58,13 @@ procedure Postgres_Test_Logical_Primary is
       Message    : out Logical.Message) is
       pragma Unreferenced (Slot_Name);
    begin
+      if not Context.Enabled then
+         Available := False;
+         WAL_Start := After_LSN;
+         WAL_End := After_LSN;
+         Message := Logical.Make_Begin (1, 0, 1);
+         return;
+      end if;
       for Item of Context.Events loop
          if Item.End_LSN > After_LSN then
             Available := True;
@@ -87,7 +101,8 @@ procedure Postgres_Test_Logical_Primary is
       Password : String) return Boolean is
       pragma Unreferenced (State, Password);
    begin
-      return Startup.Replication_Mode =
+      return Startup.Replication_Mode in
+        Protocol.Normal_Connection |
         Protocol.Logical_Replication_Connection;
    end Authenticate;
 
@@ -104,39 +119,204 @@ procedure Postgres_Test_Logical_Primary is
       Client  : in out Sessions.Session;
       Message : Protocol.Message) is
       pragma Unreferenced (State);
-   begin
-      if Protocol.Kind (Message) = Protocol.Query
-        and then Sessions.Query_Text (Message) =
-          "SELECT pg_catalog.set_config('search_path', '', false);"
-      then
-         Sessions.Send_Row_Description
-           (Client, "set_config", Timeout => 10.0);
-         Sessions.Send_Data_Row (Client, "", Timeout => 10.0);
-         Sessions.Send_Command_Complete
-           (Client, "SELECT 1", Timeout => 10.0);
+      function Contains (Text, Fragment : String) return Boolean is
+        (Ada.Strings.Fixed.Index (Text, Fragment) > 0);
+
+      procedure Complete_Command (Tag : String) is
+      begin
+         Sessions.Send_Command_Complete (Client, Tag, Timeout => 10.0);
          Sessions.Send_Ready (Client, Timeout => 10.0);
-      else
+      end Complete_Command;
+
+      function Bytes (Text : String) return Protocol.Byte_Array is
+         Result : Protocol.Byte_Array
+           (1 .. Ada.Streams.Stream_Element_Offset (Text'Length));
+         Cursor : Ada.Streams.Stream_Element_Offset := Result'First;
+      begin
+         for Value of Text loop
+            Result (Cursor) := Protocol.Byte (Character'Pos (Value));
+            Cursor := Ada.Streams.Stream_Element_Offset'Succ (Cursor);
+         end loop;
+         return Result;
+      end Bytes;
+   begin
+      if Protocol.Kind (Message) = Protocol.Query then
          declare
-            Command : constant Replication.Command :=
-              Replication.Decode_Command (Message);
+            Query : constant String := Sessions.Query_Text (Message);
          begin
-            Managed.Handle (Primary, Client, Command);
-            if Replication.Kind (Command) =
-              Replication.Start_Logical_Command
+            if Query =
+              "SELECT pg_catalog.set_config('search_path', '', false);"
             then
+               Sessions.Send_Row_Description
+                 (Client, "set_config", Timeout => 10.0);
+               Sessions.Send_Data_Row (Client, "", Timeout => 10.0);
+               Complete_Command ("SELECT 1");
+            elsif Subscription_Mode and then Contains
+              (Query, "pg_catalog.pg_publication t")
+            then
+               Sessions.Send_Row_Description
+                 (Client, "pubname", Timeout => 10.0);
+               Sessions.Send_Data_Row
+                 (Client, "flyology_publication", Timeout => 10.0);
+               Complete_Command ("SELECT 1");
+            elsif Subscription_Mode and then Contains
+              (Query, "SELECT DISTINCT n.nspname, c.relname, gpt.attrs")
+            then
+               Sessions.Send_Row_Description
+                 (Client,
+                  Columns => Protocol.Field_Description_Array'
+                    (Protocol.Make_Field_Description ("nspname"),
+                     Protocol.Make_Field_Description ("relname"),
+                     Protocol.Make_Field_Description
+                       ("attrs", Type_Oid => 22)),
+                  Timeout => 10.0);
+               Sessions.Send_Data_Row
+                 (Client,
+                  Values => Protocol.Column_Value_Array'
+                    (Protocol.Text_Column ("public"),
+                     Protocol.Text_Column ("flyology_output"),
+                     Protocol.Null_Column),
+                  Timeout => 10.0);
+               Complete_Command ("SELECT 1");
+            elsif Subscription_Mode and then Contains
+              (Query, "SELECT DISTINCT P.pubname AS pubname")
+            then
+               Sessions.Send_Row_Description
+                 (Client, "pubname", Timeout => 10.0);
+               Complete_Command ("SELECT 0");
+            elsif Subscription_Mode and then Query =
+              "BEGIN READ ONLY ISOLATION LEVEL REPEATABLE READ"
+            then
+               Complete_Command ("BEGIN");
+            elsif Subscription_Mode and then Query = "COMMIT" then
+               Complete_Command ("COMMIT");
+            elsif Subscription_Mode and then Contains
+              (Query, "SELECT c.oid, c.relreplident, c.relkind")
+            then
+               Sessions.Send_Row_Description
+                 (Client,
+                  Columns => Protocol.Field_Description_Array'
+                    (Protocol.Make_Field_Description
+                       ("oid", Type_Oid => 26, Type_Size => 4),
+                     Protocol.Make_Field_Description
+                       ("relreplident", Type_Oid => 18, Type_Size => 1),
+                     Protocol.Make_Field_Description
+                       ("relkind", Type_Oid => 18, Type_Size => 1)),
+                  Timeout => 10.0);
+               Sessions.Send_Data_Row
+                 (Client,
+                  Values => Protocol.Column_Value_Array'
+                    (Protocol.Text_Column ("42"),
+                     Protocol.Text_Column ("d"),
+                     Protocol.Text_Column ("r")),
+                  Timeout => 10.0);
+               Complete_Command ("SELECT 1");
+            elsif Subscription_Mode and then Contains
+              (Query, "array_length(gpt.attrs, 1)")
+            then
+               Sessions.Send_Row_Description
+                 (Client, "attrs", Type_Oid => 22, Timeout => 10.0);
+               Sessions.Send_Null_Data_Row (Client, Timeout => 10.0);
+               Complete_Command ("SELECT 1");
+            elsif Subscription_Mode and then Contains
+              (Query, "FROM pg_catalog.pg_attribute a")
+            then
+               Sessions.Send_Row_Description
+                 (Client,
+                  Columns => Protocol.Field_Description_Array'
+                    (Protocol.Make_Field_Description
+                       ("attnum", Type_Oid => 21, Type_Size => 2),
+                     Protocol.Make_Field_Description ("attname"),
+                     Protocol.Make_Field_Description
+                       ("atttypid", Type_Oid => 26, Type_Size => 4),
+                     Protocol.Make_Field_Description
+                       ("is_key", Type_Oid => 16, Type_Size => 1),
+                     Protocol.Make_Field_Description
+                       ("is_generated", Type_Oid => 16, Type_Size => 1)),
+                  Timeout => 10.0);
+               Sessions.Send_Data_Row
+                 (Client,
+                  Values => Protocol.Column_Value_Array'
+                    (Protocol.Text_Column ("1"), Protocol.Text_Column ("id"),
+                     Protocol.Text_Column ("23"), Protocol.Text_Column ("t"),
+                     Protocol.Text_Column ("f")), Timeout => 10.0);
+               Sessions.Send_Data_Row
+                 (Client,
+                  Values => Protocol.Column_Value_Array'
+                    (Protocol.Text_Column ("2"),
+                     Protocol.Text_Column ("payload"),
+                     Protocol.Text_Column ("25"), Protocol.Text_Column ("f"),
+                     Protocol.Text_Column ("f")), Timeout => 10.0);
+               Complete_Command ("SELECT 2");
+            elsif Subscription_Mode and then Contains
+              (Query, "SELECT DISTINCT pg_get_expr(gpt.qual, gpt.relid)")
+            then
+               Sessions.Send_Row_Description
+                 (Client, "pg_get_expr", Timeout => 10.0);
+               Sessions.Send_Null_Data_Row (Client, Timeout => 10.0);
+               Complete_Command ("SELECT 1");
+            elsif Subscription_Mode
+              and then Contains (Query, "COPY ")
+              and then Contains (Query, "flyology_output")
+            then
+               Sessions.Send_Copy_Out_Response
+                 (Client,
+                  Overall_Format => Protocol.Text_Format,
+                  Column_Formats =>
+                    (1 .. 2 => Protocol.Text_Format),
+                  Timeout => 10.0);
+               Sessions.Send_Copy_Data
+                 (Client,
+                  Bytes
+                    ("1" & ASCII.HT
+                     & Ada.Environment_Variables.Value
+                         ("POSTGRES_LOGICAL_PRIMARY_MARKER", "snapshot")
+                     & ASCII.LF),
+                  Timeout => 10.0);
+               Sessions.Send_Copy_Done (Client, Timeout => 10.0);
+               Complete_Command ("COPY 1");
+            elsif Subscription_Mode
+              and then
+                (Contains (Query, "IDENTIFY_SYSTEM")
+                 or else Contains (Query, "SHOW ")
+                 or else Contains (Query, "CREATE_REPLICATION_SLOT ")
+                 or else Contains (Query, "DROP_REPLICATION_SLOT ")
+                 or else Contains (Query, "START_REPLICATION "))
+            then
+               Managed.Handle
+                 (Primary, Client, Replication.Decode_Command (Message));
+            elsif Subscription_Mode then
+               Ada.Text_IO.Put_Line ("unhandled sql=" & Query);
+               Ada.Text_IO.Flush;
+               raise Protocol.Protocol_Error with
+                 "unsupported subscription SQL query";
+            else
                declare
-                  Slot : constant Persistence.Slot_State :=
-                    Memory.Load
-                      (Store, Replication.Slot_Name (Command));
+                  Command : constant Replication.Command :=
+                    Replication.Decode_Command (Message);
                begin
-                  Ada.Text_IO.Put_Line
-                    ("logical stream complete confirmed="
-                     & Replication.Image
-                       (Persistence.Confirmed_LSN (Slot)));
-                  Ada.Text_IO.Flush;
+                  Managed.Handle (Primary, Client, Command);
+                  if Replication.Kind (Command) =
+                    Replication.Start_Logical_Command
+                  then
+                     declare
+                        Slot : constant Persistence.Slot_State :=
+                          Memory.Load
+                            (Store, Replication.Slot_Name (Command));
+                     begin
+                        Ada.Text_IO.Put_Line
+                          ("logical stream complete confirmed="
+                           & Replication.Image
+                             (Persistence.Confirmed_LSN (Slot)));
+                        Ada.Text_IO.Flush;
+                     end;
+                  end if;
                end;
             end if;
          end;
+      else
+         raise Protocol.Protocol_Error with
+           "subscription primary accepts simple Query commands only";
       end if;
    end Handle;
 
@@ -160,8 +340,9 @@ procedure Postgres_Test_Logical_Primary is
    Created : Persistence.Create_Result;
    Listener : Sockets.Socket_Type;
    State : aliased Context;
-   Server : aliased Test_Server.Server (Capacity => 1);
+   Server : aliased Test_Server.Server (Capacity => 8);
 begin
+   Source.Enabled := not Subscription_Mode;
    Memory.Create
      (Store,
       "flyology_output",

@@ -281,6 +281,11 @@ procedure Postgres_Test_Replication_Server is
             raise Protocol.Protocol_Error with
               "timeline 1 does not have a history file";
 
+         when Replication.Create_Logical_Slot_Command |
+              Replication.Drop_Replication_Slot_Command =>
+            raise Protocol.Protocol_Error with
+              "test primary does not manage logical slots";
+
          when Replication.Start_Physical_Command =>
             if Length (State.Expected_Slot) > 0
               and then Replication.Slot_Name (Command) /=

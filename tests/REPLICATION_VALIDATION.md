@@ -58,29 +58,49 @@ TLS private keys are excluded.
   retention, timeline promotion/history, prepared-state recovery through a new
   consumer instance, idempotent target-applied marking, and removal only after
   source acknowledgement.
+- The same conformance fixture runs against a test-only crash-durable journal
+  backend through only the public persistence interfaces. Separate processes
+  prove an acknowledged slot and target-applied prepared transaction survive
+  `SIGKILL`, abandoned leases are fenced on reopen, a checksum-invalid final
+  write is truncated without losing the last valid mutation, a second process
+  cannot take the store lock, and source acknowledgement removes the recovered
+  prepared record. Corruption before the final record is rejected rather than
+  repaired speculatively.
+- PostgreSQL 18 promotes the caught-up real standby, persists timeline 2 and
+  its exact history through the supplied timeline store, and starts a cloned
+  follower against the managed Flyology primary. The follower fetches the
+  history file, completes timeline 1, reconnects at the containing WAL-segment
+  boundary, replays a row written only on timeline 2, and advances the durable
+  physical slot to the exact asserted feedback LSN.
+- PostgreSQL 18 also creates an unmodified logical subscription against the
+  Flyology server. Its workers discover the publication and table, inspect
+  relation identity and column OIDs, begin a read-only repeatable-read
+  transaction, create their sync slot with `SNAPSHOT 'use'`, consume the
+  initial row through text `COPY TO STDOUT`, commit it locally, and drop the
+  sync slot. The target row is compared exactly before the subscription is
+  disabled and detached.
 
 ## Exact server boundaries
 
-Flyology now owns the replication state machines but deliberately does not own a
+Flyology owns the replication state machines but deliberately does not own a
 durability technology. Applications supply slot, WAL, timeline, and prepared
-stores through explicit interfaces. The included bounded memory store proves
-the contracts and replacement-instance behavior, but cannot establish survival
-across an operating-system process crash. Production durability, atomic writes,
-cross-process locking, and repair remain obligations of the supplied backend.
+stores through explicit interfaces. The included bounded memory store remains
+volatile and single-owner. The journal backend is intentionally outside the
+production crate: it is executable evidence that an external implementation can
+satisfy the same public contract across crashes, torn tails, and process locks,
+not a production storage recommendation.
 
 The managed logical primary produces `pgoutput` from an application change
-source and interoperates with `pg_recvlogical`. A PostgreSQL subscription worker
-still needs the normal SQL publication/subscription catalog surface and initial
-table synchronization, which the replication-mode managed primary does not
-attempt to emulate.
+source and interoperates with both `pg_recvlogical` and a PostgreSQL 18
+subscription worker. Applications still own the ordinary SQL catalog and the
+stable snapshot from which initial COPY rows are read; Flyology supplies the
+slot lifecycle, protocol framing, and session primitives used to compose that
+surface. `SNAPSHOT 'export'` is therefore rejected by the managed primary unless
+an application implements that separate exported-snapshot contract.
 
-## Prioritized follow-up
-
-1. Supply at least one crash-durable backend outside this crate and run the
-   conformance suite across real process termination, truncated writes, locking,
-   repair, and target-commit/source-ack races.
-2. Run a promoted real standby through the managed timeline interface,
-   `TIMELINE_HISTORY`, and WAL on the newly persisted timeline.
-3. Compose the managed logical primary with a normal SQL catalog and snapshot
-   provider, then use a real PostgreSQL subscription worker as the end-to-end
-   initial-copy and continuing-change oracle.
+The remaining production choice is deliberately application-specific: select a
+durable backend, run the reusable conformance fixture against it, and connect
+the SQL publication/snapshot callbacks to the application's own catalog and
+transaction system. The matrix's subscription worker proves initial-copy
+interoperability; continuing pgoutput change delivery is independently proved
+with every supported `pg_recvlogical` version.

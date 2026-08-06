@@ -32,6 +32,32 @@ package Flyology.Postgres.Replication is
    function Show (Parameter : String) return Protocol.Message;
    function Timeline_History (Timeline : UInt32) return Protocol.Message;
 
+   type Snapshot_Action is (Export_Snapshot, No_Snapshot, Use_Snapshot);
+   --  Snapshot policy requested while creating a logical replication slot.
+   --  @enum Export_Snapshot Export a new snapshot to a separate SQL session.
+   --  @enum No_Snapshot Create the slot without exporting a snapshot.
+   --  @enum Use_Snapshot Bind the slot to the repeatable-read snapshot of the
+   --     current SQL session.
+
+   function Create_Logical_Slot
+     (Slot_Name : String;
+      Plugin    : String := "pgoutput";
+      Snapshot  : Snapshot_Action := Export_Snapshot) return Protocol.Message;
+   --  Construct PostgreSQL 15-or-newer logical slot creation syntax.
+   --  @param Slot_Name Valid lowercase replication slot identifier.
+   --  @param Plugin Logical output plugin name.
+   --  @param Snapshot Snapshot policy for slot consistency.
+   --  @return Simple Query message containing CREATE_REPLICATION_SLOT.
+   --  @exception Protocol_Error A name is invalid.
+
+   function Drop_Replication_Slot
+     (Slot_Name : String; Wait : Boolean := False) return Protocol.Message;
+   --  Construct a replication slot drop command.
+   --  @param Slot_Name Valid lowercase replication slot identifier.
+   --  @param Wait Include WAIT when an active owner should be awaited.
+   --  @return Simple Query message containing DROP_REPLICATION_SLOT.
+   --  @exception Protocol_Error Slot_Name is invalid.
+
    function Start_Physical
      (Position  : LSN;
       Slot_Name : String := "";
@@ -47,6 +73,8 @@ package Flyology.Postgres.Replication is
      (Identify_System_Command,
       Show_Command,
       Timeline_History_Command,
+      Create_Logical_Slot_Command,
+      Drop_Replication_Slot_Command,
       Start_Physical_Command,
       Start_Logical_Command);
 
@@ -65,6 +93,13 @@ package Flyology.Postgres.Replication is
    --  Empty for a physical START_REPLICATION without a slot.  Logical
    --  replication always has a slot.
    function Slot_Name (Item : Command) return String;
+   --  @return Slot named by create, drop, or START_REPLICATION.
+   function Plugin (Item : Command) return String;
+   --  @return Output plugin named by CREATE_REPLICATION_SLOT.
+   function Snapshot (Item : Command) return Snapshot_Action;
+   --  @return Snapshot policy named by CREATE_REPLICATION_SLOT.
+   function Wait (Item : Command) return Boolean;
+   --  @return True when DROP_REPLICATION_SLOT included WAIT.
    function Position (Item : Command) return LSN;
 
    --  TIMELINE_HISTORY always has a timeline.  A physical start only has one
@@ -165,9 +200,12 @@ private
       Raw              : Protocol.Message;
       Parameter_Data   : Flyology.Bytes.Unbounded_Bytes;
       Slot_Data        : Flyology.Bytes.Unbounded_Bytes;
+      Plugin_Data      : Flyology.Bytes.Unbounded_Bytes;
       Start_Position   : LSN := 0;
       Timeline_Value   : UInt32 := 0;
       Timeline_Present : Boolean := False;
+      Snapshot_Value   : Snapshot_Action := Export_Snapshot;
+      Wait_Value       : Boolean := False;
       Options_Data     : Flyology.Bytes.Unbounded_Bytes;
    end record;
 
