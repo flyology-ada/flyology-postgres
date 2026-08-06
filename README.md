@@ -593,10 +593,24 @@ The replication integration matrix starts isolated PostgreSQL 14.23, 15.18,
 16.14, 17.10, and 18.4 primaries. Every major exercises physical WAL,
 `pgoutput` v1, and streamed v2 traffic; supported majors additionally exercise
 v3 two-phase and streamed-prepare traffic and v4 parallel aborts. PostgreSQL 18
-also covers binary tuples and replication origins. For the reverse direction,
-every major takes a real base backup, starts it with `standby.signal` against the
-Flyology primary test server, replays a transaction that exists only in streamed
-WAL, and returns real standby feedback.
+also covers binary tuples and replication origins. The v1 oracle applies every
+decoded insert, update, delete, and truncate transaction to deterministic
+pending and committed state, checks replica-identity old tuples against that
+state, preserves unchanged TOAST, and compares the exact final rows. A separate
+slot-resume oracle persists one commit acknowledgement, resets the connection
+and decoder after 50 of the next transaction's 1,000 rows, and requires the
+whole interrupted transaction without a gap on reconnect.
+
+For the reverse direction, every major takes a real base backup, starts it with
+`standby.signal` and a quoted physical slot name against the Flyology primary
+test server, replays a transaction that exists only in streamed WAL, and proves
+received, flushed, and applied feedback positions. The server then completes
+both COPY BOTH directions in protocol order, and the same standby data
+directory is restarted for a second exact feedback cycle. CI runs the five
+PostgreSQL releases as independent shards with version-specific installation
+caches. [Replication validation boundaries and follow-ups](tests/REPLICATION_VALIDATION.md)
+describe the server functionality that does not yet exist to support stronger
+oracles.
 
 Useful environment variables:
 
