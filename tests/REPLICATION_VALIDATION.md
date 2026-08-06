@@ -3,6 +3,10 @@
 The live matrix is deliberately split between behavior the current public API
 can prove and behavior that needs new primary-server functionality. It runs as
 five independent CI jobs for PostgreSQL 14.23, 15.18, 16.14, 17.10, and 18.4.
+Each PostgreSQL installation is cached by exact release, platform, architecture,
+and build-script content. Failed jobs retain only focused PostgreSQL, client,
+server, standby, and transport-injection logs; data directories and generated
+TLS private keys are excluded.
 
 ## Evidence in the current matrix
 

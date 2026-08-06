@@ -26,7 +26,28 @@ replication_client_port=$port
 standby_started=false
 standby_dir=
 
+archive_failure_logs () {
+  artifact_dir=${POSTGRES_REPLICATION_ARTIFACT_DIR:-}
+  if [ -z "$artifact_dir" ]; then
+    return
+  fi
+  mkdir -p "$artifact_dir"
+  for version_dir in "$run_root"/[0-9]*; do
+    if [ ! -d "$version_dir" ]; then
+      continue
+    fi
+    artifact_version="$artifact_dir/$(basename "$version_dir")"
+    mkdir -p "$artifact_version"
+    for log in "$version_dir"/*.log; do
+      if [ -f "$log" ]; then
+        cp "$log" "$artifact_version/"
+      fi
+    done
+  done
+}
+
 cleanup () {
+  status=$?
   if [ -n "$replication_client_pid" ]; then
     kill "$replication_client_pid" >/dev/null 2>&1 || true
     wait "$replication_client_pid" >/dev/null 2>&1 || true
@@ -54,6 +75,9 @@ cleanup () {
   if [ "$postgres_started" = true ]; then
     "$postgres_prefix/bin/pg_ctl" -D "$data_dir" -m immediate -w stop \
       >/dev/null 2>&1 || true
+  fi
+  if [ "$status" -ne 0 ]; then
+    archive_failure_logs
   fi
   rm -rf -- "$run_root"
 }

@@ -26,7 +26,7 @@ jobs:
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: tests/.cache/postgres
-          key: postgresql-18.4-openssl-${{ runner.os }}-${{ runner.arch }}
+          key: postgresql-18.4-openssl-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tests/scripts/ensure-postgres.sh') }}
       - name: Build PostgreSQL test installation
         if: steps.postgres-cache.outputs.cache-hit != 'true'
         run: ./tests/scripts/ensure-postgres.sh
@@ -63,7 +63,7 @@ jobs:
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: tests/.cache/postgres
-          key: postgresql-18.4-openssl-${{ runner.os }}-${{ runner.arch }}
+          key: postgresql-18.4-openssl-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tests/scripts/ensure-postgres.sh') }}
       - name: Run protocol and integration tests
         working-directory: tests
         env:
@@ -108,7 +108,7 @@ jobs:
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: tests/.cache/postgres/${{ matrix.postgresql }}-openssl
-          key: postgresql-${{ matrix.postgresql }}-openssl-${{ runner.os }}-${{ runner.arch }}
+          key: postgresql-${{ matrix.postgresql }}-openssl-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tests/scripts/ensure-postgres.sh') }}
       - name: Build PostgreSQL ${{ matrix.postgresql }} installation
         if: steps.postgres-cache.outputs.cache-hit != 'true'
         env:
@@ -121,7 +121,16 @@ jobs:
         working-directory: tests
         env:
           POSTGRES_REPLICATION_VERSIONS: ${{ matrix.postgresql }}
+          POSTGRES_REPLICATION_ARTIFACT_DIR: replication-artifacts/${{ matrix.postgresql }}
         run: ./scripts/run-replication-integration.sh
+      - name: Upload replication failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: replication-${{ matrix.postgresql }}-failure-logs
+          path: tests/replication-artifacts/${{ matrix.postgresql }}
+          if-no-files-found: warn
+          retention-days: 14
 
   psqlish:
     name: psqlish
@@ -155,7 +164,7 @@ jobs:
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: tests/.cache/postgres
-          key: postgresql-18.4-openssl-${{ runner.os }}-${{ runner.arch }}
+          key: postgresql-18.4-openssl-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tests/scripts/ensure-postgres.sh') }}
       - name: Run psqlish tests
         working-directory: examples/psqlish
         env:
@@ -271,7 +280,7 @@ jobs:
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: tests/.cache/postgres
-          key: postgresql-18.4-openssl-${{ runner.os }}-${{ runner.arch }}
+          key: postgresql-18.4-openssl-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tests/scripts/ensure-postgres.sh') }}
       - name: Build psqlish integration client
         working-directory: examples/psqlish
         run: alr -n build
