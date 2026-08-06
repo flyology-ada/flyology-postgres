@@ -4,6 +4,10 @@ with Flyology.Bytes;
 with Flyology.Postgres.Protocol;
 with Flyology.Postgres.Replication;
 with Flyology.Postgres.Replication.Logical;
+with Flyology.Postgres.Replication.Logical.Producer;
+with Flyology.Postgres.Replication.Persistence;
+with Flyology.Postgres.Replication.Persistence.Memory;
+with Flyology.Postgres.Replication.Prepared_Consumer;
 with Flyology.Postgres.Wire;
 
 package body Replication_Tests is
@@ -11,10 +15,42 @@ package body Replication_Tests is
    package Protocol renames Flyology.Postgres.Protocol;
    package Replication renames Flyology.Postgres.Replication;
    package Logical renames Flyology.Postgres.Replication.Logical;
+   package Producer renames
+     Flyology.Postgres.Replication.Logical.Producer;
+   package Persistence renames
+     Flyology.Postgres.Replication.Persistence;
+   package Memory is new
+     Flyology.Postgres.Replication.Persistence.Memory (Capacity => 8);
+
+   use type Ada.Streams.Stream_Element_Array;
+
+   type Target_Context is limited record
+      Applications : Natural := 0;
+      Last_XID     : Replication.Transaction_Id := 0;
+   end record;
+
+   procedure Apply_Target
+     (Context    : in out Target_Context;
+      Slot_Name : String;
+      GID        : String;
+      XID        : Replication.Transaction_Id;
+      Payload    : Persistence.Byte_Array) is
+   begin
+      Assert
+        (Slot_Name = "logical" and then GID = "gid-restart"
+         and then Payload = Persistence.Byte_Array'(6, 5, 4),
+         "prepared consumer preserves its application identity and payload");
+      Context.Applications := Context.Applications + 1;
+      Context.Last_XID := XID;
+   end Apply_Target;
+
+   package Prepared_Consumers is new
+     Flyology.Postgres.Replication.Prepared_Consumer
+       (Target_Context => Target_Context,
+        Apply_Target   => Apply_Target);
    package Wire renames Flyology.Postgres.Wire;
 
    use type Ada.Streams.Stream_Element;
-   use type Ada.Streams.Stream_Element_Array;
    use type Logical.Message_Kind;
    use type Logical.Message_Level;
    use type Logical.Int32;
@@ -22,6 +58,7 @@ package body Replication_Tests is
    use type Logical.Replica_Identity;
    use type Logical.Streaming_Mode;
    use type Logical.Tuple_Value_Kind;
+   use type Producer.Transaction_State;
    use type Protocol.Byte_Offset;
    use type Protocol.Replication_Connection_Mode;
    use type Protocol.UInt32;
@@ -29,6 +66,10 @@ package body Replication_Tests is
    use type Replication.Command_Kind;
    use type Replication.LSN;
    use type Replication.Stream_Message_Kind;
+   use type Persistence.Acquire_Result;
+   use type Persistence.Create_Result;
+   use type Persistence.Prepared_Phase;
+   use type Persistence.Slot_Kind;
 
    procedure Append_U64
      (Target : in out Flyology.Bytes.Unbounded_Bytes;
@@ -230,6 +271,23 @@ package body Replication_Tests is
             and then Replication.Option_Has_Value (Parsed (4))
             and then Replication.Option_Value (Parsed (4)) = "",
             "primary-side decoding preserves logical options");
+      end;
+
+      declare
+         Item : constant Replication.Command := Replication.Decode_Command
+           (Query
+              ("START_REPLICATION SLOT flyology_output LOGICAL 0/0"
+               & " (""proto_version"" '1',"
+               & " ""publication_names"" 'flyology_publication')"));
+         Parsed : constant Replication.Logical_Option_Array :=
+           Replication.Options (Item);
+      begin
+         Assert
+           (Parsed'Length = 2
+            and then Replication.Option_Name (Parsed (1)) = "proto_version"
+            and then Replication.Option_Name (Parsed (2)) =
+              "publication_names",
+            "primary-side decoding accepts libpq quoted option names");
       end;
 
       declare
@@ -948,6 +1006,249 @@ package body Replication_Tests is
          Streaming => Logical.Parallel);
    end Test_Logical_Failures;
 
+   procedure Test_Persistence_Contracts is
+      Store : aliased Memory.Store;
+      Created : Persistence.Create_Result;
+      Acquired : Persistence.Acquire_Result;
+      State : Persistence.Slot_State;
+      Lease_1 : Persistence.UInt64;
+      Lease_2 : Persistence.UInt64;
+      Changed : Boolean;
+      Bytes : constant Persistence.Byte_Array := (1, 2, 3, 4, 5, 6);
+      Prepared : Persistence.Prepared_Transaction;
+      Timeline : Replication.UInt32;
+      Target : aliased Target_Context;
+      First_Consumer : Prepared_Consumers.Consumer
+        (Store => Store'Access, Target => Target'Access);
+      Restarted_Consumer : Prepared_Consumers.Consumer
+        (Store => Store'Access, Target => Target'Access);
+   begin
+      Memory.Create
+        (Store,
+         "physical",
+         Persistence.Make_Slot
+           (Persistence.Physical_Slot, Restart_LSN => 100),
+         Created);
+      Assert (Created = Persistence.Created, "memory slot is created");
+      Memory.Create
+        (Store,
+         "physical",
+         Persistence.Make_Slot
+           (Persistence.Physical_Slot, Restart_LSN => 100),
+         Created);
+      Assert
+        (Created = Persistence.Already_Exists,
+         "memory slot creation is idempotently classified");
+
+      Memory.Acquire
+        (Store, "physical", Persistence.Physical_Slot,
+         Acquired, Lease_1, State);
+      Assert
+        (Acquired = Persistence.Acquired and then Lease_1 /= 0
+         and then Persistence.Is_Active (State),
+         "slot acquisition returns an active lease");
+      Memory.Acquire
+        (Store, "physical", Persistence.Physical_Slot,
+         Acquired, Lease_2, State);
+      Assert
+        (Acquired = Persistence.Already_Active and then Lease_2 = 0,
+         "concurrent slot acquisition is rejected");
+      Memory.Advance
+        (Store, "physical", Lease_1,
+         Restart => 120, Confirmed => 0, Advanced => Changed);
+      Assert (Changed, "leased slot advances monotonically");
+      Memory.Advance
+        (Store, "physical", Lease_1,
+         Restart => 119, Confirmed => 0, Advanced => Changed);
+      Assert (not Changed, "slot restart LSN cannot move backwards");
+      Memory.Release (Store, "physical", Lease_1, Changed);
+      Assert (Changed, "matching lease releases the slot");
+      Memory.Acquire
+        (Store, "physical", Persistence.Physical_Slot,
+         Acquired, Lease_2, State);
+      Assert
+        (Acquired = Persistence.Acquired and then Lease_2 > Lease_1,
+         "reacquisition changes the lease generation");
+      Memory.Advance
+        (Store, "physical", Lease_1,
+         Restart => 130, Confirmed => 0, Advanced => Changed);
+      Assert (not Changed, "stale lease cannot advance a slot");
+      Memory.Release (Store, "physical", Lease_2, Changed);
+
+      Memory.Create
+        (Store,
+         "logical",
+         Persistence.Make_Slot
+           (Persistence.Logical_Slot,
+            Restart_LSN => 110,
+            Confirmed_LSN => 115,
+            Plugin => "pgoutput"),
+         Created);
+      Assert
+        (Memory.Oldest_Restart_LSN (Store) = 110,
+         "oldest slot restart LSN controls retention");
+
+      Memory.Append (Store, Start => 100, Data => Bytes);
+      Assert
+        (Memory.First_LSN (Store) = 100
+         and then Memory.Current_LSN (Store) = 106
+         and then Memory.Read (Store, 102, 3) =
+           Persistence.Byte_Array'(3, 4, 5),
+         "memory WAL store preserves exact positions and bytes");
+      Memory.Retain_From (Store, 103);
+      Assert
+        (Memory.First_LSN (Store) = 103
+         and then Memory.Read (Store, 103, 10) =
+           Persistence.Byte_Array'(4, 5, 6),
+         "memory WAL retention removes only the requested prefix");
+
+      Memory.Promote (Store, Parent => 1, Fork_LSN => 105,
+                      New_Timeline => Timeline);
+      Assert
+        (Timeline = 2 and then Memory.Current_Timeline (Store) = 2
+         and then Memory.History (Store, 2)'Length > 0,
+         "memory timeline promotion persists its history");
+
+      Prepared := Persistence.Make_Prepared
+        (XID => 77, Prepare_LSN => 150, Payload => (9, 8, 7));
+      Memory.Put (Store, "logical", "gid-77", Prepared);
+      Prepared := Memory.Load (Store, "logical", "gid-77");
+      Assert
+        (Persistence.Exists (Prepared)
+         and then Persistence.XID (Prepared) = 77
+         and then Persistence.Payload (Prepared) =
+           Persistence.Byte_Array'(9, 8, 7)
+         and then Persistence.Phase (Prepared) = Persistence.Prepared,
+         "prepared transaction survives a new store client view");
+      Memory.Mark_Target_Applied
+        (Store, "logical", "gid-77", Changed);
+      Assert
+        (Changed
+         and then Persistence.Phase
+           (Memory.Load (Store, "logical", "gid-77")) =
+             Persistence.Target_Applied,
+         "target application is durably classified before acknowledgement");
+      Memory.Mark_Target_Applied
+        (Store, "logical", "gid-77", Changed);
+      Assert (not Changed, "target application marker is idempotent");
+      Memory.Remove (Store, "logical", "gid-77", Changed);
+      Assert
+        (Changed
+         and then not Persistence.Exists
+           (Memory.Load (Store, "logical", "gid-77")),
+         "prepared transaction removal is observable");
+
+      Prepared_Consumers.Prepare
+        (First_Consumer,
+         "logical",
+         "gid-restart",
+         XID => 88,
+         Prepare_LSN => 180,
+         Payload => (6, 5, 4));
+      Prepared_Consumers.Commit
+        (Restarted_Consumer, "logical", "gid-restart", Changed);
+      Assert
+        (Changed and then Target.Applications = 1
+         and then Target.Last_XID = 88,
+         "restarted prepared consumer applies durable state once");
+      Prepared_Consumers.Commit
+        (First_Consumer, "logical", "gid-restart", Changed);
+      Assert
+        (not Changed and then Target.Applications = 1,
+         "applied prepared marker prevents duplicate target application");
+      Prepared_Consumers.Acknowledge_Commit
+        (Restarted_Consumer, "logical", "gid-restart");
+      Assert
+        (not Persistence.Exists
+           (Memory.Load (Store, "logical", "gid-restart")),
+         "source acknowledgement removes prepared replay state");
+   end Test_Persistence_Contracts;
+
+   procedure Test_Logical_Producer is
+      Encoder : Producer.Encoder;
+      Tuple : constant Logical.Tuple_Data := Logical.Make_Tuple
+        ((Logical.Text_Column ("1"), Logical.Text_Column ("value")));
+      Rejected : Boolean := False;
+
+      procedure Emit
+        (Message : Logical.Message; Start, Finish : Logical.LSN) is
+         Data : constant Logical.Byte_Array :=
+           Producer.Emit (Encoder, Message, Start, Finish);
+      begin
+         Assert (Data'Length > 0, "pgoutput producer emits message bytes");
+      end Emit;
+   begin
+      Producer.Configure (Encoder, Version => 1);
+      Emit (Logical.Make_Begin (101, 0, 10), 100, 101);
+      Emit
+        (Logical.Make_Relation
+           (42, "public", "items", Logical.Default_Identity,
+            (Logical.Make_Relation_Column
+               ("id", Type_Oid => 23, Is_Key => True),
+             Logical.Make_Relation_Column
+               ("value", Type_Oid => 25))),
+         101, 102);
+      Emit (Logical.Make_Insert (42, Tuple), 102, 103);
+      Emit (Logical.Make_Commit (103, 104, 0), 103, 104);
+      Assert
+        (Producer.State (Encoder) = Producer.Idle
+         and then Producer.Last_WAL_End (Encoder) = 104,
+         "regular pgoutput production ends at its commit LSN");
+
+      Producer.Configure
+        (Encoder, Version => 2, Streaming => Logical.In_Progress);
+      Emit (Logical.Make_Stream_Start (20, True), 200, 201);
+      Emit (Logical.Make_Insert (42, Tuple, Xid => 20), 201, 202);
+      Emit (Logical.Make_Stream_Stop, 202, 203);
+      Emit (Logical.Make_Stream_Commit (20, 203, 204, 0), 203, 204);
+      Assert
+        (Producer.State (Encoder) = Producer.Idle,
+         "streamed pgoutput production commits the paused XID");
+
+      begin
+         declare
+            Ignored : constant Logical.Byte_Array := Producer.Emit
+              (Encoder, Logical.Make_Insert (42, Tuple), 204, 205);
+            pragma Unreferenced (Ignored);
+         begin
+            null;
+         end;
+      exception
+         when Protocol.Protocol_Error =>
+            Rejected := True;
+      end;
+      Assert
+        (Rejected,
+         "pgoutput producer rejects row changes outside transactions");
+
+      Producer.Configure (Encoder, Version => 2);
+      Rejected := False;
+      begin
+         declare
+            Ignored : constant Logical.Byte_Array := Producer.Emit
+              (Encoder,
+               Logical.Make_Begin_Prepare
+                 (Prepare_LSN => 301,
+                  End_LSN    => 302,
+                  Prepare_At => 0,
+                  Xid        => 30,
+                  GID        => "unsupported"),
+               300,
+               301);
+            pragma Unreferenced (Ignored);
+         begin
+            null;
+         end;
+      exception
+         when Protocol.Protocol_Error =>
+            Rejected := True;
+      end;
+      Assert
+        (Rejected and then Producer.State (Encoder) = Producer.Idle
+         and then Producer.Last_WAL_End (Encoder) = 0,
+         "failed pgoutput encoding rolls producer state back atomically");
+   end Test_Logical_Producer;
+
    procedure Run is
    begin
       Test_Commands_And_LSN;
@@ -957,6 +1258,8 @@ package body Replication_Tests is
       Test_Logical_Streaming;
       Test_Logical_Encoding;
       Test_Logical_Failures;
+      Test_Persistence_Contracts;
+      Test_Logical_Producer;
    end Run;
 
 end Replication_Tests;

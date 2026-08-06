@@ -396,7 +396,7 @@ package body Flyology.Postgres.Replication is
       else
          loop
             declare
-               Name : constant String := Next_Token (Text, Cursor);
+               Name : constant String := Next_Identifier (Text, Cursor);
             begin
                Require
                  (Is_Option_Name (Name),
