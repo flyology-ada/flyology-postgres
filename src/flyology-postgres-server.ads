@@ -38,19 +38,35 @@ generic
    Write_Timeout   : Duration := 30.0;
 
 package Flyology.Postgres.Server is
+   --  Concurrent PostgreSQL protocol server parameterized by application
+   --  authentication and command handling.
+   --  @formal Handler_Context Caller-owned state shared with callbacks.
+   --  @formal Authenticate Validate a cleartext password for Startup.
+   --  @formal Lookup_SCRAM_Verifier Return the startup user's PostgreSQL
+   --     rolpassword verifier, or an empty string when none exists.
+   --  @formal Handle Process one authenticated frontend command.
+   --  @formal Authentication Authentication exchange offered to clients.
+   --  @formal Handler_Model Flyology execution model for connection handlers.
+   --  @formal Handler_CPU Optional CPU affinity for handler execution.
+   --  @formal Startup_Timeout Per-message timeout before authentication.
+   --  @formal Command_Timeout Maximum time to read a frontend command.
+   --  @formal Write_Timeout Maximum time to write a backend response.
 
    type Server (Capacity : Positive) is limited private;
+   --  Server instance with bounded cancellation-routing capacity.
+   --  @field Capacity Maximum number of concurrently registered sessions.
 
    procedure Serve
      (Item          : aliased in out Server;
       Listener      : in out Flyology.IO.Sockets.Socket_Type;
       Context       : aliased in out Handler_Context;
       Drain_Timeout : Duration := Flyology.IO.Infinite);
+   --  Accept and process plaintext PostgreSQL connections until shutdown.
+   --  @param Item Server instance; Serve may be called only once at a time.
+   --  @param Listener Open listening socket owned by the caller.
+   --  @param Context Application state passed to all callbacks.
+   --  @param Drain_Timeout Time allowed for active handlers after shutdown.
 
-   --  Serve with PostgreSQL SSLRequest negotiation. Allowed accepts both TLS
-   --  and plaintext startup; Required rejects plaintext startup. PostgreSQL's
-   --  separate sslnegotiation=direct mode is not supported. Disabled is
-   --  invalid here and is represented by the ordinary Serve overload.
    procedure Serve_TLS
      (Item          : aliased in out Server;
       Listener      : in out Flyology.IO.Sockets.Socket_Type;
@@ -58,8 +74,22 @@ package Flyology.Postgres.Server is
       Backend       : aliased in out Flyology.IO.TLS.Provider'Class;
       Policy        : TLS_Policy := TLS_Required;
       Drain_Timeout : Duration := Flyology.IO.Infinite);
+   --  Serve with PostgreSQL SSLRequest negotiation. TLS_Allowed accepts both
+   --  modes; TLS_Required rejects plaintext. Direct TLS negotiation is not
+   --  supported, and TLS_Disabled is represented by ordinary Serve.
+   --  @param Item Server instance; Serve_TLS may be called only once at a
+   --     time.
+   --  @param Listener Open listening socket owned by the caller.
+   --  @param Context Application state passed to all callbacks.
+   --  @param Backend TLS provider, certificate, key, and trust configuration.
+   --  @param Policy Whether plaintext startup is allowed or rejected.
+   --  @param Drain_Timeout Time allowed for active handlers after shutdown.
+   --  @exception Constraint_Error Policy is TLS_Disabled.
 
    procedure Request_Shutdown (Item : in out Server);
+   --  Request listener shutdown and cancellation of active connection work.
+   --  This operation is idempotent and may be called from another task.
+   --  @param Item Running server to stop.
 
 private
    Maximum_Secret_Length : constant := 32;
@@ -101,6 +131,9 @@ private
 
    procedure Generate
      (Item : out Credentials; Length : Secret_Length);
+   --  Generate unpredictable cancellation credentials for one connection.
+   --  @param Item Newly generated process identifier and secret.
+   --  @param Length Number of random secret bytes to retain.
 
    type Handler_Context_Access is access all Handler_Context;
    type Registry_Access is access all Registry;
@@ -118,6 +151,11 @@ private
       Connection   : in out Flyology.IO.Connections.Connection;
       Peer         : Flyology.IO.Sockets.Endpoint;
       Cancellation : not null access Flyology.Cancellation.Token);
+   --  Run startup, authentication, and command dispatch for one connection.
+   --  @param Context Internal application, router, and optional TLS state.
+   --  @param Connection Accepted connection to consume.
+   --  @param Peer Remote endpoint used for diagnostics.
+   --  @param Cancellation Per-handler cancellation token.
 
    package Structured is new Flyology.IO.Structured_Servers
      (Handler_Context => Internal_Context,
