@@ -1,5 +1,6 @@
 with Ada.Environment_Variables;
 with Ada.Exceptions;
+with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded;
 with Ada.Text_IO;
 with Flyology;
@@ -29,6 +30,7 @@ procedure Postgres_Test_Replication is
    use type Logical.Message_Kind;
    use type Logical.Old_Tuple_Kind;
    use type Logical.Streaming_Mode;
+   use type Logical.Transaction_Id;
    use type Logical.Tuple_Value_Kind;
    use type Protocol.Backend_Message_Kind;
    use type Protocol.UInt32;
@@ -503,31 +505,79 @@ procedure Postgres_Test_Replication is
          Last_WAL_End       : Replication.LSN := 0;
          Messages           : Natural := 0;
 
-         subtype Model_Id is Natural range 1_001 .. 1_003;
+         Model_Capacity : constant := 1_000;
          type Model_Row is record
             Present      : Boolean := False;
+            Id           : Natural := 0;
             Payload_Null : Boolean := False;
             Payload      : Unbounded.Unbounded_String;
             Marker       : Natural := 0;
             Mood         : Unbounded.Unbounded_String;
          end record;
-         type Model_State is array (Model_Id) of Model_Row;
+         type Model_State is array (Positive range 1 .. Model_Capacity)
+           of Model_Row;
          Empty_State : constant Model_State :=
            (others => (others => <>));
          Committed_State : Model_State := Empty_State;
          Pending_State   : Model_State := Empty_State;
+         Prepared_State  : Model_State := Empty_State;
          In_Transaction  : Boolean := False;
+         Pending_XID     : Logical.Transaction_Id := 0;
+         Has_Prepared    : Boolean := False;
+         Prepared_XID    : Logical.Transaction_Id := 0;
+         Prepared_GID    : Unbounded.Unbounded_String;
          Applied_Transactions : Natural := 0;
+         Aborted_Transactions : Natural := 0;
 
-         function Tuple_Id (Item : Logical.Tuple_Data) return Model_Id is
-            Value : constant Logical.Tuple_Value :=
-              Logical.Column (Item, 1);
+         function First_Model_Id return Natural is
+           (if Scenario = "logical_v1" then 1_001
+            elsif Scenario = "logical_v2" then 200_001
+            elsif Scenario = "logical_v3" then 300_001
+            elsif Scenario = "logical_v3_stream" then 400_001
+            elsif Scenario = "logical_v4" then 500_001
+            elsif Scenario = "logical_binary" then 600_001
+            elsif Scenario = "logical_origin" then 700_001
+            else raise Program_Error with
+              "unknown model scenario " & Scenario);
+
+         function Expected_Model_Rows return Positive is
+           (if Scenario = "logical_v1" then 3
+            elsif Scenario = "logical_v3" then 2
+            elsif Scenario in "logical_binary" | "logical_origin" then 1
+            else 1_000);
+
+         function Model_Index (Id : Natural) return Positive is
          begin
             Require
-              (Logical.Kind (Value) = Logical.Text_Value,
-               "logical apply received a non-text primary key");
-            return Model_Id'Value (Logical.Text (Value));
-         end Tuple_Id;
+              (Id >= First_Model_Id
+               and then Id < First_Model_Id + Expected_Model_Rows,
+               "logical apply received an out-of-scenario row id");
+            return Id - First_Model_Id + 1;
+         end Model_Index;
+
+         function Tuple_Natural
+           (Item : Logical.Tuple_Data; Index : Positive) return Natural is
+            Value : constant Logical.Tuple_Value :=
+              Logical.Column (Item, Index);
+            Data : Logical.Byte_Array (1 .. 4);
+            Result : Natural := 0;
+         begin
+            if Logical.Kind (Value) = Logical.Text_Value then
+               return Natural'Value (Logical.Text (Value));
+            end if;
+            Require
+              (Logical.Kind (Value) = Logical.Binary_Value
+               and then Logical.Value (Value)'Length = 4,
+               "logical apply received an invalid integer value");
+            Data := Logical.Value (Value);
+            for Byte of Data loop
+               Result := Result * 256 + Natural (Byte);
+            end loop;
+            return Result;
+         end Tuple_Natural;
+
+         function Tuple_Id (Item : Logical.Tuple_Data) return Natural is
+           (Tuple_Natural (Item, 1));
 
          function Tuple_Text
            (Item : Logical.Tuple_Data; Index : Positive) return String is
@@ -535,14 +585,18 @@ procedure Postgres_Test_Replication is
               Logical.Column (Item, Index);
          begin
             Require
-              (Logical.Kind (Value) = Logical.Text_Value,
-               "logical apply received an unexpected non-text value");
-            return Logical.Text (Value);
+              (Logical.Kind (Value) in
+                 Logical.Text_Value | Logical.Binary_Value,
+               "logical apply received an unexpected scalar value");
+            return
+              (if Logical.Kind (Value) = Logical.Text_Value
+               then Logical.Text (Value)
+               else Byte_Text (Logical.Value (Value)));
          end Tuple_Text;
 
          procedure Verify_Old (Item : Logical.Tuple_Data) is
-            Id  : constant Model_Id := Tuple_Id (Item);
-            Row : constant Model_Row := Pending_State (Id);
+            Id  : constant Natural := Tuple_Id (Item);
+            Row : constant Model_Row := Pending_State (Model_Index (Id));
             Payload : constant Logical.Tuple_Value :=
               Logical.Column (Item, 2);
          begin
@@ -567,15 +621,17 @@ procedure Postgres_Test_Replication is
 
          procedure Apply_New
            (Item : Logical.Tuple_Data; Must_Exist : Boolean) is
-            Id      : constant Model_Id := Tuple_Id (Item);
+            Id      : constant Natural := Tuple_Id (Item);
+            Index   : constant Positive := Model_Index (Id);
             Payload : constant Logical.Tuple_Value :=
               Logical.Column (Item, 2);
-            Row     : Model_Row := Pending_State (Id);
+            Row     : Model_Row := Pending_State (Index);
          begin
             Require
               (Row.Present = Must_Exist,
                "logical apply row existence precondition changed");
             Row.Present := True;
+            Row.Id := Id;
             case Logical.Kind (Payload) is
                when Logical.Null_Value =>
                   Row.Payload_Null := True;
@@ -590,26 +646,186 @@ procedure Postgres_Test_Replication is
                   Row.Payload := Unbounded.To_Unbounded_String
                     (Logical.Text (Payload));
                when Logical.Binary_Value =>
-                  raise Program_Error with
-                    "logical v1 apply received a binary tuple";
+                  Row.Payload_Null := False;
+                  Row.Payload := Unbounded.To_Unbounded_String
+                    (Byte_Text (Logical.Value (Payload)));
             end case;
-            Row.Marker := Natural'Value (Tuple_Text (Item, 3));
+            Row.Marker := Tuple_Natural (Item, 3);
             Row.Mood := Unbounded.To_Unbounded_String
               (Tuple_Text (Item, 4));
-            Pending_State (Id) := Row;
+            Pending_State (Index) := Row;
          end Apply_New;
 
+         function Repeat (Value : String; Count : Positive) return String is
+            Result : Unbounded.Unbounded_String;
+         begin
+            for Index in 1 .. Count loop
+               pragma Unreferenced (Index);
+               Unbounded.Append (Result, Value);
+            end loop;
+            return Unbounded.To_String (Result);
+         end Repeat;
+
+         function Expected_Payload (Id : Natural) return String is
+            Sequence : constant Natural := Id - First_Model_Id + 1;
+            Image : constant String := Ada.Strings.Fixed.Trim
+              (Natural'Image (Sequence), Ada.Strings.Both);
+         begin
+            if Scenario in "logical_v2" | "logical_v3_stream" |
+              "logical_v4"
+            then
+               return Repeat (Image & ":", 32);
+            elsif Scenario = "logical_v3" then
+               return
+                 (if Id = 300_001 then "commit prepared"
+                  else "rollback prepared");
+            elsif Scenario = "logical_binary" then
+               return "binary";
+            elsif Scenario = "logical_origin" then
+               return "origin";
+            elsif Id = 1_003 then
+               return "final-state";
+            end if;
+            raise Program_Error with
+              "no final payload oracle for row" & Natural'Image (Id);
+         end Expected_Payload;
+
+         function Expected_Mood (Id : Natural) return String is
+           (if Scenario = "logical_v3"
+            then (if Id = 300_001 then "happy" else "watchful")
+            elsif Scenario in "logical_origin" | "logical_v3_stream"
+            then "watchful"
+            else "happy");
+
+         function Row_Is_Exact
+           (Row : Model_Row; Id : Natural; Marker : Natural) return Boolean is
+           (Row.Present
+            and then Row.Id = Id
+            and then not Row.Payload_Null
+            and then Unbounded.To_String (Row.Payload) =
+              Expected_Payload (Id)
+            and then Row.Marker = Marker
+            and then Unbounded.To_String (Row.Mood) = Expected_Mood (Id));
+
          function Applied_State_Is_Exact return Boolean is
-           (Applied_Transactions = 3
-            and then not Committed_State (1_001).Present
-            and then not Committed_State (1_002).Present
-            and then Committed_State (1_003).Present
-            and then not Committed_State (1_003).Payload_Null
-            and then Unbounded.To_String
-              (Committed_State (1_003).Payload) = "final-state"
-            and then Committed_State (1_003).Marker = 3
-            and then Unbounded.To_String
-              (Committed_State (1_003).Mood) = "happy");
+         begin
+            if In_Transaction or else Has_Prepared then
+               return False;
+            end if;
+            if Scenario = "logical_v1" then
+               return Applied_Transactions = 3
+                 and then not Committed_State (1).Present
+                 and then not Committed_State (2).Present
+                 and then Row_Is_Exact
+                   (Committed_State (3), 1_003, 3);
+            elsif Scenario = "logical_v3" then
+               return Applied_Transactions = 1
+                 and then Aborted_Transactions = 1
+                 and then Row_Is_Exact
+                   (Committed_State (1), 300_001, 1)
+                 and then not Committed_State (2).Present;
+            elsif Scenario = "logical_v4" then
+               if Applied_Transactions /= 0
+                 or else Aborted_Transactions /= 1
+               then
+                  return False;
+               end if;
+               for Row of Committed_State loop
+                  if Row.Present then
+                     return False;
+                  end if;
+               end loop;
+               return True;
+            else
+               if Applied_Transactions /= 1 then
+                  return False;
+               end if;
+               for Index in 1 .. Expected_Model_Rows loop
+                  declare
+                     Id : constant Natural := First_Model_Id + Index - 1;
+                  begin
+                     if not Row_Is_Exact
+                       (Committed_State (Index), Id,
+                        (if Expected_Model_Rows = 1 then 1 else Index))
+                     then
+                        return False;
+                     end if;
+                  end;
+               end loop;
+               return True;
+            end if;
+         end Applied_State_Is_Exact;
+
+         procedure Begin_Transaction (XID : Logical.Transaction_Id) is
+         begin
+            Require
+              (not In_Transaction and then XID > 0,
+               "logical apply observed invalid transaction start");
+            Pending_State := Committed_State;
+            Pending_XID := XID;
+            In_Transaction := True;
+         end Begin_Transaction;
+
+         procedure Commit_Transaction (XID : Logical.Transaction_Id) is
+         begin
+            Require
+              (In_Transaction
+               and then (XID = 0 or else XID = Pending_XID),
+               "logical apply committed the wrong transaction");
+            Committed_State := Pending_State;
+            Pending_State := Empty_State;
+            Pending_XID := 0;
+            In_Transaction := False;
+            Applied_Transactions := Applied_Transactions + 1;
+         end Commit_Transaction;
+
+         procedure Abort_Transaction (XID : Logical.Transaction_Id) is
+         begin
+            Require
+              (In_Transaction and then XID = Pending_XID,
+               "logical apply aborted the wrong transaction");
+            Pending_State := Empty_State;
+            Pending_XID := 0;
+            In_Transaction := False;
+            Aborted_Transactions := Aborted_Transactions + 1;
+         end Abort_Transaction;
+
+         procedure Prepare_Transaction
+           (XID : Logical.Transaction_Id; GID : String) is
+         begin
+            Require
+              (In_Transaction and then XID = Pending_XID
+               and then not Has_Prepared and then GID'Length > 0,
+               "logical apply prepared invalid transaction state");
+            Prepared_State := Pending_State;
+            Prepared_XID := XID;
+            Prepared_GID := Unbounded.To_Unbounded_String (GID);
+            Has_Prepared := True;
+            Pending_State := Empty_State;
+            Pending_XID := 0;
+            In_Transaction := False;
+         end Prepare_Transaction;
+
+         procedure Finish_Prepared
+           (XID : Logical.Transaction_Id;
+            GID : String;
+            Commit : Boolean) is
+         begin
+            Require
+              (Has_Prepared and then XID = Prepared_XID
+               and then GID = Unbounded.To_String (Prepared_GID),
+               "logical apply finished the wrong prepared transaction");
+            if Commit then
+               Committed_State := Prepared_State;
+               Applied_Transactions := Applied_Transactions + 1;
+            else
+               Aborted_Transactions := Aborted_Transactions + 1;
+            end if;
+            Prepared_State := Empty_State;
+            Prepared_XID := 0;
+            Prepared_GID := Unbounded.Null_Unbounded_String;
+            Has_Prepared := False;
+         end Finish_Prepared;
 
          function Tuple_Has_Binary
            (Item : Logical.Tuple_Data) return Boolean is
@@ -633,24 +849,34 @@ procedure Postgres_Test_Replication is
                   and Saw_Truncate and Saw_Message and Saw_Unchanged_Toast)
                  and then Applied_State_Is_Exact;
             elsif Scenario = "logical_v2" then
-               return Saw_Stream_Start and Saw_Stream_Stop
-                 and Saw_Stream_Commit and Saw_Insert;
+               return
+                 (Saw_Stream_Start and Saw_Stream_Stop
+                  and Saw_Stream_Commit and Saw_Insert)
+                 and then Applied_State_Is_Exact;
             elsif Scenario = "logical_v3" then
-               return Saw_Begin_Prepare and Saw_Prepare
-                 and Saw_Commit_Prepared and Saw_Rollback;
+               return
+                 (Saw_Begin_Prepare and Saw_Prepare
+                  and Saw_Commit_Prepared and Saw_Rollback)
+                 and then Applied_State_Is_Exact;
             elsif Scenario = "logical_v3_stream" then
-               return Saw_Stream_Start and Saw_Stream_Stop
-                 and Saw_Stream_Prepare and Saw_Commit_Prepared
-                 and Saw_Insert;
+               return
+                 (Saw_Stream_Start and Saw_Stream_Stop
+                  and Saw_Stream_Prepare and Saw_Commit_Prepared
+                  and Saw_Insert)
+                 and then Applied_State_Is_Exact;
             elsif Scenario = "logical_v4" then
-               return Saw_Stream_Start and Saw_Stream_Stop
-                 and Saw_Stream_Abort and Saw_Insert;
+               return
+                 (Saw_Stream_Start and Saw_Stream_Stop
+                  and Saw_Stream_Abort and Saw_Insert)
+                 and then Applied_State_Is_Exact;
             elsif Scenario = "logical_binary" then
-               return Saw_Begin and Saw_Commit and Saw_Insert
-                 and Saw_Binary;
+               return
+                 (Saw_Begin and Saw_Commit and Saw_Insert and Saw_Binary)
+                 and then Applied_State_Is_Exact;
             elsif Scenario = "logical_origin" then
-               return Saw_Begin and Saw_Commit and Saw_Insert
-                 and Saw_Origin;
+               return
+                 (Saw_Begin and Saw_Commit and Saw_Insert and Saw_Origin)
+                 and then Applied_State_Is_Exact;
             end if;
             raise Program_Error with
               "unknown logical replication scenario " & Scenario;
@@ -665,12 +891,10 @@ procedure Postgres_Test_Replication is
                     (Logical.Final_LSN (Item) > 0
                      and then Logical.Transaction (Item) > 0,
                      "real Begin has invalid transaction metadata");
-                  if Scenario = "logical_v1" then
-                     Require
-                       (not In_Transaction,
-                        "logical apply observed a nested transaction");
-                     Pending_State := Committed_State;
-                     In_Transaction := True;
+                  if Mode = Logical.Disabled
+                    and then Scenario not in "logical_v3"
+                  then
+                     Begin_Transaction (Logical.Transaction (Item));
                   end if;
                when Logical.Commit_Message =>
                   Saw_Commit := True;
@@ -678,13 +902,10 @@ procedure Postgres_Test_Replication is
                     (Logical.Commit_LSN (Item) > 0
                      and then Logical.End_LSN (Item) > 0,
                      "real Commit has invalid LSNs");
-                  if Scenario = "logical_v1" then
-                     Require
-                       (In_Transaction,
-                        "logical apply committed outside a transaction");
-                     Committed_State := Pending_State;
-                     Applied_Transactions := Applied_Transactions + 1;
-                     In_Transaction := False;
+                  if Scenario in
+                    "logical_v1" | "logical_binary" | "logical_origin"
+                  then
+                     Commit_Transaction (0);
                   end if;
                when Logical.Origin_Message =>
                   Saw_Origin := True;
@@ -723,12 +944,15 @@ procedure Postgres_Test_Replication is
                         and then Logical.Transaction (Item) > 0,
                         "streamed Insert is missing its XID");
                   end if;
-                  if Scenario = "logical_v1" then
+                  Require
+                    (In_Transaction,
+                     "logical apply inserted outside a transaction");
+                  if Logical.Transaction (Item) > 0 then
                      Require
-                       (In_Transaction,
-                        "logical apply inserted outside a transaction");
-                     Apply_New (Logical.New_Tuple (Item), False);
+                       (Logical.Transaction (Item) = Pending_XID,
+                        "logical streamed insert names the wrong XID");
                   end if;
+                  Apply_New (Logical.New_Tuple (Item), False);
                when Logical.Update_Message =>
                   Saw_Update := True;
                   Require
@@ -753,11 +977,11 @@ procedure Postgres_Test_Replication is
                        (In_Transaction,
                         "logical apply deleted outside a transaction");
                      declare
-                        Id : constant Model_Id :=
+                        Id : constant Natural :=
                           Tuple_Id (Logical.Old_Tuple (Item));
                      begin
                         Verify_Old (Logical.Old_Tuple (Item));
-                        Pending_State (Id) := (others => <>);
+                        Pending_State (Model_Index (Id)) := (others => <>);
                      end;
                   end if;
                when Logical.Truncate_Message =>
@@ -777,6 +1001,14 @@ procedure Postgres_Test_Replication is
                   Require
                     (Logical.Transaction (Item) > 0,
                      "real StreamStart has no XID");
+                  if Logical.Is_First_Stream_Segment (Item) then
+                     Begin_Transaction (Logical.Transaction (Item));
+                  else
+                     Require
+                       (In_Transaction
+                        and then Logical.Transaction (Item) = Pending_XID,
+                        "continued stream changed transaction identity");
+                  end if;
                when Logical.Stream_Stop_Message =>
                   Saw_Stream_Stop := True;
                when Logical.Stream_Commit_Message =>
@@ -784,36 +1016,47 @@ procedure Postgres_Test_Replication is
                   Require
                     (Logical.Commit_LSN (Item) > 0,
                      "real StreamCommit has no commit LSN");
+                  Commit_Transaction (Logical.Transaction (Item));
                when Logical.Stream_Abort_Message =>
                   Saw_Stream_Abort := True;
                   Require
                     (Logical.Abort_LSN (Item) > 0,
                      "parallel StreamAbort has no abort LSN");
+                  Abort_Transaction (Logical.Transaction (Item));
                when Logical.Begin_Prepare_Message =>
                   Saw_Begin_Prepare := True;
                   Require
                     (Logical.GID (Item)'Length > 0,
                      "real BeginPrepare has no GID");
+                  Begin_Transaction (Logical.Transaction (Item));
                when Logical.Prepare_Message =>
                   Saw_Prepare := True;
                   Require
                     (Logical.GID (Item)'Length > 0,
                      "real Prepare has no GID");
+                  Prepare_Transaction
+                    (Logical.Transaction (Item), Logical.GID (Item));
                when Logical.Commit_Prepared_Message =>
                   Saw_Commit_Prepared := True;
                   Require
                     (Logical.GID (Item)'Length > 0,
                      "real CommitPrepared has no GID");
+                  Finish_Prepared
+                    (Logical.Transaction (Item), Logical.GID (Item), True);
                when Logical.Rollback_Prepared_Message =>
                   Saw_Rollback := True;
                   Require
                     (Logical.Prepare_End_LSN (Item) > 0,
                      "real RollbackPrepared has no prepare end LSN");
+                  Finish_Prepared
+                    (Logical.Transaction (Item), Logical.GID (Item), False);
                when Logical.Stream_Prepare_Message =>
                   Saw_Stream_Prepare := True;
                   Require
                     (Logical.GID (Item)'Length > 0,
                      "real StreamPrepare has no GID");
+                  Prepare_Transaction
+                    (Logical.Transaction (Item), Logical.GID (Item));
             end case;
          end Observe;
 

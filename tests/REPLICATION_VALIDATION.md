@@ -6,11 +6,15 @@ five independent CI jobs for PostgreSQL 14.23, 15.18, 16.14, 17.10, and 18.4.
 
 ## Evidence in the current matrix
 
-- The committed `pgoutput` v1 flow applies all decoded row changes to pending
-  state and publishes that state only at `Commit`. It covers inserts, updates,
-  deletes, truncate flags, NULL, replica-identity-full old tuples, a large TOAST
-  value represented as unchanged by an update, a transactional message, and an
-  exact final-state comparison.
+- Every committed `pgoutput` scenario applies decoded row changes to a common
+  deterministic state oracle. State becomes visible only at `Commit`,
+  `StreamCommit`, or `CommitPrepared`; aborted streams and rolled-back prepared
+  transactions leave it unchanged. Exact row IDs, payloads, markers, enum
+  values, and transaction counts are checked for regular and streamed changes,
+  two-phase commit and rollback, binary tuples, and origin-tagged transactions.
+  The v1 flow additionally covers update, delete, truncate flags, NULL,
+  replica-identity-full old tuples, a large TOAST value represented as unchanged
+  by an update, and a transactional message.
 - The reconnect flow acknowledges a checkpoint commit by its logical end LSN,
   verifies the slot persisted that acknowledgement, disconnects after row 50
   of a 1,000-row transaction, creates a fresh session and decoder, and requires
@@ -25,10 +29,10 @@ five independent CI jobs for PostgreSQL 14.23, 15.18, 16.14, 17.10, and 18.4.
   `ReadyForQuery`, and serves the restarted standby data directory again. The
   standby connects with SCRAM-SHA-256 over TLS using `sslmode=verify-full`, a
   test CA, and a hostname-verified server certificate.
-- Supported releases still exercise streamed transactions, two-phase prepare,
-  commit and rollback, parallel abort metadata, binary tuples, and origins
-  against real PostgreSQL. These scenarios validate the complete decoded
-  message metadata but do not yet feed the same committed-state model.
+- Supported releases exercise streamed transactions, two-phase prepare, commit
+  and rollback, parallel abort, binary tuples, and origins against real
+  PostgreSQL through that same committed-state model while also validating the
+  decoded protocol metadata.
 
 ## Exact server boundaries
 
@@ -48,9 +52,9 @@ implementation to test.
    logical slots, including confirmed/restart LSN durability and WAL retention;
    then test restart and duplicate bounds against that state rather than only a
    real PostgreSQL source slot.
-2. Generalize the committed-state apply oracle by transaction ID so streamed
-   and two-phase transactions use the same exact-state comparison, including
-   prepared state that survives a consumer restart.
+2. Persist prepared consumer state and prove it survives a consumer process
+   restart between `Prepare`/`StreamPrepare` and `CommitPrepared` or
+   `RollbackPrepared`.
 3. Add timeline and history callbacks plus promotion state, then run a promoted
    real standby through `TIMELINE_HISTORY` and a new timeline's WAL.
 4. Add deterministic adverse transports around both replication directions:

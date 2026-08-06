@@ -209,7 +209,7 @@ seed_large_commit () {
   psql -q <<SQL
 begin;
 insert into flyology_replication (id, payload, marker, mood)
-select $offset + g, repeat(md5(g::text), 4), g, 'happy'
+select $offset + g, repeat(g::text || ':', 32), g, 'happy'
 from generate_series(1, 1000) as g;
 commit;
 SQL
@@ -221,7 +221,7 @@ seed_large_prepare () {
   psql -q <<SQL
 begin;
 insert into flyology_replication (id, payload, marker, mood)
-select $offset + g, repeat(md5(g::text), 4), g, 'watchful'
+select $offset + g, repeat(g::text || ':', 32), g, 'watchful'
 from generate_series(1, 1000) as g;
 prepare transaction '$gid';
 commit prepared '$gid';
@@ -233,7 +233,7 @@ seed_large_abort () {
   psql -q <<SQL
 begin;
 insert into flyology_replication (id, payload, marker, mood)
-select $offset + g, repeat(md5(g::text), 4), g, 'happy'
+select $offset + g, repeat(g::text || ':', 32), g, 'happy'
 from generate_series(1, 1000) as g;
 select pg_sleep(3);
 rollback;
