@@ -13,7 +13,8 @@ project Tests is
       "postgres_test_client.adb",
       "postgres_test_cancellation.adb",
       "postgres_test_replication.adb",
-      "postgres_test_replication_server.adb");
+      "postgres_test_replication_server.adb",
+      "postgres_test_logical_primary.adb");
 
    package Compiler is
       for Default_Switches ("Ada") use

@@ -17,8 +17,9 @@ Postgres 18.4: the test client connects to a real Postgres TLS/SCRAM server, and
 `psql` connects with `sslmode=verify-full` to the Flyology TLS/SCRAM test server.
 Cancellation uses the official encrypted separate-connection flow in both
 directions. Replication interoperability is tested against PostgreSQL 14 through
-18, both as a Flyology client of a real primary and as a real recovery-mode
-PostgreSQL standby of a Flyology primary.
+18 as a Flyology client of a real primary, as a real recovery-mode PostgreSQL
+standby of a Flyology primary, and as real `pg_recvlogical` consuming
+Flyology's `pgoutput` producer.
 
 ## Development setup
 
@@ -264,6 +265,21 @@ origins, stream segments, and prepared-transaction GIDs remain typed and
 owned. The stateful decoder inserts the streamed XID only between
 `StreamStart` and `StreamStop`; stream commit, abort, and prepare messages are
 decoded after that segment has stopped.
+
+`Flyology.Postgres.Replication.Persistence` defines application-supplied
+interfaces for physical and logical slots, WAL retention, timeline history and
+promotion, and prepared-consumer state. Slot mutations use generation leases,
+advance monotonically only after the backend reports durability, and expose the
+oldest restart LSN as the WAL retention floor. The generic
+`Persistence.Memory` child is a bounded volatile reference implementation for
+tests and ephemeral single-owner servers, not a crash-durable store.
+
+`Logical.Producer` validates transaction ordering while encoding the existing
+typed messages as `pgoutput`. The generic `Managed_Primary` composes slot, WAL,
+timeline, and application logical-source implementations with replication
+server sessions. `Prepared_Consumer` separates durable prepare, idempotent
+target application, durable applied marking, source acknowledgement, and final
+removal so a replacement consumer can resume the same store safely.
 
 The existing bounded COPY BOTH path carries replication without a second
 framing stack:
@@ -608,9 +624,12 @@ received, flushed, and applied feedback positions. The server then completes
 both COPY BOTH directions in protocol order, and the same standby data
 directory is restarted for a second exact feedback cycle. CI runs the five
 PostgreSQL releases as independent shards with version-specific installation
-caches. [Replication validation boundaries and follow-ups](tests/REPLICATION_VALIDATION.md)
-describe the server functionality that does not yet exist to support stronger
-oracles.
+caches. Every major also runs its unmodified `pg_recvlogical` against a
+memory-backed managed Flyology primary, consumes an exact `pgoutput` row through
+LSN `0/140`, and proves that feedback advances the application-owned logical
+slot. [Replication validation boundaries and follow-ups](tests/REPLICATION_VALIDATION.md)
+separate these semantics from durability obligations of an application store
+and the remaining subscription-worker catalog surface.
 
 Useful environment variables:
 

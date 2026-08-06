@@ -22,6 +22,7 @@ replication_server_pid=
 replication_proxy_pid=
 primary_proxy_pid=
 reset_proxy_pid=
+logical_primary_pid=
 replication_client_port=$port
 standby_started=false
 standby_dir=
@@ -38,9 +39,9 @@ archive_failure_logs () {
     fi
     artifact_version="$artifact_dir/$(basename "$version_dir")"
     mkdir -p "$artifact_version"
-    for log in "$version_dir"/*.log; do
-      if [ -f "$log" ]; then
-        cp "$log" "$artifact_version/"
+    for artifact in "$version_dir"/*.log "$version_dir"/*.pgoutput; do
+      if [ -f "$artifact" ]; then
+        cp "$artifact" "$artifact_version/"
       fi
     done
   done
@@ -48,6 +49,10 @@ archive_failure_logs () {
 
 cleanup () {
   status=$?
+  if [ -n "$logical_primary_pid" ]; then
+    kill "$logical_primary_pid" >/dev/null 2>&1 || true
+    wait "$logical_primary_pid" >/dev/null 2>&1 || true
+  fi
   if [ -n "$replication_client_pid" ]; then
     kill "$replication_client_pid" >/dev/null 2>&1 || true
     wait "$replication_client_pid" >/dev/null 2>&1 || true
@@ -604,6 +609,67 @@ SQL
   printf '%s\n' "PostgreSQL $major real standby passed"
 }
 
+run_logical_primary () {
+  major=$1
+  logical_primary_port=$((port + 4))
+  logical_primary_log="$version_root/logical-primary.log"
+  logical_primary_output="$version_root/logical-primary.pgoutput"
+  logical_primary_marker="managed-pgoutput-$major"
+
+  POSTGRES_LOGICAL_PRIMARY_PORT=$logical_primary_port \
+  POSTGRES_LOGICAL_PRIMARY_MARKER=$logical_primary_marker \
+    "$tests_root/bin/postgres_test_logical_primary" \
+    >"$logical_primary_log" 2>&1 &
+  logical_primary_pid=$!
+  attempt=0
+  until grep -q '^ready$' "$logical_primary_log"; do
+    attempt=$((attempt + 1))
+    if ! kill -0 "$logical_primary_pid" >/dev/null 2>&1; then
+      cat "$logical_primary_log" >&2
+      printf '%s\n' "managed logical primary exited early" >&2
+      return 1
+    fi
+    if [ "$attempt" -ge 100 ]; then
+      cat "$logical_primary_log" >&2
+      printf '%s\n' "managed logical primary did not become ready" >&2
+      return 1
+    fi
+    sleep 0.05
+  done
+
+  if ! "$postgres_prefix/bin/pg_recvlogical" \
+    --no-loop --start --endpos=0/140 \
+    --dbname="host=127.0.0.1 port=$logical_primary_port user=flyology dbname=postgres sslmode=disable" \
+    --slot=flyology_output --plugin=pgoutput \
+    --option=proto_version=1 \
+    --option=publication_names=flyology_publication \
+    --status-interval=1 --file="$logical_primary_output"
+  then
+    cat "$logical_primary_log" >&2
+    return 1
+  fi
+  attempt=0
+  until grep -q '^logical stream complete confirmed=0/140$' \
+    "$logical_primary_log"
+  do
+    attempt=$((attempt + 1))
+    if [ "$attempt" -ge 100 ]; then
+      cat "$logical_primary_log" >&2
+      printf '%s\n' "managed logical slot did not persist feedback" >&2
+      return 1
+    fi
+    sleep 0.05
+  done
+  if ! grep -a -q "$logical_primary_marker" "$logical_primary_output"; then
+    printf '%s\n' "pg_recvlogical output omitted the produced row" >&2
+    return 1
+  fi
+  kill "$logical_primary_pid" >/dev/null 2>&1 || true
+  wait "$logical_primary_pid" >/dev/null 2>&1 || true
+  logical_primary_pid=
+  printf '%s\n' "PostgreSQL $major pg_recvlogical primary passed"
+}
+
 for version in $versions; do
   major=${version%%.*}
   postgres_prefix=$(POSTGRES_VERSION=$version \
@@ -806,6 +872,7 @@ SQL
   fi
 
   run_real_standby "$major"
+  run_logical_primary "$major"
 
   kill "$replication_proxy_pid" >/dev/null 2>&1 || true
   wait "$replication_proxy_pid" >/dev/null 2>&1 || true

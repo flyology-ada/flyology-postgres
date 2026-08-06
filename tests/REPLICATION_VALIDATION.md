@@ -48,29 +48,39 @@ TLS private keys are excluded.
   requires bidirectional traffic. This adversity remains below TLS, so the real
   TLS record and replication framing paths absorb the fragmentation and
   backpressure.
+- Every supported `pg_recvlogical` consumes a transaction from Flyology's
+  stateful `pgoutput` producer through the managed-primary API. The real client
+  sends libpq's quoted logical option names, writes the exact marker row through
+  end position `0/140`, returns feedback, and the application-owned memory slot
+  persists `confirmed_lsn = 0/140` before COPY BOTH finishes.
+- The memory-store conformance suite covers slot creation, exclusive generation
+  leases, stale-writer rejection, monotonic acknowledgement, exact WAL reads and
+  retention, timeline promotion/history, prepared-state recovery through a new
+  consumer instance, idempotent target-applied marking, and removal only after
+  source acknowledgement.
 
 ## Exact server boundaries
 
-The primary-side API is a protocol/session toolkit, not a WAL-retention or
-logical-decoding server. In particular, it has no persistent replication-slot
-catalog, WAL retention policy keyed by restart LSN, timeline state machine,
-history-file store, promotion operation, publication catalog, or logical output
-producer. The live primary test can therefore validate a physical slot name in
-`START_REPLICATION`, but it cannot truthfully claim slot persistence or retention.
-For the same reason, a subscription worker or `pg_recvlogical` cannot consume
-from Flyology yet, and promotion/timeline-history behavior has no production
-implementation to test.
+Flyology now owns the replication state machines but deliberately does not own a
+durability technology. Applications supply slot, WAL, timeline, and prepared
+stores through explicit interfaces. The included bounded memory store proves
+the contracts and replacement-instance behavior, but cannot establish survival
+across an operating-system process crash. Production durability, atomic writes,
+cross-process locking, and repair remain obligations of the supplied backend.
+
+The managed logical primary produces `pgoutput` from an application change
+source and interoperates with `pg_recvlogical`. A PostgreSQL subscription worker
+still needs the normal SQL publication/subscription catalog surface and initial
+table synchronization, which the replication-mode managed primary does not
+attempt to emulate.
 
 ## Prioritized follow-up
 
-1. Add an application-owned primary state interface for persistent physical and
-   logical slots, including confirmed/restart LSN durability and WAL retention;
-   then test restart and duplicate bounds against that state rather than only a
-   real PostgreSQL source slot.
-2. Persist prepared consumer state and prove it survives a consumer process
-   restart between `Prepare`/`StreamPrepare` and `CommitPrepared` or
-   `RollbackPrepared`.
-3. Add timeline and history callbacks plus promotion state, then run a promoted
-   real standby through `TIMELINE_HISTORY` and a new timeline's WAL.
-4. Once a logical output producer exists, use `pg_recvlogical` first, followed
-   by a real subscription worker, as the primary-side logical oracle.
+1. Supply at least one crash-durable backend outside this crate and run the
+   conformance suite across real process termination, truncated writes, locking,
+   repair, and target-commit/source-ack races.
+2. Run a promoted real standby through the managed timeline interface,
+   `TIMELINE_HISTORY`, and WAL on the newly persisted timeline.
+3. Compose the managed logical primary with a normal SQL catalog and snapshot
+   provider, then use a real PostgreSQL subscription worker as the end-to-end
+   initial-copy and continuing-change oracle.
