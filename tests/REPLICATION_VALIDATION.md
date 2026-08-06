@@ -22,7 +22,9 @@ five independent CI jobs for PostgreSQL 14.23, 15.18, 16.14, 17.10, and 18.4.
   replay the target row, and report received, flushed, and applied LSNs exactly
   equal to the advertised primary end. Flyology initiates `CopyDone`, drains
   crossed feedback until the standby's `CopyDone`, sends `CommandComplete` and
-  `ReadyForQuery`, and serves the restarted standby data directory again.
+  `ReadyForQuery`, and serves the restarted standby data directory again. The
+  standby connects with SCRAM-SHA-256 over TLS using `sslmode=verify-full`, a
+  test CA, and a hostname-verified server certificate.
 - Supported releases still exercise streamed transactions, two-phase prepare,
   commit and rollback, parallel abort metadata, binary tuples, and origins
   against real PostgreSQL. These scenarios validate the complete decoded
@@ -40,11 +42,6 @@ For the same reason, a subscription worker or `pg_recvlogical` cannot consume
 from Flyology yet, and promotion/timeline-history behavior has no production
 implementation to test.
 
-The reverse-direction replication server in the live harness currently uses
-trust authentication over a loopback plaintext transport. TLS and SCRAM are
-tested elsewhere with real PostgreSQL clients, but their composition with a
-replication-mode Flyology server is not yet an interoperability test.
-
 ## Prioritized follow-up
 
 1. Add an application-owned primary state interface for persistent physical and
@@ -56,11 +53,8 @@ replication-mode Flyology server is not yet an interoperability test.
    prepared state that survives a consumer restart.
 3. Add timeline and history callbacks plus promotion state, then run a promoted
    real standby through `TIMELINE_HISTORY` and a new timeline's WAL.
-4. Compose TLS transport upgrade and SCRAM authentication in the replication
-   primary harness, and run `pg_basebackup`/a standby with certificate
-   verification and password authentication.
-5. Add deterministic adverse transports around both replication directions:
+4. Add deterministic adverse transports around both replication directions:
    fragmented frames, bounded slow-consumer backpressure, timeout and reset
    injection, and exact keepalive reply-request timing.
-6. Once a logical output producer exists, use `pg_recvlogical` first, followed
+5. Once a logical output producer exists, use `pg_recvlogical` first, followed
    by a real subscription worker, as the primary-side logical oracle.

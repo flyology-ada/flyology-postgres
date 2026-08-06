@@ -6,9 +6,12 @@ with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Text_IO;
 with Flyology;
 with Flyology.IO.Sockets;
+with Flyology.IO.TLS.OpenSSL;
+with Flyology.Postgres;
 with Flyology.Postgres.Protocol;
 with Flyology.Postgres.Replication;
 with Flyology.Postgres.Replication.Server_Sessions;
+with Flyology.Postgres.SCRAM;
 with Flyology.Postgres.Server;
 with Flyology.Postgres.Server_Sessions;
 
@@ -20,6 +23,7 @@ procedure Postgres_Test_Replication_Server is
      Flyology.Postgres.Replication.Server_Sessions;
    package Sessions renames Flyology.Postgres.Server_Sessions;
    package Sockets renames Flyology.IO.Sockets;
+   package OpenSSL renames Flyology.IO.TLS.OpenSSL;
    package Stream_IO renames Ada.Streams.Stream_IO;
 
    use type Ada.Streams.Stream_Element_Offset;
@@ -36,6 +40,11 @@ procedure Postgres_Test_Replication_Server is
       WAL_Directory : Unbounded_String;
       Expected_Slot : Unbounded_String;
       Segment_Size : Replication.UInt64 := 16 * 1_024 * 1_024;
+      Verifier     : Unbounded_String := To_Unbounded_String
+        (Flyology.Postgres.SCRAM.Make_Verifier_Raw
+           ("flyology-secret",
+            Flyology.Postgres.SCRAM.To_Bytes
+              ("Flyology replication test salt")));
    end record;
 
    function Port return Sockets.Port is
@@ -58,9 +67,13 @@ procedure Postgres_Test_Replication_Server is
    function Lookup_SCRAM_Verifier
      (State   : in out Context;
       Startup : Protocol.Startup_Information) return String is
-      pragma Unreferenced (State, Startup);
    begin
-      return "";
+      return
+        (if To_String (Startup.User) = "flyology"
+           and then Startup.Replication_Mode =
+             Protocol.Physical_Replication_Connection
+         then To_String (State.Verifier)
+         else "");
    end Lookup_SCRAM_Verifier;
 
    function Hex_8 (Value : Replication.UInt32) return String is
@@ -273,13 +286,23 @@ procedure Postgres_Test_Replication_Server is
       Authenticate          => Authenticate,
       Lookup_SCRAM_Verifier => Lookup_SCRAM_Verifier,
       Handle                => Handle,
-      Authentication        => Flyology.Postgres.Trust,
+      Authentication        => Flyology.Postgres.SCRAM_SHA_256,
       Handler_Model         => Flyology.Lightweight_Task);
 
    Listener : Sockets.Socket_Type;
    State    : aliased Context;
    Server   : aliased Test_Server.Server (Capacity => 1);
+   TLS_Backend : aliased OpenSSL.OpenSSL_Provider;
 begin
+   OpenSSL.Initialize_Server
+     (TLS_Backend,
+      Certificate_File =>
+        Ada.Environment_Variables.Value ("POSTGRES_TLS_CERT_FILE"),
+      Private_Key_File =>
+        Ada.Environment_Variables.Value ("POSTGRES_TLS_KEY_FILE"),
+      Library_Directory =>
+        Ada.Environment_Variables.Value
+          ("FLYOLOGY_OPENSSL_LIBRARY_DIR", ""));
    State.System_Id := Replication.UInt64'Value
      (Ada.Environment_Variables.Value ("POSTGRES_PRIMARY_SYSTEM_ID"));
    State.Current_WAL := Replication.Value
@@ -301,5 +324,11 @@ begin
    Sockets.Listen_Socket (Listener, Length => 4);
    Ada.Text_IO.Put_Line ("ready");
    Ada.Text_IO.Flush;
-   Test_Server.Serve (Server, Listener, State, Drain_Timeout => 1.0);
+   Test_Server.Serve_TLS
+     (Server,
+      Listener,
+      State,
+      TLS_Backend,
+      Policy        => Flyology.Postgres.TLS_Required,
+      Drain_Timeout => 1.0);
 end Postgres_Test_Replication_Server;

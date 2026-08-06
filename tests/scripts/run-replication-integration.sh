@@ -280,6 +280,8 @@ SQL
   POSTGRES_PRIMARY_WAL_DIR="$data_dir/pg_wal" \
   POSTGRES_PRIMARY_WAL_SEGMENT_SIZE=16777216 \
   POSTGRES_PRIMARY_SLOT=$physical_slot \
+  POSTGRES_TLS_CERT_FILE=$server_cert \
+  POSTGRES_TLS_KEY_FILE=$server_key \
     "$tests_root/bin/postgres_test_replication_server" \
     >"$replication_server_log" 2>&1 &
   replication_server_pid=$!
@@ -301,9 +303,10 @@ SQL
   done
 
   : > "$standby_dir/standby.signal"
-  primary_conninfo="primary_conninfo = 'host=127.0.0.1"
+  primary_conninfo="primary_conninfo = 'host=localhost hostaddr=127.0.0.1"
   primary_conninfo="$primary_conninfo port=$replication_server_port"
-  primary_conninfo="$primary_conninfo user=flyology sslmode=disable"
+  primary_conninfo="$primary_conninfo user=flyology password=flyology-secret"
+  primary_conninfo="$primary_conninfo sslmode=verify-full sslrootcert=$ca_cert"
   primary_conninfo="$primary_conninfo application_name=flyology_standby_$major'"
   {
     printf '%s\n' "$primary_conninfo"
