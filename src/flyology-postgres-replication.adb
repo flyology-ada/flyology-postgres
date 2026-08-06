@@ -294,6 +294,31 @@ package body Flyology.Postgres.Replication is
       return Text (First .. Cursor - 1);
    end Next_Token;
 
+   function Next_Identifier
+     (Text : String; Cursor : in out Natural) return String is
+      Result : Ada.Strings.Unbounded.Unbounded_String;
+   begin
+      Skip_Spaces (Text, Cursor);
+      if Cursor > Text'Last or else Text (Cursor) /= '"' then
+         return Next_Token (Text, Cursor);
+      end if;
+      Cursor := Cursor + 1;
+      while Cursor <= Text'Last loop
+         if Text (Cursor) /= '"' then
+            Ada.Strings.Unbounded.Append (Result, Text (Cursor));
+            Cursor := Cursor + 1;
+         elsif Cursor < Text'Last and then Text (Cursor + 1) = '"' then
+            Ada.Strings.Unbounded.Append (Result, '"');
+            Cursor := Cursor + 2;
+         else
+            Cursor := Cursor + 1;
+            return Ada.Strings.Unbounded.To_String (Result);
+         end if;
+      end loop;
+      raise Protocol.Protocol_Error with
+        "unterminated quoted replication identifier";
+   end Next_Identifier;
+
    function Is_Keyword (Token : String; Expected : String) return Boolean is
      (Ada.Characters.Handling.To_Upper (Token) = Expected);
 
@@ -458,7 +483,7 @@ package body Flyology.Postgres.Replication is
               (Ada.Strings.Unbounded.To_String (Token), "SLOT")
             then
                Token := Ada.Strings.Unbounded.To_Unbounded_String
-                 (Next_Token (Text, Cursor));
+                 (Next_Identifier (Text, Cursor));
                Require
                  (Is_Slot_Name (Ada.Strings.Unbounded.To_String (Token)),
                   "invalid replication slot name");

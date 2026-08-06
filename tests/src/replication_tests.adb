@@ -202,6 +202,19 @@ package body Replication_Tests is
 
       declare
          Item : constant Replication.Command := Replication.Decode_Command
+           (Query
+              ("START_REPLICATION SLOT ""standby_1"" PHYSICAL"
+               & " 16/B374D848 TIMELINE 7"));
+      begin
+         Assert
+           (Replication.Kind (Item) = Replication.Start_Physical_Command
+            and then Replication.Slot_Name (Item) = "standby_1"
+            and then Replication.Position (Item) = 16#16_B374_D848#,
+            "primary-side decoding accepts PostgreSQL quoted slots");
+      end;
+
+      declare
+         Item : constant Replication.Command := Replication.Decode_Command
            (Replication.Start_Logical
               ("subscriber_1", 16#16_B374_D848#, Options));
          Parsed : constant Replication.Logical_Option_Array :=
