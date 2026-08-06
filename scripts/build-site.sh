@@ -28,7 +28,12 @@ cp -R "$project_root/assets/brand" "$site_output/assets/brand"
 
 asset_version=${GITHUB_SHA:-$(git -C "$project_root" rev-parse HEAD)}
 
-for page in "$site_output/index.html" "$site_output/guide/index.html"; do
+for page in \
+   "$site_output/index.html" \
+   "$site_output/guide/index.html" \
+   "$site_output/journal/index.html" \
+   "$site_output/journal/2026-08-teaching-programs-postgres/index.html"
+do
    versioned_page="$page.versioned"
    sed \
       -e "s|site.css\"|site.css?v=$asset_version\"|g" \
@@ -46,6 +51,8 @@ touch "$site_output/.nojekyll"
 test -f "$site_output/index.html"
 test "$(cat "$site_output/CNAME")" = "postgres.flyology.org"
 test -f "$site_output/guide/index.html"
+test -f "$site_output/journal/index.html"
+test -f "$site_output/journal/2026-08-teaching-programs-postgres/index.html"
 test -f "$site_output/api/index.html"
 
 printf 'Flyology Postgres site built at %s\n' "$site_output"
