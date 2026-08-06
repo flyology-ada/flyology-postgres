@@ -17,15 +17,18 @@ project Flyology_Postgres is
       when "false" =>
          null;
       when "true" =>
-         --  Client, protocol, server, authentication, and transport surfaces,
-         --  plus the SCRAM core needed to resolve public subtype declarations.
-         --  Framing, wire, and control children are internal implementation
-         --  units and are omitted.
+         --  Client, protocol, replication, server, authentication, and
+         --  transport surfaces, plus the SCRAM core needed to resolve public
+         --  subtype declarations. Framing, wire, and control children are
+         --  internal implementation units and are omitted.
          for Source_Files use
            ("flyology-postgres.ads",
             "flyology-postgres-client.ads",
             "flyology-postgres-client_sockets.ads",
             "flyology-postgres-protocol.ads",
+            "flyology-postgres-replication.ads",
+            "flyology-postgres-replication-logical.ads",
+            "flyology-postgres-replication-server_sessions.ads",
             "flyology-postgres-scram.ads",
             "flyology-postgres-scram_core.ads",
             "flyology-postgres-server.ads",

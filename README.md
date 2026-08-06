@@ -16,7 +16,9 @@ normal frontend command. It interoperates over verified TLS in both directions w
 Postgres 18.4: the test client connects to a real Postgres TLS/SCRAM server, and
 `psql` connects with `sslmode=verify-full` to the Flyology TLS/SCRAM test server.
 Cancellation uses the official encrypted separate-connection flow in both
-directions.
+directions. Replication interoperability is tested against PostgreSQL 14 through
+18, both as a Flyology client of a real primary and as a real recovery-mode
+PostgreSQL standby of a Flyology primary.
 
 ## Development setup
 
@@ -232,11 +234,126 @@ end;
 For simple-query COPY, graceful `CommandComplete` returns to
 `Simple_Query_Active` until the final query event; an error or client abort keeps
 the COPY receiver active through `ReadyForQuery` so recovery cannot be skipped.
+COPY BOTH also accepts bounded data already crossed in flight after the two
+directions close and before `CommandComplete`, matching real PostgreSQL
+replication shutdown ordering.
 For extended COPY, `Sync` is mandatory. COPY OUT may pipeline `Sync` after
 `Execute`; COPY IN and the writable half of COPY BOTH send it after local
 `CopyDone`/`CopyFail`. A server error without an already pending `Sync` enters
 `Recovery_Required`, matching other extended-query operations. Cancellation is
 reported as the server's normal error and recovery sequence.
+
+### Streaming replication
+
+`Flyology.Postgres.Replication` adds replication startup modes, typed
+`IDENTIFY_SYSTEM`, `SHOW`, `TIMELINE_HISTORY`, physical and logical
+`START_REPLICATION` commands, LSN conversion, and all four messages carried by
+replication `CopyData`: `XLogData`, `PrimaryKeepalive`,
+`StandbyStatusUpdate`, and `HotStandbyFeedback`. Constructors and strict
+decoding are symmetric, retain arbitrary WAL bytes, and accept timestamps
+before the PostgreSQL epoch.
+
+`Flyology.Postgres.Replication.Logical` builds, encodes, and decodes every
+`pgoutput` message at its natural level: transaction control, transaction
+metadata, or row change. It supports protocol v1 committed transactions, v2
+streamed in-progress
+transactions (PostgreSQL 14), v3 two-phase transactions (15), and v4 parallel
+streaming abort metadata (16 and later). Relation columns, tuple values,
+replica identity, old/key/new tuple roles, truncate flags, logical messages,
+origins, stream segments, and prepared-transaction GIDs remain typed and
+owned. The stateful decoder inserts the streamed XID only between
+`StreamStart` and `StreamStop`; stream commit, abort, and prepare messages are
+decoded after that segment has stopped.
+
+The existing bounded COPY BOTH path carries replication without a second
+framing stack:
+
+```ada
+Client.Startup
+  (Session,
+   User             => "replicator",
+   Database         => "app",
+   Password         => Password,
+   Replication_Mode => Protocol.Logical_Replication_Connection);
+
+Client.Send_Command
+  (Session,
+   Replication.Start_Logical
+     ("subscriber_1",
+      Position,
+      (Replication.Option ("proto_version", "4"),
+       Replication.Option ("publication_names", "app_publication"),
+       Replication.Option ("streaming", "parallel"))));
+
+--  Receive CopyBothResponse with Receive_Query_Event, then configure once.
+Logical.Configure (Decoder, Version => 4, Streaming => Logical.Parallel);
+
+loop
+   declare
+      Event : constant Client.Copy_Event := Client.Receive_Copy_Event (Session);
+   begin
+      if Protocol.Response_Kind (Event) = Protocol.Copy_Data_Response then
+         declare
+            Frame : constant Replication.Stream_Message :=
+              Replication.Decode (Protocol.Original_Message (Event));
+         begin
+            if Replication.Kind (Frame) = Replication.XLog_Data then
+               declare
+                  Change : constant Logical.Message :=
+                    Logical.Decode (Decoder, Replication.Data (Frame));
+               begin
+                  --  Dispatch Logical.Kind (Change) without buffering the WAL.
+                  null;
+               end;
+            end if;
+         end;
+      end if;
+   end;
+end loop;
+```
+
+Use `Physical_Replication_Connection` with `Start_Physical` for raw WAL. The
+frontend status and hot-standby feedback constructors return ordinary
+`Protocol.Message` values for the writable COPY direction.
+
+For the primary direction, `Decode_Command` classifies and validates
+`IDENTIFY_SYSTEM`, `SHOW`, `TIMELINE_HISTORY`, and physical or logical
+`START_REPLICATION`, with typed access to its slot, LSN, timeline, parameter,
+and logical options. `Flyology.Postgres.Replication.Server_Sessions` completes
+the corresponding simple-query responses and provides bounded COPY BOTH
+operations for WAL, keepalives, and standby feedback:
+
+```ada
+declare
+   Command : constant Replication.Command :=
+     Replication.Decode_Command (Message);
+begin
+   case Replication.Kind (Command) is
+      when Replication.Identify_System_Command =>
+         Replication_Sessions.Send_Identify_System
+           (Client, System_Id, Timeline, Current_WAL, Timeout => 10.0);
+      when Replication.Start_Physical_Command =>
+         Replication_Sessions.Begin_Streaming (Client, Timeout => 10.0);
+         Replication_Sessions.Send_XLog_Data
+           (Client,
+            WAL_Start => Replication.Position (Command),
+            WAL_End   => Current_WAL,
+            Sent_At   => Now,
+            Data      => WAL_Chunk,
+            Timeout   => 10.0);
+         declare
+            Feedback : constant Replication.Stream_Message :=
+              Replication_Sessions.Read_Standby_Message
+                (Client, Timeout => 10.0);
+         begin
+            --  Apply StandbyStatusUpdate or HotStandbyFeedback.
+            null;
+         end;
+      when others =>
+         null;
+   end case;
+end;
+```
 
 Startup retains variable-length `BackendKeyData`. To cancel,
 `Client.Send_Cancel_Request` writes those credentials to a caller-opened distinct
@@ -438,8 +555,12 @@ RFC 7677 SCRAM-SHA-256 transcript, verifier round trips, wrong-password proof
 rejection, and malformed verifier/final-message rejection. COPY fixtures cover all
 frontend constructors, all backend response kinds, mixed text/binary formats,
 malformed counts and codes, simple and extended transitions, abort/recovery, and
-bidirectional streaming. `COPY BOTH` uses an exact protocol fixture because a real
-server exercise would require replication setup.
+bidirectional streaming.
+Replication fixtures cover connection startup, command decoding and quoting,
+crossed COPY BOTH shutdown traffic, every physical
+stream envelope, every logical v1 message, v2 in-progress transaction context,
+v3 two-phase messages, v4 parallel abort metadata, every tuple value form, and
+malformed or version-incompatible payload rejection.
 The fast suite also raises and catches a marked exception on a lightweight fiber,
 regressing normal Ada exception reporting and symbolic traceback capture with
 the `-Es` binder switch.
@@ -466,6 +587,15 @@ SCRAM exchanges. Server-side tests cover correct, incorrect, stale, duplicate, a
 concurrent cancellation credentials, verify silent cancellation-connection close,
 and confirm a valid request stops a polling Flyology handler with SQLSTATE `57014`.
 
+The replication integration matrix starts isolated PostgreSQL 14.23, 15.18,
+16.14, 17.10, and 18.4 primaries. Every major exercises physical WAL,
+`pgoutput` v1, and streamed v2 traffic; supported majors additionally exercise
+v3 two-phase and streamed-prepare traffic and v4 parallel aborts. PostgreSQL 18
+also covers binary tuples and replication origins. For the reverse direction,
+every major takes a real base backup, starts it with `standby.signal` against the
+Flyology primary test server, replays a transaction that exists only in streamed
+WAL, and returns real standby feedback.
+
 Useful environment variables:
 
 | Variable | Default | Purpose |
@@ -475,6 +605,9 @@ Useful environment variables:
 | `POSTGRES_BUILD_JOBS` | `4` | Parallel build jobs |
 | `POSTGRES_CONFIGURE_ARGS` | empty | Additional arguments passed to `configure` |
 | `POSTGRES_INTEGRATION` | `1` | Set to `0` to run only the fast unit tests |
+| `POSTGRES_REPLICATION_INTEGRATION` | `1` | Set to `0` to skip the live replication matrix |
+| `POSTGRES_REPLICATION_VERSIONS` | `14.23 15.18 16.14 17.10 18.4` | Stable releases in the replication matrix |
+| `POSTGRES_REPLICATION_PORT` | `55434` | Base port for primary, Flyology server, and standby tests |
 | `POSTGRES_TEST_PORT` | `55433` | Port for the real Postgres server |
 | `POSTGRES_PSQL_TEST_PORT` | `55432` | Port for the Flyology test server |
 

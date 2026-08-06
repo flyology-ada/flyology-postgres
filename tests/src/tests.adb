@@ -12,6 +12,7 @@ with Flyology.Postgres.SCRAM_Core;
 with Flyology.Postgres.Server_Sessions;
 with Flyology.Postgres.Transports;
 with Flyology.Postgres.Wire;
+with Replication_Tests;
 
 procedure Tests is
 
@@ -1147,18 +1148,22 @@ procedure Tests is
          Client.Send_Copy_Data (Session, Chunk, 1.0);
          Client.Finish_Copy (Session, 1.0);
       end;
+      Queue (Channel, Protocol.Make_Message ('d', Chunk));
       Queue (Channel, Complete);
       Queue (Channel, Protocol.Make_Message ('Z', Ready_Payload));
       declare
+         Trailing_Event : constant Client.Copy_Event :=
+           Client.Receive_Copy_Event (Session, 1.0);
          Complete_Event : constant Client.Copy_Event :=
            Client.Receive_Copy_Event (Session, 1.0);
          Ready_Event : constant Client.Simple_Query_Event :=
            Client.Receive_Query_Event (Session, 1.0);
-         pragma Unreferenced (Complete_Event, Ready_Event);
+         pragma Unreferenced
+           (Trailing_Event, Complete_Event, Ready_Event);
       begin
          Assert
            (Client.Is_Ready (Session),
-            "COPY BOTH fixture completes without replication setup");
+            "COPY BOTH accepts crossed teardown data before completion");
       end;
 
       Client.Send_Query (Session, "copy raw from stdin", Timeout => 1.0);
@@ -1638,5 +1643,6 @@ begin
    Test_RFC_7677_SCRAM_SHA_256;
    Test_SCRAM_Failures;
    Test_Raw_Password_Boundary;
+   Replication_Tests.Run;
    Ada.Text_IO.Put_Line ("all Flyology Postgres unit tests passed");
 end Tests;

@@ -6,6 +6,7 @@ with Flyology.Postgres.Wire;
 package body Flyology.Postgres.Protocol is
 
    use type Ada.Streams.Stream_Element_Offset;
+   use type Ada.Streams.Stream_Element;
    use type Wire.Initial_Parse_Status;
 
    SSL_Code      : constant UInt32 := 80_877_103;
@@ -1176,6 +1177,33 @@ package body Flyology.Postgres.Protocol is
                  (View_To_String
                     (Contents, Decoded.Application_Name.Value));
             end if;
+            declare
+               Cursor : Byte_Offset := Contents'First + 4;
+            begin
+               while Contents (Cursor) /= 0 loop
+                  declare
+                     Name : constant String :=
+                       Read_C_String (Contents, Cursor);
+                     Value : constant String :=
+                       Read_C_String (Contents, Cursor);
+                  begin
+                     if Name = "replication" then
+                        if Value = "database" then
+                           Result.Startup.Replication_Mode :=
+                             Logical_Replication_Connection;
+                        elsif Value in "true" | "on" | "yes" | "1" then
+                           Result.Startup.Replication_Mode :=
+                             Physical_Replication_Connection;
+                        elsif Value not in
+                          "false" | "off" | "no" | "0"
+                        then
+                           raise Protocol_Error with
+                             "invalid startup replication mode";
+                        end if;
+                     end if;
+                  end;
+               end loop;
+            end;
          when Wire.Unknown_Request =>
             Result.Request_Kind := Unknown_Initial;
       end case;
@@ -1201,7 +1229,9 @@ package body Flyology.Postgres.Protocol is
       Database         : String := "";
       Application_Name : String := "flyology_postgres";
       Protocol_Major   : UInt16 := 3;
-      Protocol_Minor   : UInt16 := 0) return Byte_Array is
+      Protocol_Minor   : UInt16 := 0;
+      Replication_Mode : Replication_Connection_Mode := Normal_Connection)
+      return Byte_Array is
       Contents : Flyology.Bytes.Unbounded_Bytes;
       Packet : Flyology.Bytes.Unbounded_Bytes;
       Version : constant UInt32 :=
@@ -1218,6 +1248,14 @@ package body Flyology.Postgres.Protocol is
       if Application_Name'Length > 0 then
          Append_C_String (Contents, "application_name");
          Append_C_String (Contents, Application_Name);
+      end if;
+      if Replication_Mode /= Normal_Connection then
+         Append_C_String (Contents, "replication");
+         Append_C_String
+           (Contents,
+            (if Replication_Mode = Physical_Replication_Connection
+             then "true"
+             else "database"));
       end if;
       Append_Byte (Contents, 0);
       Require

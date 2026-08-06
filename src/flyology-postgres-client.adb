@@ -18,6 +18,7 @@ package body Flyology.Postgres.Client is
       Item.Current_Copy_Origin := No_Copy;
       Item.Copy_Send_Open := False;
       Item.Copy_Receive_Open := False;
+      Item.Copy_Bidirectional := False;
       Item.Copy_Sync_Pending := False;
    end Reset_Copy;
 
@@ -34,14 +35,17 @@ package body Flyology.Postgres.Client is
             Item.Current_State := Copy_In_Active;
             Item.Copy_Send_Open := True;
             Item.Copy_Receive_Open := False;
+            Item.Copy_Bidirectional := False;
          when Protocol.Copy_Out_Response =>
             Item.Current_State := Copy_Out_Active;
             Item.Copy_Send_Open := False;
             Item.Copy_Receive_Open := True;
+            Item.Copy_Bidirectional := False;
          when Protocol.Copy_Both_Response =>
             Item.Current_State := Copy_Both_Active;
             Item.Copy_Send_Open := True;
             Item.Copy_Receive_Open := True;
+            Item.Copy_Bidirectional := True;
          when others =>
             raise Program_Error with "response does not start COPY";
       end case;
@@ -118,7 +122,8 @@ package body Flyology.Postgres.Client is
       Database         : String;
       Password         : String;
       Application_Name : String;
-      Timeout          : Duration) is
+      Timeout          : Duration;
+      Replication_Mode : Protocol.Replication_Connection_Mode) is
       type SASL_Phase is
         (No_SASL, Awaiting_Continue, Awaiting_Final, Final_Verified);
       Phase : SASL_Phase := No_SASL;
@@ -138,7 +143,8 @@ package body Flyology.Postgres.Client is
            (User             => User,
             Database         => Database,
             Application_Name => Application_Name,
-            Protocol_Minor   => 2),
+            Protocol_Minor   => 2,
+            Replication_Mode => Replication_Mode),
          Timeout);
 
       loop
@@ -310,10 +316,18 @@ package body Flyology.Postgres.Client is
       Database         : String := "";
       Password         : String := "";
       Application_Name : String := "flyology_postgres";
-      Timeout          : Duration := 30.0) is
+      Timeout          : Duration := 30.0;
+      Replication_Mode : Protocol.Replication_Connection_Mode :=
+        Protocol.Normal_Connection) is
    begin
       Complete_Startup
-        (Item, User, Database, Password, Application_Name, Timeout);
+        (Item,
+         User,
+         Database,
+         Password,
+         Application_Name,
+         Timeout,
+         Replication_Mode);
    end Startup;
 
    procedure Startup_TLS
@@ -324,7 +338,9 @@ package body Flyology.Postgres.Client is
       Database         : String := "";
       Password         : String := "";
       Application_Name : String := "flyology_postgres";
-      Timeout          : Duration := 30.0) is
+      Timeout          : Duration := 30.0;
+      Replication_Mode : Protocol.Replication_Connection_Mode :=
+        Protocol.Normal_Connection) is
       Response : Protocol.Byte_Array (1 .. 1);
    begin
       if Item.Current_State /= Not_Started then
@@ -354,7 +370,13 @@ package body Flyology.Postgres.Client is
             Server_Name,
             Timeout);
          Complete_Startup
-           (Item, User, Database, Password, Application_Name, Timeout);
+           (Item,
+            User,
+            Database,
+            Password,
+            Application_Name,
+            Timeout,
+            Replication_Mode);
       exception
          when others =>
             Item.Current_State := Closed;
@@ -938,7 +960,12 @@ package body Flyology.Postgres.Client is
         (Framing.Read_Message (Item.Channel.all, Timeout));
       case Protocol.Response_Kind (Response) is
          when Protocol.Copy_Data_Response =>
-            if not Item.Copy_Receive_Open then
+            if not Item.Copy_Receive_Open
+              and then not
+                (Item.Copy_Bidirectional
+                 and then not Item.Copy_Send_Open
+                 and then Item.Current_State = Copy_Completion_Active)
+            then
                raise Protocol.Protocol_Error with
                  "received CopyData on a non-readable COPY stream";
             end if;

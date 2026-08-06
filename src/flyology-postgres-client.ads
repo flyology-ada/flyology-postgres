@@ -33,7 +33,9 @@ package Flyology.Postgres.Client is
       --  Unicode normalization is performed by this library.
       Password         : String := "";
       Application_Name : String := "flyology_postgres";
-      Timeout          : Duration := 30.0);
+      Timeout          : Duration := 30.0;
+      Replication_Mode : Protocol.Replication_Connection_Mode :=
+        Protocol.Normal_Connection);
 
    --  Require PostgreSQL SSLRequest negotiation before startup. Backend
    --  verifies both the server certificate chain and Server_Name. Refusal is
@@ -47,7 +49,9 @@ package Flyology.Postgres.Client is
       Database         : String := "";
       Password         : String := "";
       Application_Name : String := "flyology_postgres";
-      Timeout          : Duration := 30.0);
+      Timeout          : Duration := 30.0;
+      Replication_Mode : Protocol.Replication_Connection_Mode :=
+        Protocol.Normal_Connection);
 
    procedure Send_Command
      (Item    : in out Session;
@@ -158,6 +162,7 @@ private
       Current_Copy_Origin : Copy_Origin := No_Copy;
       Copy_Send_Open : Boolean := False;
       Copy_Receive_Open : Boolean := False;
+      Copy_Bidirectional : Boolean := False;
       Copy_Sync_Pending : Boolean := False;
       Pid     : Protocol.UInt32 := 0;
       Secret  : Flyology.Bytes.Unbounded_Bytes;

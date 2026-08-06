@@ -221,12 +221,18 @@ package Flyology.Postgres.Protocol is
    type Initial_Kind is
      (Startup, SSL_Request, GSS_Request, Cancel_Request, Unknown_Initial);
 
+   type Replication_Connection_Mode is
+     (Normal_Connection,
+      Physical_Replication_Connection,
+      Logical_Replication_Connection);
+
    type Startup_Information is record
       Protocol_Major  : UInt16 := 3;
       Protocol_Minor  : UInt16 := 0;
       User            : Ada.Strings.Unbounded.Unbounded_String;
       Database        : Ada.Strings.Unbounded.Unbounded_String;
       Application_Name : Ada.Strings.Unbounded.Unbounded_String;
+      Replication_Mode : Replication_Connection_Mode := Normal_Connection;
    end record;
 
    type Initial_Request is private;
@@ -243,7 +249,9 @@ package Flyology.Postgres.Protocol is
       Database         : String := "";
       Application_Name : String := "flyology_postgres";
       Protocol_Major   : UInt16 := 3;
-      Protocol_Minor   : UInt16 := 0) return Byte_Array;
+      Protocol_Minor   : UInt16 := 0;
+      Replication_Mode : Replication_Connection_Mode := Normal_Connection)
+      return Byte_Array;
    function Encode_SSL_Request return Byte_Array;
    function Encode_Cancel_Request
      (Process_Id : UInt32; Secret_Key : Byte_Array) return Byte_Array;
