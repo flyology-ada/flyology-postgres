@@ -9,6 +9,7 @@ with Flyology.Postgres.Replication.Persistence;
 with Flyology.Postgres.Replication.Persistence.Memory;
 with Flyology.Postgres.Replication.Prepared_Consumer;
 with Flyology.Postgres.Wire;
+with Replication_Persistence_Conformance;
 
 package body Replication_Tests is
 
@@ -21,6 +22,14 @@ package body Replication_Tests is
      Flyology.Postgres.Replication.Persistence;
    package Memory is new
      Flyology.Postgres.Replication.Persistence.Memory (Capacity => 8);
+
+   procedure Conformance_Check (Condition : Boolean; Reason : String) is
+   begin
+      Assert (Condition, "persistence conformance: " & Reason);
+   end Conformance_Check;
+
+   package Persistence_Conformance is new
+     Replication_Persistence_Conformance (Check => Conformance_Check);
 
    use type Ada.Streams.Stream_Element_Array;
 
@@ -1008,6 +1017,7 @@ package body Replication_Tests is
 
    procedure Test_Persistence_Contracts is
       Store : aliased Memory.Store;
+      Conformance_Store : aliased Memory.Store;
       Created : Persistence.Create_Result;
       Acquired : Persistence.Acquire_Result;
       State : Persistence.Slot_State;
@@ -1023,6 +1033,10 @@ package body Replication_Tests is
       Restarted_Consumer : Prepared_Consumers.Consumer
         (Store => Store'Access, Target => Target'Access);
    begin
+      Persistence_Conformance.Run
+        (Conformance_Store, Conformance_Store,
+         Conformance_Store, Conformance_Store);
+
       Memory.Create
         (Store,
          "physical",
