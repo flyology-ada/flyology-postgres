@@ -265,10 +265,18 @@ package Flyology.Postgres.Client is
    --  @param Reason Human-readable failure text sent to the server.
    --  @param Timeout Maximum time allowed for the write.
    function Receive_Copy_Event
-     (Item : in out Session; Timeout : Duration := 30.0) return Copy_Event;
+     (Item    : in out Session;
+      Timeout : Duration := 30.0;
+      On_Wait : access Transports.Wait_Observer'Class := null)
+      return Copy_Event;
    --  Receive one event while COPY is active or completing.
    --  @param Item Session in a COPY-related state.
    --  @param Timeout Maximum time allowed for the complete event.
+   --  @param On_Wait Observer notified while the event is still arriving.  A
+   --     replication stream needs this: a primary packs pending WAL into a
+   --     single XLogData of up to 128 kB, and a standby that stays silent for
+   --     the whole of it is terminated once assembly outlasts
+   --     wal_sender_timeout.  The observer may send on Item's channel.
    --  @return Next typed COPY or completion event.
 
    function Is_Ready (Item : Session) return Boolean;

@@ -11,23 +11,27 @@ package body Flyology.Postgres.Framing is
 
    function Read_Length
      (Channel : in out Transports.Transport'Class;
-      Timeout : Duration) return Protocol.UInt32 is
+      Timeout : Duration;
+      On_Wait : access Transports.Wait_Observer'Class := null)
+      return Protocol.UInt32 is
       Header : Protocol.Byte_Array (1 .. 4);
       Cursor : Protocol.Byte_Offset := Header'First;
    begin
-      Channel.Receive_Exactly (Header, Timeout);
+      Channel.Receive_Exactly (Header, Timeout, On_Wait);
       return Protocol.Read_U32 (Header, Cursor);
    end Read_Length;
 
    function Read_Contents
      (Channel : in out Transports.Transport'Class;
       Count   : Natural;
-      Timeout : Duration) return Protocol.Byte_Array is
+      Timeout : Duration;
+      On_Wait : access Transports.Wait_Observer'Class := null)
+      return Protocol.Byte_Array is
       Buffer : Byte_Array_Access :=
         new Protocol.Byte_Array (1 .. Protocol.Byte_Offset (Count));
    begin
       if Count > 0 then
-         Channel.Receive_Exactly (Buffer.all, Timeout);
+         Channel.Receive_Exactly (Buffer.all, Timeout, On_Wait);
       end if;
       declare
          Result : constant Protocol.Byte_Array := Buffer.all;
@@ -57,12 +61,14 @@ package body Flyology.Postgres.Framing is
 
    function Read_Message
      (Channel : in out Transports.Transport'Class;
-      Timeout : Duration) return Protocol.Message is
+      Timeout : Duration;
+      On_Wait : access Transports.Wait_Observer'Class := null)
+      return Protocol.Message is
       Tag    : Protocol.Byte_Array (1 .. 1);
       Length : Protocol.UInt32;
    begin
-      Channel.Receive_Exactly (Tag, Timeout);
-      Length := Read_Length (Channel, Timeout);
+      Channel.Receive_Exactly (Tag, Timeout, On_Wait);
+      Length := Read_Length (Channel, Timeout, On_Wait);
       if not Wire.Valid_Typed_Length (Length) then
          raise Protocol.Protocol_Error with
            "invalid typed Postgres message length";
@@ -70,7 +76,8 @@ package body Flyology.Postgres.Framing is
       return Protocol.Make_Message
         (Character'Val (Tag (Tag'First)),
          Read_Contents
-           (Channel, Natural (Wire.Content_Length (Length)), Timeout));
+           (Channel, Natural (Wire.Content_Length (Length)), Timeout,
+            On_Wait));
    end Read_Message;
 
    procedure Write_Message

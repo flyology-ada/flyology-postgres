@@ -11,12 +11,14 @@ with Flyology.IO.TLS.OpenSSL;
 with Flyology.Postgres.Client;
 with Flyology.Postgres.Protocol;
 with Flyology.Postgres.Replication;
+with Flyology.Postgres.Replication.Feedback;
 with Flyology.Postgres.Replication.Logical;
 with Flyology.Postgres.Transports.TLS_Sockets;
 
 procedure Postgres_Test_Replication is
 
    package Client renames Flyology.Postgres.Client;
+   package Feedback renames Flyology.Postgres.Replication.Feedback;
    package Logical renames Flyology.Postgres.Replication.Logical;
    package OpenSSL renames Flyology.IO.TLS.OpenSSL;
    package Protocol renames Flyology.Postgres.Protocol;
@@ -303,6 +305,58 @@ procedure Postgres_Test_Replication is
             "physical stream did not accept standby and xmin feedback");
          Finish_Stream;
       end Test_Physical;
+
+      procedure Test_Physical_Stall is
+         --  A primary packs pending WAL into a single XLogData of up to
+         --  128 kB, so a standby reading one has no gap between messages to
+         --  speak from.  Hold the stream still, part way through such a
+         --  message, for longer than the primary's replication timeout: the
+         --  connection survives only if the standby can report a position
+         --  from inside the receive.  The transport stalls one direction, so
+         --  reports still reach the primary while nothing comes back.
+         Start : constant Replication.LSN := Replication.Value
+           (Environment ("POSTGRES_REPLICATION_START_LSN"));
+         Receive_Timeout : constant Duration := Duration'Value
+           (Environment ("POSTGRES_REPLICATION_RECEIVE_TIMEOUT", "60.0"));
+         Reporter : aliased Feedback.Standby_Reporter (Channel'Access);
+         Saw_WAL  : Boolean := False;
+      begin
+         Check_Identify_System;
+         Start_Copy (Replication.Start_Physical (Start));
+         Feedback.Set_Interval (Reporter, 1.0);
+
+         while not Saw_WAL loop
+            declare
+               Event : constant Client.Copy_Event :=
+                 Client.Receive_Copy_Event
+                   (Session,
+                    Timeout => Receive_Timeout,
+                    On_Wait => Reporter'Access);
+            begin
+               Raise_Server_Error (Event);
+               if Protocol.Response_Kind (Event) =
+                 Protocol.Copy_Data_Response
+               then
+                  declare
+                     Frame : constant Replication.Stream_Message :=
+                       Replication.Decode
+                         (Protocol.Original_Message (Event));
+                  begin
+                     if Replication.Kind (Frame) = Replication.XLog_Data then
+                        Saw_WAL := Replication.Data (Frame)'Length > 0;
+                        Feedback.Set_Position
+                          (Reporter, Replication.WAL_End (Frame));
+                     end if;
+                  end;
+               end if;
+            end;
+         end loop;
+
+         Require
+           (Feedback.Reports (Reporter) > 0,
+            "the stalled stream never reported a standby position");
+         Finish_Stream;
+      end Test_Physical_Stall;
 
       procedure Test_Logical_Resume is
          Slot : constant String :=
@@ -1228,12 +1282,14 @@ procedure Postgres_Test_Replication is
          Password    => "flyology-secret",
          Timeout     => 10.0,
          Replication_Mode =>
-           (if Scenario = "physical"
+           (if Scenario in "physical" | "physical_stall"
             then Protocol.Physical_Replication_Connection
             else Protocol.Logical_Replication_Connection));
 
       if Scenario = "physical" then
          Test_Physical;
+      elsif Scenario = "physical_stall" then
+         Test_Physical_Stall;
       elsif Scenario in
         "logical_resume_first" | "logical_resume_reset" |
         "logical_resume_timeout" | "logical_resume_second"

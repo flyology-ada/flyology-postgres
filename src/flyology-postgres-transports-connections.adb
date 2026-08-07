@@ -5,7 +5,11 @@ package body Flyology.Postgres.Transports.Connections is
    overriding procedure Receive_Exactly
      (Item    : in out Connection_Transport;
       Data    : out Ada.Streams.Stream_Element_Array;
-      Timeout : Duration) is
+      Timeout : Duration;
+      On_Wait : access Wait_Observer'Class := null) is
+      pragma Unreferenced (On_Wait);
+      --  The adapted connection fills the buffer in one call, so there is no
+      --  point between reads at which an observer could run.
    begin
       Item.Channel.Receive_Exactly
         (Data, Timeout => Timeout, Token => Item.Token);
