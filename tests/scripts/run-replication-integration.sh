@@ -247,6 +247,14 @@ run_reconnect_resume () {
     wait "$reset_proxy_pid" >/dev/null 2>&1 || true
     reset_proxy_pid=
   elif [ "$adversity" = timeout ]; then
+    #  Three values move together here.  The client has to keep reading until
+    #  the proxy has relayed --stall-server-bytes, so its receive timeout must
+    #  outlast the longest gap a loaded machine puts between server writes; a
+    #  runner that pauses longer than that abandons the stream early and the
+    #  stall never fires.  The stall itself must then outlast that same receive
+    #  timeout, because the scenario proves a stalled transport surfaces as
+    #  Timeout_Error.  Keep --stall-seconds > RECEIVE_TIMEOUT, and keep the
+    #  grep below in step with --stall-seconds.
     timeout_proxy_port=$((port + 13))
     timeout_proxy_log="$version_root/timeout-proxy.log"
     python3 "$script_dir/fragmenting-proxy.py" \
@@ -254,7 +262,7 @@ run_reconnect_resume () {
       --upstream-port "$port" \
       --seed "$((major * 1009 + 4))" \
       --stall-server-bytes 20000 \
-      --stall-seconds 1 \
+      --stall-seconds 5 \
       >"$timeout_proxy_log" 2>&1 &
     reset_proxy_pid=$!
     attempt=0
@@ -275,7 +283,7 @@ run_reconnect_resume () {
     if ! POSTGRES_REPLICATION_PORT=$timeout_proxy_port \
       POSTGRES_TLS_CA_FILE=$ca_cert \
       POSTGRES_REPLICATION_SCENARIO=logical_resume_timeout \
-      POSTGRES_REPLICATION_RECEIVE_TIMEOUT=0.2 \
+      POSTGRES_REPLICATION_RECEIVE_TIMEOUT=2.0 \
       POSTGRES_SERVER_MAJOR=$major \
       POSTGRES_LOGICAL_VERSION=1 \
       POSTGRES_REPLICATION_SLOT=$slot \
@@ -288,7 +296,7 @@ run_reconnect_resume () {
       return 1
     fi
     attempt=0
-    until grep -Eq '^stall server_bytes=[0-9]+ seconds=1.0$' \
+    until grep -Eq '^stall server_bytes=[0-9]+ seconds=5.0$' \
       "$timeout_proxy_log"
     do
       attempt=$((attempt + 1))
@@ -984,7 +992,14 @@ for version in $versions; do
   server_options="$server_options -c max_replication_slots=20"
   server_options="$server_options -c max_prepared_transactions=20"
   server_options="$server_options -c logical_decoding_work_mem=64kB"
-  server_options="$server_options -c wal_sender_timeout=2000"
+  #  A primary packs pending WAL into one XLogData message of up to
+  #  MAX_SEND_SIZE (128 kB), and a client cannot answer while it is still
+  #  assembling that message.  The transport proxy relays it in ~129-byte
+  #  writes, so assembly has to outlast wal_sender_timeout or the primary
+  #  terminates the walsender.  Keep this above the assembly time and below
+  #  30000, because the physical scenario waits 15 s for the keepalive the
+  #  primary only offers at wal_sender_timeout / 2.
+  server_options="$server_options -c wal_sender_timeout=10000"
   server_options="$server_options -c ssl=on"
   server_options="$server_options -c ssl_cert_file=$server_cert"
   server_options="$server_options -c ssl_key_file=$server_key"
@@ -1034,12 +1049,22 @@ create publication flyology_publication
   for table flyology_replication;
 SQL
 
-  physical_lsn=$(psql -qAtc 'select pg_current_wal_flush_lsn()')
+  #  Keep this backlog small.  A primary packs everything pending into one
+  #  XLogData message of up to MAX_SEND_SIZE (128 kB), and the physical
+  #  scenario cannot answer a keepalive while it is assembling one, so a
+  #  backlog approaching that ceiling leaves the stream one slow transport
+  #  away from wal_sender_timeout.  Checkpoint before reading the start LSN
+  #  so the preceding DDL's full-page images fall outside the backlog: they,
+  #  not the rows below, are what used to dominate it.  A few kilobytes
+  #  still proves WAL flows and still spans many proxy writes.
   psql -q <<'SQL'
 create table flyology_physical_probe (value text);
-insert into flyology_physical_probe
-select repeat(md5(g::text), 8) from generate_series(1, 256) as g;
 checkpoint;
+SQL
+  physical_lsn=$(psql -qAtc 'select pg_current_wal_flush_lsn()')
+  psql -q <<'SQL'
+insert into flyology_physical_probe
+select repeat(md5(g::text), 8) from generate_series(1, 32) as g;
 SQL
   run_client physical "$major" "" "" "$physical_lsn"
 
