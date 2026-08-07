@@ -852,6 +852,13 @@ package body Flyology.Postgres.Replication.Logical is
       Tag    : Character;
       Result : Message := (others => <>);
    begin
+      --  Streamed is a caller-asserted precondition describing the on-wire
+      --  stream context; it cannot be derived from Data because the streamed
+      --  transaction-id prefix is not self-describing. Callers that do not
+      --  track Stream Start/Stop themselves must decode through the stateful
+      --  Decoder, which supplies Streamed from its In_Stream state. The checks
+      --  below only reject a Streamed value that is impossible for the
+      --  negotiated configuration, not one that merely disagrees with Data.
       Require
         (Configuration_Is_Valid (Version, Streaming),
          "logical replication version does not support the streaming mode");

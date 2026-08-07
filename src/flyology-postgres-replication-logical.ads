@@ -439,11 +439,30 @@ package Flyology.Postgres.Replication.Logical is
       Version   : Protocol_Version;
       Streamed  : Boolean := False;
       Streaming : Streaming_Mode := Disabled) return Message;
-   --  Strictly decode one complete pgoutput message with explicit stream
-   --  state.
+   --  Strictly decode one complete pgoutput message with an explicitly
+   --  stated stream context.
+   --
+   --  Streamed is a precondition, not a hint: it must equal the message's
+   --  true on-wire stream context -- True exactly when Data occurs between
+   --  a decoded Stream Start ('S') and Stream Stop ('E'). It selects whether
+   --  the data-bearing messages (Insert, Update, Delete, Relation, Type,
+   --  Truncate, and Logical_Decoding_Message) carry a leading streamed
+   --  transaction id. Supplying a value inconsistent with the bytes maps
+   --  those four id bytes onto the following field and yields an undefined
+   --  -- though always memory-safe and Protocol_Error-bounded -- decode;
+   --  Decode cannot detect the mismatch, because the prefix is not
+   --  self-describing.
+   --
+   --  Consumers that do not themselves track Stream Start/Stop boundaries
+   --  MUST decode through the stateful Decoder below, which derives Streamed
+   --  from its own In_Stream state and additionally rejects malformed stream
+   --  sequencing. Reserve this stateless form for callers that already know
+   --  the exact stream context of Data (for example, non-streamed version-1
+   --  output).
    --  @param Data Exact bytes for one logical message.
    --  @param Version Negotiated protocol version.
-   --  @param Streamed Whether Data occurs inside a stream segment.
+   --  @param Streamed True exactly when Data lies inside a stream segment;
+   --     it must match the on-wire context (see the warning above).
    --  @param Streaming Negotiated streaming mode.
    --  @return Validated owned logical message.
    --  @exception Protocol.Protocol_Error Data or configuration is invalid.
