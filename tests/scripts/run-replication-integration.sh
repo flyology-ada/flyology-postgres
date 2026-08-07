@@ -152,6 +152,15 @@ run_physical_stall () {
   #  wal_sender_timeout part way through it.  The proxy stalls only
   #  server-to-client, so standby reports still arrive; a client that cannot
   #  send while receiving goes quiet instead and the primary terminates it.
+  #  Keep --stall-seconds above wal_sender_timeout: the whole point is that
+  #  the primary would have given up partway through this stall.
+  #  Give this proxy room the other scenarios deliberately withhold.  Holding
+  #  the relay still is what withholds data from the client; small socket
+  #  buffers are not needed for that, and they close the primary's send
+  #  window instead.  A window that closes for the length of the stall leaves
+  #  the primary probing on an exponential backoff, so it can miss the reopen
+  #  by tens of seconds and starve the client of WAL long after the stall is
+  #  over -- a transport artefact this scenario is not trying to prove.
   major=$1
   stall_proxy_port=$((port + 14))
   physical_stall_log="$version_root/physical-stall-proxy.log"
@@ -159,8 +168,9 @@ run_physical_stall () {
     --listen-port "$stall_proxy_port" \
     --upstream-port "$port" \
     --seed "$((major * 1009 + 5))" \
+    --buffer-size 1048576 \
     --stall-server-bytes 20000 \
-    --stall-seconds 12 \
+    --stall-seconds 3 \
     >"$physical_stall_log" 2>&1 &
   stall_proxy_pid=$!
   attempt=0
@@ -179,12 +189,19 @@ run_physical_stall () {
     sleep 0.05
   done
 
-  stall_lsn=$(psql -qAtc 'select pg_current_wal_flush_lsn()')
+  #  Checkpoint before reading the start LSN so the DDL's full-page images
+  #  stay out of the backlog.  What is left is one message far larger than
+  #  --stall-server-bytes, which is all this needs: the stall has to land
+  #  inside a message, not near MAX_SEND_SIZE.  Keeping it well under the
+  #  buffer above also means the primary never has to stop writing.
   psql -q <<'SQL'
 create table flyology_stall_probe (value text);
+checkpoint;
+SQL
+  stall_lsn=$(psql -qAtc 'select pg_current_wal_flush_lsn()')
+  psql -q <<'SQL'
 insert into flyology_stall_probe
 select repeat(md5(g::text), 8) from generate_series(1, 256) as g;
-checkpoint;
 SQL
 
   if ! POSTGRES_REPLICATION_PORT=$stall_proxy_port \
@@ -200,7 +217,7 @@ SQL
     return 1
   fi
 
-  if ! grep -Eq '^stall server_bytes=[0-9]+ seconds=12.0$' \
+  if ! grep -Eq '^stall server_bytes=[0-9]+ seconds=3.0$' \
     "$physical_stall_log"
   then
     cat "$physical_stall_log" >&2
@@ -1065,14 +1082,14 @@ for version in $versions; do
   server_options="$server_options -c max_replication_slots=20"
   server_options="$server_options -c max_prepared_transactions=20"
   server_options="$server_options -c logical_decoding_work_mem=64kB"
-  #  A primary packs pending WAL into one XLogData message of up to
-  #  MAX_SEND_SIZE (128 kB), and a client cannot answer while it is still
-  #  assembling that message.  The transport proxy relays it in ~129-byte
-  #  writes, so assembly has to outlast wal_sender_timeout or the primary
-  #  terminates the walsender.  Keep this above the assembly time and below
-  #  30000, because the physical scenario waits 15 s for the keepalive the
-  #  primary only offers at wal_sender_timeout / 2.
-  server_options="$server_options -c wal_sender_timeout=10000"
+  #  Short on purpose: a primary that gives up quickly is what makes the
+  #  scenarios below prove anything.  Clients answer from inside a receive
+  #  and the physical backlog is a few kilobytes, so nothing here depends on
+  #  a whole message arriving before this expires.  Every scenario still has
+  #  to speak more often than this, and the physical one waits out
+  #  wal_sender_timeout / 2 for its keepalive, so raising this buys nothing
+  #  but idle time.
+  server_options="$server_options -c wal_sender_timeout=2000"
   server_options="$server_options -c ssl=on"
   server_options="$server_options -c ssl_cert_file=$server_cert"
   server_options="$server_options -c ssl_key_file=$server_key"

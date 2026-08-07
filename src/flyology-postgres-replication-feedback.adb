@@ -3,6 +3,7 @@ with Flyology.Postgres.Framing;
 package body Flyology.Postgres.Replication.Feedback is
 
    use type Ada.Real_Time.Time;
+   use type LSN;
 
    Report_Timeout : constant Duration := 5.0;
    --  A report is small and the channel is already writable in practice, so
@@ -34,6 +35,12 @@ package body Flyology.Postgres.Replication.Feedback is
          return;
       end if;
       if Now < Item.Due then
+         return;
+      end if;
+      if Item.Position = 0 then
+         --  Nothing has been accepted yet, so there is no position to stand
+         --  behind.  Reporting zero would tell the primary this standby has
+         --  flushed nothing, which is worse than staying quiet.
          return;
       end if;
       Framing.Write_Message

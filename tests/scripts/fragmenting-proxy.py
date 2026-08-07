@@ -42,11 +42,23 @@ def relay(
     reset_done: threading.Event,
     stall_after: int,
     stall_seconds: float,
+    trace: bool = False,
 ) -> None:
     stalled = False
+    way = "s2c" if index == 2 else "c2s"
+
+    def note(event: str) -> None:
+        if trace:
+            print(
+                f"{time.monotonic():.4f} {way} {event} total={totals[index]}",
+                flush=True,
+            )
+
     try:
         while True:
+            note("recv-wait")
             data = source.recv(read_size)
+            note(f"recv-got={len(data)}")
             if not data:
                 break
             offset = 0
@@ -59,7 +71,9 @@ def relay(
                         if remaining <= 0:
                             break
                         view = view[:remaining]
+                    note(f"send-wait={len(view)}")
                     sent = destination.send(view)
+                    note(f"send-done={sent}")
                     if sent == 0:
                         raise ConnectionResetError("zero-byte proxy write")
                     totals[index] += sent
@@ -91,9 +105,10 @@ def relay(
                 offset = end
                 if delay:
                     time.sleep(delay)
-    except (BrokenPipeError, ConnectionResetError, OSError):
-        pass
+    except (BrokenPipeError, ConnectionResetError, OSError) as error:
+        note(f"relay-error={type(error).__name__}")
     finally:
+        note("relay-exit")
         if not reset_done.is_set():
             try:
                 destination.shutdown(socket.SHUT_WR)
@@ -114,6 +129,7 @@ def handle(
     reset_server_bytes: int,
     stall_server_bytes: int,
     stall_seconds: float,
+    trace: bool = False,
 ) -> None:
     upstream = socket.create_connection((upstream_host, upstream_port), timeout=10)
     client.settimeout(None)
@@ -137,6 +153,7 @@ def handle(
             reset_done,
             0,
             0,
+            trace,
         ),
     )
     server_to_client = threading.Thread(
@@ -154,6 +171,7 @@ def handle(
             reset_done,
             stall_server_bytes,
             stall_seconds,
+            trace,
         ),
     )
     client_to_server.start()
@@ -183,6 +201,7 @@ def main() -> None:
     parser.add_argument("--reset-server-bytes", type=int, default=0)
     parser.add_argument("--stall-server-bytes", type=int, default=0)
     parser.add_argument("--stall-seconds", type=float, default=0)
+    parser.add_argument("--trace", action="store_true")
     args = parser.parse_args()
     if min(args.maximum_chunk, args.read_size, args.buffer_size) <= 0:
         parser.error("chunk and buffer sizes must be positive")
@@ -225,6 +244,7 @@ def main() -> None:
                 args.reset_server_bytes,
                 args.stall_server_bytes,
                 args.stall_seconds,
+                args.trace,
             ),
             daemon=True,
         ).start()
