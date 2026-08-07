@@ -17,7 +17,10 @@ package Flyology.Postgres.Replication.Feedback is
    procedure Set_Position
      (Item : in out Standby_Reporter; Position : LSN);
    --  Record the position later reports should carry.  Callers advance this
-   --  as they durably accept WAL; it is never advanced by the reporter.
+   --  as they durably accept WAL; it is never advanced by the reporter.  A
+   --  caller resuming from a checkpoint should set only what it has
+   --  acknowledged, since a report moves a slot's confirmed position.  Until
+   --  a position is set the reporter stays quiet rather than claim zero.
    --  @param Item Reporter to update.
    --  @param Position Write, flush, and apply position to report.
 

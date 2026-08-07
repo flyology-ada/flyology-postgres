@@ -959,8 +959,16 @@ package body Flyology.Postgres.Client is
          raise Program_Error with "no Postgres COPY operation is active";
       end if;
 
-      --  The observer runs before any state below is read or written, so it
-      --  may send on this session's channel without racing this call.
+      --  Give the observer the gap between messages as well as the gaps
+      --  inside one.  A stream of small messages never waits mid-message, so
+      --  the transport would otherwise never offer it a turn, and a burst of
+      --  them keeps a peer's keepalive queued behind the data for as long as
+      --  the burst lasts.  The observer runs before any state below is read
+      --  or written, so it may send on this session's channel without racing
+      --  this call.
+      if On_Wait /= null then
+         On_Wait.On_Wait;
+      end if;
       Response := Protocol.Decode_Backend
         (Framing.Read_Message (Item.Channel.all, Timeout, On_Wait));
       case Protocol.Response_Kind (Response) is

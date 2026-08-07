@@ -323,7 +323,15 @@ procedure Postgres_Test_Replication is
       begin
          Check_Identify_System;
          Start_Copy (Replication.Start_Physical (Start));
-         Feedback.Set_Interval (Reporter, 1.0);
+         --  Report several times inside the primary's timeout rather than
+         --  once, so a loaded machine that delays a report still leaves the
+         --  primary hearing from us in time.
+         Feedback.Set_Interval (Reporter, 0.5);
+         --  Stand behind the position this stream starts from.  The stall
+         --  arrives before any message completes, so waiting for a frame to
+         --  supply a position would leave nothing to report during exactly
+         --  the stretch that has to be covered.
+         Feedback.Set_Position (Reporter, Start);
 
          while not Saw_WAL loop
             declare
@@ -377,6 +385,11 @@ procedure Postgres_Test_Replication is
          Expected_Id        : Natural := 800_001;
          Messages           : Natural := 0;
          Finished           : Boolean := False;
+         Reporter : aliased Feedback.Standby_Reporter (Channel'Access);
+         --  Reports only what Acknowledge has accepted.  A replay this test
+         --  is about to check for gaps must not have its slot moved forward
+         --  by a report, so the reporter repeats the acknowledged position
+         --  rather than the position data has reached.
          Acknowledged       : Replication.LSN := Start;
 
          function Tuple_Id (Item : Logical.Tuple_Data) return Natural is
@@ -398,6 +411,7 @@ procedure Postgres_Test_Replication is
                  (Position, Position, Position, Sent_At => 0),
                Timeout => 10.0);
             Acknowledged := Position;
+            Feedback.Set_Position (Reporter, Position);
          end Acknowledge;
 
          procedure Observe (Item : Logical.Message) is
@@ -458,6 +472,13 @@ procedure Postgres_Test_Replication is
             end case;
          end Observe;
       begin
+         Feedback.Set_Interval (Reporter, 0.5);
+         if Start > 0 then
+            --  Standing behind the position this run resumes from is already
+            --  true of the slot, so saying it again costs the oracle nothing
+            --  and covers the stretch before the first acknowledgement.
+            Feedback.Set_Position (Reporter, Start);
+         end if;
          Check_Logical_Server;
          Logical.Configure (Decoder, Version => 1);
          Start_Copy
@@ -476,7 +497,9 @@ procedure Postgres_Test_Replication is
             declare
                Event : constant Client.Copy_Event :=
                  Client.Receive_Copy_Event
-                   (Session, Timeout => Receive_Timeout);
+                   (Session,
+                    Timeout => Receive_Timeout,
+                    On_Wait => Reporter'Access);
             begin
                Raise_Server_Error (Event);
                if Protocol.Response_Kind (Event) =
@@ -570,6 +593,10 @@ procedure Postgres_Test_Replication is
          Saw_Origin         : Boolean := False;
          Saw_Unchanged_Toast : Boolean := False;
          Last_WAL_End       : Replication.LSN := 0;
+         Reporter : aliased Feedback.Standby_Reporter (Channel'Access);
+         --  This scenario reads a stream to its end rather than resuming
+         --  from a checkpoint, so it can stand behind the WAL it has taken
+         --  in.  Nothing here checks the slot for gaps afterwards.
          Messages           : Natural := 0;
 
          Model_Capacity : constant := 1_000;
@@ -1206,6 +1233,7 @@ procedure Postgres_Test_Replication is
             end if;
          end Send_Start;
       begin
+         Feedback.Set_Interval (Reporter, 0.5);
          Check_Logical_Server;
          Logical.Configure (Decoder, Version, Mode);
          Send_Start;
@@ -1217,7 +1245,8 @@ procedure Postgres_Test_Replication is
                "logical replication scenario did not converge");
             declare
                Event : constant Client.Copy_Event :=
-                 Client.Receive_Copy_Event (Session, Timeout => 20.0);
+                 Client.Receive_Copy_Event
+                   (Session, Timeout => 20.0, On_Wait => Reporter'Access);
             begin
                Raise_Server_Error (Event);
                if Protocol.Response_Kind (Event) =
@@ -1232,6 +1261,7 @@ procedure Postgres_Test_Replication is
                        Replication.XLog_Data
                      then
                         Last_WAL_End := Replication.WAL_End (Frame);
+                        Feedback.Set_Position (Reporter, Last_WAL_End);
                         Observe
                           (Logical.Decode
                              (Decoder, Replication.Data (Frame)));
