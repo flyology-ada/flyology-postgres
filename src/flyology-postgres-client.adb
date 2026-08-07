@@ -945,7 +945,10 @@ package body Flyology.Postgres.Client is
    end Abort_Copy;
 
    function Receive_Copy_Event
-     (Item : in out Session; Timeout : Duration := 30.0) return Copy_Event is
+     (Item    : in out Session;
+      Timeout : Duration := 30.0;
+      On_Wait : access Transports.Wait_Observer'Class := null)
+      return Copy_Event is
       Response : Protocol.Backend_Message;
    begin
       if Item.Current_Copy_Origin = No_Copy
@@ -956,8 +959,10 @@ package body Flyology.Postgres.Client is
          raise Program_Error with "no Postgres COPY operation is active";
       end if;
 
+      --  The observer runs before any state below is read or written, so it
+      --  may send on this session's channel without racing this call.
       Response := Protocol.Decode_Backend
-        (Framing.Read_Message (Item.Channel.all, Timeout));
+        (Framing.Read_Message (Item.Channel.all, Timeout, On_Wait));
       case Protocol.Response_Kind (Response) is
          when Protocol.Copy_Data_Response =>
             if not Item.Copy_Receive_Open

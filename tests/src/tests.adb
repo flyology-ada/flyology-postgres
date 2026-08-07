@@ -47,7 +47,8 @@ procedure Tests is
    overriding procedure Receive_Exactly
      (Item    : in out Memory_Transport;
       Data    : out Ada.Streams.Stream_Element_Array;
-      Timeout : Duration);
+      Timeout : Duration;
+      On_Wait : access Transports.Wait_Observer'Class := null);
 
    overriding procedure Send_All
      (Item    : in out Memory_Transport;
@@ -63,8 +64,11 @@ procedure Tests is
    overriding procedure Receive_Exactly
      (Item    : in out Memory_Transport;
       Data    : out Ada.Streams.Stream_Element_Array;
-      Timeout : Duration) is
+      Timeout : Duration;
+      On_Wait : access Transports.Wait_Observer'Class := null) is
       pragma Unreferenced (Timeout);
+      pragma Unreferenced (On_Wait);
+      --  Buffered input is always available, so this transport never waits.
       Available : constant Protocol.Byte_Array :=
         Flyology.Bytes.To_Array (Item.Input);
    begin

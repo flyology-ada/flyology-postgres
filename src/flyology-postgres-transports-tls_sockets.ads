@@ -15,11 +15,16 @@ package Flyology.Postgres.Transports.TLS_Sockets is
    overriding procedure Receive_Exactly
      (Item    : in out TLS_Socket_Transport;
       Data    : out Ada.Streams.Stream_Element_Array;
-      Timeout : Duration);
-   --  Fill Data through the active plaintext or encrypted channel.
+      Timeout : Duration;
+      On_Wait : access Wait_Observer'Class := null);
+   --  Fill Data through the active plaintext or encrypted channel.  Without an
+   --  observer the channel is read in one call.  With one, it is read in
+   --  chunks under the same deadline so the observer runs between them, and
+   --  may send on this transport before the buffer is full.
    --  @param Item Transport to read.
    --  @param Data Buffer filled with exactly Data'Length bytes.
    --  @param Timeout Maximum time allowed for the complete read.
+   --  @param On_Wait Observer notified between chunks while Data fills.
 
    overriding procedure Send_All
      (Item    : in out TLS_Socket_Transport;

@@ -9,7 +9,14 @@ package Flyology.Postgres.Framing is
 
    function Read_Message
      (Channel : in out Transports.Transport'Class;
-      Timeout : Duration) return Protocol.Message;
+      Timeout : Duration;
+      On_Wait : access Transports.Wait_Observer'Class := null)
+      return Protocol.Message;
+   --  Read one typed message under a single deadline.
+   --  @param Channel Transport to read.
+   --  @param Timeout Maximum time allowed for the whole message.
+   --  @param On_Wait Observer notified while the message is still arriving,
+   --     letting a protocol answer its peer before the message completes.
 
    procedure Write_Message
      (Channel : in out Transports.Transport'Class;
