@@ -3,7 +3,11 @@ package body Flyology.Postgres.Transports.Sockets is
    overriding procedure Receive_Exactly
      (Item    : in out Socket_Transport;
       Data    : out Ada.Streams.Stream_Element_Array;
-      Timeout : Duration) is
+      Timeout : Duration;
+      On_Wait : access Wait_Observer'Class := null) is
+      pragma Unreferenced (On_Wait);
+      --  Plaintext framing carries no protocol that owes its peer traffic
+      --  mid-message; the observer contract allows never calling it.
    begin
       Flyology.IO.Sockets.Receive_Exactly
         (Item.Socket.all, Data, Timeout => Timeout);

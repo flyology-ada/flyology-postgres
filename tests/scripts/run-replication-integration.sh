@@ -22,6 +22,7 @@ replication_server_pid=
 replication_proxy_pid=
 primary_proxy_pid=
 reset_proxy_pid=
+stall_proxy_pid=
 logical_primary_pid=
 managed_primary_pid=
 replication_client_port=$port
@@ -82,6 +83,10 @@ cleanup () {
     kill "$reset_proxy_pid" >/dev/null 2>&1 || true
     wait "$reset_proxy_pid" >/dev/null 2>&1 || true
   fi
+  if [ -n "$stall_proxy_pid" ]; then
+    kill "$stall_proxy_pid" >/dev/null 2>&1 || true
+    wait "$stall_proxy_pid" >/dev/null 2>&1 || true
+  fi
   if [ "$postgres_started" = true ]; then
     "$postgres_prefix/bin/pg_ctl" -D "$data_dir" -m immediate -w stop \
       >/dev/null 2>&1 || true
@@ -138,6 +143,74 @@ run_client () {
     cat "$postgres_log" >&2
     return 1
   fi
+}
+
+run_physical_stall () {
+  #  Prove a standby can speak from inside one XLogData.  Leave a backlog
+  #  large enough that the primary answers with a single message near
+  #  MAX_SEND_SIZE, then hold that direction still for longer than
+  #  wal_sender_timeout part way through it.  The proxy stalls only
+  #  server-to-client, so standby reports still arrive; a client that cannot
+  #  send while receiving goes quiet instead and the primary terminates it.
+  major=$1
+  stall_proxy_port=$((port + 14))
+  physical_stall_log="$version_root/physical-stall-proxy.log"
+  python3 "$script_dir/fragmenting-proxy.py" \
+    --listen-port "$stall_proxy_port" \
+    --upstream-port "$port" \
+    --seed "$((major * 1009 + 5))" \
+    --stall-server-bytes 20000 \
+    --stall-seconds 12 \
+    >"$physical_stall_log" 2>&1 &
+  stall_proxy_pid=$!
+  attempt=0
+  until grep -q '^ready seed=' "$physical_stall_log"; do
+    attempt=$((attempt + 1))
+    if ! kill -0 "$stall_proxy_pid" >/dev/null 2>&1; then
+      cat "$physical_stall_log" >&2
+      printf '%s\n' "physical stall proxy exited early" >&2
+      return 1
+    fi
+    if [ "$attempt" -ge 100 ]; then
+      cat "$physical_stall_log" >&2
+      printf '%s\n' "physical stall proxy did not become ready" >&2
+      return 1
+    fi
+    sleep 0.05
+  done
+
+  stall_lsn=$(psql -qAtc 'select pg_current_wal_flush_lsn()')
+  psql -q <<'SQL'
+create table flyology_stall_probe (value text);
+insert into flyology_stall_probe
+select repeat(md5(g::text), 8) from generate_series(1, 256) as g;
+checkpoint;
+SQL
+
+  if ! POSTGRES_REPLICATION_PORT=$stall_proxy_port \
+    POSTGRES_TLS_CA_FILE=$ca_cert \
+    POSTGRES_REPLICATION_SCENARIO=physical_stall \
+    POSTGRES_SERVER_MAJOR=$major \
+    POSTGRES_REPLICATION_START_LSN=$stall_lsn \
+      "$tests_root/bin/postgres_test_replication"
+  then
+    cat "$physical_stall_log" >&2
+    printf '%s\n' "PostgreSQL $major server log:" >&2
+    cat "$postgres_log" >&2
+    return 1
+  fi
+
+  if ! grep -Eq '^stall server_bytes=[0-9]+ seconds=12.0$' \
+    "$physical_stall_log"
+  then
+    cat "$physical_stall_log" >&2
+    printf '%s\n' "physical stall was not injected" >&2
+    return 1
+  fi
+
+  kill "$stall_proxy_pid" >/dev/null 2>&1 || true
+  wait "$stall_proxy_pid" >/dev/null 2>&1 || true
+  stall_proxy_pid=
 }
 
 run_parallel_abort () {
@@ -1067,6 +1140,7 @@ insert into flyology_physical_probe
 select repeat(md5(g::text), 8) from generate_series(1, 32) as g;
 SQL
   run_client physical "$major" "" "" "$physical_lsn"
+  run_physical_stall "$major"
 
   psql -qAtc 'truncate flyology_replication' >/dev/null
   slot="flyology_v1_$major"

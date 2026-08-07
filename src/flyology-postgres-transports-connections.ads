@@ -17,7 +17,8 @@ package Flyology.Postgres.Transports.Connections is
    overriding procedure Receive_Exactly
      (Item    : in out Connection_Transport;
       Data    : out Ada.Streams.Stream_Element_Array;
-      Timeout : Duration);
+      Timeout : Duration;
+      On_Wait : access Wait_Observer'Class := null);
    --  Fill Data from the adapted connection.
    --  @param Item Connection adapter to read.
    --  @param Data Buffer filled with exactly Data'Length bytes.
