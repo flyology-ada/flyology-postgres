@@ -4,7 +4,11 @@ set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 tests_root=$(CDPATH= cd -- "$script_dir/.." && pwd)
 versions=${POSTGRES_REPLICATION_VERSIONS:-"14.23 15.18 16.14 17.10 18.4"}
-port=${POSTGRES_REPLICATION_PORT:-55434}
+#  Below the ephemeral range (Linux hands out 32768-60999).  Everything here
+#  derives a listening port from this one, and a port inside that range can
+#  already be held as the source of some unrelated outbound connection, which
+#  makes bind fail with "Address already in use" long after the run started.
+port=${POSTGRES_REPLICATION_PORT:-15434}
 run_root=$(mktemp -d "${TMPDIR:-/tmp}/flyology-replication.XXXXXX")
 tls_dir="$run_root/tls"
 ca_key="$tls_dir/ca-key.pem"
