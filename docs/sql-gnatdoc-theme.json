@@ -1,0 +1,10 @@
+{
+  "pageTitle": "Flyology Postgres SQL API reference",
+  "indexDescription": "Generated public API reference for the versioned Flyology Postgres SQL parsers, owned ASTs, visitors, and shallow views.",
+  "indexTitle": "SQL API reference · Flyology Postgres",
+  "canonicalUrl": "https://postgres.flyology.org/sql-api/",
+  "brandLabel": "Flyology Postgres SQL API",
+  "navigationHtml": "<a href='../'>Overview</a>\n        <a href='../guide/#parse-sql'>SQL guide</a>\n        <a href='../architecture/#sql'>Architecture</a>\n        <a href='../api/'>Protocol API</a>\n        <a href='https://github.com/flyology-ada/flyology-postgres/tree/main/sql'>GitHub</a>",
+  "indexIntroduction": "Public packages for PostgreSQL 14 through 18 parsers, owned syntax trees, generated visitors, shallow views, and catalog types.",
+  "footerNote": "Generated with GNATdoc from the nested SQL projects."
+}
