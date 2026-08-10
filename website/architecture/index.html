@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Architecture of Flyology Postgres: transports, protocol state, client and server sessions, replication, SQL parsing, and verification boundaries.">
+    <meta name="theme-color" content="#17213d">
+    <title>Architecture · Flyology Postgres</title>
+    <link rel="canonical" href="https://postgres.flyology.org/architecture/">
+    <link rel="icon" href="../assets/brand/flyology-primary-icon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="../assets/styles/site.css">
+    <link rel="stylesheet" href="../assets/styles/postgres.css">
+    <script src="../assets/scripts/ada-highlight.js"></script>
+    <script src="../assets/scripts/site.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <nav class="site-nav" aria-label="Primary navigation">
+        <a class="brand" href="../" aria-label="Flyology Postgres home">
+          <img src="../assets/brand/flyology-mark-transparent.svg" alt="">
+          <span>Flyology Postgres</span>
+        </a>
+        <ul class="nav-links" data-nav-links>
+          <li><a href="../">Overview</a></li>
+          <li><a href="../guide/">Guide</a></li>
+          <li><a href="./" aria-current="page">Architecture</a></li>
+          <li><a href="../journal/">Journal</a></li>
+          <li><a href="../api/">Protocol API</a></li>
+          <li><a href="../sql-api/">SQL API</a></li>
+          <li>
+            <details class="nav-dropdown" data-nav-dropdown>
+              <summary>Ecosystem <svg aria-hidden="true" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg></summary>
+              <ul class="nav-dropdown-menu"><li><a href="https://http.flyology.org/">HTTP</a></li></ul>
+            </details>
+          </li>
+          <li><a href="https://github.com/flyology-ada/flyology-postgres">GitHub</a></li>
+          <li><a href="https://flyology.org/">Flyology<svg class="external-link-icon" aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 2h5v5M8 8l6-6M12 9v3a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h3"/></svg><span class="visually-hidden"> (external site)</span></a></li>
+        </ul>
+        <div class="nav-tools">
+          <button class="icon-button" type="button" data-theme-toggle>
+            <span class="visually-hidden" data-theme-label>Change theme</span>
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.64 5.64 7.2 7.2M16.8 16.8l1.56 1.56M18.36 5.64 16.8 7.2M7.2 16.8l-1.56 1.56"/><circle cx="12" cy="12" r="4"/></svg>
+          </button>
+          <button class="menu-button" type="button" data-menu-toggle aria-expanded="false" aria-label="Toggle navigation">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+          </button>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main" class="page-shell">
+      <header class="doc-hero">
+        <div>
+          <ol class="breadcrumb" aria-label="Breadcrumb"><li><a href="../">Flyology Postgres</a></li><li aria-current="page">Architecture</li></ol>
+          <h1>Protocol state above task-aware transports</h1>
+        </div>
+        <p class="doc-hero-copy">The library separates transport ownership, wire validation, session state, application callbacks, replication persistence, and SQL parsing.</p>
+      </header>
+
+      <div class="docs-layout">
+        <nav class="toc" aria-label="On this page">
+          <p class="toc-title">On this page</p>
+          <ol>
+            <li><a href="#layers">Layers</a></li>
+            <li><a href="#transport">Transport ownership</a></li>
+            <li><a href="#protocol">Protocol data</a></li>
+            <li><a href="#client">Client state</a></li>
+            <li><a href="#server">Server sessions</a></li>
+            <li><a href="#replication">Replication</a></li>
+            <li><a href="#sql">SQL parsers</a></li>
+            <li><a href="#verification">Verification</a></li>
+          </ol>
+        </nav>
+
+        <article class="prose">
+          <section id="layers">
+            <h2>Separate the protocol layers</h2>
+            <p><a href="../api/58b89d56771546a02df436b5ada8be03e0e400a0f335f32e4cbd7c4c95395728.html"><code>Flyology.Postgres</code></a> defines shared authentication and TLS policy. Its children divide the implementation into transport, framing, protocol, client, server, and replication layers.</p>
+            <div class="decision-list">
+              <dl>
+                <div class="decision-row"><dt>Transport</dt><dd>Moves exact byte sequences and preserves socket or connection ownership.</dd></div>
+                <div class="decision-row"><dt>Framing and protocol</dt><dd>Validate lengths and decode owned typed messages.</dd></div>
+                <div class="decision-row"><dt>Client</dt><dd>Enforces frontend operation order and returns bounded events.</dd></div>
+                <div class="decision-row"><dt>Server</dt><dd>Owns startup, authentication, cancellation routing, and connection-task lifecycle.</dd></div>
+                <div class="decision-row"><dt>Replication</dt><dd>Adds replication commands, COPY BOTH envelopes, logical messages, and application-supplied persistence interfaces.</dd></div>
+              </dl>
+            </div>
+          </section>
+
+          <section id="transport">
+            <h2>Keep transport ownership explicit</h2>
+            <p><a href="../api/168e7bc2798e7cf7ea46be4b3192f3e08040fdda82e88737dc21ffcb9e2ccb37.html"><code>Flyology.Postgres.Transports</code></a> defines the abstract byte transport. A client <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#94f15f23e8b44375e0e1c62a375e7ca607e55f457cf69ac370fc195092b32a5a"><code>Session</code></a> borrows this transport, so the transport must outlive the session.</p>
+            <p><a href="../api/cf1c5739f6d5d786d9383e25e78e20906ef8a9bb62f5c2da18b2554f05e4e554.html"><code>Transports.Sockets</code></a> adapts a Flyology socket without taking ownership. <a href="../api/f7ec7a0fda206f66d16e373f34d76dc9f85f8a6a109be0c0d7828bfa295afcfa.html"><code>Transports.TLS_Sockets</code></a> preserves the same borrowing boundary while the upgraded TLS connection owns the socket.</p>
+            <aside class="callout">
+              <span class="callout-symbol" aria-hidden="true">!</span>
+              <p>Do not finalize a transport while a client session or server exchange can still use it.</p>
+            </aside>
+          </section>
+
+          <section id="protocol">
+            <h2>Validate wire data before session policy</h2>
+            <p><a href="../api/a36ef088ca3b7ae38c4f7d063dac83b579fe57b8032d3e535083cd0c1652da94.html"><code>Flyology.Postgres.Protocol</code></a> owns frontend and backend message values. A <a href="../api/a36ef088ca3b7ae38c4f7d063dac83b579fe57b8032d3e535083cd0c1652da94.html#1d4a1d42d94a657df8999bf39f5ab8768b2808a6c5172aab8ad33491a454921a"><code>Message</code></a> retains its tag and complete payload. Typed decoding preserves the original message for custom state machines and unknown future tags.</p>
+            <p>The protocol layer bounds a frame to 16 MiB. It validates lengths, terminators, format counts, and recognized values before returning typed data. An allocation-free SPARK core handles the narrow cursor and length calculations below the owned Ada values.</p>
+          </section>
+
+          <section id="client">
+            <h2>Enforce client operation order</h2>
+            <p><a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html"><code>Flyology.Postgres.Client</code></a> combines protocol messages with a session state machine. The <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#1de10c2a73055463d7ff8c39e3c4d0c95ce3a123182bf5378829b798bf8d3bbe"><code>Operation_State</code></a> distinguishes startup, ready, simple-query, extended-query, COPY, recovery, and closed states.</p>
+            <p>Simple and extended receive operations return one owned event per call. The library does not collect a complete result set or COPY stream. Local ordering checks reject invalid operations before the client writes them.</p>
+            <p>After an extended-query error, the application calls <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#0d96b6c8fb005086dc22f52cdbf75338fe1644f94b3ce6c58d1afc574ce7b314"><code>Synchronize</code></a> to send <code>Sync</code>. The application then receives events through <code>ReadyForQuery</code> before it reuses the session.</p>
+            <p>Cancellation uses backend credentials on a separate connection. It does not interrupt the active transport directly.</p>
+          </section>
+
+          <section id="server">
+            <h2>Give each accepted connection one session task</h2>
+            <p><a href="../api/df1e88b4dad97e36b4fde35ee1bbc7e3355fa74f275b2a5d8c30b94dfa802cb3.html"><code>Flyology.Postgres.Server</code></a> is generic over application context, authentication, verifier lookup, and command handling. It delegates connection ownership and task lifecycle to Flyology's structured server.</p>
+            <p><a href="../api/146ea3cec27e24ae1372e8a5986c64607ef4c790693a15d6b255ce6d06ad728c.html"><code>Flyology.Postgres.Server_Sessions</code></a> supplies bounded response operations to the application handler. The handler retains responsibility for SQL meaning, data, transactions, prepared-state storage, and result metadata.</p>
+            <p>Each connection uses a native or lightweight Ada task according to the generic configuration. Lightweight scheduling remains cooperative.</p>
+            <p>If a CPU-bound handler prevents peer progress, it must suspend, use a fairness checkpoint, or move blocking work to a native-task boundary.</p>
+          </section>
+
+          <section id="replication">
+            <h2>Keep replication durability in application stores</h2>
+            <p><a href="../api/ff96781c12db30886b07c416225bc911e508827a3e8a450b9ed7538461f2299b.html"><code>Flyology.Postgres.Replication</code></a> defines startup commands, LSN conversion, physical stream envelopes, feedback, and keepalives. <a href="../api/1dce60a01a501a9c19d6b28d352177a8d7e54975fef8580577959f82b2909624.html"><code>Replication.Logical</code></a> adds typed <code>pgoutput</code> messages for protocol versions 1 through 4.</p>
+            <p><a href="../api/5db8f96175ce80bd4ec4ff040a4d7ad18a1032a38b7ac7f37b706313d74dca6e.html"><code>Replication.Persistence</code></a> defines interfaces for slots, retained WAL, timeline history, and prepared-consumer recovery. The application supplies the storage technology and establishes its durability guarantees.</p>
+            <p><a href="../api/71252ea068e62ad46f5da98b46b29f3b4639771a967d0cd4e4040a38e1d7f211.html"><code>Replication.Managed_Primary</code></a> composes these stores with an application-owned logical-change source. The bounded <a href="../api/6c42c6040a1e23cb5faa58998ce63a54f6f2e4b2a026f88a74a810d5091f9696.html"><code>Persistence.Memory</code></a> implementation is for tests and ephemeral single-owner servers. It is not a durable production backend.</p>
+          </section>
+
+          <section id="sql">
+            <h2>Generate one SQL API for each PostgreSQL major</h2>
+            <p>The nested SQL crates generate independent Ada 2022 parser APIs for PostgreSQL 14 through 18. Applications normally select one version crate. The all-version crate remains a compatibility umbrella.</p>
+            <p>The owned APIs are <a href="../sql-api/cdb55193b3cc9e62aaf92e33f3d97ad8202057594165b023316481773d25e668.html"><code>SQL.AST.V14</code></a>, <a href="../sql-api/dd44bb10f924ade85baf422cccb6f9851c136ec96c1542ef1cf52ac0977fbcf7.html"><code>V15</code></a>, <a href="../sql-api/73d0c3f2a6bd048afd619dc7cee2200bfcc81e5f19d49b8801fc6609f7c3aa79.html"><code>V16</code></a>, <a href="../sql-api/caf75b052d7082d0e38de8d225a1d8a6e0d33c79621b14bed35d7ac9b91fa6b9.html"><code>V17</code></a>, and <a href="../sql-api/71f87faf32724bf9f9c83b69f1353c3f251bbf2db74c3e948a0b01d7b9debc66.html"><code>V18</code></a>. Each package returns an owned recursive graph.</p>
+            <p>The generated <a href="../sql-api/fa3b514e3b3c7459d321fdccf7c25f65a0982ccd8547f299e1c94681e562294f.html"><code>SQL.AST.V18.Visitors</code></a> package illustrates the typed traversal API. Each supported major has an equivalent visitor package.</p>
+            <p>The shallow alternatives are <a href="../sql-api/3ab3298171cf0a88a2c0fd24202ed09fd0bfdb340c2fb032daa878c0769d5edb.html"><code>SQL.Views.V14</code></a>, <a href="../sql-api/8c2848ac35aa5ea31e623603647d5a6e8958f1e1e1c607161715bf45c2b43fb3.html"><code>V15</code></a>, <a href="../sql-api/bea7dcbea92a2625b45cd280faff47a2d52ef6a61af128faa3ab964a8509bd28.html"><code>V16</code></a>, <a href="../sql-api/e0bfe9b53183b090c4ada1129cab88886f839885d1da7076c3be1d1b3a493ed4.html"><code>V17</code></a>, and <a href="../sql-api/9ab4d0896984710506d0cee12d62c2c71efb76b3ed04b85a3b9741f7f69497e3.html"><code>V18</code></a>. These packages expose arena views for allocation-sensitive consumers.</p>
+            <p>Both representations derive their shape from the pinned PostgreSQL grammar and schema inputs.</p>
+            <aside class="callout callout-teal">
+              <span class="callout-symbol" aria-hidden="true">i</span>
+              <p>The site publishes the nested parser packages in a separate <a href="../sql-api/">SQL API reference</a>. The other packages remain in the <a href="../api/">Protocol API reference</a>.</p>
+            </aside>
+          </section>
+
+          <section id="verification">
+            <h2>Test each external boundary</h2>
+            <p>The integration suite tests the client against real PostgreSQL and the server against real <code>psql</code>. Replication tests cover PostgreSQL 14 through 18 in client, primary, standby, and logical-consumer roles.</p>
+            <p>The SQL suite compares each owned AST with its shallow arena baseline. It then compares the native Ada arena with a version-pinned C and protobuf oracle. Production parser archives must contain no oracle symbols.</p>
+            <p>These tests support the documented interoperability baseline. They do not qualify the experimental library for production use or make its application-supplied storage durable.</p>
+          </section>
+        </article>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <span>Flyology Postgres is experimental and dual-licensed under MIT or Apache-2.0.</span>
+        <div class="footer-links"><a href="./">Architecture</a><a href="../guide/">Guide</a><a href="../journal/">Journal</a><a href="../api/">Protocol API reference</a><a href="../sql-api/">SQL API reference</a><a href="https://flyology.org/">Flyology</a></div>
+      </div>
+    </footer>
+  </body>
+</html>

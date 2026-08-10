@@ -20,7 +20,7 @@ case "$site_output" in
 esac
 
 rm -rf "$site_output"
-mkdir -p "$site_output/assets" "$site_output/api"
+mkdir -p "$site_output/assets" "$site_output/api" "$site_output/sql-api"
 
 cp -R "$project_root/website/." "$site_output/"
 node "$website_kit/scripts/install-assets.mjs" "$site_output"
@@ -31,6 +31,7 @@ asset_version=${GITHUB_SHA:-$(git -C "$project_root" rev-parse HEAD)}
 for page in \
    "$site_output/index.html" \
    "$site_output/guide/index.html" \
+   "$site_output/architecture/index.html" \
    "$site_output/journal/index.html" \
    "$site_output/journal/2026-08-teaching-programs-postgres/index.html"
 do
@@ -46,13 +47,16 @@ done
 
 "$project_root/scripts/docs.sh"
 cp -R "$project_root/docs/api/." "$site_output/api/"
+cp -R "$project_root/docs/sql-api/." "$site_output/sql-api/"
 touch "$site_output/.nojekyll"
 
 test -f "$site_output/index.html"
 test "$(cat "$site_output/CNAME")" = "postgres.flyology.org"
 test -f "$site_output/guide/index.html"
+test -f "$site_output/architecture/index.html"
 test -f "$site_output/journal/index.html"
 test -f "$site_output/journal/2026-08-teaching-programs-postgres/index.html"
 test -f "$site_output/api/index.html"
+test -f "$site_output/sql-api/index.html"
 
 printf 'Flyology Postgres site built at %s\n' "$site_output"

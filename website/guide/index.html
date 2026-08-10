@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Connect Flyology Ada tasks to Postgres, stream queries, COPY and replication data, and build protocol servers or primaries.">
+    <meta name="description" content="Connect Flyology Ada tasks to Postgres, stream queries, COPY and replication data, build protocol servers, and parse PostgreSQL 14–18 SQL.">
     <meta name="theme-color" content="#17213d">
     <title>Guide · Flyology Postgres</title>
     <link rel="canonical" href="https://postgres.flyology.org/guide/">
@@ -24,8 +24,10 @@
         <ul class="nav-links" data-nav-links>
           <li><a href="../">Overview</a></li>
           <li><a href="./" aria-current="page">Guide</a></li>
+          <li><a href="../architecture/">Architecture</a></li>
           <li><a href="../journal/">Journal</a></li>
-          <li><a href="../api/">API</a></li>
+          <li><a href="../api/">Protocol API</a></li>
+          <li><a href="../sql-api/">SQL API</a></li>
           <li>
             <details class="nav-dropdown" data-nav-dropdown>
               <summary>Ecosystem <svg aria-hidden="true" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m2.5 4.5 3.5 3 3.5-3"/></svg></summary>
@@ -51,9 +53,9 @@
       <header class="doc-hero">
         <div>
           <ol class="breadcrumb" aria-label="Breadcrumb"><li><a href="../">Flyology Postgres</a></li><li aria-current="page">Guide</li></ol>
-          <h1>From socket to bounded result stream.</h1>
+          <h1>Use the protocol, replication, server, and SQL APIs</h1>
         </div>
-        <p class="doc-hero-copy">Add the crate, connect a Flyology socket, complete Postgres startup, then choose simple queries, prepared portals, COPY or replication streams, or a protocol server.</p>
+        <p class="doc-hero-copy">Add the protocol crate, connect a Flyology socket, and select a bounded client or server flow. Add a versioned SQL crate when the application must parse PostgreSQL syntax.</p>
       </header>
 
       <div class="docs-layout">
@@ -69,7 +71,7 @@
             <li><a href="#replication">Stream replication</a></li>
             <li><a href="#cancel">Cancel work</a></li>
             <li><a href="#server">Build a server</a></li>
-            <li><a href="#parse-sql">Parse and transform SQL</a></li>
+            <li><a href="#parse-sql">Parse PostgreSQL 14–18 SQL</a></li>
             <li><a href="#examples">Run the examples</a></li>
             <li><a href="#boundaries">Boundaries</a></li>
           </ol>
@@ -83,7 +85,7 @@
 
           <section id="requirements">
             <span class="step-label">STEP 01</span>
-            <h2>Start with Flyology and Alire.</h2>
+            <h2>Prepare Flyology before adding the crate</h2>
             <p>Flyology Postgres is an Alire library crate. It uses Flyology task-aware sockets and depends on <code>hmac_ada</code> plus <code>system_random</code> for SCRAM-SHA-256.</p>
             <div class="decision-list">
               <dl>
@@ -96,7 +98,7 @@
 
           <section id="add">
             <span class="step-label">STEP 02</span>
-            <h2>Add the crate to an Alire application.</h2>
+            <h2>Add the crate to an Alire application</h2>
             <p>Configure the Flyology organization index, then let Alire resolve Flyology and Flyology Postgres as regular dependencies.</p>
             <figure class="code-panel">
               <figcaption>Flyology organization index</figcaption>
@@ -110,8 +112,10 @@ alr with flyology_postgres</code></pre>
 
           <section id="connect">
             <span class="step-label">STEP 03</span>
-            <h2>Connect, verify TLS, and complete startup.</h2>
-            <p>A client session borrows its transport. The TLS transport must therefore outlive the session; after upgrade it owns the socket. <code>Startup_TLS</code> requires TLS, verifies the certificate chain and DNS name, performs Postgres startup and authentication, then leaves the session ready for commands.</p>
+            <h2>Connect, verify TLS, and complete startup</h2>
+            <p><a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html"><code>Flyology.Postgres.Client</code></a> provides the client session. Its <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#94f15f23e8b44375e0e1c62a375e7ca607e55f457cf69ac370fc195092b32a5a"><code>Session</code></a> borrows a transport, so the transport must outlive the session.</p>
+            <p>The <a href="../api/f7ec7a0fda206f66d16e373f34d76dc9f85f8a6a109be0c0d7828bfa295afcfa.html"><code>Transports.TLS_Sockets</code></a> adapter owns the socket after an upgrade. Its <a href="../api/f7ec7a0fda206f66d16e373f34d76dc9f85f8a6a109be0c0d7828bfa295afcfa.html#6760ad53b0486f5f61fdd682e78f0aeaf5586bfd62a43f30310549a41d6b59c7"><code>TLS_Socket_Transport</code></a> implements the transport interface.</p>
+            <p><a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#bdc2324105a208204c7a68a1c0b66bc8d6c5f4f8a6ec775e43e03a678e46005e"><code>Startup_TLS</code></a> requires TLS, verifies the certificate chain and DNS name, authenticates, and leaves the session ready for commands.</p>
             <figure class="code-panel">
               <figcaption>client startup</figcaption>
               <button class="copy-button" type="button" data-copy>Copy</button>
@@ -147,14 +151,20 @@ Client.Startup_TLS
             </figure>
             <aside class="callout">
               <span class="callout-symbol" aria-hidden="true">!</span>
-              <p><strong>Passwords are exact octets.</strong> The client does not perform SASLprep or Unicode normalization. Apply any application-level normalization before calling <code>Startup_TLS</code>.</p>
+              <p><strong>Passwords are exact octets.</strong> The client does not perform SASLprep or Unicode normalization. If the application requires normalization, apply it before startup.</p>
             </aside>
           </section>
 
           <section id="simple">
             <span class="step-label">STEP 04</span>
-            <h2>Receive simple-query results one event at a time.</h2>
-            <p><code>Send_Query</code> starts the operation. Repeated <code>Receive_Query_Event</code> calls return row descriptions, data rows, command completions, diagnostics, parameter status, and the final ready state without accumulating a result set.</p>
+            <h2>Receive simple-query results one event at a time</h2>
+            <div class="decision-list">
+              <dl>
+                <div class="decision-row"><dt>Stream</dt><dd><a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#dd878bcd73279e173efd0cc020c6a7aab44f024eda34ffae88de3eded80708f9"><code>Send_Query</code></a> starts the operation. Each <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#496a8379f4309785cc0646522a8c5639f0f30f3de03bf0ba44a96af1d3c0d3e7"><code>Receive_Query_Event</code></a> call returns one <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#c6d857e92df7799abff4af3cd87a6b31dbe2a6bdacc7a1ea7a5eb1bd6b1de83c"><code>Simple_Query_Event</code></a>.</dd></div>
+                <div class="decision-row"><dt>Accessors</dt><dd><a href="../api/a36ef088ca3b7ae38c4f7d063dac83b579fe57b8032d3e535083cd0c1652da94.html#1d114f2903315d0171d458f34f3f4b45a2a8eef47b3a0a8e12f0bd7a8da7ff3c"><code>Response_Kind</code></a> classifies the event. Use <a href="../api/a36ef088ca3b7ae38c4f7d063dac83b579fe57b8032d3e535083cd0c1652da94.html#c2d42979fce2d519c0f0bc60e2f53fb48872538c831b7150554ecbce28864c66"><code>Description</code></a>, <a href="../api/a36ef088ca3b7ae38c4f7d063dac83b579fe57b8032d3e535083cd0c1652da94.html#61afaa1fdf7634f1e86776cf08b4ddaeee668b81529505f9f75eb0f8373329ce"><code>Row_Data</code></a>, or <a href="../api/a36ef088ca3b7ae38c4f7d063dac83b579fe57b8032d3e535083cd0c1652da94.html#ea99e3e476e48396526fd0460c0916501a2c997bb33a4eed1096bb5422968b40"><code>Diagnostic_Data</code></a> for the matching response.</dd></div>
+                <div class="decision-row"><dt>Response kinds</dt><dd>The loop handles <a href="../api/a36ef088ca3b7ae38c4f7d063dac83b579fe57b8032d3e535083cd0c1652da94.html#71e1d6fff1d32cd6b5545a78f930f4c56b1c5fecce15dd9f8117163756225347"><code>Row_Description_Response</code></a>, <a href="../api/a36ef088ca3b7ae38c4f7d063dac83b579fe57b8032d3e535083cd0c1652da94.html#71e1d6fff1d32cd6b5545a78f930f4c56b1c5fecce15dd9f8117163756225347"><code>Data_Row_Response</code></a>, <a href="../api/a36ef088ca3b7ae38c4f7d063dac83b579fe57b8032d3e535083cd0c1652da94.html#71e1d6fff1d32cd6b5545a78f930f4c56b1c5fecce15dd9f8117163756225347"><code>Error_Response</code></a>, <a href="../api/a36ef088ca3b7ae38c4f7d063dac83b579fe57b8032d3e535083cd0c1652da94.html#71e1d6fff1d32cd6b5545a78f930f4c56b1c5fecce15dd9f8117163756225347"><code>Notice_Response</code></a>, and <a href="../api/a36ef088ca3b7ae38c4f7d063dac83b579fe57b8032d3e535083cd0c1652da94.html#71e1d6fff1d32cd6b5545a78f930f4c56b1c5fecce15dd9f8117163756225347"><code>Ready_For_Query_Response</code></a>.</dd></div>
+              </dl>
+            </div>
             <figure class="code-panel">
               <figcaption>bounded simple-query loop</figcaption>
               <button class="copy-button" type="button" data-copy>Copy</button>
@@ -184,8 +194,9 @@ end loop;</code></pre>
 
           <section id="extended">
             <span class="step-label">STEP 05</span>
-            <h2>Use prepared statements and bounded portals.</h2>
-            <p>The extended path models named or unnamed statements and portals directly. Commands can be pipelined before <code>Sync</code>; <code>Flush</code> requests pending output without ending the cycle.</p>
+            <h2>Use prepared statements and bounded portals</h2>
+            <p>The extended path models named or unnamed statements and portals. <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#2ed3ada497b8bde713b8d5f07d8a3075d17dc79139699920621e7ca69eee10cd"><code>Prepare_Statement</code></a> creates statement state. <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#c7af87ec95c97450ae9989fe082d0fd55966b8bf32ba22ffa9f135ca68bc5463"><code>Bind_Portal</code></a> binds values such as <a href="../api/a36ef088ca3b7ae38c4f7d063dac83b579fe57b8032d3e535083cd0c1652da94.html#56a49d5695520566256c545b7d0543f5d654a095373dc8052564fcf19b32043c"><code>Text_Parameter</code></a>.</p>
+            <p><a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#69cdd12c37469696c7fc008bb05b46f342da277248314674f63d5b043f880a8d"><code>Describe_Portal</code></a> requests metadata, and <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#47d2fd9595c8cc940c17c889ca3aca2a8c6b3044a31b1cfadf75e3c796cad7ea"><code>Execute_Portal</code></a> applies a row limit. <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#9f6193d48616923847e829b65fafe4d23420d6244051e1b25d09429286ae3988"><code>Flush</code></a> requests pending output without ending the cycle.</p>
             <figure class="code-panel">
               <figcaption>a portal limited to 50 rows</figcaption>
               <button class="copy-button" type="button" data-copy>Copy</button>
@@ -210,16 +221,19 @@ end loop;
 
 Client.Synchronize (Session);</code></pre>
             </figure>
+            <p><a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#a0ec710fad6501786c0e6b37fdca42c343d53155025cb509a79ce01b5848756d"><code>Receive_Extended_Event</code></a> returns one response. The example stops on <a href="../api/a36ef088ca3b7ae38c4f7d063dac83b579fe57b8032d3e535083cd0c1652da94.html#71e1d6fff1d32cd6b5545a78f930f4c56b1c5fecce15dd9f8117163756225347"><code>Command_Complete_Response</code></a>, <a href="../api/a36ef088ca3b7ae38c4f7d063dac83b579fe57b8032d3e535083cd0c1652da94.html#71e1d6fff1d32cd6b5545a78f930f4c56b1c5fecce15dd9f8117163756225347"><code>Portal_Suspended_Response</code></a>, or the error response linked above.</p>
+            <p><a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#0d96b6c8fb005086dc22f52cdbf75338fe1644f94b3ce6c58d1afc574ce7b314"><code>Synchronize</code></a> sends <code>Sync</code> to end or recover the cycle. Continue receiving events through <code>ReadyForQuery</code> before reusing the session.</p>
             <aside class="callout callout-teal">
               <span class="callout-symbol" aria-hidden="true">i</span>
-              <p>After an extended-query error, only synchronization or termination is accepted. The session becomes reusable after the corresponding <code>ReadyForQuery</code>.</p>
+              <p>After an extended-query error, the client accepts only synchronization or termination. Receive the corresponding <code>ReadyForQuery</code> before reusing the session.</p>
             </aside>
           </section>
 
           <section id="copy">
             <span class="step-label">STEP 06</span>
-            <h2>Stream COPY frames without an accumulator.</h2>
-            <p>A COPY response changes the session state to COPY IN, COPY OUT, or COPY BOTH. Each call sends or receives one bounded chunk. The same typed path works after simple or extended queries.</p>
+            <h2>Stream COPY frames without an accumulator</h2>
+            <p>A COPY response changes the session state to COPY IN, COPY OUT, or COPY BOTH. Each operation sends or receives one bounded chunk. The same typed path works after simple or extended queries.</p>
+            <p>The example reads the format with <a href="../api/a36ef088ca3b7ae38c4f7d063dac83b579fe57b8032d3e535083cd0c1652da94.html#8d36b74c4297d30db30cb6a39bddb4919dce110d29fdedcdce0414f478724218"><code>Protocol.Copy_Formats</code></a>. It sends chunks with <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#afc010c62883a3be2da0c7518bdcb2ef6dacd9acb755e87f924504d56b873cdc"><code>Send_Copy_Data</code></a> and completes input with <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#bdac014f231739812e9a86e6d1bb954133f2e6d09df4fed654bd8394ec98b9d1"><code>Finish_Copy</code></a>.</p>
             <figure class="code-panel">
               <figcaption>COPY IN</figcaption>
               <button class="copy-button" type="button" data-copy>Copy</button>
@@ -238,25 +252,31 @@ end;
 
 -- Receive CommandComplete, then ReadyForQuery.</code></pre>
             </figure>
-            <p><code>Abort_Copy</code> sends <code>CopyFail</code> with a server-visible reason. For extended COPY, synchronization remains mandatory before the session returns to ready.</p>
+            <p><a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#7374b35530329540f86f44ad187a9584c9d99ea9777f2400c22dc0c39b16bf2f"><code>Abort_Copy</code></a> sends <code>CopyFail</code> with a server-visible reason. For extended COPY, synchronization remains mandatory before the session returns to ready.</p>
           </section>
 
           <section id="replication">
             <span class="step-label">STEP 07</span>
-            <h2>Stream physical or logical replication in either direction.</h2>
-            <p><code>Flyology.Postgres.Replication</code> handles replication startup, LSN text, replication commands, physical stream envelopes, keepalives, status updates, and hot-standby feedback. <code>Flyology.Postgres.Replication.Logical</code> adds typed <code>pgoutput</code> messages, while <code>Logical.Producer</code> validates and encodes those messages in the primary direction. Both use the existing bounded COPY BOTH state machine, so replication data is delivered one frame at a time.</p>
+            <h2>Stream physical or logical replication in either direction</h2>
+            <p><a href="../api/ff96781c12db30886b07c416225bc911e508827a3e8a450b9ed7538461f2299b.html"><code>Flyology.Postgres.Replication</code></a> handles startup, LSN text, commands, physical stream envelopes, keepalives, status updates, and hot-standby feedback.</p>
+            <p><a href="../api/1dce60a01a501a9c19d6b28d352177a8d7e54975fef8580577959f82b2909624.html"><code>Flyology.Postgres.Replication.Logical</code></a> adds typed <code>pgoutput</code> messages. <a href="../api/7f26fe6a41b97b43603ba852b6a27156d861c24f86a183d15ff5a6b6f2798386.html"><code>Logical.Producer</code></a> validates and encodes them in the primary direction. Both paths deliver one COPY BOTH frame per call.</p>
             <div class="decision-list">
               <dl>
-                <div class="decision-row"><dt>Physical standby</dt><dd>Start with <code>Physical_Replication_Connection</code>, send <code>Start_Physical</code>, and consume the raw WAL bytes carried by each <code>XLogData</code> frame.</dd></div>
-                <div class="decision-row"><dt>Logical consumer</dt><dd>Start with <code>Logical_Replication_Connection</code>, send <code>Start_Logical</code>, then decode each <code>XLogData</code> payload with a configured logical decoder.</dd></div>
+                <div class="decision-row"><dt>Physical standby</dt><dd>Start with <a href="../api/a36ef088ca3b7ae38c4f7d063dac83b579fe57b8032d3e535083cd0c1652da94.html#f7888623d7f0911f3223658d72f7edd1772ec84a8c3a4fbe6c71a8d6722ca781"><code>Physical_Replication_Connection</code></a>. Send <a href="../api/ff96781c12db30886b07c416225bc911e508827a3e8a450b9ed7538461f2299b.html#dcace6f09735a4bc3f6628ccb8bcaaf50d19eb8227e248a0bed09d13efb2795a"><code>Start_Physical</code></a>, then consume the WAL bytes in each <code>XLogData</code> frame.</dd></div>
+                <div class="decision-row"><dt>Logical consumer</dt><dd>Start with <a href="../api/a36ef088ca3b7ae38c4f7d063dac83b579fe57b8032d3e535083cd0c1652da94.html#f7888623d7f0911f3223658d72f7edd1772ec84a8c3a4fbe6c71a8d6722ca781"><code>Logical_Replication_Connection</code></a>. Send <a href="../api/ff96781c12db30886b07c416225bc911e508827a3e8a450b9ed7538461f2299b.html#bb1e7bfe22c9e3d0bec4f9a3601afacebb1fbe555496d6351fe0014d73f63aa8"><code>Start_Logical</code></a>, then decode each <code>XLogData</code> payload.</dd></div>
                 <div class="decision-row"><dt>Protocol levels</dt><dd>Logical protocol v1 covers committed transactions, v2 streamed transactions, v3 two-phase transactions, and v4 parallel-stream abort metadata.</dd></div>
-                <div class="decision-row"><dt>Primary server</dt><dd><code>Managed_Primary</code> composes application-owned slots, WAL, timelines, and logical changes into a complete replication-command handler. Use <code>Replication.Server_Sessions</code> directly when the application needs lower-level control.</dd></div>
-                <div class="decision-row"><dt>Durable state</dt><dd><code>Replication.Persistence</code> defines interfaces for slots, retained WAL, timeline history, and prepared-consumer recovery. The application chooses and supplies the storage technology.</dd></div>
+                <div class="decision-row"><dt>Primary server</dt><dd><a href="../api/71252ea068e62ad46f5da98b46b29f3b4639771a967d0cd4e4040a38e1d7f211.html"><code>Managed_Primary</code></a> composes application-owned slots, WAL, timelines, and logical changes. Use <a href="../api/1e74e57aa4b85e960ec5238c843a9660fb37877c079bd6982c14d780f9f009fc.html"><code>Replication.Server_Sessions</code></a> for lower-level control.</dd></div>
+                <div class="decision-row"><dt>Durable state</dt><dd><a href="../api/5db8f96175ce80bd4ec4ff040a4d7ad18a1032a38b7ac7f37b706313d74dca6e.html"><code>Replication.Persistence</code></a> defines interfaces for slots, retained WAL, timeline history, and prepared-consumer recovery. The application supplies the storage technology.</dd></div>
               </dl>
             </div>
 
-            <h3>Consume a logical stream without buffering WAL.</h3>
-            <p>Replication startup uses the normal client authentication path with an explicit replication mode. Logical options preserve valueless, empty, and quoted values. Configure the stateful decoder once with the same protocol level and streaming mode sent to PostgreSQL. Decode frames as they arrive, but do not acknowledge an LSN merely because its bytes were received: advance the durable acknowledgement only after the complete transaction is durably applied.</p>
+            <h3>Consume a logical stream without buffering WAL</h3>
+            <p>Replication startup uses <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#0a1986433c884029d91f57b372a358ab4ee4ac0e25cda7c0d655964506c12907"><code>Client.Startup</code></a> with an explicit replication mode. Logical <a href="../api/ff96781c12db30886b07c416225bc911e508827a3e8a450b9ed7538461f2299b.html#bfece831f9c6f56be18b467dad9c7e531b7d2de1d03b4431fa38c62d10d6ce75"><code>Option</code></a> values preserve empty and quoted text.</p>
+            <p>Send the command with <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#7297ad4ea7e4daba01723155a1d925e1873b6ddd9271960d4eaf4c4b3583ce24"><code>Client.Send_Command</code></a>. Configure the stateful decoder with <a href="../api/1dce60a01a501a9c19d6b28d352177a8d7e54975fef8580577959f82b2909624.html#881090df16f7ff54458960cd8772b58f51b8c0ea522559752de6a225da5ec88a"><code>Logical.Configure</code></a> and the negotiated <a href="../api/1dce60a01a501a9c19d6b28d352177a8d7e54975fef8580577959f82b2909624.html#19a1cda923d29ef04156f697f791df4fb16cc380d02bc0bfdaf35646ef464c3d"><code>Parallel</code></a> mode.</p>
+            <p><a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#4eddef57fb95724bf54ce9448d2b1ce030fc0236d6084252b3e9960371d6b7a3"><code>Receive_Copy_Event</code></a> returns one frame. A <a href="../api/a36ef088ca3b7ae38c4f7d063dac83b579fe57b8032d3e535083cd0c1652da94.html#71e1d6fff1d32cd6b5545a78f930f4c56b1c5fecce15dd9f8117163756225347"><code>Copy_Data_Response</code></a> contains replication data.</p>
+            <p>The example uses the backend-event <a href="../api/a36ef088ca3b7ae38c4f7d063dac83b579fe57b8032d3e535083cd0c1652da94.html#7c4dbc8eb64602eb164bdda68ae2626295c2c17b097c0ee703aa385629bad606"><code>Original_Message</code></a> overload, then calls <a href="../api/ff96781c12db30886b07c416225bc911e508827a3e8a450b9ed7538461f2299b.html#cc26e2f040f2502b9c3690c1b4c0b7724e88675d5e70cd2387a6bd02d85ec5d0"><code>Replication.Decode</code></a>.</p>
+            <p>The stream-message <a href="../api/ff96781c12db30886b07c416225bc911e508827a3e8a450b9ed7538461f2299b.html#3185705f6d1d5d4f54e53fbf189f9e5c8e274494bff214242c9ddec667e70481"><code>Kind</code></a> identifies <a href="../api/ff96781c12db30886b07c416225bc911e508827a3e8a450b9ed7538461f2299b.html#0731c72322c2eba45a9ecce82a84e6f01fcbec057582c90c1fb3ccbe8ccfe2e5"><code>XLog_Data</code></a>. Pass its <a href="../api/ff96781c12db30886b07c416225bc911e508827a3e8a450b9ed7538461f2299b.html#6914490156bde108f9887ea7e0b94e13be44d3452277921a911f363df69aa3de"><code>Data</code></a> to the stateful <a href="../api/1dce60a01a501a9c19d6b28d352177a8d7e54975fef8580577959f82b2909624.html#f6299d5c7fc2486e75b86459dd55eb741160f969994de7652e3ef3a20ec153f3"><code>Logical.Decode</code></a> overload.</p>
+            <p>Do not acknowledge an LSN when its bytes arrive. Advance the durable acknowledgement only after the complete transaction is durably applied.</p>
             <figure class="code-panel">
               <figcaption>logical pgoutput v4 consumer</figcaption>
               <button class="copy-button" type="button" data-copy>Copy</button>
@@ -308,14 +328,17 @@ loop
    end if;
 end loop;</code></pre>
             </figure>
+            <p>The message <a href="../api/1dce60a01a501a9c19d6b28d352177a8d7e54975fef8580577959f82b2909624.html#ebf029200709a7d98f72a9a3f87e436287bf14937b4a6e55d78599196ee062ba"><code>Logical.Kind</code></a> identifies a <a href="../api/1dce60a01a501a9c19d6b28d352177a8d7e54975fef8580577959f82b2909624.html#d68d1fd8d63ae5846091bd5b808171cfe582fb0f64b90c500dd086c42585b41c"><code>Commit_Message</code></a>. Read its durable endpoint with <a href="../api/1dce60a01a501a9c19d6b28d352177a8d7e54975fef8580577959f82b2909624.html#d19031a02617ef30ee7f3160967419b8ebc7beb6173fe9178270d08afbd399c7"><code>End_LSN</code></a>, then construct feedback with <a href="../api/ff96781c12db30886b07c416225bc911e508827a3e8a450b9ed7538461f2299b.html#64ea1b7583824f56d6e22ce47234c2c0f495a921de23167d3a8df018492df2a6"><code>Make_Standby_Status_Update</code></a>.</p>
             <aside class="callout callout-teal">
               <span class="callout-symbol" aria-hidden="true">i</span>
-              <p><code>Logical.Message</code> retains transaction boundaries, streamed XIDs, relation metadata, text or binary tuple values, replica identity, origins, logical messages, truncate flags, and prepared-transaction GIDs. Accessors reject message kinds that do not carry the requested field.</p>
+              <p><a href="../api/1dce60a01a501a9c19d6b28d352177a8d7e54975fef8580577959f82b2909624.html#c1693bde123cdaae258082a498a54810caf95c9a7829368b5d0f6f9f97a97a0a"><code>Logical.Message</code></a> retains transaction boundaries, relation metadata, tuple values, replica identity, origins, truncate flags, and prepared-transaction identifiers. Accessors reject incompatible message kinds.</p>
             </aside>
-            <p>The abbreviated example shows the regular <code>Commit</code> path. Apply the same rule at <code>StreamCommit</code>. For two-phase traffic, <code>Prepared_Consumer</code> coordinates durable prepare, idempotent target application, an applied marker, source acknowledgement, and final removal. Its target callback must remain idempotent unless the target commit and applied marker share one atomic transaction.</p>
+            <p>The abbreviated example shows the regular <code>Commit</code> path. Apply the same rule at <code>StreamCommit</code>.</p>
+            <p>For two-phase traffic, <a href="../api/b58babe96ca51fdc315232c6117ec1a2d938c7bab28088650189a8f1d9f2fe56.html"><code>Prepared_Consumer</code></a> coordinates durable preparation, target application, an applied marker, source acknowledgement, and removal. Unless the target commit and applied marker share one atomic transaction, the target callback must remain idempotent.</p>
 
-            <h3>Compose a managed primary from application state.</h3>
-            <p><code>Managed_Primary</code> accepts the public persistence interfaces plus an application callback that supplies typed logical changes. It handles identification, timeline history, logical slot creation, slot removal, physical and logical WAL streaming, feedback persistence, retention, keepalives, and graceful COPY BOTH completion. Physical slots are created through the supplied slot store before a standby starts. <code>Logical.Producer</code> rejects invalid transaction ordering or regressing WAL envelopes before bytes are sent.</p>
+            <h3>Compose a managed primary from application state</h3>
+            <p>The managed-primary generic accepts the persistence interfaces and an application callback for typed logical changes. Its <a href="../api/71252ea068e62ad46f5da98b46b29f3b4639771a967d0cd4e4040a38e1d7f211.html#0fad81dfc44a1c11712363760f978b77bf3c1e5f1e53b48429c1c96a77679ec6"><code>Primary</code></a> composes those dependencies.</p>
+            <p><a href="../api/71252ea068e62ad46f5da98b46b29f3b4639771a967d0cd4e4040a38e1d7f211.html#14d16919cc93f0bff3d55829019390ab87804c4756873306b5081396ec02b654"><code>Managed.Initialize</code></a> sets the system identity. <a href="../api/71252ea068e62ad46f5da98b46b29f3b4639771a967d0cd4e4040a38e1d7f211.html#5833f9392e7d31801269430981ec2df0fa65cf6c3af1cf4cc77d6f69c561125c"><code>Managed.Handle</code></a> processes one decoded replication command.</p>
             <figure class="code-panel">
               <figcaption>application-owned managed primary</figcaption>
               <button class="copy-button" type="button" data-copy>Copy</button>
@@ -336,10 +359,12 @@ Managed.Initialize
 Command := Replication.Decode_Command (Message);
 Managed.Handle (Primary, Client, Command);</code></pre>
             </figure>
-            <p>The generic <code>Persistence.Memory</code> child is a bounded reference implementation for tests and ephemeral single-owner servers. It is volatile, is not a production durability backend, and deliberately does not claim process locking or crash recovery. External stores can run the reusable conformance fixture against the same interfaces.</p>
+            <p>The generic <a href="../api/6c42c6040a1e23cb5faa58998ce63a54f6f2e4b2a026f88a74a810d5091f9696.html"><code>Persistence.Memory</code></a> child is a bounded reference implementation for tests and ephemeral single-owner servers. It is volatile and does not provide process locking or crash recovery.</p>
 
-            <h3>Control COPY BOTH directly when needed.</h3>
-            <p>The lower-level path begins by decoding the handler's simple-query message. Commands expose slot creation plugin and snapshot policy, slot removal and <code>WAIT</code>, requested position and timeline, parameters, and logical options as typed values. Physical and logical streams share the same server-side COPY BOTH helpers; logical WAL data is an encoded <code>Logical.Message</code> inside <code>XLogData</code>.</p>
+            <h3>Control COPY BOTH directly when needed</h3>
+            <p>The lower-level path begins with <a href="../api/ff96781c12db30886b07c416225bc911e508827a3e8a450b9ed7538461f2299b.html#a7fa16eeaf65cf2bf2121103eb7a3a35133324ec10fa5f0f670ed44a0bd1d881"><code>Decode_Command</code></a>. The command <a href="../api/ff96781c12db30886b07c416225bc911e508827a3e8a450b9ed7538461f2299b.html#174844338034b1ececbf6da7881a287be7ede44e1bc1fb64903bac5ab978fd84"><code>Kind</code></a> overload distinguishes values such as <a href="../api/ff96781c12db30886b07c416225bc911e508827a3e8a450b9ed7538461f2299b.html#c503ac32167c44a20d4c62cf39e934558cd5ca5348a54d5a719183bce557a173"><code>Identify_System_Command</code></a> and <a href="../api/ff96781c12db30886b07c416225bc911e508827a3e8a450b9ed7538461f2299b.html#c503ac32167c44a20d4c62cf39e934558cd5ca5348a54d5a719183bce557a173"><code>Start_Physical_Command</code></a>.</p>
+            <p>Reply to identification with <a href="../api/1e74e57aa4b85e960ec5238c843a9660fb37877c079bd6982c14d780f9f009fc.html#42891879140536def2635687edbf17214c4afea7a71fafaad25e2b0673ca9d8f"><code>Send_Identify_System</code></a>. For physical replication, <a href="../api/1e74e57aa4b85e960ec5238c843a9660fb37877c079bd6982c14d780f9f009fc.html#b83f5eb32427b6b50e923ceac348525966eee5778a3fc26f8eb1387054e2126a"><code>Begin_Streaming</code></a> starts COPY BOTH, and <a href="../api/1e74e57aa4b85e960ec5238c843a9660fb37877c079bd6982c14d780f9f009fc.html#d618e21f2cd86de0d65695bdadb5a880f16065f8570ebbf2823441773c3c9bd8"><code>Send_XLog_Data</code></a> writes one WAL frame.</p>
+            <p>Read feedback with <a href="../api/1e74e57aa4b85e960ec5238c843a9660fb37877c079bd6982c14d780f9f009fc.html#6387bb77d0b2c57f0a22ed802f14f505b66de684ad38f31bcdc13a9d6d11080b"><code>Read_Standby_Message</code></a>. The <a href="../api/ff96781c12db30886b07c416225bc911e508827a3e8a450b9ed7538461f2299b.html#c0255505a27185efc7eb0ebff3fcc2d0f0118feba51093e80dc54a2b77db665a"><code>Position</code></a> accessor returns the requested starting LSN.</p>
             <figure class="code-panel">
               <figcaption>primary-side replication handler</figcaption>
               <button class="copy-button" type="button" data-copy>Copy</button>
@@ -365,12 +390,13 @@ case Replication.Kind (Command) is
       Apply_Feedback (Feedback);
 
    when others =&gt;
-      -- Send_Show, Send_Timeline_History, or start a logical stream.
+      -- Handle another supported replication command.
       null;
 end case;</code></pre>
             </figure>
-            <p>For graceful shutdown, call <code>Finish_Streaming</code> to close the primary-to-standby direction, continue reading feedback until the frontend <code>CopyDone</code> arrives, then call <code>Complete_Streaming</code>. A frontend <code>CopyFail</code> should instead receive an error response.</p>
-            <p>Promotion belongs to the application-owned timeline and WAL stores. Persist the new timeline and its history before advertising it as current, retain WAL across the fork point, and then let the follower request <code>TIMELINE_HISTORY</code> and reconnect on the promoted timeline. The live PostgreSQL 18 test promotes a real standby and proves replay of WAL written only on timeline 2.</p>
+            <p>For graceful shutdown, call <a href="../api/1e74e57aa4b85e960ec5238c843a9660fb37877c079bd6982c14d780f9f009fc.html#6e55371a3bb403fbcad55ba052bf2a10c895b670a287c6b9f72ab84568224996"><code>Finish_Streaming</code></a> to close the primary-to-standby direction. Continue reading feedback until the frontend <code>CopyDone</code> arrives, then call <a href="../api/1e74e57aa4b85e960ec5238c843a9660fb37877c079bd6982c14d780f9f009fc.html#20276deead9ba3252417bea990b665279e65c6e2f440b4c361e6af972b5d2336"><code>Complete_Streaming</code></a>. Send an error response after a frontend <code>CopyFail</code>.</p>
+            <p>Promotion belongs to the application-owned timeline and WAL stores. First, persist the new timeline and its history. Retain WAL across the fork point before advertising the timeline as current.</p>
+            <p>The follower can then request <code>TIMELINE_HISTORY</code> and reconnect on the promoted timeline. The PostgreSQL 18 test promotes a real standby and verifies replay of WAL written only on timeline 2.</p>
             <aside class="callout callout-teal">
               <span class="callout-symbol" aria-hidden="true">i</span>
               <p>Real PostgreSQL 14 through 18 clients exercise Flyology in both directions, including TLS and SCRAM standbys, restart and exact feedback positions, <code>pg_recvlogical</code>, transport adversity, and reconnect from a persisted acknowledgement. PostgreSQL 18 additionally exercises promotion and an initial-copy subscription worker. Read the <a href="https://github.com/flyology-ada/flyology-postgres/blob/main/tests/REPLICATION_VALIDATION.md">replication validation boundaries and evidence</a> for the exact assertions.</p>
@@ -380,8 +406,9 @@ end case;</code></pre>
 
           <section id="cancel">
             <span class="step-label">STEP 08</span>
-            <h2>Cancel on a separate connection.</h2>
-            <p>Postgres cancellation never travels on the active query connection. Startup stores the backend process ID and variable-length secret. The TLS socket helper opens and verifies a separate encrypted connection, sends those credentials, and closes it without waiting for a response.</p>
+            <h2>Cancel on a separate connection</h2>
+            <p>Postgres cancellation does not travel on the active query connection. Startup stores the backend process ID and variable-length secret.</p>
+            <p><a href="../api/c2380bb30f7dfccb475f43619cb29c1fa17a0cb25f357d668a037d73caa23668.html"><code>Flyology.Postgres.Client_Sockets</code></a> supplies socket-based cancellation. <a href="../api/c2380bb30f7dfccb475f43619cb29c1fa17a0cb25f357d668a037d73caa23668.html#1d94fb103474d450c7761642c75e2288d812efdf863c0749c91ba9f5d9b7db59"><code>Cancel_TLS</code></a> verifies a separate encrypted connection, sends the credentials, and closes without waiting for a response.</p>
             <figure class="code-panel">
               <figcaption>cancel an active operation</figcaption>
               <button class="copy-button" type="button" data-copy>Copy</button>
@@ -396,15 +423,15 @@ end case;</code></pre>
 
           <section id="server">
             <span class="step-label">STEP 09</span>
-            <h2>Build a Postgres protocol server.</h2>
-            <p><code>Flyology.Postgres.Server</code> is generic over application context, authentication callbacks, SCRAM verifier lookup, and a command handler. Each accepted connection receives its own Flyology handler task.</p>
+            <h2>Build a Postgres protocol server</h2>
+            <p><a href="../api/df1e88b4dad97e36b4fde35ee1bbc7e3355fa74f275b2a5d8c30b94dfa802cb3.html"><code>Flyology.Postgres.Server</code></a> is generic over application context, authentication callbacks, SCRAM verifier lookup, and a command handler. Each accepted connection receives one Flyology handler task.</p>
             <div class="decision-list">
               <dl>
-                <div class="decision-row"><dt>Commands</dt><dd>The handler receives every normal frontend command as a typed or raw-preserving <code>Protocol.Message</code>.</dd></div>
+                <div class="decision-row"><dt>Commands</dt><dd>The handler receives every normal frontend command as a typed or raw-preserving <a href="../api/a36ef088ca3b7ae38c4f7d063dac83b579fe57b8032d3e535083cd0c1652da94.html#1d4a1d42d94a657df8999bf39f5ab8768b2808a6c5172aab8ad33491a454921a"><code>Protocol.Message</code></a>.</dd></div>
                 <div class="decision-row"><dt>Responses</dt><dd>Session helpers send row descriptions, rows, diagnostics, completion, readiness, and COPY streams.</dd></div>
                 <div class="decision-row"><dt>Authentication</dt><dd>SCRAM lookup returns Postgres verifier text. The server does not request or retain the user's plaintext password.</dd></div>
                 <div class="decision-row"><dt>Cancellation</dt><dd>A fresh per-command token reports matching cancellation and forced structured-server shutdown.</dd></div>
-                <div class="decision-row"><dt>TLS</dt><dd><code>Serve_TLS</code> upgrades accepted connections without changing their admission owner; required mode rejects plaintext startup.</dd></div>
+                <div class="decision-row"><dt>TLS</dt><dd><a href="../api/df1e88b4dad97e36b4fde35ee1bbc7e3355fa74f275b2a5d8c30b94dfa802cb3.html#ce1f0d808ac38b9d6f2baae9f34297210bfb1952fe19cb60b0dfa825089d1c46"><code>Serve_TLS</code></a> upgrades accepted connections without changing their admission owner. Required mode rejects plaintext startup.</dd></div>
               </dl>
             </div>
             <p><a href="../api/">Search the generated server and session API</a></p>
@@ -412,8 +439,16 @@ end case;</code></pre>
 
           <section id="parse-sql">
             <span class="step-label">STEP 10</span>
-            <h2>Parse, analyze, and transform SQL.</h2>
-            <p>The versioned SQL crates parse PostgreSQL 14 through 18 syntax with native Ada parsers generated from each pinned upstream grammar. Normal applications should choose the crate matching the PostgreSQL major whose syntax they accept. The generated Ada package names remain unchanged. For ordinary application code, use the owned AST package.</p>
+            <h2>Parse, analyze, and transform SQL</h2>
+            <p>The versioned SQL crates parse PostgreSQL 14 through 18 syntax with native Ada parsers generated from each pinned upstream grammar. Select the crate for the PostgreSQL major that the application accepts.</p>
+            <p>Use one of these owned packages for ordinary application code:</p>
+            <ul>
+              <li><a href="../sql-api/cdb55193b3cc9e62aaf92e33f3d97ad8202057594165b023316481773d25e668.html"><code>SQL.AST.V14</code></a> for PostgreSQL 14</li>
+              <li><a href="../sql-api/dd44bb10f924ade85baf422cccb6f9851c136ec96c1542ef1cf52ac0977fbcf7.html"><code>SQL.AST.V15</code></a> for PostgreSQL 15</li>
+              <li><a href="../sql-api/73d0c3f2a6bd048afd619dc7cee2200bfcc81e5f19d49b8801fc6609f7c3aa79.html"><code>SQL.AST.V16</code></a> for PostgreSQL 16</li>
+              <li><a href="../sql-api/caf75b052d7082d0e38de8d225a1d8a6e0d33c79621b14bed35d7ac9b91fa6b9.html"><code>SQL.AST.V17</code></a> for PostgreSQL 17</li>
+              <li><a href="../sql-api/71f87faf32724bf9f9c83b69f1353c3f251bbf2db74c3e948a0b01d7b9debc66.html"><code>SQL.AST.V18</code></a> for PostgreSQL 18</li>
+            </ul>
             <figure class="code-panel">
               <figcaption>add only the PostgreSQL 18 parser</figcaption>
               <button class="copy-button" type="button" data-copy>Copy</button>
@@ -430,6 +465,7 @@ alr with flyology_postgres_sql_v18
 with "sql_v14.gpr";
 with "sql_v18.gpr";</code></pre>
             </figure>
+            <p>The example stores the result in <a href="../sql-api/71f87faf32724bf9f9c83b69f1353c3f251bbf2db74c3e948a0b01d7b9debc66.html#9b33a5d5aa30d21c4a9b255ed1d6115a167563e32240495244c09811c12a5390"><code>Owned_Syntax_Tree</code></a> and calls the V18 <a href="../sql-api/71f87faf32724bf9f9c83b69f1353c3f251bbf2db74c3e948a0b01d7b9debc66.html#c6c6ec6a55efc8cf98bf2f97a45b8e04a1d4ff149b1070823a31b5f9cabd537a"><code>Parse</code></a> operation. The tree's <a href="../sql-api/71f87faf32724bf9f9c83b69f1353c3f251bbf2db74c3e948a0b01d7b9debc66.html#9b33a5d5aa30d21c4a9b255ed1d6115a167563e32240495244c09811c12a5390"><code>Valid</code></a>, <a href="../sql-api/71f87faf32724bf9f9c83b69f1353c3f251bbf2db74c3e948a0b01d7b9debc66.html#9b33a5d5aa30d21c4a9b255ed1d6115a167563e32240495244c09811c12a5390"><code>Diagnostic_Message</code></a>, and <a href="../sql-api/71f87faf32724bf9f9c83b69f1353c3f251bbf2db74c3e948a0b01d7b9debc66.html#9b33a5d5aa30d21c4a9b255ed1d6115a167563e32240495244c09811c12a5390"><code>Diagnostic_Position</code></a> fields report failure.</p>
             <figure class="code-panel">
               <figcaption>parse and inspect a PostgreSQL 18 SELECT</figcaption>
               <button class="copy-button" type="button" data-copy>Copy</button>
@@ -443,31 +479,16 @@ begin
      ("SELECT id, payload FROM events WHERE archived = false",
       Tree);
 
-   if Tree.Valid and then not Tree.Root.Statements.Is_Empty then
-      declare
-         Raw : constant AST.Raw_Stmt_Access :=
-           Tree.Root.Statements.First_Element;
-      begin
-         if Raw.Statement.Present
-           and then Raw.Statement.Value.Kind = AST.Node_Select_Stmt
-         then
-            declare
-               Selection : constant AST.Select_Stmt :=
-                 Raw.Statement.Value.Select_Stmt_Payload;
-            begin
-               Inspect_Targets (Selection.Target_List);
-
-               if Selection.Where_Clause.Present then
-                  Inspect_Expression (Selection.Where_Clause.Value);
-               end if;
-            end;
-         end if;
-      end;
+   if not Tree.Valid then
+      Report_Parse_Error (Tree.Diagnostic_Message, Tree.Diagnostic_Position);
    end if;
 end;</code></pre>
             </figure>
-            <h3>Walk the complete tree with a generated visitor.</h3>
-            <p>Each versioned owned AST has a matching <code>Visitors</code> child package. Derive a visitor with the state your analysis needs, then override only the typed hooks that contribute to it. Traversal follows every present child and every message element of a typed vector.</p>
+            <h3>Walk the complete tree with a generated visitor</h3>
+            <p>Each owned AST has a generated visitor child package. For V18, use <a href="../sql-api/fa3b514e3b3c7459d321fdccf7c25f65a0982ccd8547f299e1c94681e562294f.html"><code>SQL.AST.V18.Visitors</code></a>.</p>
+            <p>Derive an analysis type from <a href="../sql-api/fa3b514e3b3c7459d321fdccf7c25f65a0982ccd8547f299e1c94681e562294f.html#e34813c929b0d8f99f348d8a5d2d767bd771c4574823942892d7ae0ff25497ae"><code>Visitor</code></a>. Override typed hooks such as <a href="../sql-api/fa3b514e3b3c7459d321fdccf7c25f65a0982ccd8547f299e1c94681e562294f.html#63f329c1ba03d7f1022e2eeec8141733243f1f403eb1d8b21ff86708baaa19bb"><code>Enter_Select_Stmt</code></a>. This hook receives a <a href="../sql-api/71f87faf32724bf9f9c83b69f1353c3f251bbf2db74c3e948a0b01d7b9debc66.html#71e735a18426f04ba4cc30720a7cbea35ecceb306a9c058d13c5fce34601e4e2"><code>Select_Stmt</code></a> and a <a href="../sql-api/fa3b514e3b3c7459d321fdccf7c25f65a0982ccd8547f299e1c94681e562294f.html#bce382d25aea5e539855434bf43b5327703a4d0a0fa13f1e87fcb5f7f3f70b54"><code>Traversal_Control</code></a> value.</p>
+            <p>The example counts expressions through the statement's <a href="../sql-api/71f87faf32724bf9f9c83b69f1353c3f251bbf2db74c3e948a0b01d7b9debc66.html#71e735a18426f04ba4cc30720a7cbea35ecceb306a9c058d13c5fce34601e4e2"><code>Target_List</code></a> field.</p>
+            <p>The owned-tree <a href="../sql-api/fa3b514e3b3c7459d321fdccf7c25f65a0982ccd8547f299e1c94681e562294f.html#529cb5a6527a25eabdd400cf02f0be5e6e502876223e4e75854aef27a835b62e"><code>Traverse</code></a> overload follows each present child and each message element in a typed vector.</p>
             <figure class="code-panel">
               <figcaption>count SELECT statements and target expressions</figcaption>
               <button class="copy-button" type="button" data-copy>Copy</button>
@@ -506,10 +527,13 @@ begin
    end if;
 end;</code></pre>
             </figure>
-            <p>An enter hook may set <code>Skip_Children</code> when descendants cannot add useful facts, or <code>Stop_Traversal</code> when the analysis has its answer. Matching <code>Leave_*</code> hooks support scopes, stacks, and post-order summaries.</p>
+            <p>An enter hook may set <a href="../sql-api/fa3b514e3b3c7459d321fdccf7c25f65a0982ccd8547f299e1c94681e562294f.html#bce382d25aea5e539855434bf43b5327703a4d0a0fa13f1e87fcb5f7f3f70b54"><code>Skip_Children</code></a> when descendants cannot add facts. It may set <a href="../sql-api/fa3b514e3b3c7459d321fdccf7c25f65a0982ccd8547f299e1c94681e562294f.html#bce382d25aea5e539855434bf43b5327703a4d0a0fa13f1e87fcb5f7f3f70b54"><code>Stop_Traversal</code></a> when the analysis is complete. Matching leave hooks support scopes, stacks, and post-order summaries.</p>
 
-            <h3>Plan transformations during traversal, apply them afterward.</h3>
+            <h3>Plan transformations during traversal, then apply them</h3>
             <p>Visitor callback records are borrowed, read-only views of the owned graph. For a safe rewrite, collect child access values in visitor state, finish the traversal, then mutate scalar payloads through those references. This keeps vectors and graph topology stable while the walker is active.</p>
+            <p>The rewrite example overrides <a href="../sql-api/fa3b514e3b3c7459d321fdccf7c25f65a0982ccd8547f299e1c94681e562294f.html#a42db2b19d257b77a92f348d312ef57bb3e52e69b88875a388d9b0a9e6a98749"><code>Enter_A_Const</code></a> and receives an <a href="../sql-api/71f87faf32724bf9f9c83b69f1353c3f251bbf2db74c3e948a0b01d7b9debc66.html#4ee464f7f965b670c2d8da41ceabc5874d353c351f5c76b603c7bd574d08973e"><code>A_Const</code></a> record.</p>
+            <p>Its <a href="../sql-api/71f87faf32724bf9f9c83b69f1353c3f251bbf2db74c3e948a0b01d7b9debc66.html#4ee464f7f965b670c2d8da41ceabc5874d353c351f5c76b603c7bd574d08973e"><code>Sval</code></a> field is an optional string access value. Check its <a href="../sql-api/71f87faf32724bf9f9c83b69f1353c3f251bbf2db74c3e948a0b01d7b9debc66.html#99d2307708051974ba7f06fa80e41d37c5620439aad7b488e538f81489d8af47"><code>Present</code></a> field before reading its <a href="../sql-api/71f87faf32724bf9f9c83b69f1353c3f251bbf2db74c3e948a0b01d7b9debc66.html#99d2307708051974ba7f06fa80e41d37c5620439aad7b488e538f81489d8af47"><code>Value</code></a>.</p>
+            <p>The referenced string record has its own <a href="../sql-api/71f87faf32724bf9f9c83b69f1353c3f251bbf2db74c3e948a0b01d7b9debc66.html#0a30944401b6eb1af69848fdfd55d613f45b89cdeebad11398439e9efd13f878"><code>Sval</code></a> field. Its text <a href="../sql-api/71f87faf32724bf9f9c83b69f1353c3f251bbf2db74c3e948a0b01d7b9debc66.html#9194dafdcfabe5b44a7ea43d7e3f62bcdb48bfcdcdbc4edabc9fd9b0a5e2fb55"><code>Present</code></a> and <a href="../sql-api/71f87faf32724bf9f9c83b69f1353c3f251bbf2db74c3e948a0b01d7b9debc66.html#9194dafdcfabe5b44a7ea43d7e3f62bcdb48bfcdcdbc4edabc9fd9b0a5e2fb55"><code>Value</code></a> fields control the replacement text.</p>
             <figure class="code-panel">
               <figcaption>collect and redact owned string literals</figcaption>
               <button class="copy-button" type="button" data-copy>Copy</button>
@@ -538,7 +562,7 @@ end loop;</code></pre>
               <p>References in an analysis or rewrite plan belong to their <code>Owned_Syntax_Tree</code>. Do not use them after clearing, reparsing, or finalizing that tree. Do not resize vectors, replace node discriminants, or graft objects from another owner while traversing.</p>
             </aside>
 
-            <h3>Run the complete analysis and transformation examples.</h3>
+            <h3>Run the analysis and transformation examples</h3>
             <p>The repository includes strict Ada 2022 examples that count relations, joins, columns, and function calls, then demonstrate a two-pass relation rename and literal redaction.</p>
             <figure class="code-panel">
               <figcaption>build and run the SQL visitor examples</figcaption>
@@ -554,9 +578,9 @@ alr -n build
               <dl>
                 <div class="decision-row"><dt>Owned AST</dt><dd><code>SQL.AST.V14</code> through <code>V18</code> expose records, typed vectors, enums, access values, and explicit <code>Present</code> discriminants. This is the default API.</dd></div>
                 <div class="decision-row"><dt>Visitors</dt><dd>Every reachable message has generated typed <code>Enter_*</code> and <code>Leave_*</code> hooks, plus pruning and early-stop controls.</dd></div>
-                <div class="decision-row"><dt>Transformations</dt><dd>Build a rewrite plan during traversal and apply it afterward. The in-memory AST changes, but <code>Source_Text</code> remains the original SQL.</dd></div>
+                <div class="decision-row"><dt>Transformations</dt><dd>Build a rewrite plan during traversal and apply it afterward. The in-memory AST changes, but <a href="../sql-api/71f87faf32724bf9f9c83b69f1353c3f251bbf2db74c3e948a0b01d7b9debc66.html#9b33a5d5aa30d21c4a9b255ed1d6115a167563e32240495244c09811c12a5390"><code>Source_Text</code></a> remains the original SQL.</dd></div>
                 <div class="decision-row"><dt>Lifetime</dt><dd><code>Owned_Syntax_Tree</code> controls the complete graph. Do not retain its access values after clearing, reparsing, or finalizing that tree.</dd></div>
-                <div class="decision-row"><dt>Shallow views</dt><dd><code>SQL.Views.V14</code> through <code>V18</code> avoid the recursive object graph. Use them only when allocation pressure justifies resolving opaque references against their owning <code>Syntax_Tree</code>.</dd></div>
+                <div class="decision-row"><dt>Shallow views</dt><dd><a href="../sql-api/3ab3298171cf0a88a2c0fd24202ed09fd0bfdb340c2fb032daa878c0769d5edb.html"><code>SQL.Views.V14</code></a>, <a href="../sql-api/8c2848ac35aa5ea31e623603647d5a6e8958f1e1e1c607161715bf45c2b43fb3.html"><code>V15</code></a>, <a href="../sql-api/bea7dcbea92a2625b45cd280faff47a2d52ef6a61af128faa3ab964a8509bd28.html"><code>V16</code></a>, <a href="../sql-api/e0bfe9b53183b090c4ada1129cab88886f839885d1da7076c3be1d1b3a493ed4.html"><code>V17</code></a>, and <a href="../sql-api/9ab4d0896984710506d0cee12d62c2c71efb76b3ed04b85a3b9741f7f69497e3.html"><code>V18</code></a> avoid the recursive object graph. Use them only when allocation pressure justifies resolving opaque references against their owning syntax tree.</dd></div>
                 <div class="decision-row"><dt>Diagnostics</dt><dd>A failed owned parse leaves <code>Tree.Valid</code> false and records the message and cursor position in the owning tree.</dd></div>
                 <div class="decision-row"><dt>SQL output</dt><dd>The crate currently has no deparser. Emit a separate target representation or pair the rewrite plan with a dedicated SQL printer when rewritten text is required.</dd></div>
               </dl>
@@ -566,11 +590,12 @@ alr -n build
               <p>Normal parsing is pure Ada and does not load PostgreSQL, C, or protobuf code. Version-pinned C parsers remain test-only conformance oracles.</p>
             </aside>
             <p><a href="https://github.com/flyology-ada/flyology-postgres/tree/main/sql">Read the complete parser API and architecture guide</a></p>
+            <p><a href="../sql-api/">Search the generated SQL API reference</a></p>
           </section>
 
           <section id="examples">
             <span class="step-label">STEP 11</span>
-            <h2>Exercise both ends with the example crates.</h2>
+            <h2>Run the example crates</h2>
             <p>The examples are independent nested Alire crates. <code>pgish</code> can require TLS from a configured certificate and key; <code>psqlish</code> supports verified TLS with separate certificate and connection host settings. Their integration uses an ephemeral CA in both directions.</p>
             <figure class="code-panel">
               <figcaption>example directories</figcaption>
@@ -585,13 +610,13 @@ alr run</code></pre>
 
           <section id="boundaries">
             <span class="step-label">STEP 12</span>
-            <h2>Evaluate the current boundaries.</h2>
+            <h2>Check the current boundaries before evaluation</h2>
             <p>The library is experimental. Treat these constraints as part of its public contract, not as incidental implementation details.</p>
             <div class="decision-list">
               <dl>
                 <div class="decision-row"><dt>TLS</dt><dd>Verified client and ownership-preserving server upgrades use PostgreSQL <code>SSLRequest</code>; required mode rejects plaintext startup. PostgreSQL's separate <code>sslnegotiation=direct</code> mode is not implemented.</dd></div>
                 <div class="decision-row"><dt>Authentication</dt><dd>Trust, cleartext password, and SCRAM-SHA-256 only. No MD5, GSSAPI, SSPI, certificate authentication, or SCRAM-SHA-256-PLUS.</dd></div>
-                <div class="decision-row"><dt>Cleartext</dt><dd>Use cleartext-password authentication only over verified TLS or a comparably trusted transport.</dd></div>
+                <div class="decision-row"><dt>Cleartext</dt><dd>When the transport is not verified TLS or comparably trusted, do not use cleartext-password authentication.</dd></div>
                 <div class="decision-row"><dt>Fairness</dt><dd>A continuously readable COPY socket may require an explicit Flyology fairness point so another task on the same group can run.</dd></div>
                 <div class="decision-row"><dt>Replication</dt><dd>Protocol support covers PostgreSQL physical streaming and <code>pgoutput</code> v1 through v4. Flyology supplies managed slot lifecycle and storage interfaces, but applications still supply the durability technology, retained WAL and logical-change sources, publication catalog, stable initial snapshot, and target application of decoded changes.</dd></div>
                 <div class="decision-row"><dt>Limits</dt><dd>SCRAM messages are bounded to 4 KiB; iteration counts range from 4,096 through 1,000,000.</dd></div>
@@ -599,7 +624,7 @@ alr run</code></pre>
             </div>
             <aside class="callout">
               <span class="callout-symbol" aria-hidden="true">!</span>
-              <p>Read the repository's <a href="https://github.com/flyology-ada/flyology-postgres#current-boundaries">current boundaries</a> before production evaluation. The README remains the most detailed compatibility and security record.</p>
+              <p>Before you evaluate production use, read the repository's <a href="https://github.com/flyology-ada/flyology-postgres#current-boundaries">current boundaries</a>. The README contains the detailed compatibility and security record.</p>
             </aside>
           </section>
         </article>
@@ -612,8 +637,10 @@ alr run</code></pre>
         <div class="footer-links">
           <a href="https://github.com/flyology-ada/flyology-postgres">Source</a>
           <a href="../journal/">Journal</a>
+          <a href="../architecture/">Architecture</a>
           <a href="https://flyology.org/guide/">Flyology guide</a>
-          <a href="../api/">API reference</a>
+          <a href="../api/">Protocol API reference</a>
+          <a href="../sql-api/">SQL API reference</a>
         </div>
       </div>
     </footer>

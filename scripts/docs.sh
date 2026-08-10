@@ -4,6 +4,7 @@ set -eu
 project_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 alr=$("$project_root/scripts/find-alr.sh")
 documentation_output="$project_root/docs/api"
+sql_documentation_output="$project_root/docs/sql-api"
 website_kit="$project_root/vendor/website-kit"
 
 if [ ! -f "$website_kit/scripts/render-gnatdoc-theme.mjs" ]; then
@@ -27,6 +28,14 @@ case "$documentation_output" in
    "$project_root"/docs/api) ;;
    *)
       printf '%s\n' "refusing unsafe documentation output path: $documentation_output" >&2
+      exit 1
+      ;;
+esac
+
+case "$sql_documentation_output" in
+   "$project_root"/docs/sql-api) ;;
+   *)
+      printf '%s\n' "refusing unsafe SQL documentation output path: $sql_documentation_output" >&2
       exit 1
       ;;
 esac
@@ -62,3 +71,35 @@ node "$website_kit/scripts/build-api-search-index.mjs" docs/api
 
 test -f docs/api/index.html
 test -f docs/api/search-index.js
+
+cd "$project_root/sql"
+"$alr" build --stop-after=generation
+rm -rf "$sql_documentation_output"
+node "$website_kit/scripts/render-gnatdoc-theme.mjs" \
+  "$project_root/docs/sql-gnatdoc-theme.json" \
+  "$project_root/docs/gnatdoc/html"
+FLYOLOGY_POSTGRES_SQL_ROOT_PROJECT=$(
+  "$alr" exec -- node ../scripts/resolve-doc-project.mjs flyology_postgres.gpr
+)
+FLYOLOGY_POSTGRES_SQL_FLYOLOGY_PROJECT=$(
+  "$alr" exec -- node ../scripts/resolve-doc-project.mjs flyology.gpr
+)
+export FLYOLOGY_POSTGRES_SQL_ROOT_PROJECT
+export FLYOLOGY_POSTGRES_SQL_FLYOLOGY_PROJECT
+"$alr" exec -- gnatdoc \
+  --backend=html \
+  --generate=public \
+  --warnings \
+  --style=gnat \
+  -P sql.gpr \
+  -O ../docs/sql-api
+
+cd "$project_root"
+mkdir -p docs/sql-api/fonts
+cp "$website_kit/assets/fonts/geologica-latin-variable.woff2" docs/sql-api/fonts/
+cp assets/brand/flyology-mark-transparent.svg docs/sql-api/flyology-mark.svg
+cp "$website_kit/assets/scripts/ada-highlight.js" docs/sql-api/ada-highlight.js
+node "$website_kit/scripts/build-api-search-index.mjs" docs/sql-api
+
+test -f docs/sql-api/index.html
+test -f docs/sql-api/search-index.js

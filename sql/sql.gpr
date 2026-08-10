@@ -36,4 +36,16 @@ project Sql is
       for Artifacts (".") use ("share");
    end Install;
 
+   package Documentation is
+      --  The site publishes the SQL surface separately from the protocol API.
+      --  Keep the root protocol project out of this generated reference.
+      for Excluded_Project_Files use
+        (external
+           ("FLYOLOGY_POSTGRES_SQL_ROOT_PROJECT",
+            "flyology_postgres.gpr"),
+         external
+           ("FLYOLOGY_POSTGRES_SQL_FLYOLOGY_PROJECT", "flyology.gpr"));
+      for Resources_Dir ("html") use "../docs/gnatdoc/html";
+   end Documentation;
+
 end Sql;
