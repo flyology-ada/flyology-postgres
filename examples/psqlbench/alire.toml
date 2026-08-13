@@ -1,0 +1,29 @@
+name = "psqlbench"
+description = "A supervised PostgreSQL replication workbench"
+version = "0.1.0-dev"
+
+authors = ["Yurii Rashkovskii"]
+maintainers = ["Yurii Rashkovskii <yrashk@gmail.com>"]
+maintainers-logins = ["yrashk"]
+licenses = "MIT OR Apache-2.0"
+tags = ["example", "postgres", "replication", "docker", "web"]
+
+executables = ["psqlbench"]
+
+[[depends-on]]
+flyology = "~0.1.0-dev"
+
+[[pins]]
+flyology = { url = "https://github.com/flyology-ada/flyology.git", commit = "a1eac1a74e1289e27a8ac4b62cd9fc149ce968fa" }
+
+[[depends-on]]
+flyology_http = "~0.1.0-dev"
+
+[[pins]]
+flyology_http = { url = "https://github.com/flyology-ada/flyology-http.git", commit = "5b4e0bb77a54a5f0729d12c5f2b78a667317400d" }
+
+[[depends-on]]
+flyology_postgres = "*"
+
+[[pins]]
+flyology_postgres = { path = "../.." }

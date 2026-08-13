@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f6fa">
+  <title>psqlbench · Flyology</title>
+  <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+  <header class="masthead">
+    <a class="brand" href="/" aria-label="psqlbench home">
+      <svg class="mark" viewBox="0 0 40 40" aria-hidden="true">
+        <path d="M5 30 18 6l4 14 13-7-12 21-5-13Z"/>
+      </svg>
+      <span>flyology</span><b>/ psqlbench</b>
+    </a>
+    <div class="daemon" id="daemon-status" role="status">
+      <span class="status-dot"></span>
+      <span>Connecting to Docker</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="intro" aria-labelledby="page-title">
+      <div>
+        <p class="eyebrow">Postgres replication workbench</p>
+        <h1 id="page-title">Build the topology.<br><em>Watch the wire.</em></h1>
+      </div>
+      <p class="intro-copy">Run versioned Postgres nodes in isolated containers. The current control plane establishes the supervised runtime; replication links and protocol inspection land on this same topology.</p>
+    </section>
+
+    <section class="workbench" aria-label="Postgres topology workbench">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">01 / Runtime topology</p>
+          <h2>Postgres instances</h2>
+        </div>
+        <button class="button primary" type="button" id="open-create">New instance</button>
+      </div>
+
+      <form class="create-panel" id="create-form" hidden>
+        <div class="form-heading">
+          <div>
+            <p class="eyebrow">Provision a node</p>
+            <h3>New Postgres instance</h3>
+          </div>
+          <button class="icon-button" type="button" id="close-create" aria-label="Close new instance form">×</button>
+        </div>
+        <div class="fields">
+          <label>
+            <span>Name</span>
+            <input name="name" required pattern="[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?" maxlength="40" placeholder="primary-17" autocomplete="off">
+          </label>
+          <label>
+            <span>Postgres version</span>
+            <select name="version">
+              <option value="18.4">18.4</option>
+              <option value="17.10">17.10</option>
+              <option value="16.14">16.14</option>
+              <option value="15.18">15.18</option>
+              <option value="14.23">14.23</option>
+            </select>
+          </label>
+          <label>
+            <span>Host port</span>
+            <input name="port" required type="number" min="1024" max="65535" value="55432">
+          </label>
+        </div>
+        <div class="form-actions">
+          <p>Creates <code>postgres:&lt;version&gt;-bookworm</code> on the private <code>psqlbench</code> network.</p>
+          <button class="button primary" type="submit">Launch instance</button>
+        </div>
+      </form>
+
+      <div class="topology" id="instance-list" aria-live="polite">
+        <div class="empty-state">
+          <span class="empty-glyph">+</span>
+          <h3>No instances yet</h3>
+          <p>Launch nodes from multiple Postgres generations, then connect them with a physical or logical replication path.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="lower-grid">
+      <div class="activity-section">
+        <div class="section-heading compact">
+          <div>
+            <p class="eyebrow">02 / Supervised activity</p>
+            <h2>Live events</h2>
+          </div>
+          <span class="stream-state" id="stream-state">Opening stream</span>
+        </div>
+        <ol class="event-list" id="event-list" aria-live="polite"></ol>
+      </div>
+
+      <aside class="next-section" aria-labelledby="next-title">
+        <p class="eyebrow">Flight plan</p>
+        <h2 id="next-title">Replication bridge</h2>
+        <p>Each link will pass through the Flyology Postgres implementation so this bench can expose protocol frames, lag, slots, publications, subscriptions, and WAL movement.</p>
+        <ol>
+          <li><span>01</span> Physical streaming</li>
+          <li><span>02</span> Logical publications</li>
+          <li><span>03</span> Query consoles</li>
+        </ol>
+      </aside>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="alert" hidden></div>
+  <script src="/assets/app.js"></script>
+</body>
+</html>
