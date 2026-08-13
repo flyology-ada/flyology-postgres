@@ -533,6 +533,7 @@ package body Psqlbench_Links is
       Message : Logical.Message;
       Relation_Oid : in out Logical.UInt32;
       In_Transaction : in out Boolean;
+      Active_Stream : in out Replication.Transaction_Id;
       Applied : out Boolean)
    is
       Table : constant String := "public.""" & Table_Name (Item) & """";
@@ -641,27 +642,43 @@ package body Psqlbench_Links is
             end if;
 
          when Logical.Stream_Start_Message =>
-            if Logical.Is_First_Stream_Segment (Message)
-              and then not In_Transaction
-            then
+            if Logical.Is_First_Stream_Segment (Message) then
+               if Active_Stream /= 0 then
+                  raise Program_Error with
+                    "interleaved streamed transactions are not yet supported";
+               end if;
+               Active_Stream := Logical.Transaction (Message);
                Run_SQL (Session, "BEGIN");
                In_Transaction := True;
+            elsif Active_Stream /= Logical.Transaction (Message) then
+               raise Program_Error with
+                 "stream segment does not continue the active transaction";
             end if;
 
          when Logical.Stream_Stop_Message =>
             null;
 
          when Logical.Stream_Commit_Message =>
+            if Active_Stream /= Logical.Transaction (Message) then
+               raise Program_Error with
+                 "stream commit does not match the active transaction";
+            end if;
             if In_Transaction then
                Run_SQL (Session, "COMMIT");
                In_Transaction := False;
             end if;
+            Active_Stream := 0;
 
          when Logical.Stream_Abort_Message =>
+            if Active_Stream /= Logical.Transaction (Message) then
+               raise Program_Error with
+                 "stream abort does not match the active transaction";
+            end if;
             if In_Transaction then
                Run_SQL (Session, "ROLLBACK");
                In_Transaction := False;
             end if;
+            Active_Stream := 0;
 
          when others =>
             null;
@@ -908,6 +925,7 @@ package body Psqlbench_Links is
          Decoder : Logical.Decoder;
          Relation_Oid : Logical.UInt32 := 0;
          In_Transaction : Boolean := False;
+         Active_Stream : Replication.Transaction_Id := 0;
          Ready_Deadline : constant Ada.Real_Time.Time :=
            Ada.Real_Time.Clock + Ada.Real_Time.Seconds (10);
       begin
@@ -981,7 +999,7 @@ package body Psqlbench_Links is
                            begin
                               Apply_Message
                                 (Target, Item, Message, Relation_Oid,
-                                 In_Transaction, Changed);
+                                 In_Transaction, Active_Stream, Changed);
                               Emit
                                 (Context, Item, "apply", "relay-to-target",
                                  Logical.Message_Kind'Image
