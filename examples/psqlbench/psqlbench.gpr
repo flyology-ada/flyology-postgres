@@ -1,6 +1,7 @@
 with "flyology.gpr";
 with "flyology_http.gpr";
 with "flyology_postgres.gpr";
+with "utilada_sys.gpr";
 
 project Psqlbench is
    for Source_Dirs use ("src");

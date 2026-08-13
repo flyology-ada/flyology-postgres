@@ -9,19 +9,22 @@ with Flyology.Supervision.Children;
 with Flyology.Supervision.Static;
 with Psqlbench_Context;
 with Psqlbench_Docker;
+with Psqlbench_Logs;
+with Psqlbench_JSON;
 with Psqlbench_Server;
 with Psqlbench_Signals;
 
 procedure Psqlbench is
    use type Flyology.Supervision.Supervisor_Outcome;
 
-   type Service_Kind is (Docker_Control, HTTP_Control);
+   type Service_Kind is (Docker_Control, Log_Control, HTTP_Control);
 
    function Logical_Id
      (Child : Service_Kind) return Flyology.Supervision.Child_Id is
      (case Child is
          when Docker_Control => 1,
-         when HTTP_Control   => 2);
+         when Log_Control    => 2,
+         when HTTP_Control   => 3);
 
    function Specification
      (Child : Service_Kind)
@@ -34,6 +37,7 @@ procedure Psqlbench is
       Value.Impact :=
         (case Child is
             when Docker_Control => Flyology.Supervision.Restart_Dependents,
+            when Log_Control    => Flyology.Supervision.Restart_Dependents,
             when HTTP_Control   => Flyology.Supervision.Isolate_Child);
       Value.Stopping :=
         (Grace             => Ada.Real_Time.Seconds (3),
@@ -50,7 +54,8 @@ procedure Psqlbench is
    function Depends_On
      (Child        : Service_Kind;
       Prerequisite : Service_Kind) return Boolean is
-     (Child = HTTP_Control and then Prerequisite = Docker_Control);
+     ((Child = Log_Control and then Prerequisite = Docker_Control)
+      or else (Child = HTTP_Control and then Prerequisite = Log_Control));
 
    function No_Cohort
      (Trigger : Service_Kind;
@@ -60,6 +65,17 @@ procedure Psqlbench is
    begin
       return False;
    end No_Cohort;
+
+   function Docker_Ready_Document return String is
+      Document : Psqlbench_JSON.Writer;
+   begin
+      Psqlbench_JSON.Initialize (Document);
+      Psqlbench_JSON.Start_Object (Document);
+      Psqlbench_JSON.String_Value (Document, "type", "docker.ready");
+      Psqlbench_JSON.String_Value (Document, "transport", "cli");
+      Psqlbench_JSON.End_Object (Document);
+      return Psqlbench_JSON.Finish (Document);
+   end Docker_Ready_Document;
 
    procedure Run_Docker
      (Context : in out Psqlbench_Context.Context;
@@ -92,8 +108,7 @@ procedure Psqlbench is
       end;
 
       Context.Docker.Set (True, "Docker daemon connected through CLI");
-      Context.Events.Append
-        ("{""type"":""docker.ready"",""transport"":""cli""}");
+      Context.Events.Append (Docker_Ready_Document);
       Flyology.Supervision.Mark_Ready (Control.all);
       loop
          if Flyology.Supervision.Stopping (Control.all).Requested then
@@ -114,6 +129,11 @@ procedure Psqlbench is
       Execute             => Psqlbench_Server.Execute,
       Task_Model          => Flyology.Native_Task);
 
+   package Log_Child is new Flyology.Supervision.Children
+     (Application_Context => Psqlbench_Context.Context,
+      Execute             => Psqlbench_Logs.Execute,
+      Task_Model          => Flyology.Native_Task);
+
    procedure Run_One_Generation
      (Context : aliased in out Psqlbench_Context.Context;
       Child   : Service_Kind;
@@ -123,6 +143,8 @@ procedure Psqlbench is
       case Child is
          when Docker_Control =>
             Docker_Child.Run (Context, Control, Result);
+         when Log_Control =>
+            Log_Child.Run (Context, Control, Result);
          when HTTP_Control =>
             HTTP_Child.Run (Context, Control, Result);
       end case;

@@ -1,111 +1,100 @@
-with Ada.Strings.Fixed;
-with Ada.Strings.Unbounded;
+with Util.Properties;
+with Util.Properties.JSON;
+with Util.Serialize.IO.JSON;
+with Util.Streams.Texts;
 
 package body Psqlbench_JSON is
-   use Ada.Strings.Unbounded;
 
-   function Quote (Value : String) return String is
-      Result : Unbounded_String := To_Unbounded_String ("""");
+   procedure Initialize
+     (Item : in out Writer; Capacity : Positive := 64 * 1_024) is
    begin
-      for Item of Value loop
-         case Item is
-            when '"' | Character'Val (92) =>
-               Append (Result, Character'Val (92));
-               Append (Result, Item);
-            when ASCII.BS | ASCII.HT | ASCII.LF | ASCII.FF | ASCII.CR =>
-               Append (Result, Character'Val (92));
-               Append
-                 (Result,
-                  (case Item is
-                      when ASCII.BS => 'b',
-                      when ASCII.HT => 't',
-                      when ASCII.LF => 'n',
-                      when ASCII.FF => 'f',
-                      when ASCII.CR => 'r',
-                      when others   => raise Program_Error));
-            when others =>
-               if Character'Pos (Item) < 32 then
-                  Append (Result, '?');
-               else
-                  Append (Result, Item);
-               end if;
-         end case;
-      end loop;
-      Append (Result, '"');
-      return To_String (Result);
-   end Quote;
+      Item.Buffer.Initialize (Size => Capacity);
+      Item.Print.Initialize (Item.Buffer'Unchecked_Access);
+      Item.Output.Initialize (Item.Print'Unchecked_Access);
+      Item.Initialized := True;
+      Item.Finished := False;
+   end Initialize;
 
-   procedure Skip_Space (Document : String; Cursor : in out Natural) is
+   procedure Require_Open (Item : Writer) is
    begin
-      while Cursor <= Document'Last
-        and then Document (Cursor) in ' ' | ASCII.HT | ASCII.CR | ASCII.LF
-      loop
-         Cursor := Cursor + 1;
-      end loop;
-   end Skip_Space;
-
-   function Value_Start
-     (Document : String;
-      Name     : String) return Natural
-   is
-      Marker : constant String := Quote (Name);
-      Cursor : Natural := Ada.Strings.Fixed.Index (Document, Marker);
-   begin
-      if Cursor = 0 then
-         return 0;
+      if not Item.Initialized or else Item.Finished then
+         raise Program_Error with "JSON writer is not open";
       end if;
-      Cursor := Cursor + Marker'Length;
-      Skip_Space (Document, Cursor);
-      if Cursor > Document'Last or else Document (Cursor) /= ':' then
-         raise Constraint_Error with "invalid JSON field " & Name;
-      end if;
-      Cursor := Cursor + 1;
-      Skip_Space (Document, Cursor);
-      return Cursor;
-   end Value_Start;
+   end Require_Open;
+
+   procedure Start_Object (Item : in out Writer; Name : String := "") is
+   begin
+      Require_Open (Item);
+      Item.Output.Start_Entity (Name);
+   end Start_Object;
+
+   procedure End_Object (Item : in out Writer; Name : String := "") is
+   begin
+      Require_Open (Item);
+      Item.Output.End_Entity (Name);
+   end End_Object;
+
+   procedure Start_Array (Item : in out Writer; Name : String := "") is
+   begin
+      Require_Open (Item);
+      Item.Output.Start_Array (Name);
+   end Start_Array;
+
+   procedure End_Array (Item : in out Writer; Name : String := "") is
+   begin
+      Require_Open (Item);
+      Item.Output.End_Array (Name);
+   end End_Array;
+
+   procedure String_Value
+     (Item : in out Writer; Name : String; Value : String) is
+   begin
+      Require_Open (Item);
+      Item.Output.Write_Entity (Name, Value);
+   end String_Value;
+
+   procedure Integer_Value
+     (Item : in out Writer; Name : String; Value : Long_Long_Integer) is
+   begin
+      Require_Open (Item);
+      Item.Output.Write_Long_Entity (Name, Value);
+   end Integer_Value;
+
+   procedure Boolean_Value
+     (Item : in out Writer; Name : String; Value : Boolean) is
+   begin
+      Require_Open (Item);
+      Item.Output.Write_Entity (Name, Value);
+   end Boolean_Value;
+
+   procedure Null_Value (Item : in out Writer; Name : String := "") is
+   begin
+      Require_Open (Item);
+      Item.Output.Write_Null_Entity (Name);
+   end Null_Value;
+
+   function Finish (Item : in out Writer) return String is
+   begin
+      Require_Open (Item);
+      Item.Output.Flush;
+      Item.Finished := True;
+      return Util.Streams.Texts.To_String (Item.Buffer);
+   end Finish;
+
+   function Properties (Document : String) return Util.Properties.Manager is
+      Result : Util.Properties.Manager;
+   begin
+      Util.Properties.JSON.Parse_JSON (Result, Document);
+      return Result;
+   end Properties;
 
    function String_Field
      (Document : String;
       Name     : String) return String
    is
-      Cursor : Natural := Value_Start (Document, Name);
-      Result : Unbounded_String;
+      Values : constant Util.Properties.Manager := Properties (Document);
    begin
-      if Cursor = 0 then
-         return "";
-      end if;
-      if Cursor > Document'Last or else Document (Cursor) /= '"' then
-         raise Constraint_Error with "JSON field " & Name & " is not a string";
-      end if;
-      Cursor := Cursor + 1;
-      while Cursor <= Document'Last loop
-         case Document (Cursor) is
-            when '"' => return To_String (Result);
-            when Character'Val (92) =>
-               Cursor := Cursor + 1;
-               if Cursor > Document'Last then
-                  raise Constraint_Error with "unterminated JSON escape";
-               end if;
-               case Document (Cursor) is
-                  when '"' | Character'Val (92) | '/' =>
-                     Append (Result, Document (Cursor));
-                  when 'b' => Append (Result, ASCII.BS);
-                  when 'f' => Append (Result, ASCII.FF);
-                  when 'n' => Append (Result, ASCII.LF);
-                  when 'r' => Append (Result, ASCII.CR);
-                  when 't' => Append (Result, ASCII.HT);
-                  when others =>
-                     raise Constraint_Error with "unsupported JSON escape";
-               end case;
-            when others =>
-               if Character'Pos (Document (Cursor)) < 32 then
-                  raise Constraint_Error with "control byte in JSON string";
-               end if;
-               Append (Result, Document (Cursor));
-         end case;
-         Cursor := Cursor + 1;
-      end loop;
-      raise Constraint_Error with "unterminated JSON string";
+      return Values.Get (Name, "");
    end String_Field;
 
    function Natural_Field
@@ -113,19 +102,12 @@ package body Psqlbench_JSON is
       Name     : String;
       Default  : Natural) return Natural
    is
-      First : constant Natural := Value_Start (Document, Name);
-      Last  : Natural := First;
+      Values : constant Util.Properties.Manager := Properties (Document);
    begin
-      if First = 0 then
+      if not Values.Exists (Name) then
          return Default;
       end if;
-      while Last <= Document'Last and then Document (Last) in '0' .. '9' loop
-         Last := Last + 1;
-      end loop;
-      if Last = First then
-         raise Constraint_Error with "JSON field " & Name & " is not natural";
-      end if;
-      return Natural'Value (Document (First .. Last - 1));
+      return Natural'Value (Values.Get (Name));
    end Natural_Field;
 
    function Valid_Name (Value : String) return Boolean is
@@ -140,7 +122,7 @@ package body Psqlbench_JSON is
             return False;
          end if;
       end loop;
-      return True;
+      return Value (Value'Last) /= '-';
    end Valid_Name;
 
    function Valid_Version (Value : String) return Boolean is

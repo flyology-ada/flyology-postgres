@@ -27,3 +27,6 @@ flyology_postgres = "*"
 
 [[pins]]
 flyology_postgres = { path = "../.." }
+
+[[depends-on]]
+utilada = "^2.9.0"

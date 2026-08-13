@@ -6,6 +6,7 @@ with Flyology.IO;
 with Flyology.Native_Executors;
 with GNAT.Expect;
 with GNAT.OS_Lib;
+with Psqlbench_JSON;
 
 package body Psqlbench_Docker is
 
@@ -256,10 +257,11 @@ package body Psqlbench_Docker is
    end Ensure_Network;
 
    function JSON_Array (Lines : String) return String is
-      Result : Unbounded_String := To_Unbounded_String ("[");
+      Document : Psqlbench_JSON.Writer;
       First  : Natural := Lines'First;
-      Added  : Boolean := False;
    begin
+      Psqlbench_JSON.Initialize (Document, Max_Output_Bytes);
+      Psqlbench_JSON.Start_Array (Document);
       while First <= Lines'Last loop
          declare
             Last : Natural := First;
@@ -268,17 +270,29 @@ package body Psqlbench_Docker is
                Last := Last + 1;
             end loop;
             if Last > First then
-               if Added then
-                  Append (Result, ',');
-               end if;
-               Append (Result, Lines (First .. Last - 1));
-               Added := True;
+               declare
+                  Line : constant String := Lines (First .. Last - 1);
+                  procedure Add_Field (Field : String) is
+                  begin
+                     Psqlbench_JSON.String_Value
+                       (Document, Field,
+                        Psqlbench_JSON.String_Field (Line, Field));
+                  end Add_Field;
+               begin
+                  Psqlbench_JSON.Start_Object (Document);
+                  Add_Field ("Labels");
+                  Add_Field ("Names");
+                  Add_Field ("Image");
+                  Add_Field ("State");
+                  Add_Field ("Status");
+                  Psqlbench_JSON.End_Object (Document);
+               end;
             end if;
             First := Last + 1;
          end;
       end loop;
-      Append (Result, ']');
-      return To_String (Result);
+      Psqlbench_JSON.End_Array (Document);
+      return Psqlbench_JSON.Finish (Document);
    end JSON_Array;
 
    function List_Instances
@@ -306,6 +320,62 @@ package body Psqlbench_Docker is
       end if;
       return Value;
    end List_Instances;
+
+   function List_Instance_Names
+     (Token    : access Flyology.Cancellation.Token := null;
+      Deadline : Ada.Real_Time.Time := Ada.Real_Time.Time_Last) return Result
+   is
+      Item : Command;
+   begin
+      Add (Item, "container");
+      Add (Item, "ls");
+      Add (Item, "--all");
+      Add (Item, "--filter");
+      Add (Item, "label=org.flyology.psqlbench.instance");
+      Add (Item, "--format");
+      Add (Item, "{{.Label ""org.flyology.psqlbench.instance""}}");
+      return Run (Item, Token, Deadline);
+   end List_Instance_Names;
+
+   function Instance_Port
+     (Name     : String;
+      Token    : access Flyology.Cancellation.Token := null;
+      Deadline : Ada.Real_Time.Time := Ada.Real_Time.Time_Last) return Result
+   is
+      Item : Command;
+   begin
+      Add (Item, "container");
+      Add (Item, "inspect");
+      Add (Item, "--format");
+      Add
+        (Item,
+         "{{index .Config.Labels ""org.flyology.psqlbench.port""}}");
+      Add (Item, "psqlbench-" & Name);
+      return Run (Item, Token, Deadline);
+   end Instance_Port;
+
+   function Logs
+     (Name     : String;
+      Since    : String;
+      Initial  : Boolean;
+      Token    : access Flyology.Cancellation.Token := null;
+      Deadline : Ada.Real_Time.Time := Ada.Real_Time.Time_Last) return Result
+   is
+      Item : Command;
+   begin
+      Add (Item, "container");
+      Add (Item, "logs");
+      Add (Item, "--timestamps");
+      if Initial then
+         Add (Item, "--tail");
+         Add (Item, "200");
+      else
+         Add (Item, "--since");
+         Add (Item, Since);
+      end if;
+      Add (Item, "psqlbench-" & Name);
+      return Run (Item, Token, Deadline);
+   end Logs;
 
    function Container_Name (Name : String) return String is
      ("psqlbench-" & Name);

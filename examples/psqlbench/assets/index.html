@@ -27,7 +27,7 @@
         <p class="eyebrow">Postgres replication workbench</p>
         <h1 id="page-title">Build the topology.<br><em>Watch the wire.</em></h1>
       </div>
-      <p class="intro-copy">Run versioned Postgres nodes in isolated containers. The current control plane establishes the supervised runtime; replication links and protocol inspection land on this same topology.</p>
+      <p class="intro-copy">Run versioned Postgres nodes in isolated containers. Attach a query session, inspect bounded results, and follow each server's retained log stream before connecting replication paths.</p>
     </section>
 
     <section class="workbench" aria-label="Postgres topology workbench">
@@ -82,11 +82,70 @@
       </div>
     </section>
 
+    <section class="instance-workspace" id="instance-workspace" aria-labelledby="workspace-title" hidden>
+      <div class="workspace-heading">
+        <div>
+          <p class="eyebrow">02 / Selected instance</p>
+          <h2 id="workspace-title">Session workspace</h2>
+        </div>
+        <label class="instance-selector">
+          <span>Instance</span>
+          <select id="workspace-instance" aria-label="Selected Postgres instance"></select>
+        </label>
+      </div>
+      <div class="workspace-tabs" role="tablist" aria-label="Instance tools">
+        <button type="button" role="tab" aria-selected="true" aria-controls="query-panel" id="query-tab">Query</button>
+        <button type="button" role="tab" aria-selected="false" aria-controls="logs-panel" id="logs-tab">Logs</button>
+      </div>
+
+      <div class="workspace-panel query-panel" id="query-panel" role="tabpanel" aria-labelledby="query-tab">
+        <div class="query-compose">
+          <label for="query-input">SQL</label>
+          <textarea id="query-input" spellcheck="false">select version() as server_version,
+       current_database() as database,
+       42 as answer,
+       null as nullable;</textarea>
+          <div class="query-actions">
+            <p id="query-state" role="status">Attach to run a query</p>
+            <div>
+              <button class="button secondary" type="button" id="cancel-query" disabled>Cancel</button>
+              <button class="button primary" type="button" id="run-query">Run query</button>
+            </div>
+          </div>
+          <p class="shortcut">Run with <kbd>⌘</kbd><kbd>Enter</kbd> or <kbd>Ctrl</kbd><kbd>Enter</kbd></p>
+        </div>
+        <div class="query-output">
+          <div class="output-heading">
+            <span>Result</span>
+            <code id="command-tag">ready</code>
+          </div>
+          <div class="query-messages" id="query-messages" aria-live="polite"></div>
+          <div class="result-scroll" id="query-result">
+            <p class="output-empty">Run a statement to inspect columns, rows, notices, duration, and command tags.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="workspace-panel logs-panel" id="logs-panel" role="tabpanel" aria-labelledby="logs-tab" hidden>
+        <div class="log-toolbar">
+          <div>
+            <span class="stream-state" id="log-stream-state">Opening stream</span>
+            <span class="retention-note">latest 1,024 lines across the workbench</span>
+          </div>
+          <div class="log-controls">
+            <label><input type="checkbox" id="follow-logs" checked> Follow</label>
+            <button class="button secondary" type="button" id="clear-logs">Clear view</button>
+          </div>
+        </div>
+        <pre class="log-output" id="log-output" role="log" aria-live="polite"><span>Waiting for retained server output…</span></pre>
+      </div>
+    </section>
+
     <section class="lower-grid">
       <div class="activity-section">
         <div class="section-heading compact">
           <div>
-            <p class="eyebrow">02 / Supervised activity</p>
+            <p class="eyebrow">03 / Supervised activity</p>
             <h2>Live events</h2>
           </div>
           <span class="stream-state" id="stream-state">Opening stream</span>
@@ -101,7 +160,7 @@
         <ol>
           <li><span>01</span> Physical streaming</li>
           <li><span>02</span> Logical publications</li>
-          <li><span>03</span> Query consoles</li>
+          <li><span>03</span> Protocol activity</li>
         </ol>
       </aside>
     </section>

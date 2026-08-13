@@ -4,16 +4,19 @@ with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Text_IO;
 with Flyology;
+with Flyology.Bytes;
 with Flyology.HTTP.Server;
 with Flyology.HTTP.Server.Applications;
 with Flyology.HTTP.Server.Connections;
 with Flyology.HTTP.Server.Routing;
 with Flyology.IO.Connections;
+with Flyology.IO;
 with Flyology.IO.Sockets;
 with Flyology.IO.Structured_Servers;
 with Psqlbench_Assets;
 with Psqlbench_Docker;
 with Psqlbench_JSON;
+with Psqlbench_Query;
 
 package body Psqlbench_Server is
 
@@ -47,6 +50,140 @@ package body Psqlbench_Server is
       end record;
 
       package Routing is new HTTP.Routing (Application_Context);
+
+      function Status_Document
+        (Ready : Boolean; Detail : String) return String
+      is
+         Document : Psqlbench_JSON.Writer;
+      begin
+         Psqlbench_JSON.Initialize (Document);
+         Psqlbench_JSON.Start_Object (Document);
+         Psqlbench_JSON.Boolean_Value (Document, "docker_ready", Ready);
+         Psqlbench_JSON.String_Value (Document, "docker_transport", "cli");
+         Psqlbench_JSON.String_Value (Document, "detail", Detail);
+         Psqlbench_JSON.End_Object (Document);
+         return Psqlbench_JSON.Finish (Document);
+      end Status_Document;
+
+      function Instance_Document
+        (Name, Version : String; Port_No : Natural;
+         Event         : Boolean) return String
+      is
+         Document : Psqlbench_JSON.Writer;
+      begin
+         Psqlbench_JSON.Initialize (Document);
+         Psqlbench_JSON.Start_Object (Document);
+         if Event then
+            Psqlbench_JSON.String_Value
+              (Document, "type", "instance.created");
+         end if;
+         Psqlbench_JSON.String_Value (Document, "name", Name);
+         Psqlbench_JSON.String_Value (Document, "version", Version);
+         Psqlbench_JSON.Integer_Value
+           (Document, "port", Long_Long_Integer (Port_No));
+         Psqlbench_JSON.End_Object (Document);
+         return Psqlbench_JSON.Finish (Document);
+      end Instance_Document;
+
+      function Action_Document
+        (Name, Action : String; Event : Boolean) return String
+      is
+         Document : Psqlbench_JSON.Writer;
+      begin
+         Psqlbench_JSON.Initialize (Document);
+         Psqlbench_JSON.Start_Object (Document);
+         if Event then
+            Psqlbench_JSON.String_Value
+              (Document, "type", "instance." & Action);
+         end if;
+         Psqlbench_JSON.String_Value (Document, "name", Name);
+         Psqlbench_JSON.String_Value (Document, "action", Action);
+         Psqlbench_JSON.End_Object (Document);
+         return Psqlbench_JSON.Finish (Document);
+      end Action_Document;
+
+      function Count_Document
+        (Kind : String; Count : Psqlbench_Context.Event_Sequence)
+         return String
+      is
+         Document : Psqlbench_JSON.Writer;
+      begin
+         Psqlbench_JSON.Initialize (Document);
+         Psqlbench_JSON.Start_Object (Document);
+         Psqlbench_JSON.String_Value (Document, "type", Kind);
+         Psqlbench_JSON.Integer_Value
+           (Document, "count", Long_Long_Integer (Count));
+         Psqlbench_JSON.End_Object (Document);
+         return Psqlbench_JSON.Finish (Document);
+      end Count_Document;
+
+      function Log_Document
+        (Value : Psqlbench_Context.Log_Record) return String
+      is
+         Document : Psqlbench_JSON.Writer;
+      begin
+         Psqlbench_JSON.Initialize (Document, 4 * 1_024);
+         Psqlbench_JSON.Start_Object (Document);
+         Psqlbench_JSON.String_Value (Document, "type", "instance.log");
+         Psqlbench_JSON.String_Value
+           (Document, "name", Value.Name (1 .. Value.Name_Length));
+         Psqlbench_JSON.Integer_Value
+           (Document, "sequence", Long_Long_Integer (Value.Sequence));
+         Psqlbench_JSON.String_Value
+           (Document, "line", Value.Data (1 .. Value.Data_Length));
+         Psqlbench_JSON.End_Object (Document);
+         return Psqlbench_JSON.Finish (Document);
+      end Log_Document;
+
+      function Attached_Document
+        (Name : String; Port_No : Positive) return String
+      is
+         Document : Psqlbench_JSON.Writer;
+      begin
+         Psqlbench_JSON.Initialize (Document);
+         Psqlbench_JSON.Start_Object (Document);
+         Psqlbench_JSON.String_Value (Document, "type", "query.attached");
+         Psqlbench_JSON.String_Value (Document, "instance", Name);
+         Psqlbench_JSON.Integer_Value
+           (Document, "port", Long_Long_Integer (Port_No));
+         Psqlbench_JSON.End_Object (Document);
+         return Psqlbench_JSON.Finish (Document);
+      end Attached_Document;
+
+      function Message_Document
+        (Kind, Message : String) return String
+      is
+         Document : Psqlbench_JSON.Writer;
+      begin
+         Psqlbench_JSON.Initialize (Document);
+         Psqlbench_JSON.Start_Object (Document);
+         Psqlbench_JSON.String_Value (Document, "type", Kind);
+         Psqlbench_JSON.String_Value (Document, "message", Message);
+         Psqlbench_JSON.End_Object (Document);
+         return Psqlbench_JSON.Finish (Document);
+      end Message_Document;
+
+      function Simple_Document (Kind : String) return String is
+         Document : Psqlbench_JSON.Writer;
+      begin
+         Psqlbench_JSON.Initialize (Document);
+         Psqlbench_JSON.Start_Object (Document);
+         Psqlbench_JSON.String_Value (Document, "type", Kind);
+         Psqlbench_JSON.End_Object (Document);
+         return Psqlbench_JSON.Finish (Document);
+      end Simple_Document;
+
+      function HTTP_Ready_Document (Port_No : Natural) return String is
+         Document : Psqlbench_JSON.Writer;
+      begin
+         Psqlbench_JSON.Initialize (Document);
+         Psqlbench_JSON.Start_Object (Document);
+         Psqlbench_JSON.String_Value (Document, "type", "http.ready");
+         Psqlbench_JSON.Integer_Value
+           (Document, "port", Long_Long_Integer (Port_No));
+         Psqlbench_JSON.End_Object (Document);
+         return Psqlbench_JSON.Finish (Document);
+      end HTTP_Ready_Document;
 
       procedure Home
         (State : in out Application_Context;
@@ -87,12 +224,9 @@ package body Psqlbench_Server is
          State.Root.Docker.Read_Detail (Detail, Last);
          X.JSON
            (200,
-            "{""docker_ready"":"
-            & (if State.Root.Docker.Ready then "true" else "false")
-            & ",""docker_transport"":""cli"",""detail"":"
-            & Psqlbench_JSON.Quote
-                ((if Last = 0 then "" else Detail (1 .. Last)))
-            & "}");
+            Status_Document
+              (State.Root.Docker.Ready,
+               (if Last = 0 then "" else Detail (1 .. Last))));
       end Status;
 
       procedure Instances
@@ -153,15 +287,10 @@ package body Psqlbench_Server is
                return;
             end if;
             State.Root.Events.Append
-              ("{""type"":""instance.created"",""name"":"
-               & Psqlbench_JSON.Quote (Name)
-               & ",""version"":" & Psqlbench_JSON.Quote (Version)
-               & ",""port"":" & Compact (Port_No) & "}");
+              (Instance_Document (Name, Version, Port_No, Event => True));
             X.JSON
-              (201,
-               "{""name"":" & Psqlbench_JSON.Quote (Name)
-               & ",""version"":" & Psqlbench_JSON.Quote (Version)
-               & ",""port"":" & Compact (Port_No) & "}");
+              (201, Instance_Document
+                 (Name, Version, Port_No, Event => False));
          end;
       exception
          when Error : Constraint_Error =>
@@ -204,12 +333,8 @@ package body Psqlbench_Server is
                return;
             end if;
             State.Root.Events.Append
-              ("{""type"":""instance." & Action
-               & """,""name"":" & Psqlbench_JSON.Quote (Name) & "}");
-            X.JSON
-              (200,
-               "{""name"":" & Psqlbench_JSON.Quote (Name)
-               & ",""action"":" & Psqlbench_JSON.Quote (Action) & "}");
+              (Action_Document (Name, Action, Event => True));
+            X.JSON (200, Action_Document (Name, Action, Event => False));
          end;
       end Apply_Action;
 
@@ -241,8 +366,7 @@ package body Psqlbench_Server is
             if Available then
                if Dropped > 0 then
                   X.Send_WebSocket
-                    ("{""type"":""events.dropped"",""count"":"
-                     & Psqlbench_Context.Event_Sequence'Image (Dropped) & "}");
+                    (Count_Document ("events.dropped", Dropped));
                end if;
                X.Send_WebSocket (Value.Data (1 .. Value.Length));
                Cursor := Value.Sequence;
@@ -251,17 +375,249 @@ package body Psqlbench_Server is
                delay 0.100;
                Idle := Idle + 1;
                if Idle = 100 then
-                  X.Send_WebSocket ("{""type"":""heartbeat""}");
+                  X.Send_WebSocket (Simple_Document ("heartbeat"));
                   Idle := 0;
                end if;
             end if;
          end loop;
       end Events;
 
+      procedure Logs
+        (State : in out Application_Context;
+         X     : in out App.Exchange)
+      is
+         Name : constant String := X.Parameter ("name");
+         Expected_Origin : constant String :=
+           "http://" & X.Request_Header ("Host");
+         Cursor    : Psqlbench_Context.Event_Sequence := 0;
+         Value     : Psqlbench_Context.Log_Record;
+         Available : Boolean;
+         Idle      : Natural := 0;
+      begin
+         if not Psqlbench_JSON.Valid_Name (Name) then
+            X.Problem (400, "invalid-instance-name", "Invalid instance name");
+            return;
+         elsif X.Request_Header_Count ("Origin") /= 1
+           or else X.Request_Header ("Origin") /= Expected_Origin
+         then
+            X.Problem (403, "websocket-origin", "Origin is not allowed");
+            return;
+         end if;
+         X.Accept_WebSocket
+           (Origin_Policy  => HTTP.Require_Exact_Origin,
+            Allowed_Origin => Expected_Origin);
+         loop
+            State.Root.Logs.Read_After
+              (Name, Cursor, Value, Available);
+            if Available then
+               X.Send_WebSocket (Log_Document (Value));
+               Cursor := Value.Sequence;
+               Idle := 0;
+            else
+               delay 0.100;
+               Idle := Idle + 1;
+               if Idle = 100 then
+                  X.Send_WebSocket (Message_Document ("heartbeat", Name));
+                  Idle := 0;
+               end if;
+            end if;
+         end loop;
+      end Logs;
+
+      procedure Query
+        (State : in out Application_Context;
+         X     : in out App.Exchange)
+      is
+         pragma Unreferenced (State);
+         use type HTTP.WebSocket_Data_Kind;
+         use type Psqlbench_Context.Event_Sequence;
+         Name : constant String := X.Parameter ("name");
+         Expected_Origin : constant String :=
+           "http://" & X.Request_Header ("Host");
+         Port_Result : Psqlbench_Docker.Result;
+         Port_No : Positive;
+      begin
+         if not Psqlbench_JSON.Valid_Name (Name) then
+            X.Problem (400, "invalid-instance-name", "Invalid instance name");
+            return;
+         end if;
+         Port_Result := Psqlbench_Docker.Instance_Port
+           (Name, X.Cancellation, X.Deadline);
+         if not Port_Result.Success then
+            X.Problem
+              (404, "instance-not-found",
+               Diagnostic (Psqlbench_Docker.Text (Port_Result)));
+            return;
+         end if;
+         begin
+            Port_No := Positive'Value
+              (Ada.Strings.Fixed.Trim
+                 (Psqlbench_Docker.Text (Port_Result), Ada.Strings.Both));
+            if Port_No not in 1_024 .. 65_535 then
+               raise Constraint_Error;
+            end if;
+         exception
+            when Constraint_Error =>
+               X.Problem
+                 (409, "invalid-instance-port",
+                  "The instance has no usable host port");
+               return;
+         end;
+         if X.Request_Header_Count ("Origin") /= 1
+           or else X.Request_Header ("Origin") /= Expected_Origin
+         then
+            X.Problem (403, "websocket-origin", "Origin is not allowed");
+            return;
+         end if;
+
+         X.Accept_WebSocket
+           (Origin_Policy  => HTTP.Require_Exact_Origin,
+            Allowed_Origin => Expected_Origin);
+         X.Send_WebSocket (Attached_Document (Name, Port_No));
+
+         loop
+            declare
+               Kind   : HTTP.WebSocket_Data_Kind;
+               Data   : Flyology.Bytes.Unbounded_Bytes;
+               Closed : Boolean;
+            begin
+               X.Receive_WebSocket
+                 (Kind, Data, Closed,
+                  Max_Message => Psqlbench_Query.Max_Query_Bytes,
+                  Timeout => 30.0, Message_Timeout => 30.0);
+               if Closed then
+                  X.Complete_WebSocket;
+                  return;
+               elsif Kind /= HTTP.Text_Frame then
+                  X.Send_WebSocket
+                    (Message_Document
+                       ("query.error", "Query commands must be text JSON"));
+               else
+                  declare
+                     Command : constant String :=
+                       Flyology.Bytes.To_Byte_String (Data);
+                     SQL : constant String :=
+                       Psqlbench_JSON.String_Field (Command, "sql");
+                     Command_Kind : constant String :=
+                       Psqlbench_JSON.String_Field (Command, "type");
+                  begin
+                     if Command_Kind = "cancel" then
+                        X.Send_WebSocket
+                          (Message_Document
+                             ("query.idle", "No query is currently running"));
+                     elsif SQL'Length = 0 then
+                        X.Send_WebSocket
+                          (Message_Document
+                             ("query.error", "A non-empty sql field is required"));
+                     else
+                        declare
+                           Query_Events : Psqlbench_Query.Event_Stream;
+                           Query_Cancel : Psqlbench_Query.Cancellation_State;
+                           Cursor : Psqlbench_Context.Event_Sequence := 0;
+                           Peer_Closed : Boolean := False;
+
+                           task Worker is
+                              pragma Task_Info (Flyology.Lightweight_Task);
+                           end Worker;
+
+                           task body Worker is
+                           begin
+                              Psqlbench_Query.Execute
+                                (Name, Port_No, SQL,
+                                 Query_Events, Query_Cancel);
+                           end Worker;
+                        begin
+                           loop
+                              loop
+                                 declare
+                                    Event : Psqlbench_Query.Query_Event;
+                                    Available : Boolean;
+                                    Dropped :
+                                      Psqlbench_Context.Event_Sequence;
+                                 begin
+                                    Query_Events.Read_After
+                                      (Cursor, Event, Available, Dropped);
+                                    exit when not Available;
+                                    if not Peer_Closed then
+                                       if Dropped > 0 then
+                                          X.Send_WebSocket
+                                            (Count_Document
+                                               ("query.events-dropped",
+                                                Dropped));
+                                       end if;
+                                       X.Send_WebSocket
+                                         (To_String (Event.Data));
+                                    end if;
+                                    Cursor := Event.Sequence;
+                                 end;
+                              end loop;
+                              exit when Query_Events.Done;
+
+                              if not Peer_Closed then
+                                 declare
+                                    Next_Kind : HTTP.WebSocket_Data_Kind;
+                                    Next_Data : Flyology.Bytes.Unbounded_Bytes;
+                                    Next_Closed : Boolean;
+                                 begin
+                                    X.Receive_WebSocket
+                                      (Next_Kind, Next_Data, Next_Closed,
+                                       Max_Message =>
+                                         Psqlbench_Query.Max_Query_Bytes,
+                                       Timeout => 0.005,
+                                       Message_Timeout => 30.0);
+                                    if Next_Closed then
+                                       Peer_Closed := True;
+                                       Query_Cancel.Request;
+                                    elsif Next_Kind = HTTP.Text_Frame then
+                                       declare
+                                          Next : constant String :=
+                                            Flyology.Bytes.To_Byte_String
+                                              (Next_Data);
+                                       begin
+                                          if Psqlbench_JSON.String_Field
+                                               (Next, "type") = "cancel"
+                                          then
+                                             Query_Cancel.Request;
+                                          else
+                                             X.Send_WebSocket
+                                               (Message_Document
+                                                  ("query.busy",
+                                                   "Cancel or wait for the current query"));
+                                          end if;
+                                       end;
+                                    end if;
+                                 exception
+                                    when Flyology.IO.Timeout_Error => null;
+                                 end;
+                              else
+                                 delay 0.005;
+                              end if;
+                           end loop;
+                           if Peer_Closed then
+                              X.Complete_WebSocket;
+                              return;
+                           end if;
+                        end;
+                     end if;
+                  exception
+                     when Error : others =>
+                        X.Send_WebSocket
+                          (Message_Document
+                             ("query.error",
+                              Ada.Exceptions.Exception_Message (Error)));
+                  end;
+               end if;
+            exception
+               when Flyology.IO.Timeout_Error =>
+                  X.Send_WebSocket (Simple_Document ("heartbeat"));
+            end;
+         end loop;
+      end Query;
+
       type Service_Context is limited record
          Application : aliased Application_Context;
          Routes      : aliased Routing.Router
-           (Capacity => 8, Slashes => Routing.Strict_Slashes);
+           (Capacity => 10, Slashes => Routing.Strict_Slashes);
          Budget      : aliased HTTP.Ingress_Budget
            (Limit => 4 * 1_024 * 1_024);
       end record;
@@ -339,6 +695,20 @@ package body Psqlbench_Server is
               Upgrade => Routing.Allow_WebSocket,
               Timeout => 86_400.0,
               Concurrency => 32));
+      State.Routes.Get
+        ("/api/instances/{name}/logs", Logs'Access, Name => "api.logs",
+         Policy =>
+           (Routing.Default_Route_Policy with delta
+              Upgrade => Routing.Allow_WebSocket,
+              Timeout => 86_400.0,
+              Concurrency => 32));
+      State.Routes.Get
+        ("/api/instances/{name}/query", Query'Access, Name => "api.query",
+         Policy =>
+           (Routing.Default_Route_Policy with delta
+              Upgrade => Routing.Allow_WebSocket,
+              Timeout => 86_400.0,
+              Concurrency => 32));
 
       Sockets.Create_Socket (Listener);
       Sockets.Set_Socket_Option
@@ -346,9 +716,7 @@ package body Psqlbench_Server is
       Sockets.Bind_Socket
         (Listener, Sockets.Network_Endpoint (Sockets.Loopback_IPv4, Port));
       Sockets.Listen_Socket (Listener, Length => 64);
-      Context.Events.Append
-        ("{""type"":""http.ready"",""port"":"
-         & Compact (Natural (Port)) & "}");
+      Context.Events.Append (HTTP_Ready_Document (Natural (Port)));
       Flyology.Supervision.Mark_Ready (Control.all);
       Ada.Text_IO.Put_Line
         ("READY psqlbench http://127.0.0.1:"
