@@ -82,10 +82,70 @@
       </div>
     </section>
 
+    <section class="link-workbench" aria-labelledby="links-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">02 / Replication paths</p>
+          <h2 id="links-title">Logical bridges</h2>
+        </div>
+        <button class="button primary" type="button" id="open-link">New logical link</button>
+      </div>
+
+      <form class="create-panel" id="link-form" hidden>
+        <div class="form-heading">
+          <div>
+            <p class="eyebrow">Flyology client → server → client</p>
+            <h3>Managed logical bridge</h3>
+          </div>
+          <button class="icon-button" type="button" id="close-link" aria-label="Close new link form">×</button>
+        </div>
+        <div class="fields link-fields">
+          <label>
+            <span>Link name</span>
+            <input name="name" required pattern="[a-z0-9](?:[a-z0-9-]{0,22}[a-z0-9])?" maxlength="24" placeholder="orders-v17-v18" autocomplete="off">
+          </label>
+          <label>
+            <span>Source</span>
+            <select name="source" id="link-source" required></select>
+          </label>
+          <label>
+            <span>Target</span>
+            <select name="target" id="link-target" required></select>
+          </label>
+        </div>
+        <div class="bridge-contract">
+          <strong>Future changes only</strong>
+          <span>Creates the same empty <code>public.psqlbench_&lt;link&gt;</code> demo table on both nodes. Inserts, updates, deletes, and truncates flow through our pgoutput decoder, encoder, replication server, and downstream client.</span>
+        </div>
+        <div class="form-actions">
+          <p>Source slot acknowledgements advance only after the target transaction commits.</p>
+          <button class="button primary" type="submit">Start bridge</button>
+        </div>
+      </form>
+
+      <div class="bridge-map" aria-label="Flyology replication bridge stages">
+        <div><span>01</span><strong>Source Postgres</strong><small>pgoutput slot</small></div>
+        <i aria-hidden="true">→</i>
+        <div><span>02</span><strong>Flyology client</strong><small>decode + log</small></div>
+        <i aria-hidden="true">→</i>
+        <div><span>03</span><strong>Flyology server</strong><small>COPY BOTH relay</small></div>
+        <i aria-hidden="true">→</i>
+        <div><span>04</span><strong>Flyology client</strong><small>apply + ack</small></div>
+        <i aria-hidden="true">→</i>
+        <div><span>05</span><strong>Target Postgres</strong><small>committed rows</small></div>
+      </div>
+
+      <div class="link-list" id="link-list" aria-live="polite">
+        <div class="link-empty">
+          <p>No logical bridges yet. Create two running instances to connect a managed demo table.</p>
+        </div>
+      </div>
+    </section>
+
     <section class="instance-workspace" id="instance-workspace" aria-labelledby="workspace-title" hidden>
       <div class="workspace-heading">
         <div>
-          <p class="eyebrow">02 / Selected instance</p>
+          <p class="eyebrow">03 / Selected instance</p>
           <h2 id="workspace-title">Session workspace</h2>
         </div>
         <label class="instance-selector">
@@ -145,7 +205,7 @@
       <div class="activity-section">
         <div class="section-heading compact">
           <div>
-            <p class="eyebrow">03 / Supervised activity</p>
+            <p class="eyebrow">04 / Supervised activity</p>
             <h2>Live events</h2>
           </div>
           <span class="stream-state" id="stream-state">Opening stream</span>
@@ -155,12 +215,12 @@
 
       <aside class="next-section" aria-labelledby="next-title">
         <p class="eyebrow">Flight plan</p>
-        <h2 id="next-title">Replication bridge</h2>
-        <p>Each link will pass through the Flyology Postgres implementation so this bench can expose protocol frames, lag, slots, publications, subscriptions, and WAL movement.</p>
+        <h2 id="next-title">Replication flight plan</h2>
+        <p>Logical demo-table links now pass through Flyology on both sides of a Flyology replication server. Next: arbitrary relations, snapshots, then physical WAL proxying.</p>
         <ol>
-          <li><span>01</span> Physical streaming</li>
-          <li><span>02</span> Logical publications</li>
-          <li><span>03</span> Protocol activity</li>
+          <li><span>01</span> Managed logical tables</li>
+          <li><span>02</span> Arbitrary relation mapping</li>
+          <li><span>03</span> Physical streaming proxy</li>
         </ol>
       </aside>
     </section>

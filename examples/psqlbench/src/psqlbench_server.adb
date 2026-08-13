@@ -13,6 +13,8 @@ with Flyology.IO.Connections;
 with Flyology.IO;
 with Flyology.IO.Sockets;
 with Flyology.IO.Structured_Servers;
+with Flyology.Postgres.Replication;
+with Interfaces;
 with Psqlbench_Assets;
 with Psqlbench_Docker;
 with Psqlbench_JSON;
@@ -24,6 +26,8 @@ package body Psqlbench_Server is
    package App renames Flyology.HTTP.Server.Applications;
    package Owned renames Flyology.IO.Connections;
    package Sockets renames Flyology.IO.Sockets;
+
+   use type Interfaces.Unsigned_64;
 
    function Compact (Value : Natural) return String is
      (Ada.Strings.Fixed.Trim (Natural'Image (Value), Ada.Strings.Both));
@@ -185,6 +189,102 @@ package body Psqlbench_Server is
          return Psqlbench_JSON.Finish (Document);
       end HTTP_Ready_Document;
 
+      function Link_Status_Image
+        (Value : Psqlbench_Context.Link_Status) return String is
+      begin
+         case Value is
+            when Psqlbench_Context.Link_Empty    => return "empty";
+            when Psqlbench_Context.Link_Pending  => return "pending";
+            when Psqlbench_Context.Link_Starting => return "starting";
+            when Psqlbench_Context.Link_Running  => return "running";
+            when Psqlbench_Context.Link_Stopping => return "stopping";
+            when Psqlbench_Context.Link_Stopped  => return "stopped";
+            when Psqlbench_Context.Link_Failed   => return "failed";
+         end case;
+      end Link_Status_Image;
+
+      function Links_Document
+        (Value : Psqlbench_Context.Link_Array; Count : Natural)
+         return String
+      is
+         Document : Psqlbench_JSON.Writer;
+      begin
+         Psqlbench_JSON.Initialize (Document);
+         Psqlbench_JSON.Start_Array (Document);
+         for Index in 1 .. Count loop
+            Psqlbench_JSON.Start_Object (Document);
+            Psqlbench_JSON.String_Value
+              (Document, "name",
+               Value (Index).Name (1 .. Value (Index).Name_Length));
+            Psqlbench_JSON.String_Value
+              (Document, "source",
+               Value (Index).Source (1 .. Value (Index).Source_Length));
+            Psqlbench_JSON.String_Value
+              (Document, "target",
+               Value (Index).Target (1 .. Value (Index).Target_Length));
+            Psqlbench_JSON.String_Value
+              (Document, "table",
+               Value (Index).Table_Name (1 .. Value (Index).Table_Length));
+            Psqlbench_JSON.String_Value
+              (Document, "status", Link_Status_Image (Value (Index).Status));
+            Psqlbench_JSON.Integer_Value
+              (Document, "relay_port",
+               Long_Long_Integer (Value (Index).Relay_Port));
+            Psqlbench_JSON.Integer_Value
+              (Document, "changes",
+               Long_Long_Integer (Value (Index).Change_Count));
+            if Value (Index).Last_LSN > 0 then
+               Psqlbench_JSON.String_Value
+                 (Document, "last_lsn",
+                  Flyology.Postgres.Replication.Image
+                    (Flyology.Postgres.Replication.LSN
+                       (Value (Index).Last_LSN)));
+            end if;
+            Psqlbench_JSON.String_Value
+              (Document, "detail",
+               (if Value (Index).Detail_Length = 0 then ""
+                else Value (Index).Detail
+                  (1 .. Value (Index).Detail_Length)));
+            Psqlbench_JSON.End_Object (Document);
+         end loop;
+         Psqlbench_JSON.End_Array (Document);
+         return Psqlbench_JSON.Finish (Document);
+      end Links_Document;
+
+      function Link_Document
+        (Name, Source, Target, Status : String) return String
+      is
+         Document : Psqlbench_JSON.Writer;
+      begin
+         Psqlbench_JSON.Initialize (Document);
+         Psqlbench_JSON.Start_Object (Document);
+         Psqlbench_JSON.String_Value (Document, "name", Name);
+         if Source'Length > 0 then
+            Psqlbench_JSON.String_Value (Document, "source", Source);
+            Psqlbench_JSON.String_Value (Document, "target", Target);
+         end if;
+         Psqlbench_JSON.String_Value (Document, "status", Status);
+         Psqlbench_JSON.End_Object (Document);
+         return Psqlbench_JSON.Finish (Document);
+      end Link_Document;
+
+      function Link_Event_Document
+        (Name, Kind : String) return String
+      is
+         Document : Psqlbench_JSON.Writer;
+      begin
+         Psqlbench_JSON.Initialize (Document);
+         Psqlbench_JSON.Start_Object (Document);
+         Psqlbench_JSON.String_Value (Document, "type", "link.activity");
+         Psqlbench_JSON.String_Value (Document, "link", Name);
+         Psqlbench_JSON.String_Value (Document, "stage", "control");
+         Psqlbench_JSON.String_Value
+           (Document, "direction", "source-to-target");
+         Psqlbench_JSON.String_Value (Document, "kind", Kind);
+         Psqlbench_JSON.End_Object (Document);
+         return Psqlbench_JSON.Finish (Document);
+      end Link_Event_Document;
+
       procedure Home
         (State : in out Application_Context;
          X     : in out App.Exchange) is
@@ -245,6 +345,95 @@ package body Psqlbench_Server is
                Diagnostic (Psqlbench_Docker.Text (Value)));
          end if;
       end Instances;
+
+      procedure Links
+        (State : in out Application_Context;
+         X     : in out App.Exchange)
+      is
+         Value : Psqlbench_Context.Link_Array;
+         Count : Natural;
+      begin
+         State.Root.Links.Snapshot (Value, Count);
+         X.JSON (200, Links_Document (Value, Count));
+      end Links;
+
+      procedure Create_Link
+        (State : in out Application_Context;
+         X     : in out App.Exchange)
+      is
+         Name : constant String :=
+           Psqlbench_JSON.String_Field (X.Content, "name");
+         Source : constant String :=
+           Psqlbench_JSON.String_Field (X.Content, "source");
+         Target : constant String :=
+           Psqlbench_JSON.String_Field (X.Content, "target");
+         Accepted : Boolean;
+         Detail : String (1 .. 192);
+         Last : Natural;
+      begin
+         if not Psqlbench_JSON.Valid_Name (Name) or else Name'Length > 24 then
+            X.Problem
+              (400, "invalid-link-name",
+               "Use 1 to 24 lowercase letters, digits, or hyphens");
+            return;
+         elsif not Psqlbench_JSON.Valid_Name (Source)
+           or else not Psqlbench_JSON.Valid_Name (Target)
+         then
+            X.Problem
+              (400, "invalid-link-endpoint",
+               "Source and target must be valid instance names");
+            return;
+         elsif Source = Target then
+            X.Problem
+              (400, "identical-link-endpoints",
+               "Choose different source and target instances");
+            return;
+         end if;
+
+         State.Root.Links.Create
+           (Name, Source, Target, Accepted, Detail, Last);
+         if not Accepted then
+            X.Problem
+              (409, "link-create-failed",
+               (if Last = 0 then "link was not accepted"
+                else Detail (1 .. Last)));
+            return;
+         end if;
+         State.Root.Events.Append
+           (Link_Event_Document (Name, "created"));
+         X.JSON
+           (202, Link_Document (Name, Source, Target, "pending"));
+      exception
+         when Error : Constraint_Error =>
+            X.Problem
+              (400, "invalid-json", Ada.Exceptions.Exception_Message (Error));
+      end Create_Link;
+
+      procedure Apply_Link_Action
+        (State : in out Application_Context;
+         X     : in out App.Exchange)
+      is
+         Name : constant String := X.Parameter ("name");
+         Action : constant String := X.Parameter ("action");
+         Kind : Psqlbench_Context.Link_Command_Kind;
+         Accepted : Boolean;
+      begin
+         if Action = "stop" then
+            Kind := Psqlbench_Context.Stop_Link;
+         elsif Action = "remove" then
+            Kind := Psqlbench_Context.Remove_Link;
+         else
+            X.Problem (404, "unknown-link-action", "Unknown link action");
+            return;
+         end if;
+         State.Root.Links.Request (Name, Kind, Accepted);
+         if not Accepted then
+            X.Problem (404, "link-not-found", "Link was not found");
+            return;
+         end if;
+         X.JSON
+           (202, Link_Document (Name, "", "", Action & "-requested"));
+      end Apply_Link_Action;
 
       procedure Create_Instance
         (State : in out Application_Context;
@@ -617,7 +806,7 @@ package body Psqlbench_Server is
       type Service_Context is limited record
          Application : aliased Application_Context;
          Routes      : aliased Routing.Router
-           (Capacity => 10, Slashes => Routing.Strict_Slashes);
+           (Capacity => 13, Slashes => Routing.Strict_Slashes);
          Budget      : aliased HTTP.Ingress_Budget
            (Limit => 4 * 1_024 * 1_024);
       end record;
@@ -674,6 +863,21 @@ package body Psqlbench_Server is
       State.Routes.Get ("/api/status", Status'Access, Name => "api.status");
       State.Routes.Get
         ("/api/instances", Instances'Access, Name => "api.instances");
+      State.Routes.Get ("/api/links", Links'Access, Name => "api.links");
+      State.Routes.Post
+        ("/api/links", Create_Link'Access, Name => "api.link.create",
+         Policy =>
+           (Routing.Default_Route_Policy with delta
+              Body_Handling => App.Buffer_Body,
+              Max_Body      => 4 * 1_024,
+              Timeout       => 30.0,
+              Concurrency   => 8));
+      State.Routes.Post
+        ("/api/links/{name}/{action}", Apply_Link_Action'Access,
+         Name => "api.link.action",
+         Policy =>
+           (Routing.Default_Route_Policy with delta
+              Timeout => 30.0, Concurrency => 8));
       State.Routes.Post
         ("/api/instances", Create_Instance'Access, Name => "api.create",
          Policy =>

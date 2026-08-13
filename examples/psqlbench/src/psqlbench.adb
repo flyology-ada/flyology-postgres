@@ -11,20 +11,23 @@ with Psqlbench_Context;
 with Psqlbench_Docker;
 with Psqlbench_Logs;
 with Psqlbench_JSON;
+with Psqlbench_Links;
 with Psqlbench_Server;
 with Psqlbench_Signals;
 
 procedure Psqlbench is
    use type Flyology.Supervision.Supervisor_Outcome;
 
-   type Service_Kind is (Docker_Control, Log_Control, HTTP_Control);
+   type Service_Kind is
+     (Docker_Control, Log_Control, Link_Control, HTTP_Control);
 
    function Logical_Id
      (Child : Service_Kind) return Flyology.Supervision.Child_Id is
      (case Child is
          when Docker_Control => 1,
          when Log_Control    => 2,
-         when HTTP_Control   => 3);
+         when Link_Control   => 3,
+         when HTTP_Control   => 4);
 
    function Specification
      (Child : Service_Kind)
@@ -38,6 +41,7 @@ procedure Psqlbench is
         (case Child is
             when Docker_Control => Flyology.Supervision.Restart_Dependents,
             when Log_Control    => Flyology.Supervision.Restart_Dependents,
+            when Link_Control   => Flyology.Supervision.Restart_Dependents,
             when HTTP_Control   => Flyology.Supervision.Isolate_Child);
       Value.Stopping :=
         (Grace             => Ada.Real_Time.Seconds (3),
@@ -55,7 +59,9 @@ procedure Psqlbench is
      (Child        : Service_Kind;
       Prerequisite : Service_Kind) return Boolean is
      ((Child = Log_Control and then Prerequisite = Docker_Control)
-      or else (Child = HTTP_Control and then Prerequisite = Log_Control));
+      or else (Child = Link_Control and then Prerequisite = Docker_Control)
+      or else (Child = HTTP_Control and then Prerequisite = Log_Control)
+      or else (Child = HTTP_Control and then Prerequisite = Link_Control));
 
    function No_Cohort
      (Trigger : Service_Kind;
@@ -134,6 +140,11 @@ procedure Psqlbench is
       Execute             => Psqlbench_Logs.Execute,
       Task_Model          => Flyology.Native_Task);
 
+   package Link_Child is new Flyology.Supervision.Children
+     (Application_Context => Psqlbench_Context.Context,
+      Execute             => Psqlbench_Links.Execute,
+      Task_Model          => Flyology.Native_Task);
+
    procedure Run_One_Generation
      (Context : aliased in out Psqlbench_Context.Context;
       Child   : Service_Kind;
@@ -145,6 +156,8 @@ procedure Psqlbench is
             Docker_Child.Run (Context, Control, Result);
          when Log_Control =>
             Log_Child.Run (Context, Control, Result);
+         when Link_Control =>
+            Link_Child.Run (Context, Control, Result);
          when HTTP_Control =>
             HTTP_Child.Run (Context, Control, Result);
       end case;

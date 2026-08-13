@@ -26,12 +26,20 @@ client support is available and verified.
   bounded 1,024-line ring, and replays the selected server's retained output
   before following it live;
 - serves a Flyology-themed topology workbench and live WebSocket activity;
+- creates supervised, cross-version logical links for a managed three-column
+  demo table and applies future inserts, updates, deletes, and truncates;
+- routes every logical message through a Flyology Postgres replication client,
+  stateful pgoutput decoder/encoder, Flyology Postgres replication server, and
+  a second Flyology Postgres replication client before applying it to the
+  target; source slot acknowledgement advances only after target commit;
 - runs Docker operations through one bounded native executor; and
-- supervises Docker readiness, log collection, and the HTTP service as a
-  dependency-ordered static topology.
+- supervises Docker readiness, log collection, the dynamic link family, and the
+  HTTP service as a dependency-ordered topology.
 
-This is not yet the replication bridge. The instance model and event stream are
-the control-plane foundation for physical and logical links.
+The logical bridge deliberately begins with future changes on an empty managed
+table. Initial snapshot copying, arbitrary relation mapping, streamed and
+two-phase logical modes, non-transactional logical messages, and physical WAL
+proxying are the next replication slices.
 
 ## Functional outline
 
@@ -43,10 +51,10 @@ The workbench grows in four layers while keeping the browser API stable:
 2. **Query sessions (implemented):** attach an authenticated frontend connection
    to any node, cancel work in progress, and render bounded tabular or diagnostic
    results alongside retained, real-time Postgres logs.
-3. **Replication links:** bootstrap physical standbys and logical
-   publication/subscription pairs, with slots and credentials owned by a typed
-   link model.
-4. **Protocol observation:** route replication through Flyology Postgres and
+3. **Replication links (logical baseline implemented):** own a typed link,
+   publication, slot, internal relay, and target apply session. Add selectable
+   logical transaction modes and physical standby bootstrapping next.
+4. **Protocol observation (logical baseline implemented):** route replication through Flyology Postgres and
    stream WAL positions, lag, keepalives, relation metadata, tuple changes, and
    link failures to the activity ledger.
 
@@ -76,9 +84,10 @@ The intended desktop layout is deliberately topology-first:
 +--------------------------------------+----------------------------+
 ```
 
-The current UI implements instance nodes, the selected-instance Query and Logs
-workspace, and the live ledger. Replication links and their inspector remain
-the next topology layer.
+The current UI implements instance nodes, managed logical-link creation and
+status, the selected-instance Query and Logs workspace, and a live protocol
+activity ledger. Each link exposes its internal loopback relay only for
+observation; Postgres nodes never connect directly around it.
 
 ## Build and run
 

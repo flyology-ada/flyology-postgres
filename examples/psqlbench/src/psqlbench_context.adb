@@ -143,4 +143,180 @@ package body Psqlbench_Context is
       end Read_Detail;
    end Docker_Status;
 
+   protected body Link_Registry is
+      function Same_Name (Item : Link_Record; Name : String) return Boolean is
+        (Item.Status /= Link_Empty
+         and then Item.Name_Length = Name'Length
+         and then Item.Name (1 .. Item.Name_Length) = Name);
+
+      procedure Store
+        (Target : out String; Length : out Natural; Value : String) is
+      begin
+         Length := Natural'Min (Target'Length, Value'Length);
+         Target := (others => ' ');
+         if Length > 0 then
+            Target (Target'First .. Target'First + Length - 1) :=
+              Value (Value'First .. Value'First + Length - 1);
+         end if;
+      end Store;
+
+      procedure Enqueue (Kind : Link_Command_Kind; Name : String) is
+         Slot : Positive;
+      begin
+         if Command_Count = Link_Command_Capacity then
+            raise Constraint_Error with "link command queue is full";
+         end if;
+         Slot := ((Command_Head - 1 + Command_Count)
+                  mod Link_Command_Capacity) + 1;
+         Commands (Slot) := (others => <>);
+         Commands (Slot).Kind := Kind;
+         Store
+           (Commands (Slot).Name, Commands (Slot).Name_Length, Name);
+         Command_Count := Command_Count + 1;
+      end Enqueue;
+
+      procedure Create
+        (Name, Source, Target : String;
+         Accepted : out Boolean;
+         Detail   : out String;
+         Last     : out Natural)
+      is
+         Free : Natural := 0;
+      begin
+         Accepted := False;
+         Last := 0;
+         Detail := (others => ' ');
+         for Index in Entries'Range loop
+            if Same_Name (Entries (Index), Name) then
+               declare
+                  Message : constant String := "link name is already in use";
+               begin
+                  Last := Natural'Min (Message'Length, Detail'Length);
+                  Detail (Detail'First .. Detail'First + Last - 1) :=
+                    Message (Message'First .. Message'First + Last - 1);
+               end;
+               return;
+            elsif Free = 0 and then Entries (Index).Status = Link_Empty then
+               Free := Index;
+            end if;
+         end loop;
+         if Free = 0 or else Command_Count = Link_Command_Capacity then
+            declare
+               Message : constant String := "logical link capacity is full";
+            begin
+               Last := Natural'Min (Message'Length, Detail'Length);
+               Detail (Detail'First .. Detail'First + Last - 1) :=
+                 Message (Message'First .. Message'First + Last - 1);
+            end;
+            return;
+         end if;
+
+         Entries (Free) := (others => <>);
+         Entries (Free).Status := Link_Pending;
+         Store (Entries (Free).Name, Entries (Free).Name_Length, Name);
+         Store
+           (Entries (Free).Source, Entries (Free).Source_Length, Source);
+         Store
+           (Entries (Free).Target, Entries (Free).Target_Length, Target);
+         declare
+            Table_Name : constant String := "psqlbench_" & Name;
+         begin
+            for Index in Table_Name'Range loop
+               Entries (Free).Table_Name (Index - Table_Name'First + 1) :=
+                 (if Table_Name (Index) = '-' then '_' else Table_Name (Index));
+            end loop;
+            Entries (Free).Table_Length := Table_Name'Length;
+         end;
+         Entries (Free).Relay_Port := 58_000 + Free;
+         Enqueue (Create_Link, Name);
+         Accepted := True;
+      end Create;
+
+      procedure Request
+        (Name     : String;
+         Action   : Link_Command_Kind;
+         Accepted : out Boolean) is
+      begin
+         Accepted := False;
+         if Command_Count = Link_Command_Capacity then
+            return;
+         end if;
+         for Index in Entries'Range loop
+            if Same_Name (Entries (Index), Name) then
+               Enqueue (Action, Name);
+               if Action = Stop_Link then
+                  Entries (Index).Status := Link_Stopping;
+               end if;
+               Accepted := True;
+               return;
+            end if;
+         end loop;
+      end Request;
+
+      procedure Take_Command
+        (Value : out Link_Command; Available : out Boolean) is
+      begin
+         Available := Command_Count > 0;
+         Value := (others => <>);
+         if Available then
+            Value := Commands (Command_Head);
+            Commands (Command_Head) := (others => <>);
+            Command_Head :=
+              (if Command_Head = Link_Command_Capacity
+               then 1 else Command_Head + 1);
+            Command_Count := Command_Count - 1;
+         end if;
+      end Take_Command;
+
+      procedure Set_Status
+        (Name : String; Status : Link_Status; Detail : String := "") is
+      begin
+         for Index in Entries'Range loop
+            if Same_Name (Entries (Index), Name) then
+               Entries (Index).Status := Status;
+               Store
+                 (Entries (Index).Detail,
+                  Entries (Index).Detail_Length,
+                  Detail);
+               return;
+            end if;
+         end loop;
+      end Set_Status;
+
+      procedure Forget (Name : String) is
+      begin
+         for Index in Entries'Range loop
+            if Same_Name (Entries (Index), Name) then
+               Entries (Index) := (others => <>);
+               return;
+            end if;
+         end loop;
+      end Forget;
+
+      procedure Record_Change
+        (Name : String; LSN : Interfaces.Unsigned_64) is
+      begin
+         for Index in Entries'Range loop
+            if Same_Name (Entries (Index), Name) then
+               Entries (Index).Change_Count :=
+                 Entries (Index).Change_Count + 1;
+               Entries (Index).Last_LSN := LSN;
+               return;
+            end if;
+         end loop;
+      end Record_Change;
+
+      procedure Snapshot (Value : out Link_Array; Count : out Natural) is
+      begin
+         Value := (others => <>);
+         Count := 0;
+         for Item of Entries loop
+            if Item.Status /= Link_Empty then
+               Count := Count + 1;
+               Value (Count) := Item;
+            end if;
+         end loop;
+      end Snapshot;
+   end Link_Registry;
+
 end Psqlbench_Context;

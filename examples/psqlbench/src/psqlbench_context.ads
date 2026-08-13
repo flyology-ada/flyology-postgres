@@ -7,6 +7,10 @@ package Psqlbench_Context is
    Max_Instance_Name_Bytes : constant := 40;
    Max_Log_Bytes : constant := 2_048;
    Log_Capacity  : constant := 1_024;
+   Max_Links     : constant := 8;
+   Link_Command_Capacity : constant := 16;
+   Max_Link_Name_Bytes : constant := 24;
+   Max_Link_Detail_Bytes : constant := 192;
 
    subtype Event_Sequence is Interfaces.Unsigned_64;
 
@@ -27,6 +31,40 @@ package Psqlbench_Context is
    end record;
 
    type Log_Array is array (Positive range <>) of Log_Record;
+
+   type Link_Status is
+     (Link_Empty, Link_Pending, Link_Starting, Link_Running,
+      Link_Stopping, Link_Stopped, Link_Failed);
+
+   type Link_Record is record
+      Status        : Link_Status := Link_Empty;
+      Name_Length   : Natural range 0 .. Max_Link_Name_Bytes := 0;
+      Name          : String (1 .. Max_Link_Name_Bytes) := (others => ' ');
+      Source_Length : Natural range 0 .. Max_Instance_Name_Bytes := 0;
+      Source        : String (1 .. Max_Instance_Name_Bytes) := (others => ' ');
+      Target_Length : Natural range 0 .. Max_Instance_Name_Bytes := 0;
+      Target        : String (1 .. Max_Instance_Name_Bytes) := (others => ' ');
+      Table_Length  : Natural range 0 .. 63 := 0;
+      Table_Name    : String (1 .. 63) := (others => ' ');
+      Relay_Port    : Natural range 0 .. 65_535 := 0;
+      Change_Count  : Event_Sequence := 0;
+      Last_LSN      : Interfaces.Unsigned_64 := 0;
+      Detail_Length : Natural range 0 .. Max_Link_Detail_Bytes := 0;
+      Detail        : String (1 .. Max_Link_Detail_Bytes) := (others => ' ');
+   end record;
+
+   type Link_Array is array (Positive range 1 .. Max_Links) of Link_Record;
+
+   type Link_Command_Kind is (Create_Link, Stop_Link, Remove_Link);
+
+   type Link_Command is record
+      Kind        : Link_Command_Kind := Create_Link;
+      Name_Length : Natural range 0 .. Max_Link_Name_Bytes := 0;
+      Name        : String (1 .. Max_Link_Name_Bytes) := (others => ' ');
+   end record;
+
+   type Link_Command_Array is
+     array (Positive range 1 .. Link_Command_Capacity) of Link_Command;
 
    protected type Event_Log is
       procedure Append (Value : String);
@@ -67,10 +105,36 @@ package Psqlbench_Context is
       Detail_Value : String (1 .. 256) := (others => ' ');
    end Docker_Status;
 
+   protected type Link_Registry is
+      procedure Create
+        (Name, Source, Target : String;
+         Accepted : out Boolean;
+         Detail   : out String;
+         Last     : out Natural);
+      procedure Request
+        (Name     : String;
+         Action   : Link_Command_Kind;
+         Accepted : out Boolean);
+      procedure Take_Command
+        (Value : out Link_Command; Available : out Boolean);
+      procedure Set_Status
+        (Name : String; Status : Link_Status; Detail : String := "");
+      procedure Forget (Name : String);
+      procedure Record_Change
+        (Name : String; LSN : Interfaces.Unsigned_64);
+      procedure Snapshot (Value : out Link_Array; Count : out Natural);
+   private
+      Entries : Link_Array;
+      Commands : Link_Command_Array;
+      Command_Head : Positive := 1;
+      Command_Count : Natural range 0 .. Link_Command_Capacity := 0;
+   end Link_Registry;
+
    type Context is limited record
       Events : aliased Event_Log;
       Logs   : aliased Log_Store;
       Docker : Docker_Status;
+      Links  : Link_Registry;
    end record;
 
 end Psqlbench_Context;

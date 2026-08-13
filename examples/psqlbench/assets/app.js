@@ -26,9 +26,16 @@
   const logOutput = document.querySelector("#log-output");
   const followLogs = document.querySelector("#follow-logs");
   const clearLogs = document.querySelector("#clear-logs");
+  const linkList = document.querySelector("#link-list");
+  const linkForm = document.querySelector("#link-form");
+  const openLink = document.querySelector("#open-link");
+  const closeLink = document.querySelector("#close-link");
+  const linkSource = document.querySelector("#link-source");
+  const linkTarget = document.querySelector("#link-target");
 
   let toastTimer;
   let instances = [];
+  let links = [];
   let selectedName = "";
   let activeTab = "query";
   let querySocket;
@@ -131,6 +138,101 @@
       selectedName = "";
       workspace.hidden = true;
     }
+
+    const running = known.filter(value => value.running);
+    [linkSource, linkTarget].forEach((select, selectIndex) => {
+      const previous = select.value;
+      select.replaceChildren(...running.map(details => {
+        const option = document.createElement("option");
+        option.value = details.name;
+        option.textContent = `${details.name} · PostgreSQL ${details.version}`;
+        return option;
+      }));
+      if (running.some(value => value.name === previous)) select.value = previous;
+      else if (running.length > selectIndex) select.value = running[selectIndex].name;
+    });
+    openLink.disabled = running.length < 2;
+  }
+
+  function linkNode(link) {
+    const article = el("article", `link-card ${link.status}`);
+    const heading = el("div", "link-card-heading");
+    const title = document.createElement("div");
+    title.append(el("span", "node-version", "LOGICAL · PGOUTPUT V1"), el("h3", "node-name", link.name));
+    heading.append(title, el("span", "node-status", link.status));
+
+    const route = el("div", "link-route");
+    route.append(
+      el("strong", "", link.source),
+      el("span", "", "client → server → client"),
+      el("strong", "", link.target)
+    );
+
+    const stats = el("dl", "link-stats");
+    [["table", `public.${link.table}`], ["changes", String(link.changes || 0)], ["last lsn", link.last_lsn || "waiting"], ["relay", `127.0.0.1:${link.relay_port}`]]
+      .forEach(([key, value]) => {
+        const row = document.createElement("div");
+        row.append(el("dt", "", key), el("dd", "", value));
+        stats.append(row);
+      });
+
+    const detail = el("p", "link-detail", link.detail || "Waiting for supervised link activity");
+    const actions = el("div", "node-actions");
+    const insert = el("button", "button primary", "Insert demo row");
+    insert.type = "button";
+    insert.disabled = link.status !== "running";
+    insert.addEventListener("click", () => {
+      selectInstance(link.source);
+      queryInput.value = `insert into public."${link.table}" (id, payload)\nvalues ((extract(epoch from clock_timestamp()) * 1000000)::bigint,\n        'sent through ${link.name}')\nreturning *;`;
+      switchTab("query");
+      queryInput.focus();
+    });
+    const inspect = el("button", "button secondary", "Inspect target");
+    inspect.type = "button";
+    inspect.addEventListener("click", () => {
+      selectInstance(link.target);
+      queryInput.value = `select * from public."${link.table}" order by id desc limit 20;`;
+      switchTab("query");
+    });
+    const stop = el("button", "button secondary", "Stop");
+    stop.type = "button";
+    stop.disabled = !["running", "starting", "pending"].includes(link.status);
+    stop.addEventListener("click", () => applyLinkAction(link.name, "stop", stop));
+    actions.append(insert, inspect, stop);
+    article.append(heading, route, stats, detail, actions);
+    return article;
+  }
+
+  function renderLinks(values) {
+    links = values;
+    linkList.replaceChildren();
+    if (!values.length) {
+      const empty = el("div", "link-empty");
+      empty.append(el("p", "", "No logical bridges yet. Create two running instances to connect a managed demo table."));
+      linkList.append(empty);
+      return;
+    }
+    values.forEach(value => linkList.append(linkNode(value)));
+  }
+
+  async function refreshLinks() {
+    try {
+      renderLinks(await request("/api/links"));
+    } catch (error) {
+      showError(error.message);
+    }
+  }
+
+  async function applyLinkAction(name, action, button) {
+    button.disabled = true;
+    try {
+      await request(`/api/links/${encodeURIComponent(name)}/${action}`, { method: "POST" });
+      await refreshLinks();
+    } catch (error) {
+      showError(error.message);
+    } finally {
+      button.disabled = false;
+    }
   }
 
   function renderInstances(values) {
@@ -200,6 +302,7 @@
         const value = JSON.parse(message.data);
         addEvent(value);
         if (String(value.type || "").startsWith("instance.")) refreshInstances();
+        if (String(value.type || "").startsWith("link.")) refreshLinks();
       } catch (_error) {
         addEvent({ type: "invalid.event", payload: String(message.data) });
       }
@@ -431,6 +534,32 @@
     }
   });
 
+  openLink.addEventListener("click", () => {
+    linkForm.hidden = false;
+    linkForm.elements.name.focus();
+  });
+  closeLink.addEventListener("click", () => { linkForm.hidden = true; });
+  linkForm.addEventListener("submit", async event => {
+    event.preventDefault();
+    const submit = linkForm.querySelector("[type=submit]");
+    submit.disabled = true;
+    try {
+      const data = new FormData(linkForm);
+      await request("/api/links", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: data.get("name"), source: data.get("source"), target: data.get("target") })
+      });
+      linkForm.reset();
+      linkForm.hidden = true;
+      await refreshLinks();
+    } catch (error) {
+      showError(error.message);
+    } finally {
+      submit.disabled = false;
+    }
+  });
+
   workspaceInstance.addEventListener("change", () => selectInstance(workspaceInstance.value));
   queryTab.addEventListener("click", () => switchTab("query"));
   logsTab.addEventListener("click", () => switchTab("logs"));
@@ -465,7 +594,9 @@
 
   refreshStatus();
   refreshInstances();
+  refreshLinks();
   connectEvents();
   setInterval(refreshStatus, 5000);
   setInterval(refreshInstances, 8000);
+  setInterval(refreshLinks, 3000);
 })();
