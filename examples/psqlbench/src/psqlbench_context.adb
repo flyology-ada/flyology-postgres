@@ -177,6 +177,7 @@ package body Psqlbench_Context is
 
       procedure Create
         (Name, Source, Target : String;
+         Mode     : Link_Mode;
          Accepted : out Boolean;
          Detail   : out String;
          Last     : out Natural)
@@ -213,6 +214,7 @@ package body Psqlbench_Context is
 
          Entries (Free) := (others => <>);
          Entries (Free).Status := Link_Pending;
+         Entries (Free).Mode := Mode;
          Store (Entries (Free).Name, Entries (Free).Name_Length, Name);
          Store
            (Entries (Free).Source, Entries (Free).Source_Length, Source);

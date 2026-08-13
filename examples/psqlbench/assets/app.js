@@ -158,7 +158,8 @@
     const article = el("article", `link-card ${link.status}`);
     const heading = el("div", "link-card-heading");
     const title = document.createElement("div");
-    title.append(el("span", "node-version", "LOGICAL · PGOUTPUT V1"), el("h3", "node-name", link.name));
+    const streamed = link.mode === "logical-streaming";
+    title.append(el("span", "node-version", streamed ? "LOGICAL · STREAMING · PGOUTPUT V2" : "LOGICAL · COMMITTED · PGOUTPUT V1"), el("h3", "node-name", link.name));
     heading.append(title, el("span", "node-status", link.status));
 
     const route = el("div", "link-route");
@@ -194,11 +195,22 @@
       queryInput.value = `select * from public."${link.table}" order by id desc limit 20;`;
       switchTab("query");
     });
+    const pattern = el("button", "button secondary", streamed ? "Load streamed transaction" : "Load message patterns");
+    pattern.type = "button";
+    pattern.disabled = link.status !== "running";
+    pattern.addEventListener("click", () => {
+      selectInstance(link.source);
+      queryInput.value = streamed
+        ? `insert into public."${link.table}" (id, payload)\nselect 1000000 + n, repeat('streamed-', 128) || n\nfrom generate_series(1, 300) as n;`
+        : `select pg_logical_emit_message(false, 'psqlbench', 'non-transactional message');\nbegin;\nselect pg_logical_emit_message(true, 'psqlbench', 'transactional message');\ninsert into public."${link.table}" (id, payload)\nvalues ((extract(epoch from clock_timestamp()) * 1000000)::bigint, 'same transaction');\ncommit;`;
+      switchTab("query");
+      queryInput.focus();
+    });
     const stop = el("button", "button secondary", "Stop");
     stop.type = "button";
     stop.disabled = !["running", "starting", "pending"].includes(link.status);
     stop.addEventListener("click", () => applyLinkAction(link.name, "stop", stop));
-    actions.append(insert, inspect, stop);
+    actions.append(insert, pattern, inspect, stop);
     article.append(heading, route, stats, detail, actions);
     return article;
   }
@@ -548,7 +560,7 @@
       await request("/api/links", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: data.get("name"), source: data.get("source"), target: data.get("target") })
+        body: JSON.stringify({ name: data.get("name"), source: data.get("source"), target: data.get("target"), mode: data.get("mode") })
       });
       linkForm.reset();
       linkForm.hidden = true;

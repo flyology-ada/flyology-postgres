@@ -28,6 +28,9 @@ client support is available and verified.
 - serves a Flyology-themed topology workbench and live WebSocket activity;
 - creates supervised, cross-version logical links for a managed three-column
   demo table and applies future inserts, updates, deletes, and truncates;
+- configures committed pgoutput v1 or large-transaction streaming pgoutput v2
+  links, with UI query patterns for stream segments and transactional versus
+  non-transactional logical messages;
 - routes every logical message through a Flyology Postgres replication client,
   stateful pgoutput decoder/encoder, Flyology Postgres replication server, and
   a second Flyology Postgres replication client before applying it to the
@@ -37,9 +40,8 @@ client support is available and verified.
   HTTP service as a dependency-ordered topology.
 
 The logical bridge deliberately begins with future changes on an empty managed
-table. Initial snapshot copying, arbitrary relation mapping, streamed and
-two-phase logical modes, non-transactional logical messages, and physical WAL
-proxying are the next replication slices.
+table. Initial snapshot copying, arbitrary relation mapping, two-phase logical
+transactions, and physical WAL proxying are the next replication slices.
 
 ## Functional outline
 

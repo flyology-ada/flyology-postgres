@@ -203,6 +203,12 @@ package body Psqlbench_Server is
          end case;
       end Link_Status_Image;
 
+      function Link_Mode_Image
+        (Value : Psqlbench_Context.Link_Mode) return String is
+        (case Value is
+            when Psqlbench_Context.Logical_Committed => "logical-committed",
+            when Psqlbench_Context.Logical_Streaming => "logical-streaming");
+
       function Links_Document
         (Value : Psqlbench_Context.Link_Array; Count : Natural)
          return String
@@ -227,6 +233,8 @@ package body Psqlbench_Server is
                Value (Index).Table_Name (1 .. Value (Index).Table_Length));
             Psqlbench_JSON.String_Value
               (Document, "status", Link_Status_Image (Value (Index).Status));
+            Psqlbench_JSON.String_Value
+              (Document, "mode", Link_Mode_Image (Value (Index).Mode));
             Psqlbench_JSON.Integer_Value
               (Document, "relay_port",
                Long_Long_Integer (Value (Index).Relay_Port));
@@ -367,10 +375,23 @@ package body Psqlbench_Server is
            Psqlbench_JSON.String_Field (X.Content, "source");
          Target : constant String :=
            Psqlbench_JSON.String_Field (X.Content, "target");
+         Mode_Text : constant String :=
+           Psqlbench_JSON.String_Field (X.Content, "mode");
+         Mode : Psqlbench_Context.Link_Mode;
          Accepted : Boolean;
          Detail : String (1 .. 192);
          Last : Natural;
       begin
+         if Mode_Text in "" | "logical-committed" then
+            Mode := Psqlbench_Context.Logical_Committed;
+         elsif Mode_Text = "logical-streaming" then
+            Mode := Psqlbench_Context.Logical_Streaming;
+         else
+            X.Problem
+              (400, "invalid-link-mode",
+               "Choose logical-committed or logical-streaming");
+            return;
+         end if;
          if not Psqlbench_JSON.Valid_Name (Name) or else Name'Length > 24 then
             X.Problem
               (400, "invalid-link-name",
@@ -391,7 +412,7 @@ package body Psqlbench_Server is
          end if;
 
          State.Root.Links.Create
-           (Name, Source, Target, Accepted, Detail, Last);
+           (Name, Source, Target, Mode, Accepted, Detail, Last);
          if not Accepted then
             X.Problem
               (409, "link-create-failed",

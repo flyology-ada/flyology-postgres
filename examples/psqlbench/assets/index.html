@@ -112,6 +112,13 @@
             <span>Target</span>
             <select name="target" id="link-target" required></select>
           </label>
+          <label>
+            <span>Replication pattern</span>
+            <select name="mode" id="link-mode" required>
+              <option value="logical-committed">Logical · committed transactions · protocol v1</option>
+              <option value="logical-streaming">Logical · streamed transactions · protocol v2</option>
+            </select>
+          </label>
         </div>
         <div class="bridge-contract">
           <strong>Future changes only</strong>

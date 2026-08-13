@@ -48,6 +48,7 @@ package body Psqlbench_Links is
    use type Replication.LSN;
    use type Replication.Stream_Message_Kind;
    use type Psqlbench_Context.Link_Command_Kind;
+   use type Psqlbench_Context.Link_Mode;
 
    function Text
      (Value : String; Length : Natural) return String is
@@ -72,6 +73,41 @@ package body Psqlbench_Links is
    function Publication_Name
      (Item : Psqlbench_Context.Link_Record) return String is
      (Table_Name (Item) & "_pub");
+
+   function Protocol_Version
+     (Item : Psqlbench_Context.Link_Record)
+      return Logical.Protocol_Version is
+     (if Item.Mode = Psqlbench_Context.Logical_Streaming then 2 else 1);
+
+   function Streaming_Mode
+     (Item : Psqlbench_Context.Link_Record)
+      return Logical.Streaming_Mode is
+     (if Item.Mode = Psqlbench_Context.Logical_Streaming
+      then Logical.In_Progress else Logical.Disabled);
+
+   function Mode_Image (Item : Psqlbench_Context.Link_Record) return String is
+     (case Item.Mode is
+         when Psqlbench_Context.Logical_Committed => "logical committed",
+         when Psqlbench_Context.Logical_Streaming => "logical streaming");
+
+   function Message_Detail (Item : Logical.Message) return String is
+   begin
+      case Logical.Kind (Item) is
+         when Logical.Logical_Decoding_Message =>
+            return
+              (if Logical.Is_Transactional (Item)
+               then "transactional message: "
+               else "non-transactional message: ")
+              & Logical.Prefix (Item);
+         when Logical.Stream_Start_Message =>
+            return
+              (if Logical.Is_First_Stream_Segment (Item)
+               then "first transaction segment"
+               else "continued transaction segment");
+         when others =>
+            return "";
+      end case;
+   end Message_Detail;
 
    function Quote_Literal (Value : String) return String is
       Result : Unbounded_String := To_Unbounded_String ("'");
@@ -604,6 +640,29 @@ package body Psqlbench_Links is
                In_Transaction := False;
             end if;
 
+         when Logical.Stream_Start_Message =>
+            if Logical.Is_First_Stream_Segment (Message)
+              and then not In_Transaction
+            then
+               Run_SQL (Session, "BEGIN");
+               In_Transaction := True;
+            end if;
+
+         when Logical.Stream_Stop_Message =>
+            null;
+
+         when Logical.Stream_Commit_Message =>
+            if In_Transaction then
+               Run_SQL (Session, "COMMIT");
+               In_Transaction := False;
+            end if;
+
+         when Logical.Stream_Abort_Message =>
+            if In_Transaction then
+               Run_SQL (Session, "ROLLBACK");
+               In_Transaction := False;
+            end if;
+
          when others =>
             null;
       end case;
@@ -653,6 +712,12 @@ package body Psqlbench_Links is
             "psqlbench/link-setup/target/" & Link);
          Run_SQL (Source, Schema_SQL);
          Run_SQL (Target, Schema_SQL);
+         if Item.Mode = Psqlbench_Context.Logical_Streaming then
+            Run_SQL
+              (Source,
+               "ALTER ROLE psqlbench IN DATABASE postgres SET "
+               & "logical_decoding_work_mem='64kB'");
+         end if;
          Client.Send_Query
            (Source,
             "SELECT 1 FROM pg_publication WHERE pubname="
@@ -728,13 +793,28 @@ package body Psqlbench_Links is
               (Socket, Session, Source_Port,
                "psqlbench/upstream/" & Link,
                Protocol.Logical_Replication_Connection);
-            Logical.Configure (Decoder, Version => 1);
-            Start_Copy
-              (Session,
-               Replication.Start_Logical
-                 (Slot, Start_LSN,
-                  (Replication.Option ("proto_version", "1"),
-                   Replication.Option ("publication_names", Publication))));
+            Logical.Configure
+              (Decoder, Protocol_Version (Item), Streaming_Mode (Item));
+            if Item.Mode = Psqlbench_Context.Logical_Streaming then
+               Start_Copy
+                 (Session,
+                  Replication.Start_Logical
+                    (Slot, Start_LSN,
+                     (Replication.Option ("proto_version", "2"),
+                      Replication.Option
+                        ("publication_names", Publication),
+                      Replication.Option ("streaming", "on"),
+                      Replication.Option ("messages", "true"))));
+            else
+               Start_Copy
+                 (Session,
+                  Replication.Start_Logical
+                    (Slot, Start_LSN,
+                     (Replication.Option ("proto_version", "1"),
+                      Replication.Option
+                        ("publication_names", Publication),
+                      Replication.Option ("messages", "true"))));
+            end if;
             Relay.Set_Upstream_Ready;
             Emit
               (Context, Item, "upstream", "source-to-relay", "copy-both",
@@ -760,7 +840,10 @@ package body Psqlbench_Links is
                                    Logical.Decode
                                      (Decoder, Replication.Data (Frame));
                                  Encoded : constant Logical.Byte_Array :=
-                                   Logical.Encode (Logical_Message, Version => 1);
+                                   Logical.Encode
+                                     (Logical_Message,
+                                      Protocol_Version (Item),
+                                      Streaming_Mode (Item));
                                  Forward : constant Relay_Frame :=
                                    (WAL_Start => Replication.WAL_Start (Frame),
                                     WAL_End   => Replication.WAL_End (Frame),
@@ -775,7 +858,8 @@ package body Psqlbench_Links is
                                     "source-to-relay",
                                     Logical.Message_Kind'Image
                                       (Logical.Kind (Logical_Message)),
-                                    Replication.WAL_End (Frame));
+                                    Replication.WAL_End (Frame),
+                                    Message_Detail (Logical_Message));
                                  Relay.Push (Forward, Accepted);
                                  exit when not Accepted;
                               end;
@@ -841,16 +925,30 @@ package body Psqlbench_Links is
            (Downstream_Socket, Downstream, Positive (Item.Relay_Port),
             "psqlbench/downstream/" & Link,
             Protocol.Logical_Replication_Connection);
-         Logical.Configure (Decoder, Version => 1);
-         Start_Copy
-           (Downstream,
-            Replication.Start_Logical
-              (Slot, Start_LSN,
-               (Replication.Option ("proto_version", "1"),
-                Replication.Option ("publication_names", Publication))));
+         Logical.Configure
+           (Decoder, Protocol_Version (Item), Streaming_Mode (Item));
+         if Item.Mode = Psqlbench_Context.Logical_Streaming then
+            Start_Copy
+              (Downstream,
+               Replication.Start_Logical
+                 (Slot, Start_LSN,
+                  (Replication.Option ("proto_version", "2"),
+                   Replication.Option ("publication_names", Publication),
+                   Replication.Option ("streaming", "on"),
+                   Replication.Option ("messages", "true"))));
+         else
+            Start_Copy
+              (Downstream,
+               Replication.Start_Logical
+                 (Slot, Start_LSN,
+                  (Replication.Option ("proto_version", "1"),
+                   Replication.Option ("publication_names", Publication),
+                   Replication.Option ("messages", "true"))));
+         end if;
          Context.Links.Set_Status
            (Link, Psqlbench_Context.Link_Running,
-            "Flyology client -> server -> client bridge is live");
+            "Flyology " & Mode_Image (Item)
+            & " client -> server -> client bridge is live");
          Emit
            (Context, Item, "bridge", "relay-to-target", "ready", Start_LSN);
          Flyology.Supervision.Mark_Ready (Control.all);
@@ -889,13 +987,17 @@ package body Psqlbench_Links is
                                  Logical.Message_Kind'Image
                                    (Logical.Kind (Message)),
                                  Replication.WAL_End (Frame),
-                                 (if Changed then "row applied" else "observed"));
+                                 (if Changed then "row applied"
+                                  elsif Message_Detail (Message)'Length > 0
+                                  then Message_Detail (Message)
+                                  else "observed"));
                               if Changed then
                                  Context.Links.Record_Change
                                    (Link, Replication.WAL_End (Frame));
                               end if;
-                              if Logical.Kind (Message) =
-                                Logical.Commit_Message
+                              if Logical.Kind (Message) in
+                                Logical.Commit_Message |
+                                Logical.Stream_Commit_Message
                               then
                                  declare
                                     Commit : constant Replication.LSN :=

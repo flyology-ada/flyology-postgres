@@ -36,8 +36,11 @@ package Psqlbench_Context is
      (Link_Empty, Link_Pending, Link_Starting, Link_Running,
       Link_Stopping, Link_Stopped, Link_Failed);
 
+   type Link_Mode is (Logical_Committed, Logical_Streaming);
+
    type Link_Record is record
       Status        : Link_Status := Link_Empty;
+      Mode          : Link_Mode := Logical_Committed;
       Name_Length   : Natural range 0 .. Max_Link_Name_Bytes := 0;
       Name          : String (1 .. Max_Link_Name_Bytes) := (others => ' ');
       Source_Length : Natural range 0 .. Max_Instance_Name_Bytes := 0;
@@ -108,6 +111,7 @@ package Psqlbench_Context is
    protected type Link_Registry is
       procedure Create
         (Name, Source, Target : String;
+         Mode     : Link_Mode;
          Accepted : out Boolean;
          Detail   : out String;
          Last     : out Natural);
