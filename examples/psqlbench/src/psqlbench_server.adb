@@ -471,6 +471,72 @@ package body Psqlbench_Server is
          return Psqlbench_JSON.Finish (Document);
       end Topology_Document;
 
+      function Supervision_Document
+        (Nodes : Psqlbench_Context.Supervision_Node_Array;
+         Count : Natural) return String
+      is
+         Document : Psqlbench_JSON.Writer;
+
+         function Kind_Image
+           (Kind : Psqlbench_Context.Supervision_Node_Kind) return String is
+           (case Kind is
+               when Psqlbench_Context.Supervisor_Node => "supervisor",
+               when Psqlbench_Context.Static_Child_Node => "static-child",
+               when Psqlbench_Context.Family_Node => "family",
+               when Psqlbench_Context.Family_Child_Node => "family-child");
+      begin
+         Psqlbench_JSON.Initialize (Document);
+         Psqlbench_JSON.Start_Object (Document);
+         Psqlbench_JSON.String_Value
+           (Document, "source", "Flyology.Supervision.Current");
+         Psqlbench_JSON.Start_Array (Document, "nodes");
+         for Index in 1 .. Count loop
+            Psqlbench_JSON.Start_Object (Document);
+            Psqlbench_JSON.String_Value
+              (Document, "key",
+               Nodes (Index).Key (1 .. Nodes (Index).Key_Length));
+            Psqlbench_JSON.String_Value
+              (Document, "parent",
+               (if Nodes (Index).Parent_Length = 0 then ""
+                else Nodes (Index).Parent
+                  (1 .. Nodes (Index).Parent_Length)));
+            Psqlbench_JSON.String_Value
+              (Document, "name",
+               Nodes (Index).Name (1 .. Nodes (Index).Name_Length));
+            Psqlbench_JSON.String_Value
+              (Document, "kind", Kind_Image (Nodes (Index).Kind));
+            Psqlbench_JSON.String_Value
+              (Document, "state",
+               Nodes (Index).State (1 .. Nodes (Index).State_Length));
+            Psqlbench_JSON.String_Value
+              (Document, "model",
+               Nodes (Index).Model (1 .. Nodes (Index).Model_Length));
+            Psqlbench_JSON.Integer_Value
+              (Document, "child", JSON_Integer (Nodes (Index).Child));
+            Psqlbench_JSON.Integer_Value
+              (Document, "generation",
+               JSON_Integer (Nodes (Index).Generation));
+            Psqlbench_JSON.Integer_Value
+              (Document, "attempts", JSON_Integer (Nodes (Index).Attempts));
+            Psqlbench_JSON.Boolean_Value
+              (Document, "ready", Nodes (Index).Ready);
+            Psqlbench_JSON.Boolean_Value
+              (Document, "live", Nodes (Index).Live);
+            Psqlbench_JSON.Boolean_Value
+              (Document, "escalated", Nodes (Index).Escalated);
+            Psqlbench_JSON.Integer_Value
+              (Document, "capacity",
+               Long_Long_Integer (Nodes (Index).Capacity));
+            Psqlbench_JSON.Integer_Value
+              (Document, "child_count",
+               Long_Long_Integer (Nodes (Index).Child_Count));
+            Psqlbench_JSON.End_Object (Document);
+         end loop;
+         Psqlbench_JSON.End_Array (Document, "nodes");
+         Psqlbench_JSON.End_Object (Document);
+         return Psqlbench_JSON.Finish (Document);
+      end Supervision_Document;
+
       procedure Home
         (State : in out Application_Context;
          X     : in out App.Exchange) is
@@ -555,6 +621,17 @@ package body Psqlbench_Server is
            (200, Topology_Document
               (Instances, Instance_Count, Links, Link_Count));
       end Topology;
+
+      procedure Supervision
+        (State : in out Application_Context;
+         X     : in out App.Exchange)
+      is
+         Nodes : Psqlbench_Context.Supervision_Node_Array;
+         Count : Natural;
+      begin
+         State.Root.Supervision.Snapshot (Nodes, Count);
+         X.JSON (200, Supervision_Document (Nodes, Count));
+      end Supervision;
 
       procedure Links
         (State : in out Application_Context;
@@ -1406,7 +1483,7 @@ package body Psqlbench_Server is
       type Service_Context is limited record
          Application : aliased Application_Context;
          Routes      : aliased Routing.Router
-           (Capacity => 15, Slashes => Routing.Strict_Slashes);
+           (Capacity => 16, Slashes => Routing.Strict_Slashes);
          Budget      : aliased HTTP.Ingress_Budget
            (Limit => 4 * 1_024 * 1_024);
       end record;
@@ -1465,6 +1542,8 @@ package body Psqlbench_Server is
         ("/api/instances", Instances'Access, Name => "api.instances");
       State.Routes.Get
         ("/api/topology", Topology'Access, Name => "api.topology");
+      State.Routes.Get
+        ("/api/supervision", Supervision'Access, Name => "api.supervision");
       State.Routes.Get ("/api/links", Links'Access, Name => "api.links");
       State.Routes.Post
         ("/api/lab/reset", Reset_Lab'Access, Name => "api.lab.reset",

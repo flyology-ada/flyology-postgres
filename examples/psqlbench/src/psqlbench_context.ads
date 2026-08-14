@@ -14,6 +14,11 @@ package Psqlbench_Context is
    Max_Column_Map_Bytes : constant := 2_048;
    Max_Resolved_Column_Map_Bytes : constant := 4_096;
    Max_Instances : constant := 32;
+   Max_Supervision_Key_Bytes : constant := 64;
+   Max_Supervision_Name_Bytes : constant := 64;
+   Max_Supervision_State_Bytes : constant := 32;
+   Max_Supervision_Model_Bytes : constant := 24;
+   Supervision_Node_Capacity : constant := 64;
 
    subtype Event_Sequence is Interfaces.Unsigned_64;
 
@@ -124,6 +129,41 @@ package Psqlbench_Context is
    type Instance_Array is
      array (Positive range 1 .. Max_Instances) of Instance_Record;
 
+   type Supervision_Node_Kind is
+     (Supervisor_Node, Static_Child_Node, Family_Node, Family_Child_Node);
+
+   type Supervision_Node_Record is record
+      Occupied       : Boolean := False;
+      Key_Length     : Natural range 0 .. Max_Supervision_Key_Bytes := 0;
+      Key            : String (1 .. Max_Supervision_Key_Bytes) :=
+        (others => ' ');
+      Parent_Length  : Natural range 0 .. Max_Supervision_Key_Bytes := 0;
+      Parent         : String (1 .. Max_Supervision_Key_Bytes) :=
+        (others => ' ');
+      Name_Length    : Natural range 0 .. Max_Supervision_Name_Bytes := 0;
+      Name           : String (1 .. Max_Supervision_Name_Bytes) :=
+        (others => ' ');
+      Kind           : Supervision_Node_Kind := Supervisor_Node;
+      State_Length   : Natural range 0 .. Max_Supervision_State_Bytes := 0;
+      State          : String (1 .. Max_Supervision_State_Bytes) :=
+        (others => ' ');
+      Model_Length   : Natural range 0 .. Max_Supervision_Model_Bytes := 0;
+      Model          : String (1 .. Max_Supervision_Model_Bytes) :=
+        (others => ' ');
+      Child          : Interfaces.Unsigned_64 := 0;
+      Generation     : Interfaces.Unsigned_64 := 0;
+      Attempts       : Interfaces.Unsigned_64 := 0;
+      Ready          : Boolean := False;
+      Live           : Boolean := False;
+      Escalated      : Boolean := False;
+      Capacity       : Natural := 0;
+      Child_Count    : Natural := 0;
+   end record;
+
+   type Supervision_Node_Array is
+     array (Positive range 1 .. Supervision_Node_Capacity) of
+       Supervision_Node_Record;
+
    protected type Event_Log is
       procedure Append (Value : String);
       procedure Read_After
@@ -177,6 +217,27 @@ package Psqlbench_Context is
    private
       Entries : Instance_Array;
    end Instance_Registry;
+
+   protected type Supervision_Registry is
+      procedure Upsert
+        (Key, Parent, Name : String;
+         Kind              : Supervision_Node_Kind;
+         State, Model      : String;
+         Child             : Interfaces.Unsigned_64 := 0;
+         Generation        : Interfaces.Unsigned_64 := 0;
+         Attempts          : Interfaces.Unsigned_64 := 0;
+         Ready             : Boolean := False;
+         Live              : Boolean := False;
+         Escalated         : Boolean := False;
+         Capacity          : Natural := 0;
+         Child_Count       : Natural := 0);
+      procedure Remove (Key : String);
+      procedure Remove_Children (Parent : String);
+      procedure Snapshot
+        (Value : out Supervision_Node_Array; Count : out Natural);
+   private
+      Entries : Supervision_Node_Array;
+   end Supervision_Registry;
 
    protected type Link_Registry is
       procedure Create
@@ -236,6 +297,7 @@ package Psqlbench_Context is
       Docker : Docker_Status;
       Instances : Instance_Registry;
       Links  : Link_Registry;
+      Supervision : Supervision_Registry;
    end record;
 
 end Psqlbench_Context;

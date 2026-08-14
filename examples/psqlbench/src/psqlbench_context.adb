@@ -245,6 +245,109 @@ package body Psqlbench_Context is
       end Snapshot;
    end Instance_Registry;
 
+   protected body Supervision_Registry is
+      function Same_Key
+        (Item : Supervision_Node_Record; Key : String) return Boolean is
+        (Item.Occupied
+         and then Item.Key_Length = Key'Length
+         and then Item.Key (1 .. Item.Key_Length) = Key);
+
+      function Same_Parent
+        (Item : Supervision_Node_Record; Parent : String) return Boolean is
+        (Item.Occupied
+         and then Item.Parent_Length = Parent'Length
+         and then Item.Parent (1 .. Item.Parent_Length) = Parent);
+
+      procedure Store
+        (Target : out String; Length : out Natural; Value : String) is
+      begin
+         Length := Natural'Min (Target'Length, Value'Length);
+         Target := (others => ' ');
+         if Length > 0 then
+            Target (Target'First .. Target'First + Length - 1) :=
+              Value (Value'First .. Value'First + Length - 1);
+         end if;
+      end Store;
+
+      procedure Upsert
+        (Key, Parent, Name : String;
+         Kind              : Supervision_Node_Kind;
+         State, Model      : String;
+         Child             : Interfaces.Unsigned_64 := 0;
+         Generation        : Interfaces.Unsigned_64 := 0;
+         Attempts          : Interfaces.Unsigned_64 := 0;
+         Ready             : Boolean := False;
+         Live              : Boolean := False;
+         Escalated         : Boolean := False;
+         Capacity          : Natural := 0;
+         Child_Count       : Natural := 0)
+      is
+         Slot : Natural := 0;
+      begin
+         for Index in Entries'Range loop
+            if Same_Key (Entries (Index), Key) then
+               Slot := Index;
+               exit;
+            elsif Slot = 0 and then not Entries (Index).Occupied then
+               Slot := Index;
+            end if;
+         end loop;
+         if Slot = 0 then
+            raise Constraint_Error with "supervision registry is full";
+         end if;
+
+         Entries (Slot) := (others => <>);
+         Entries (Slot).Occupied := True;
+         Store (Entries (Slot).Key, Entries (Slot).Key_Length, Key);
+         Store
+           (Entries (Slot).Parent, Entries (Slot).Parent_Length, Parent);
+         Store (Entries (Slot).Name, Entries (Slot).Name_Length, Name);
+         Store (Entries (Slot).State, Entries (Slot).State_Length, State);
+         Store (Entries (Slot).Model, Entries (Slot).Model_Length, Model);
+         Entries (Slot).Kind := Kind;
+         Entries (Slot).Child := Child;
+         Entries (Slot).Generation := Generation;
+         Entries (Slot).Attempts := Attempts;
+         Entries (Slot).Ready := Ready;
+         Entries (Slot).Live := Live;
+         Entries (Slot).Escalated := Escalated;
+         Entries (Slot).Capacity := Capacity;
+         Entries (Slot).Child_Count := Child_Count;
+      end Upsert;
+
+      procedure Remove (Key : String) is
+      begin
+         for Item of Entries loop
+            if Same_Key (Item, Key) then
+               Item := (others => <>);
+               return;
+            end if;
+         end loop;
+      end Remove;
+
+      procedure Remove_Children (Parent : String) is
+      begin
+         for Item of Entries loop
+            if Same_Parent (Item, Parent) then
+               Item := (others => <>);
+            end if;
+         end loop;
+      end Remove_Children;
+
+      procedure Snapshot
+        (Value : out Supervision_Node_Array; Count : out Natural) is
+      begin
+         Value := (others => <>);
+         Count := 0;
+         for Item of Entries loop
+            if Item.Occupied then
+               Count := Count + 1;
+               Value (Count) := Item;
+            end if;
+         end loop;
+      end Snapshot;
+   end Supervision_Registry;
+
    protected body Link_Registry is
       function Same_Name (Item : Link_Record; Name : String) return Boolean is
         (Item.Status /= Link_Empty

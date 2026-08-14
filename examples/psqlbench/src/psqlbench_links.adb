@@ -1,3 +1,4 @@
+with Ada.Characters.Handling;
 with Ada.Exceptions;
 with Ada.Directories;
 with Ada.Real_Time;
@@ -57,8 +58,15 @@ package body Psqlbench_Links is
    use type Replication.Stream_Message_Kind;
    use type Base_Backups.Event_Kind;
    use type Flyology.Supervision.Generation_Observation_Status;
+   use type Flyology.Execution_Model;
    use type Psqlbench_Context.Link_Command_Kind;
    use type Psqlbench_Context.Link_Mode;
+
+   function Execution_Model_Name
+     (Model : Flyology.Execution_Model) return String is
+     (if Model = Flyology.Native_Task then "native task"
+      elsif Model = Flyology.Lightweight_Task then "lightweight task"
+      else Ada.Characters.Handling.To_Lower (Model'Image));
 
    function Text
      (Value : String; Length : Natural) return String is
@@ -2778,6 +2786,27 @@ package body Psqlbench_Links is
         Handle_Entry;
       Handles : Handle_Array;
 
+      procedure Publish_Family_Node (State : String) is
+         Count : Natural := 0;
+      begin
+         for Item of Handles loop
+            if Item.Occupied then
+               Count := Count + 1;
+            end if;
+         end loop;
+         Context.Supervision.Upsert
+           (Key         => "family.links",
+            Parent      => "service.links",
+            Name        => "Replication link family",
+            Kind        => Psqlbench_Context.Family_Node,
+            State       => State,
+            Model       => "bounded dynamic family",
+            Ready       => State = "accepting",
+            Live        => State /= "joined",
+            Capacity    => Psqlbench_Context.Max_Links,
+            Child_Count => Count);
+      end Publish_Family_Node;
+
       function Matches (Item : Handle_Entry; Name : String) return Boolean is
         (Item.Occupied and then Item.Name_Length = Name'Length
          and then Item.Name (1 .. Item.Name_Length) = Name);
@@ -2797,6 +2826,52 @@ package body Psqlbench_Links is
          raise Program_Error with "link handle directory is full";
       end Remember;
 
+      procedure Publish_Link_Child (Item : in out Handle_Entry) is
+         Child : constant Flyology.Supervision.Child_Id :=
+           Flyology.Supervision.Child (Item.Handle);
+         Snapshot : constant Flyology.Supervision.Child_Snapshot :=
+           Link_Families.Current (Family, Child);
+         Name : constant String := Item.Name (1 .. Item.Name_Length);
+      begin
+         if Snapshot.Generation /=
+           Flyology.Supervision.Current_Generation (Item.Handle)
+         then
+            Item.Handle := Link_Families.Latest (Family, Child);
+         end if;
+         Context.Supervision.Upsert
+           (Key        => "family.links." & Name,
+            Parent     => "family.links",
+            Name       => Name,
+            Kind       => Psqlbench_Context.Family_Child_Node,
+            State      => Ada.Characters.Handling.To_Lower
+              (Snapshot.State'Image),
+            Model      => Execution_Model_Name (Snapshot.Task_Model),
+            Child      => Snapshot.Id,
+            Generation => Snapshot.Generation,
+            Attempts   => Snapshot.Attempts,
+            Ready      => Snapshot.Ready,
+            Live       => Snapshot.Live,
+            Escalated  => Snapshot.Escalated);
+      exception
+         when Link_Families.Stale_Handle =>
+            Context.Supervision.Remove
+              ("family.links."
+               & Item.Name (1 .. Item.Name_Length));
+      end Publish_Link_Child;
+
+      procedure Publish_Family is
+      begin
+         Publish_Family_Node
+           ((if Link_Families.Accepting (Family)
+             then "accepting"
+             else "stopping"));
+         for Item of Handles loop
+            if Item.Occupied then
+               Publish_Link_Child (Item);
+            end if;
+         end loop;
+      end Publish_Family;
+
       procedure Stop_Supervised_Link (Name : String) is
       begin
          for Item of Handles loop
@@ -2806,6 +2881,7 @@ package body Psqlbench_Links is
                exception
                   when Link_Families.Stale_Handle => null;
                end;
+               Context.Supervision.Remove ("family.links." & Name);
                Item.Occupied := False;
                return;
             end if;
@@ -2846,6 +2922,8 @@ package body Psqlbench_Links is
            (Family, Family_State, Control.all, Result);
       end Runner;
    begin
+      Context.Supervision.Remove_Children ("family.links");
+      Publish_Family_Node ("starting");
       while not Link_Families.Accepting (Family) loop
          if Flyology.Supervision.Stopping (Control.all).Requested then
             Link_Families.Request_Shutdown (Family);
@@ -2858,8 +2936,10 @@ package body Psqlbench_Links is
       loop
          if Flyology.Supervision.Stopping (Control.all).Requested then
             Link_Families.Request_Shutdown (Family);
+            Publish_Family_Node ("stopping");
             exit;
          end if;
+         Publish_Family;
          declare
             Command : Psqlbench_Context.Link_Command;
             Available : Boolean;

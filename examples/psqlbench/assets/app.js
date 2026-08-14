@@ -55,6 +55,8 @@
   const resetSummary = document.querySelector("#reset-summary");
   const cancelReset = document.querySelector("#cancel-reset");
   const confirmReset = document.querySelector("#confirm-reset");
+  const supervisionTree = document.querySelector("#supervision-tree");
+  const supervisionState = document.querySelector("#supervision-state");
 
   let toastTimer;
   let instances = [];
@@ -76,6 +78,7 @@
   let logSocket;
   let logGeneration = 0;
   let logLines = 0;
+  let supervisionSignature = "";
 
   const topologyPresets = {
     "logical-stream": {
@@ -773,6 +776,77 @@
     syncInstanceSelector();
   }
 
+  function renderSupervision(nodes) {
+    const signature = JSON.stringify(nodes);
+    if (signature === supervisionSignature) return;
+    supervisionSignature = signature;
+
+    const byKey = new Map(nodes.map(node => [node.key, node]));
+    const byParent = new Map();
+    nodes.forEach(node => {
+      const parent = String(node.parent || "");
+      if (!byParent.has(parent)) byParent.set(parent, []);
+      byParent.get(parent).push(node);
+    });
+
+    function branch(values, ancestors = new Set()) {
+      const list = el("ul", "supervision-branch");
+      values.forEach(node => {
+        if (ancestors.has(node.key)) return;
+        const item = el("li", "supervision-item");
+        const row = el("div", "supervision-node");
+        const identity = el("div", "supervision-identity");
+        const kind = el("span", `supervision-kind ${node.kind}`, String(node.kind || "node").replaceAll("-", " "));
+        identity.append(kind, el("span", "supervision-name", node.name || node.key));
+
+        const model = String(node.model || "").replaceAll("_", " ");
+        const meta = Number(node.child) > 0
+          ? `child ${node.child} · generation ${node.generation} · ${model} · ${node.attempts || 0} recovery attempts`
+          : `${node.child_count || 0}/${node.capacity || 0} children · ${model}`;
+        const stateName = String(node.state || "unknown").replaceAll("_", "-");
+        const stateParts = [String(node.state || "unknown").replaceAll("_", " ")];
+        if (node.ready && !["ready", "running", "accepting"].includes(node.state)) stateParts.push("ready");
+        stateParts.push(node.live ? "live" : "not live");
+        if (node.escalated) stateParts.push("escalated");
+        const status = el("span", `supervision-status ${stateName}`, stateParts.join(" · "));
+        row.setAttribute("aria-label", `${node.name}: ${stateParts.join(", ")}. ${meta}`);
+        row.append(identity, el("span", "supervision-meta", meta), status);
+        item.append(row);
+
+        const children = byParent.get(node.key) || [];
+        if (children.length) {
+          const nextAncestors = new Set(ancestors);
+          nextAncestors.add(node.key);
+          item.append(branch(children, nextAncestors));
+        }
+        list.append(item);
+      });
+      return list;
+    }
+
+    const roots = nodes.filter(node => !node.parent || !byKey.has(node.parent));
+    supervisionTree.replaceChildren();
+    if (!roots.length) {
+      supervisionTree.append(el("p", "supervision-empty", "No supervisor snapshots are available yet."));
+    } else {
+      supervisionTree.append(branch(roots));
+    }
+    supervisionTree.setAttribute("aria-busy", "false");
+    const live = nodes.filter(node => node.live).length;
+    const families = nodes.filter(node => node.kind === "family").length;
+    supervisionState.textContent = `${live}/${nodes.length} live · ${families} ${families === 1 ? "family" : "families"}`;
+  }
+
+  async function refreshSupervision() {
+    try {
+      const snapshot = await request("/api/supervision");
+      renderSupervision(Array.isArray(snapshot.nodes) ? snapshot.nodes : []);
+    } catch (_error) {
+      supervisionState.textContent = "Runtime snapshots unavailable";
+      supervisionTree.setAttribute("aria-busy", "false");
+    }
+  }
+
   async function refreshStatus() {
     try {
       const status = await request("/api/status");
@@ -1223,8 +1297,10 @@
   refreshStatus();
   refreshInstances();
   refreshLinks();
+  refreshSupervision();
   connectEvents();
   setInterval(refreshStatus, 5000);
   setInterval(refreshInstances, 8000);
   setInterval(refreshLinks, 3000);
+  setInterval(refreshSupervision, 1000);
 })();

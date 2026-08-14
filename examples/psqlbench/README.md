@@ -67,7 +67,10 @@ over the daemon's Unix-domain socket; psqlbench does not invoke the Docker CLI.
 - runs Docker operations through a bounded Flyology HTTP Unix-socket client
   pool; and
 - supervises Docker readiness, log collection, the dynamic link family, and the
-  HTTP service as a dependency-ordered topology.
+  HTTP service as a dependency-ordered topology; the UI renders live bounded
+  `Flyology.Supervision.Current` snapshots for every static child and admitted
+  family generation, including lifecycle, readiness, liveness, recovery
+  attempts, and execution model.
 
 The logical bridge exports a slot snapshot, copies existing rows through
 Flyology clients at the returned consistent LSN, records initialization on the

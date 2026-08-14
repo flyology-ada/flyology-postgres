@@ -299,6 +299,23 @@
         </ol>
       </aside>
     </section>
+
+    <section class="supervision-section" aria-labelledby="supervision-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">05 / Runtime hierarchy</p>
+          <h2 id="supervision-title">Supervision tree</h2>
+        </div>
+        <span class="supervision-state" id="supervision-state" role="status">Reading runtime snapshots</span>
+      </div>
+      <div class="supervision-explainer">
+        <p>This is the running hierarchy reported by Flyology supervision snapshots. Static services show their current generation; the replication family expands as link children are admitted, stopped, or replaced.</p>
+        <code>Flyology.Supervision.Current</code>
+      </div>
+      <div class="supervision-tree" id="supervision-tree" aria-live="polite" aria-busy="true">
+        <p class="supervision-empty">Waiting for the supervisor to publish its first snapshot.</p>
+      </div>
+    </section>
   </main>
 
   <div class="toast" id="toast" role="alert" hidden></div>

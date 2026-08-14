@@ -1,4 +1,5 @@
 with Ada.Command_Line;
+with Ada.Characters.Handling;
 with Ada.Exceptions;
 with Ada.Real_Time;
 with Ada.Text_IO;
@@ -17,6 +18,7 @@ with Psqlbench_Server;
 with Psqlbench_Signals;
 
 procedure Psqlbench is
+   use type Flyology.Execution_Model;
    use type Flyology.Supervision.Supervisor_Outcome;
 
    type Service_Kind is
@@ -31,6 +33,28 @@ procedure Psqlbench is
          when Log_Control    => 3,
          when Link_Control   => 4,
          when HTTP_Control   => 5);
+
+   function Service_Key (Child : Service_Kind) return String is
+     (case Child is
+         when Docker_Control   => "service.docker",
+         when Topology_Control => "service.topology",
+         when Log_Control      => "service.logs",
+         when Link_Control     => "service.links",
+         when HTTP_Control     => "service.http");
+
+   function Service_Name (Child : Service_Kind) return String is
+     (case Child is
+         when Docker_Control   => "Docker control",
+         when Topology_Control => "Topology reconciliation",
+         when Log_Control      => "Postgres log collection",
+         when Link_Control     => "Replication link control",
+         when HTTP_Control     => "HTTP control plane");
+
+   function Execution_Model_Name
+     (Model : Flyology.Execution_Model) return String is
+     (if Model = Flyology.Native_Task then "native task"
+      elsif Model = Flyology.Lightweight_Task then "lightweight task"
+      else Ada.Characters.Handling.To_Lower (Model'Image));
 
    function Specification
      (Child : Service_Kind)
@@ -218,6 +242,57 @@ procedure Psqlbench is
    Result     : Flyology.Supervision.Supervisor_Result;
    Docker_Started : Boolean := False;
 
+   procedure Publish_Supervision is
+      type Snapshot_Array is array (Service_Kind) of
+        Flyology.Supervision.Child_Snapshot;
+      Snapshots : Snapshot_Array;
+      Ready_Count : Natural := 0;
+   begin
+      for Child in Service_Kind loop
+         Snapshots (Child) := Supervisors.Current (Supervisor, Child);
+         if Snapshots (Child).Ready then
+            Ready_Count := Ready_Count + 1;
+         end if;
+      end loop;
+
+      Context.Supervision.Upsert
+        (Key         => "psqlbench",
+         Parent      => "",
+         Name        => "psqlbench service supervisor",
+         Kind        => Psqlbench_Context.Supervisor_Node,
+         State       =>
+           (if Ready_Count = Service_Kind'Pos (Service_Kind'Last) + 1
+            then "running"
+            else "starting"),
+         Model       => "static supervisor",
+         Ready       => Ready_Count = Service_Kind'Pos (Service_Kind'Last) + 1,
+         Live        => True,
+         Capacity    => Service_Kind'Pos (Service_Kind'Last) + 1,
+         Child_Count => Service_Kind'Pos (Service_Kind'Last) + 1);
+
+      for Child in Service_Kind loop
+         declare
+            Snapshot : Flyology.Supervision.Child_Snapshot
+              renames Snapshots (Child);
+         begin
+            Context.Supervision.Upsert
+              (Key         => Service_Key (Child),
+               Parent      => "psqlbench",
+               Name        => Service_Name (Child),
+               Kind        => Psqlbench_Context.Static_Child_Node,
+               State       => Ada.Characters.Handling.To_Lower
+                 (Snapshot.State'Image),
+               Model       => Execution_Model_Name (Snapshot.Task_Model),
+               Child       => Snapshot.Id,
+               Generation  => Snapshot.Generation,
+               Attempts    => Snapshot.Attempts,
+               Ready       => Snapshot.Ready,
+               Live        => Snapshot.Live,
+               Escalated   => Snapshot.Escalated);
+         end;
+      end loop;
+   end Publish_Supervision;
+
    task Signal_Watcher is
       pragma Task_Info (Flyology.Native_Task);
    end Signal_Watcher;
@@ -233,6 +308,19 @@ procedure Psqlbench is
          delay 0.050;
       end loop;
    end Signal_Watcher;
+
+   task Supervision_Observer is
+      pragma Task_Info (Flyology.Native_Task);
+   end Supervision_Observer;
+
+   task body Supervision_Observer is
+   begin
+      loop
+         Publish_Supervision;
+         exit when Psqlbench_Signals.Completed;
+         delay 0.100;
+      end loop;
+   end Supervision_Observer;
 
 begin
    Psqlbench_Docker.Start;
