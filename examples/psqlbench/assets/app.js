@@ -468,8 +468,14 @@
     }
     live.append(liveHeading, liveEvents);
     const actions = el("div", "node-actions");
-    const insert = el("button", "button primary", "Insert demo row");
+    const insertRelation = physical
+      ? "public.psqlbench_physical_probe"
+      : link.source_relation;
+    const insertLabel = `Prepare insert on ${link.source}`;
+    const insert = el("button", "button primary", insertLabel);
     insert.type = "button";
+    insert.title = `Prepare a row insert into ${insertRelation} on ${link.source}`;
+    insert.setAttribute("aria-label", insert.title);
     const managedRelation = link.source_relation === `public.${link.table}`;
     insert.hidden = !physical && !managedRelation;
     insert.disabled = link.status !== "running";
