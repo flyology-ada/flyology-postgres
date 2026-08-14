@@ -14,7 +14,8 @@ over the daemon's Unix-domain socket; psqlbench does not invoke the Docker CLI.
 - reconciles containers carrying the `org.flyology.psqlbench.instance` label;
 - creates PostgreSQL 14.23, 15.18, 16.14, 17.10, and 18.4 containers;
 - starts, stops, and removes owned containers;
-- opens a supervised Flyology Postgres query session for a selected instance;
+- opens a syntax-highlighted SQL editor and supervised Flyology Postgres query
+  session for a selected instance;
 - streams columns, rows, command tags, notices, errors, duration, and
   cancellation state into a bounded tabular result, resolving every result
   type OID through that server's own `pg_type` catalog;

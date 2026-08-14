@@ -249,18 +249,21 @@
       <div class="workspace-panel query-panel" id="query-panel">
         <div class="query-compose">
           <label for="query-input">SQL</label>
-          <textarea id="query-input" spellcheck="false">select version() as server_version,
+          <div class="sql-editor">
+            <pre class="sql-highlight" id="query-highlight" aria-hidden="true"><code></code></pre>
+            <textarea id="query-input" spellcheck="false" wrap="off" aria-label="SQL statement">select version() as server_version,
        current_database() as database,
        42 as answer,
        null as nullable;</textarea>
+          </div>
           <div class="query-actions">
             <p>Extended query protocol over WebSocket</p>
+            <p class="shortcut">Run with <kbd>⌘</kbd><kbd>Enter</kbd> or <kbd>Ctrl</kbd><kbd>Enter</kbd></p>
             <div>
               <button class="button secondary" type="button" id="cancel-query" disabled>Cancel</button>
               <button class="button primary" type="button" id="run-query">Run query</button>
             </div>
           </div>
-          <p class="shortcut">Run with <kbd>⌘</kbd><kbd>Enter</kbd> or <kbd>Ctrl</kbd><kbd>Enter</kbd></p>
         </div>
         <div class="query-output">
           <div class="output-heading">

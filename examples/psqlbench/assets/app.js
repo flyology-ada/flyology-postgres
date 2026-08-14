@@ -16,6 +16,7 @@
   const queryPanel = document.querySelector("#query-panel");
   const logsPanel = document.querySelector("#logs-panel");
   const queryInput = document.querySelector("#query-input");
+  const queryHighlight = document.querySelector("#query-highlight code");
   const runQuery = document.querySelector("#run-query");
   const cancelQuery = document.querySelector("#cancel-query");
   const queryState = document.querySelector("#query-state");
@@ -413,6 +414,45 @@
     return `${scheme}//${location.host}${path}`;
   }
 
+  const sqlKeywords = new Set(`all alter analyze and any array as asc begin between by case cast check collate column commit conflict constraint create cross current current_date current_time current_timestamp database default delete desc distinct do else end except exists explain false fetch for foreign from full generated grant group having identity if in index inner insert intersect into is join lateral left like limit local lock materialized merge natural not null nulls offset on only or order outer over partition prepare primary publication recursive references returning revoke right rollback row rows schema select set show some table tablespace then transaction trigger true truncate union unique update using values view when where window with`.split(" "));
+
+  function updateSQLHighlight() {
+    const source = queryInput.value;
+    const fragment = document.createDocumentFragment();
+    const tokenPattern = /\$([a-z_][a-z0-9_]*)?\$[\s\S]*?\$\1\$|--[^\n]*|\/\*[\s\S]*?(?:\*\/|$)|'(?:''|[^'])*'|"(?:""|[^"])*"|\b\d+(?:\.\d+)?(?:e[+-]?\d+)?\b|\b[a-z_][a-z0-9_$]*\b/gi;
+    let offset = 0;
+    for (const match of source.matchAll(tokenPattern)) {
+      if (match.index > offset) fragment.append(document.createTextNode(source.slice(offset, match.index)));
+      const token = match[0];
+      const lower = token.toLowerCase();
+      let kind = "";
+      if (token.startsWith("--") || token.startsWith("/*")) kind = "comment";
+      else if (token.startsWith("'") || token.startsWith("$")) kind = "string";
+      else if (token.startsWith('"')) kind = "identifier";
+      else if (/^\d/.test(token)) kind = "number";
+      else if (sqlKeywords.has(lower)) kind = "keyword";
+      else if (/^\s*\(/.test(source.slice(match.index + token.length))) kind = "function";
+      if (kind) {
+        const span = document.createElement("span");
+        span.className = `sql-token ${kind}`;
+        span.textContent = token;
+        fragment.append(span);
+      } else {
+        fragment.append(document.createTextNode(token));
+      }
+      offset = match.index + token.length;
+    }
+    fragment.append(document.createTextNode(source.slice(offset) || (source.endsWith("\n") ? " " : "")));
+    queryHighlight.replaceChildren(fragment);
+    queryHighlight.parentElement.scrollTop = queryInput.scrollTop;
+    queryHighlight.parentElement.scrollLeft = queryInput.scrollLeft;
+  }
+
+  function setQueryText(sql) {
+    queryInput.value = sql;
+    updateSQLHighlight();
+  }
+
   function instanceNode(instance) {
     const details = detailsOf(instance);
     const article = el("article", `node ${details.running ? "running" : "stopped"}`);
@@ -737,9 +777,9 @@
     insert.disabled = link.status !== "running";
     insert.addEventListener("click", () => {
       selectInstance(link.source);
-      queryInput.value = physical
+      setQueryText(physical
         ? `create table if not exists public.psqlbench_physical_probe (id bigserial primary key, payload text, changed_at timestamptz default clock_timestamp());\ninsert into public.psqlbench_physical_probe (payload) values ('WAL through ${link.name}') returning *;`
-        : `insert into ${link.source_relation} (id, payload)\nvalues ((extract(epoch from clock_timestamp()) * 1000000)::bigint,\n        'sent through ${link.name}')\nreturning *;`;
+        : `insert into ${link.source_relation} (id, payload)\nvalues ((extract(epoch from clock_timestamp()) * 1000000)::bigint,\n        'sent through ${link.name}')\nreturning *;`);
       showWindow("query");
       queryInput.focus();
     });
@@ -747,11 +787,11 @@
     inspect.type = "button";
     inspect.addEventListener("click", () => {
       selectInstance(link.target);
-      queryInput.value = physical
+      setQueryText(physical
         ? "select pg_is_in_recovery() as in_recovery, pg_last_wal_replay_lsn() as replay_lsn;\nselect * from public.psqlbench_physical_probe order by id desc limit 20;"
         : (managedRelation
           ? `select * from ${link.target_relation} order by id desc limit 20;`
-          : `select * from ${link.target_relation} limit 20;`);
+          : `select * from ${link.target_relation} limit 20;`));
       showWindow("query");
     });
     const pattern = el("button", "button secondary", twoPhase ? "Load prepared transaction" : (streamed ? "Load streamed transaction" : "Load message patterns"));
@@ -760,11 +800,11 @@
     if (physical) pattern.hidden = true;
     pattern.addEventListener("click", () => {
       selectInstance(link.source);
-      queryInput.value = twoPhase
+      setQueryText(twoPhase
         ? `begin;\ninsert into ${link.source_relation} (id, payload)\nvalues ((extract(epoch from clock_timestamp()) * 1000000)::bigint, '${streamed ? "streamed + " : ""}prepared through ${link.name}');\nprepare transaction '${link.name}-demo';\n-- Run COMMIT PREPARED '${link.name}-demo'; or ROLLBACK PREPARED '${link.name}-demo'; next.`
         : (streamed
           ? `insert into ${link.source_relation} (id, payload)\nselect 1000000 + n, repeat('streamed-', 128) || n\nfrom generate_series(1, 300) as n;`
-          : `select pg_logical_emit_message(false, 'psqlbench', 'non-transactional message');\nbegin;\nselect pg_logical_emit_message(true, 'psqlbench', 'transactional message');\ninsert into ${link.source_relation} (id, payload)\nvalues ((extract(epoch from clock_timestamp()) * 1000000)::bigint, 'same transaction');\ncommit;`);
+          : `select pg_logical_emit_message(false, 'psqlbench', 'non-transactional message');\nbegin;\nselect pg_logical_emit_message(true, 'psqlbench', 'transactional message');\ninsert into ${link.source_relation} (id, payload)\nvalues ((extract(epoch from clock_timestamp()) * 1000000)::bigint, 'same transaction');\ncommit;`));
       showWindow("query");
       queryInput.focus();
     });
@@ -1568,12 +1608,18 @@
       runQuery.click();
     }
   });
+  queryInput.addEventListener("input", updateSQLHighlight);
+  queryInput.addEventListener("scroll", () => {
+    queryHighlight.parentElement.scrollTop = queryInput.scrollTop;
+    queryHighlight.parentElement.scrollLeft = queryInput.scrollLeft;
+  });
   clearLogs.addEventListener("click", () => {
     logLines = 0;
     logOutput.textContent = "View cleared. New server output will appear here.\n";
   });
   activityFilter.addEventListener("change", applyActivityFilter);
 
+  updateSQLHighlight();
   initializeWindowManager();
   refreshStatus();
   refreshInstances();

@@ -824,10 +824,71 @@ main.desktop {
 .instance-selector { align-items: center; flex: 0 1 14rem; gap: .35rem; min-width: 8rem; }
 .instance-selector span { font-size: .52rem; }
 .instance-selector select { border-radius: .15rem; font-family: var(--mono); font-size: .55rem; min-height: 1.5rem; min-width: 0; padding: .15rem 1.4rem .15rem .35rem; }
-.query-panel { flex: 1 1 auto; grid-template-columns: minmax(17rem, .8fr) minmax(19rem, 1.2fr); min-height: 0; overflow: hidden; }
-.query-compose { overflow: auto; padding: .8rem; }
-.query-compose textarea { border-radius: .2rem; font-size: .7rem; min-height: 10rem; padding: .7rem; }
-.query-actions { margin-top: .6rem; }
+.query-panel {
+  flex: 1 1 auto;
+  grid-template-columns: 1fr;
+  grid-template-rows: minmax(7rem, 1.05fr) minmax(6rem, .95fr);
+  min-height: 0;
+  overflow: hidden;
+}
+.query-compose {
+  border-bottom: 1px solid var(--line);
+  border-right: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: .65rem .75rem .55rem;
+}
+.query-compose > label { flex: 0 0 auto; margin-bottom: .4rem; }
+.sql-editor {
+  background: oklch(22% .045 270);
+  border: 1px solid oklch(33% .05 270);
+  border-radius: .18rem;
+  flex: 1 1 auto;
+  min-height: 4.5rem;
+  overflow: hidden;
+  position: relative;
+}
+.sql-editor:focus-within { outline: 3px solid color-mix(in oklch, var(--violet) 35%, transparent); outline-offset: 2px; }
+.sql-highlight,
+.sql-editor textarea {
+  border: 0;
+  font-family: var(--mono);
+  font-size: .7rem;
+  inset: 0;
+  line-height: 1.6;
+  margin: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: .65rem .75rem;
+  tab-size: 2;
+  white-space: pre;
+}
+.sql-highlight {
+  color: oklch(90% .025 270);
+  pointer-events: none;
+  position: absolute;
+}
+.sql-editor textarea {
+  background: transparent;
+  caret-color: oklch(94% .02 270);
+  color: transparent;
+  height: 100%;
+  position: relative;
+  resize: none;
+  -webkit-text-fill-color: transparent;
+}
+.sql-editor textarea:focus { outline: 0; }
+.sql-editor textarea::selection { background: color-mix(in oklch, var(--violet) 42%, transparent); }
+.sql-token.keyword { color: oklch(76% .16 292); font-weight: 650; }
+.sql-token.function { color: oklch(78% .12 190); }
+.sql-token.string { color: oklch(82% .11 82); }
+.sql-token.identifier { color: oklch(82% .08 245); }
+.sql-token.number { color: oklch(79% .12 45); }
+.sql-token.comment { color: oklch(64% .025 270); font-style: italic; }
+.query-actions { display: grid; flex: 0 0 auto; gap: .8rem; grid-template-columns: minmax(9rem, 1fr) auto auto; margin-top: .55rem; }
+.query-actions .shortcut { margin: 0; white-space: nowrap; }
 .query-actions .button, .log-controls .button { border-radius: .2rem; font-size: .58rem; padding: .35rem .55rem; }
 .query-actions p, .shortcut { font-size: .56rem; }
 .query-output { display: flex; flex-direction: column; min-height: 0; }
@@ -886,7 +947,10 @@ main.desktop {
   .lab-window, .lab-window[data-dock="float"] { display: flex; height: auto; left: auto !important; min-height: 18rem; position: relative; resize: none; top: auto !important; width: auto; }
   .lab-window[data-window-hidden="true"] { display: none; }
   .window-controls select, .window-controls button[data-window-action="float"] { display: none; }
-  .query-panel { grid-template-columns: 1fr; overflow: visible; }
+  .query-panel { grid-template-columns: 1fr; grid-template-rows: auto minmax(18rem, auto); overflow: visible; }
+  .query-compose { min-height: 18rem; }
+  .query-actions { grid-template-columns: 1fr auto; }
+  .query-actions .shortcut { display: none; }
   .query-output { min-height: 18rem; }
   .log-output { min-height: 20rem; }
 }
