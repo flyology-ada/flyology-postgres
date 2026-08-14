@@ -102,10 +102,19 @@ package body Psqlbench_Query is
 
       function Cancel_Requested return Boolean is (Is_Cancelled);
 
-      procedure Request_Page is
+      procedure Request_Page (Request_Id : Natural) is
       begin
-         if Rows_Available = 0 and then not Is_Cancelled then
-            Rows_Available := Query_Page_Size;
+         if Request_Id = 0 or else Request_Id > Last_Page_Request then
+            if Request_Id > 0 then
+               Last_Page_Request := Request_Id;
+            end if;
+            if not Is_Cancelled then
+               if Rows_Available = 0 then
+                  Rows_Available := Query_Page_Size;
+               else
+                  Page_Pending := True;
+               end if;
+            end if;
          end if;
       end Request_Page;
 
@@ -119,6 +128,10 @@ package body Psqlbench_Query is
          Proceed := not Is_Cancelled;
          if Proceed then
             Rows_Available := Rows_Available - 1;
+            if Rows_Available = 0 and then Page_Pending then
+               Rows_Available := Query_Page_Size;
+               Page_Pending := False;
+            end if;
          end if;
       end Wait_For_Row;
    end Query_Control;

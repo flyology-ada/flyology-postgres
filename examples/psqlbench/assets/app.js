@@ -80,6 +80,11 @@
   let resultLoader;
   let queryHasMore = false;
   let queryPageSize = 250;
+  const queryAutoLoadCap = 5000;
+  let queryAutoLoading = false;
+  let queryPageRequestTimer;
+  let queryPageRequestId = 0;
+  let pendingPageRequestId = 0;
   let loadedRowCount = 0;
   let logSocket;
   let logGeneration = 0;
@@ -1278,9 +1283,14 @@
   }
 
   function resetQueryOutput() {
+    clearTimeout(queryPageRequestTimer);
     resultBody = undefined;
     resultLoader = undefined;
     queryHasMore = false;
+    queryAutoLoading = false;
+    queryPageRequestTimer = undefined;
+    queryPageRequestId = 0;
+    pendingPageRequestId = 0;
     loadedRowCount = 0;
     queryMessages.replaceChildren();
     queryResult.replaceChildren(el("p", "output-empty", "Waiting for columns and rows."));
@@ -1334,27 +1344,83 @@
       || querySocket.readyState !== WebSocket.OPEN) return;
     queryHasMore = false;
     if (resultLoader) {
-      const button = resultLoader.querySelector("button");
-      button.disabled = true;
-      button.textContent = "Loading next batch";
+      resultLoader.querySelectorAll("button").forEach(button => {
+        button.disabled = true;
+      });
+      const next = resultLoader.querySelector(".load-next");
+      if (next) next.textContent = queryAutoLoading
+        ? `Loading to ${queryAutoLoadCap.toLocaleString()} cap`
+        : "Loading next batch";
     }
-    queryState.textContent = `${loadedRowCount} rows loaded · fetching ${queryPageSize} more`;
-    querySocket.send(JSON.stringify({ type: "more" }));
+    queryState.textContent = queryAutoLoading
+      ? `${loadedRowCount} rows loaded · loading to ${queryAutoLoadCap.toLocaleString()} cap`
+      : `${loadedRowCount} rows loaded · fetching ${queryPageSize} more`;
+    queryPageRequestId += 1;
+    pendingPageRequestId = queryPageRequestId;
+    sendPageRequest();
+  }
+
+  function sendPageRequest() {
+    if (!pendingPageRequestId || !querySocket
+      || querySocket.readyState !== WebSocket.OPEN) return;
+    querySocket.send(JSON.stringify({
+      type: "more",
+      request_id: pendingPageRequestId
+    }));
+    clearTimeout(queryPageRequestTimer);
+    queryPageRequestTimer = setTimeout(sendPageRequest, 750);
+  }
+
+  function finishPageRequest() {
+    clearTimeout(queryPageRequestTimer);
+    queryPageRequestTimer = undefined;
+    pendingPageRequestId = 0;
+  }
+
+  function requestAllRows() {
+    if (!queryHasMore) return;
+    queryAutoLoading = true;
+    requestMoreRows();
   }
 
   function offerNextPage(value) {
+    finishPageRequest();
     queryHasMore = true;
     queryPageSize = Number(value.page_size) || 250;
     if (resultLoader) resultLoader.remove();
     resultLoader = el("div", "result-loader");
     const count = Number(value.rows) || loadedRowCount;
-    const summary = el("span", "", `${count} rows loaded`);
-    const button = el("button", "button secondary", `Load ${queryPageSize} more`);
-    button.type = "button";
-    button.addEventListener("click", requestMoreRows);
-    resultLoader.append(summary, button);
+    const atAutomaticCap = count >= queryAutoLoadCap;
+    const reachedAutomaticCap = queryAutoLoading && atAutomaticCap;
+    if (atAutomaticCap) queryAutoLoading = false;
+    const summary = el(
+      "span",
+      "",
+      reachedAutomaticCap
+        ? `${count} rows loaded · automatic cap reached`
+        : `${count} rows loaded`
+    );
+    const actions = el("div", "result-loader-actions");
+    const next = el("button", "button secondary load-next", `Load ${queryPageSize} more`);
+    next.type = "button";
+    next.addEventListener("click", requestMoreRows);
+    actions.append(next);
+    if (!atAutomaticCap) {
+      const all = el(
+        "button",
+        "button secondary load-all",
+        `Load all (max ${queryAutoLoadCap.toLocaleString()})`
+      );
+      all.type = "button";
+      all.addEventListener("click", requestAllRows);
+      actions.append(all);
+    }
+    resultLoader.append(summary, actions);
     queryResult.append(resultLoader);
-    queryState.textContent = `${count} rows loaded · scroll for more`;
+    queryState.textContent = reachedAutomaticCap
+      ? `${count} rows loaded · automatic loading stopped at cap`
+      : `${count} rows loaded · scroll for more`;
+    if (queryAutoLoading) queueMicrotask(requestMoreRows);
   }
 
   function handleQueryEvent(value) {
@@ -1381,7 +1447,9 @@
         break;
       case "query.cancelling": queryState.textContent = "Cancellation requested"; break;
       case "query.ready":
+        finishPageRequest();
         queryHasMore = false;
+        queryAutoLoading = false;
         if (resultLoader) resultLoader.remove();
         resultLoader = undefined;
         queryRunning = false;
@@ -1400,10 +1468,13 @@
   }
 
   function closeQuerySocket() {
+    finishPageRequest();
     queryGeneration += 1;
     if (querySocket) querySocket.close();
     querySocket = undefined;
     queryRunning = false;
+    queryHasMore = false;
+    queryAutoLoading = false;
     runQuery.disabled = true;
     cancelQuery.disabled = true;
   }
@@ -1639,6 +1710,7 @@
   });
   cancelQuery.addEventListener("click", () => {
     if (querySocket?.readyState === WebSocket.OPEN && queryRunning) {
+      finishPageRequest();
       querySocket.send(JSON.stringify({ type: "cancel" }));
       cancelQuery.disabled = true;
       queryState.textContent = "Requesting cancellation";

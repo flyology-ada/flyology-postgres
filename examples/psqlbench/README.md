@@ -21,7 +21,8 @@ over the daemon's Unix-domain socket; psqlbench does not invoke the Docker CLI.
   type OID through that server's own `pg_type` catalog;
 - streams query results in demand-driven 250-row pages, pausing PostgreSQL
   intake between pages until the result viewport requests more, while retaining
-  the compact 1,024-event ring and batched event draining;
+  the compact 1,024-event ring and batched event draining; the workbench can
+  also drain pages automatically to an explicit 5,000-row display cap;
 - continuously collects timestamped output for every owned container into a
   bounded 1,024-line ring, and replays the selected server's retained output
   before following it live;

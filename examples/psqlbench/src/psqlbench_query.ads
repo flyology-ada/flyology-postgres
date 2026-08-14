@@ -35,12 +35,14 @@ package Psqlbench_Query is
    protected type Query_Control is
       procedure Request_Cancel;
       function Cancel_Requested return Boolean;
-      procedure Request_Page;
+      procedure Request_Page (Request_Id : Natural);
       function Page_Exhausted return Boolean;
       entry Wait_For_Row (Proceed : out Boolean);
    private
-      Is_Cancelled   : Boolean := False;
-      Rows_Available : Natural range 0 .. Query_Page_Size :=
+      Is_Cancelled      : Boolean := False;
+      Last_Page_Request : Natural := 0;
+      Page_Pending      : Boolean := False;
+      Rows_Available    : Natural range 0 .. Query_Page_Size :=
         Query_Page_Size;
    end Query_Control;
 

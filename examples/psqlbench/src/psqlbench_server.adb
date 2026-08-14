@@ -1447,7 +1447,9 @@ package body Psqlbench_Server is
                                           if Next_Command = "cancel" then
                                              Query_Control.Request_Cancel;
                                           elsif Next_Command = "more" then
-                                             Query_Control.Request_Page;
+                                             Query_Control.Request_Page
+                                               (Psqlbench_JSON.Natural_Field
+                                                  (Next, "request_id", 0));
                                           else
                                              X.Send_WebSocket
                                                (Message_Document

@@ -909,6 +909,7 @@ main.desktop {
 }
 .result-loader span { color: var(--ink-soft); }
 .result-loader .button { padding: .3rem .5rem; }
+.result-loader-actions { align-items: center; display: flex; gap: .35rem; }
 .result-table { font-size: .62rem; }
 .result-table th, .result-table td { padding: .5rem .6rem; }
 
