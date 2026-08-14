@@ -93,6 +93,7 @@
   let logGeneration = 0;
   let logLines = 0;
   let supervisionSignature = "";
+  const supervisionFailureConfirmations = new Map();
 
   const topologyPresets = {
     "logical-stream": {
@@ -1226,21 +1227,88 @@
         const item = el("li", "supervision-item");
         const row = el("div", "supervision-node");
         const identity = el("div", "supervision-identity");
-        const kind = el("span", `supervision-kind ${node.kind}`, String(node.kind || "node").replaceAll("-", " "));
+        const kindLabels = {
+          supervisor: "root",
+          "static-child": "static",
+          family: "family",
+          "family-child": "member"
+        };
+        const kind = el("span", `supervision-kind ${node.kind}`, kindLabels[node.kind] || "node");
         identity.append(kind, el("span", "supervision-name", node.name || node.key));
 
         const model = String(node.model || "").replaceAll("_", " ");
-        const meta = Number(node.child) > 0
+        const fullMeta = Number(node.child) > 0
           ? `child ${node.child} · generation ${node.generation} · ${model} · ${node.attempts || 0} recovery attempts`
           : `${node.child_count || 0}/${node.capacity || 0} children · ${model}`;
+        const meta = Number(node.child) > 0
+          ? `child ${node.child} · gen ${node.generation} · ${model.replace(" task", "")} · retry ${node.attempts || 0}`
+          : `${node.child_count || 0}/${node.capacity || 0} children · ${model.replace(" dynamic", "")}`;
         const stateName = String(node.state || "unknown").replaceAll("_", "-");
         const stateParts = [String(node.state || "unknown").replaceAll("_", " ")];
         if (node.ready && !["ready", "running", "accepting"].includes(node.state)) stateParts.push("ready");
         stateParts.push(node.live ? "live" : "not live");
         if (node.escalated) stateParts.push("escalated");
-        const status = el("span", `supervision-status ${stateName}`, stateParts.join(" · "));
-        row.setAttribute("aria-label", `${node.name}: ${stateParts.join(", ")}. ${meta}`);
-        row.append(identity, el("span", "supervision-meta", meta), status);
+        const visibleState = [stateParts[0]];
+        if (!node.live) visibleState.push("not live");
+        if (node.escalated) visibleState.push("escalated");
+        const status = el("span", `supervision-status ${stateName}`, visibleState.join(" · "));
+        status.title = stateParts.join(" · ");
+        const controls = el("div", "supervision-controls");
+        controls.append(status);
+        if (node.live && ["static-child", "family-child"].includes(node.kind)) {
+          const pendingConfirmation = supervisionFailureConfirmations.get(node.key);
+          const confirmationActive = pendingConfirmation
+            && pendingConfirmation.generation === node.generation
+            && pendingConfirmation.expires > Date.now();
+          const fail = el("button", "button danger supervision-fail", confirmationActive ? "Confirm" : "Fail");
+          fail.type = "button";
+          fail.title = "Report this exact generation unhealthy and let its Flyology policy handle recovery";
+          fail.setAttribute("aria-label", `Fail generation ${node.name || node.key}`);
+          const resetFailure = () => {
+            supervisionFailureConfirmations.delete(node.key);
+            fail.disabled = false;
+            fail.textContent = "Fail";
+          };
+          fail.addEventListener("click", async () => {
+            const pending = supervisionFailureConfirmations.get(node.key);
+            if (!pending
+              || pending.generation !== node.generation
+              || pending.expires <= Date.now()) {
+              const confirmation = {
+                generation: node.generation,
+                expires: Date.now() + 6000
+              };
+              supervisionFailureConfirmations.set(node.key, confirmation);
+              fail.textContent = "Confirm";
+              setTimeout(() => {
+                if (supervisionFailureConfirmations.get(node.key) === confirmation) {
+                  supervisionFailureConfirmations.delete(node.key);
+                  supervisionSignature = "";
+                  refreshSupervision();
+                }
+              }, 6000);
+              return;
+            }
+            supervisionFailureConfirmations.delete(node.key);
+            fail.disabled = true;
+            fail.textContent = "Failing…";
+            try {
+              await request(`/api/supervision/${encodeURIComponent(node.key)}/fail`, {
+                method: "POST"
+              });
+              fail.textContent = "Reported";
+              setTimeout(refreshSupervision, 100);
+            } catch (error) {
+              showError(error.message);
+              resetFailure();
+            }
+          });
+          controls.append(fail);
+        }
+        row.setAttribute("aria-label", `${node.name}: ${stateParts.join(", ")}. ${fullMeta}`);
+        const metadata = el("span", "supervision-meta", meta);
+        metadata.title = fullMeta;
+        row.append(identity, metadata, controls);
         item.append(row);
 
         const children = byParent.get(node.key) || [];

@@ -633,6 +633,68 @@ package body Psqlbench_Server is
          X.JSON (200, Supervision_Document (Nodes, Count));
       end Supervision;
 
+      procedure Fail_Supervision_Generation
+        (State : in out Application_Context;
+         X     : in out App.Exchange)
+      is
+         Key : constant String := X.Parameter ("key");
+         Nodes : Psqlbench_Context.Supervision_Node_Array;
+         Count : Natural;
+         Accepted : Boolean := False;
+         Found : Boolean := False;
+      begin
+         State.Root.Supervision.Snapshot (Nodes, Count);
+         for Index in 1 .. Count loop
+            if Nodes (Index).Key_Length = Key'Length
+              and then Nodes (Index).Key (1 .. Nodes (Index).Key_Length) = Key
+            then
+               Found := True;
+               if not Nodes (Index).Live then
+                  X.Problem
+                    (409, "generation-not-live",
+                     "Only a live child generation can be failed");
+                  return;
+               end if;
+               case Nodes (Index).Kind is
+                  when Psqlbench_Context.Static_Child_Node =>
+                     State.Root.Supervision.Request_Failure
+                       (Key, Accepted);
+                  when Psqlbench_Context.Family_Child_Node =>
+                     if Nodes (Index).Parent_Length = 12
+                       and then Nodes (Index).Parent (1 .. 12) =
+                         "family.links"
+                     then
+                        State.Root.Links.Request
+                          (Nodes (Index).Name
+                             (1 .. Nodes (Index).Name_Length),
+                           Psqlbench_Context.Fail_Link, Accepted,
+                           Nodes (Index).Generation);
+                     end if;
+                  when others => null;
+               end case;
+               exit;
+            end if;
+         end loop;
+         if not Found then
+            X.Problem
+              (404, "supervision-child-not-found",
+               "The supervision child was not found");
+         elsif not Accepted then
+            X.Problem
+              (409, "failure-request-rejected",
+               "This child cannot accept a failure request right now");
+         else
+            declare
+               Event : constant String :=
+                 Message_Document
+                   ("supervision.failure-requested", Key);
+            begin
+               State.Root.Events.Append (Event);
+               X.JSON (202, Event);
+            end;
+         end if;
+      end Fail_Supervision_Generation;
+
       procedure Links
         (State : in out Application_Context;
          X     : in out App.Exchange)
@@ -1227,6 +1289,7 @@ package body Psqlbench_Server is
            (Origin_Policy  => HTTP.Require_Exact_Origin,
             Allowed_Origin => Expected_Origin);
          loop
+            exit when X.Cancellation.Requested;
             State.Root.Events.Read_After
               (Cursor, Value, Available, Dropped);
             if Available then
@@ -1273,6 +1336,7 @@ package body Psqlbench_Server is
            (Origin_Policy  => HTTP.Require_Exact_Origin,
             Allowed_Origin => Expected_Origin);
          loop
+            exit when X.Cancellation.Requested;
             State.Root.Logs.Read_After
               (Name, Cursor, Value, Available);
             if Available then
@@ -1302,6 +1366,7 @@ package body Psqlbench_Server is
            "http://" & X.Request_Header ("Host");
          Port_Result : Psqlbench_Docker.Result;
          Port_No : Positive;
+         Idle : Natural := 0;
       begin
          if not Psqlbench_JSON.Valid_Name (Name) then
             X.Problem (400, "invalid-instance-name", "Invalid instance name");
@@ -1342,6 +1407,10 @@ package body Psqlbench_Server is
          X.Send_WebSocket (Attached_Document (Name, Port_No));
 
          loop
+            if X.Cancellation.Requested then
+               X.Complete_WebSocket;
+               return;
+            end if;
             declare
                Kind   : HTTP.WebSocket_Data_Kind;
                Data   : Flyology.Bytes.Unbounded_Bytes;
@@ -1350,7 +1419,8 @@ package body Psqlbench_Server is
                X.Receive_WebSocket
                  (Kind, Data, Closed,
                   Max_Message => Psqlbench_Query.Max_Query_Bytes,
-                  Timeout => 30.0, Message_Timeout => 30.0);
+                  Timeout => 0.250, Message_Timeout => 30.0);
+               Idle := 0;
                if Closed then
                   X.Complete_WebSocket;
                   return;
@@ -1395,6 +1465,10 @@ package body Psqlbench_Server is
                            end Worker;
                         begin
                            loop
+                              if X.Cancellation.Requested then
+                                 Peer_Closed := True;
+                                 Query_Control.Request_Cancel;
+                              end if;
                               loop
                                  declare
                                     Event : Psqlbench_Query.Query_Event;
@@ -1482,7 +1556,15 @@ package body Psqlbench_Server is
                end if;
             exception
                when Flyology.IO.Timeout_Error =>
-                  X.Send_WebSocket (Simple_Document ("heartbeat"));
+                  if X.Cancellation.Requested then
+                     X.Complete_WebSocket;
+                     return;
+                  end if;
+                  Idle := Idle + 1;
+                  if Idle = 40 then
+                     X.Send_WebSocket (Simple_Document ("heartbeat"));
+                     Idle := 0;
+                  end if;
             end;
          end loop;
       end Query;
@@ -1490,7 +1572,7 @@ package body Psqlbench_Server is
       type Service_Context is limited record
          Application : aliased Application_Context;
          Routes      : aliased Routing.Router
-           (Capacity => 16, Slashes => Routing.Strict_Slashes);
+           (Capacity => 20, Slashes => Routing.Strict_Slashes);
          Budget      : aliased HTTP.Ingress_Budget
            (Limit => 4 * 1_024 * 1_024);
       end record;
@@ -1551,6 +1633,13 @@ package body Psqlbench_Server is
         ("/api/topology", Topology'Access, Name => "api.topology");
       State.Routes.Get
         ("/api/supervision", Supervision'Access, Name => "api.supervision");
+      State.Routes.Post
+        ("/api/supervision/{key}/fail",
+         Fail_Supervision_Generation'Access,
+         Name => "api.supervision.fail",
+         Policy =>
+           (Routing.Default_Route_Policy with delta
+              Timeout => 5.0, Concurrency => 1));
       State.Routes.Get ("/api/links", Links'Access, Name => "api.links");
       State.Routes.Post
         ("/api/lab/reset", Reset_Lab'Access, Name => "api.lab.reset",

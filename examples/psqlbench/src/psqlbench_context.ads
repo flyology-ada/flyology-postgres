@@ -104,12 +104,13 @@ package Psqlbench_Context is
    type Link_Array is array (Positive range 1 .. Max_Links) of Link_Record;
 
    type Link_Command_Kind is
-     (Create_Link, Stop_Link, Restart_Link, Remove_Link);
+     (Create_Link, Stop_Link, Restart_Link, Fail_Link, Remove_Link);
 
    type Link_Command is record
       Kind        : Link_Command_Kind := Create_Link;
       Name_Length : Natural range 0 .. Max_Link_Name_Bytes := 0;
       Name        : String (1 .. Max_Link_Name_Bytes) := (others => ' ');
+      Generation  : Interfaces.Unsigned_64 := 0;
    end record;
 
    type Link_Command_Array is
@@ -163,6 +164,14 @@ package Psqlbench_Context is
    type Supervision_Node_Array is
      array (Positive range 1 .. Supervision_Node_Capacity) of
        Supervision_Node_Record;
+
+   type Supervision_Command is record
+      Occupied   : Boolean := False;
+      Key_Length : Natural range 0 .. Max_Supervision_Key_Bytes := 0;
+      Key        : String (1 .. Max_Supervision_Key_Bytes) :=
+        (others => ' ');
+      Generation : Interfaces.Unsigned_64 := 0;
+   end record;
 
    protected type Event_Log is
       procedure Append (Value : String);
@@ -233,10 +242,14 @@ package Psqlbench_Context is
          Child_Count       : Natural := 0);
       procedure Remove (Key : String);
       procedure Remove_Children (Parent : String);
+      procedure Request_Failure (Key : String; Accepted : out Boolean);
+      procedure Take_Failure
+        (Value : out Supervision_Command; Available : out Boolean);
       procedure Snapshot
         (Value : out Supervision_Node_Array; Count : out Natural);
    private
       Entries : Supervision_Node_Array;
+      Pending_Failure : Supervision_Command;
    end Supervision_Registry;
 
    protected type Link_Registry is
@@ -256,7 +269,8 @@ package Psqlbench_Context is
       procedure Request
         (Name     : String;
          Action   : Link_Command_Kind;
-         Accepted : out Boolean);
+         Accepted : out Boolean;
+         Generation : Interfaces.Unsigned_64 := 0);
       procedure Request_Remove_All (Count : out Natural);
       procedure Take_Command
         (Value : out Link_Command; Available : out Boolean);

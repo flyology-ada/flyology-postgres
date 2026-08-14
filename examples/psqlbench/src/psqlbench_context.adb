@@ -334,6 +334,39 @@ package body Psqlbench_Context is
          end loop;
       end Remove_Children;
 
+      procedure Request_Failure
+        (Key : String; Accepted : out Boolean) is
+      begin
+         Accepted := False;
+         if Pending_Failure.Occupied
+           or else Key'Length > Max_Supervision_Key_Bytes
+         then
+            return;
+         end if;
+         for Item of Entries loop
+            if Same_Key (Item, Key)
+              and then Item.Kind = Static_Child_Node
+              and then Item.Live
+            then
+               Pending_Failure := (others => <>);
+               Pending_Failure.Occupied := True;
+               Store
+                 (Pending_Failure.Key, Pending_Failure.Key_Length, Key);
+               Pending_Failure.Generation := Item.Generation;
+               Accepted := True;
+               return;
+            end if;
+         end loop;
+      end Request_Failure;
+
+      procedure Take_Failure
+        (Value : out Supervision_Command; Available : out Boolean) is
+      begin
+         Available := Pending_Failure.Occupied;
+         Value := Pending_Failure;
+         Pending_Failure := (others => <>);
+      end Take_Failure;
+
       procedure Snapshot
         (Value : out Supervision_Node_Array; Count : out Natural) is
       begin
@@ -365,7 +398,10 @@ package body Psqlbench_Context is
          end if;
       end Store;
 
-      procedure Enqueue (Kind : Link_Command_Kind; Name : String) is
+      procedure Enqueue
+        (Kind : Link_Command_Kind;
+         Name : String;
+         Generation : Interfaces.Unsigned_64 := 0) is
          Slot : Positive;
       begin
          if Command_Count = Link_Command_Capacity then
@@ -377,6 +413,7 @@ package body Psqlbench_Context is
          Commands (Slot).Kind := Kind;
          Store
            (Commands (Slot).Name, Commands (Slot).Name_Length, Name);
+         Commands (Slot).Generation := Generation;
          Command_Count := Command_Count + 1;
       end Enqueue;
 
@@ -489,7 +526,8 @@ package body Psqlbench_Context is
       procedure Request
         (Name     : String;
          Action   : Link_Command_Kind;
-         Accepted : out Boolean) is
+         Accepted : out Boolean;
+         Generation : Interfaces.Unsigned_64 := 0) is
       begin
          Accepted := False;
          if Command_Count = Link_Command_Capacity then
@@ -502,7 +540,7 @@ package body Psqlbench_Context is
                then
                   return;
                end if;
-               Enqueue (Action, Name);
+               Enqueue (Action, Name, Generation);
                if Action = Create_Link then
                   Entries (Index).Status := Link_Restoring;
                   Entries (Index).Desired_Running := True;

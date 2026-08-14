@@ -2893,6 +2893,11 @@ package body Psqlbench_Links is
          Links : Psqlbench_Context.Link_Array;
          Count : Natural;
       begin
+         for Item of Handles loop
+            if Matches (Item, Name) then
+               return;
+            end if;
+         end loop;
          Context.Links.Snapshot (Links, Count);
          for Index in 1 .. Count loop
             if Link_Name (Links (Index)) = Name then
@@ -2911,6 +2916,20 @@ package body Psqlbench_Links is
            (Name, Psqlbench_Context.Link_Failed,
             "link request disappeared before admission");
       end Start_Supervised_Link;
+
+      procedure Start_Desired_Links is
+         Links : Psqlbench_Context.Link_Array;
+         Count : Natural;
+      begin
+         Context.Links.Snapshot (Links, Count);
+         for Index in 1 .. Count loop
+            if Links (Index).Desired_Running then
+               Start_Supervised_Link
+                 (Link_Name (Links (Index)),
+                  "supervised link child readmitted after control restart");
+            end if;
+         end loop;
+      end Start_Desired_Links;
 
       task Runner is
          pragma Task_Info (Flyology.Native_Task);
@@ -2932,6 +2951,7 @@ package body Psqlbench_Links is
          delay 0.020;
       end loop;
       Flyology.Supervision.Mark_Ready (Control.all);
+      Start_Desired_Links;
 
       loop
          if Flyology.Supervision.Stopping (Control.all).Requested then
@@ -3013,6 +3033,32 @@ package body Psqlbench_Links is
                                        "supervised reconnect: "
                                        & Ada.Exceptions.Exception_Message
                                            (Error));
+                              end;
+                              exit;
+                           end if;
+                        end loop;
+
+                     when Psqlbench_Context.Fail_Link =>
+                        for Item of Handles loop
+                           if Matches (Item, Name) then
+                              begin
+                                 if Command.Generation /= 0
+                                   and then Flyology.Supervision
+                                     .Current_Generation (Item.Handle) /=
+                                       Flyology.Supervision.Generation
+                                         (Command.Generation)
+                                 then
+                                    raise Link_Families.Stale_Handle;
+                                 end if;
+                                 Context.Links.Set_Status
+                                   (Name, Psqlbench_Context.Link_Stopping,
+                                    "external health failure reported; "
+                                    & "supervisor recovery pending");
+                                 Link_Families.Report_Unhealthy
+                                   (Family, Item.Handle,
+                                    "failure injected from psqlbench");
+                              exception
+                                 when Link_Families.Stale_Handle => null;
                               end;
                               exit;
                            end if;

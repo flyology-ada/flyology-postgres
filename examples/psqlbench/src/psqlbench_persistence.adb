@@ -275,6 +275,7 @@ package body Psqlbench_Persistence is
    procedure Restore_Link
      (Context : in out Psqlbench_Context.Context; Document : String)
    is
+      use type Psqlbench_Context.Link_Mode;
       Name : constant String := Psqlbench_JSON.String_Field (Document, "name");
       Source : constant String :=
         Psqlbench_JSON.String_Field (Document, "source");
@@ -301,6 +302,8 @@ package body Psqlbench_Persistence is
       Accepted : Boolean;
       Detail : String (1 .. Psqlbench_Context.Max_Link_Detail_Bytes);
       Last : Natural;
+      Existing_Links : Psqlbench_Context.Link_Array;
+      Existing_Count : Natural;
    begin
       if not Psqlbench_JSON.Valid_Name (Name)
         or else Name'Length > Psqlbench_Context.Max_Link_Name_Bytes
@@ -309,6 +312,57 @@ package body Psqlbench_Persistence is
       then
          raise Constraint_Error with "invalid persisted link";
       end if;
+      Context.Links.Snapshot (Existing_Links, Existing_Count);
+      for Index in 1 .. Existing_Count loop
+         declare
+            Existing : Psqlbench_Context.Link_Record
+              renames Existing_Links (Index);
+         begin
+            if Text (Existing.Name, Existing.Name_Length) = Name then
+               if Text (Existing.Source, Existing.Source_Length) /= Source
+                 or else Text
+                   (Existing.Target, Existing.Target_Length) /= Target
+                 or else Existing.Mode /= Mode
+                 or else Text
+                   (Existing.Source_Schema, Existing.Source_Schema_Length) /=
+                     Source_Schema
+                 or else Text
+                   (Existing.Source_Table, Existing.Source_Table_Length) /=
+                     Source_Table
+                 or else Text
+                   (Existing.Target_Schema, Existing.Target_Schema_Length) /=
+                     Target_Schema
+                 or else Text
+                   (Existing.Target_Table, Existing.Target_Table_Length) /=
+                     Target_Table
+                 or else Text
+                   (Existing.Column_Map, Existing.Column_Map_Length) /=
+                     Column_Map
+                 or else Text
+                   (Existing.Target_Version,
+                    Existing.Target_Version_Length) /= Target_Version
+                 or else Existing.Target_Port /= Target_Port
+               then
+                  raise Program_Error with
+                    "running link " & Name
+                    & " does not match its persisted configuration";
+               end if;
+               if Existing.Desired_Running /= Running then
+                  Context.Links.Request
+                    (Name,
+                     (if Running
+                      then Psqlbench_Context.Create_Link
+                      else Psqlbench_Context.Stop_Link),
+                     Accepted);
+                  if not Accepted then
+                     raise Program_Error with
+                       "cannot reconcile running state for link " & Name;
+                  end if;
+               end if;
+               return;
+            end if;
+         end;
+      end loop;
       Context.Links.Create
         (Name, Source, Target, Mode,
          Source_Schema, Source_Table, Target_Schema, Target_Table,

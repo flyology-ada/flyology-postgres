@@ -19,6 +19,7 @@ with Psqlbench_Signals;
 
 procedure Psqlbench is
    use type Flyology.Execution_Model;
+   use type Flyology.Supervision.Generation;
    use type Flyology.Supervision.Supervisor_Outcome;
 
    type Service_Kind is
@@ -313,9 +314,56 @@ procedure Psqlbench is
       pragma Task_Info (Flyology.Native_Task);
    end Supervision_Observer;
 
+   procedure Handle_Failure_Request is
+      Command : Psqlbench_Context.Supervision_Command;
+      Available : Boolean;
+   begin
+      Context.Supervision.Take_Failure (Command, Available);
+      if not Available then
+         return;
+      end if;
+      declare
+         Key : constant String :=
+           Command.Key (1 .. Command.Key_Length);
+      begin
+         for Child in Service_Kind loop
+            if Service_Key (Child) = Key then
+               declare
+                  Handle : constant Flyology.Supervision.Child_Handle :=
+                    Supervisors.Latest (Supervisor, Child);
+               begin
+                  if Flyology.Supervision.Current_Generation (Handle) /=
+                    Flyology.Supervision.Generation (Command.Generation)
+                  then
+                     raise Supervisors.Stale_Handle;
+                  end if;
+                  Supervisors.Report_Unhealthy
+                    (Supervisor, Child, Handle,
+                     "failure injected from psqlbench");
+               end;
+               return;
+            end if;
+         end loop;
+         Ada.Text_IO.Put_Line
+           (Ada.Text_IO.Standard_Error,
+            "unknown static supervision failure target: " & Key);
+      end;
+   exception
+      when Supervisors.Stale_Handle =>
+         Ada.Text_IO.Put_Line
+           (Ada.Text_IO.Standard_Error,
+            "static supervision failure target became stale");
+      when Error : others =>
+         Ada.Text_IO.Put_Line
+           (Ada.Text_IO.Standard_Error,
+            "could not report supervision failure: "
+            & Ada.Exceptions.Exception_Information (Error));
+   end Handle_Failure_Request;
+
    task body Supervision_Observer is
    begin
       loop
+         Handle_Failure_Request;
          Publish_Supervision;
          exit when Psqlbench_Signals.Completed;
          delay 0.100;

@@ -477,33 +477,35 @@ kbd { background: var(--surface); border: 1px solid var(--line); border-radius: 
   max-width: 72ch;
 }
 .supervision-explainer code { color: var(--violet-deep); font-size: .64rem; white-space: nowrap; }
-.supervision-tree { min-height: 16rem; overflow-x: auto; padding: 1rem 1.75rem 1.5rem; }
+.supervision-tree { min-height: 16rem; overflow-x: hidden; padding: 1rem 1.75rem 1.5rem; }
 .supervision-empty { color: var(--ink-soft); font-size: .8rem; margin: 1rem 0; }
-.supervision-branch { list-style: none; margin: 0; min-width: 48rem; padding: 0; }
+.supervision-branch { list-style: none; margin: 0; min-width: 0; padding: 0; }
 .supervision-branch .supervision-branch {
   border-left: 1px solid var(--line);
-  margin-left: 1.2rem;
-  padding-left: 1.4rem;
+  margin-left: .7rem;
+  padding-left: .8rem;
 }
 .supervision-item { position: relative; }
 .supervision-branch .supervision-branch > .supervision-item::before {
   border-top: 1px solid var(--line);
   content: "";
-  left: -1.4rem;
+  left: -.8rem;
   position: absolute;
   top: 1.35rem;
-  width: 1.1rem;
+  width: .6rem;
 }
 .supervision-node {
   align-items: center;
   border-bottom: 1px solid var(--line);
   display: grid;
-  gap: 1rem;
-  grid-template-columns: minmax(14rem, 1fr) minmax(16rem, 1.35fr) minmax(8rem, auto);
+  column-gap: .8rem;
+  grid-template-areas: "identity controls" "meta meta";
+  grid-template-columns: minmax(0, 1fr) auto;
   min-height: 2.7rem;
   padding: .55rem 0;
+  row-gap: .25rem;
 }
-.supervision-identity { align-items: center; display: flex; gap: .65rem; min-width: 0; }
+.supervision-identity { align-items: center; display: flex; gap: .5rem; grid-area: identity; min-width: 0; }
 .supervision-kind {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -517,8 +519,10 @@ kbd { background: var(--surface); border: 1px solid var(--line); border-radius: 
 }
 .supervision-kind.family, .supervision-kind.family-child { color: var(--violet-deep); }
 .supervision-name { font-size: .76rem; font-weight: 590; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.supervision-meta { color: var(--ink-soft); font-family: var(--mono); font-size: .62rem; overflow-wrap: anywhere; }
-.supervision-status { align-items: center; display: flex; font-family: var(--mono); font-size: .62rem; gap: .5rem; justify-content: flex-end; text-align: right; }
+.supervision-meta { color: var(--ink-soft); font-family: var(--mono); font-size: .62rem; grid-area: meta; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.supervision-status { align-items: center; display: flex; font-family: var(--mono); font-size: .62rem; gap: .4rem; justify-content: flex-end; text-align: right; white-space: nowrap; }
+.supervision-controls { align-items: center; display: flex; gap: .4rem; grid-area: controls; justify-content: flex-end; }
+.supervision-controls .supervision-fail { flex: 0 0 auto; font-size: .54rem; min-height: 1.4rem; padding: .2rem .35rem; }
 .supervision-status::before {
   background: var(--surface-strong);
   border: 1px solid var(--ink-soft);
@@ -933,8 +937,8 @@ main.desktop {
 .supervision-explainer { flex: 0 0 auto; padding: .45rem .65rem; }
 .supervision-explainer p { font-family: var(--mono); font-size: .54rem; line-height: 1.45; }
 .supervision-tree { flex: 1 1 auto; min-height: 0; padding: .5rem .65rem; }
-.supervision-branch { min-width: 34rem; }
-.supervision-node { gap: .55rem; grid-template-columns: minmax(10rem, 1fr) minmax(12rem, 1.2fr) minmax(6rem, auto); min-height: 2rem; padding: .3rem 0; }
+.supervision-branch { min-width: 0; }
+.supervision-node { column-gap: .45rem; min-height: 2rem; padding: .3rem 0; row-gap: .12rem; }
 .supervision-name { font-family: var(--mono); font-size: .58rem; }
 .supervision-meta, .supervision-status { font-size: .52rem; }
 

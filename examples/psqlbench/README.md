@@ -29,6 +29,9 @@ over the daemon's Unix-domain socket; psqlbench does not invoke the Docker CLI.
   window;
 - serves an adjacency-aware, windowed topology workbench whose visible dock
   columns and rows compact as panels are hidden, with live WebSocket activity;
+- reports a selected static or replication-family generation unhealthy from
+  the supervision tree so Flyology visibly applies its configured recovery
+  and restart-impact policy;
 - creates supervised, cross-version logical links for a managed three-column
   demo table and applies future inserts, updates, deletes, and truncates;
 - configures committed pgoutput v1 or large-transaction streaming pgoutput v2
