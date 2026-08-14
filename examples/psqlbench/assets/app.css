@@ -419,6 +419,10 @@ kbd { background: var(--surface); border: 1px solid var(--line); border-radius: 
 .result-table small { color: var(--ink-soft); display: block; font-size: .58rem; font-weight: 400; margin-top: .2rem; }
 .result-table .null { color: var(--ink-soft); font-style: italic; }
 .log-toolbar { align-items: center; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; padding: .9rem 1.25rem; }
+.log-source { align-items: center; display: flex; gap: .8rem; min-width: 0; }
+.log-instance-selector { align-items: center; display: flex; gap: .45rem; min-width: 0; }
+.log-instance-selector span { color: var(--ink-soft); font-family: var(--mono); font-size: .64rem; text-transform: uppercase; }
+.log-instance-selector select { min-height: 2.15rem; min-width: 14rem; padding: .35rem 2rem .35rem .65rem; }
 .retention-note { color: var(--ink-soft); font-family: var(--mono); font-size: .65rem; margin-left: 1rem; }
 .log-controls { align-items: center; display: flex; gap: .8rem; }
 .log-controls label { align-items: center; display: flex; font-family: var(--mono); font-size: .68rem; gap: .4rem; }
@@ -915,7 +919,12 @@ main.desktop {
 
 .logs-window { margin: 0; }
 .logs-panel { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; }
-.log-toolbar { flex: 0 0 auto; padding: .45rem .6rem; }
+.log-toolbar { align-items: stretch; flex: 0 0 auto; flex-direction: column; gap: .35rem; padding: .45rem .6rem; }
+.log-source { display: grid; gap: .4rem; grid-template-columns: minmax(0, 1fr) auto; }
+.log-instance-selector { width: 100%; }
+.log-instance-selector span { display: none; }
+.log-instance-selector select { border-radius: .15rem; font-size: .54rem; min-height: 1.65rem; min-width: 0; padding: .15rem 1.5rem .15rem .35rem; width: 100%; }
+.log-controls { justify-content: flex-end; }
 .retention-note { display: none; }
 .log-output { flex: 1 1 auto; font-size: .61rem; line-height: 1.48; max-height: none; min-height: 0; padding: .65rem; }
 

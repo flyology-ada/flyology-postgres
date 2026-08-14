@@ -26,6 +26,7 @@
   const logStreamState = document.querySelector("#log-stream-state");
   const logOutput = document.querySelector("#log-output");
   const logsInstanceName = document.querySelector("#logs-instance-name");
+  const logsInstance = document.querySelector("#logs-instance");
   const followLogs = document.querySelector("#follow-logs");
   const clearLogs = document.querySelector("#clear-logs");
   const linkList = document.querySelector("#link-list");
@@ -73,6 +74,7 @@
     "UPSTREAM_ACK"
   ]);
   let selectedName = "";
+  let selectedLogName = "";
   let querySocket;
   let queryGeneration = 0;
   let queryRunning = false;
@@ -242,6 +244,7 @@
   function showWindow(name) {
     const panel = windowNamed(name);
     if (!panel) return;
+    const wasHidden = panel.dataset.windowHidden === "true";
     if (panel.dataset.dock !== "float") {
       const occupant = labWindows.find(candidate => candidate !== panel
         && candidate.dataset.dock === panel.dataset.dock
@@ -258,7 +261,9 @@
     panel.dataset.windowHidden = "false";
     syncWindowControls(panel);
     activateWindow(panel);
-    if (name === "logs" && selectedName) connectLogs();
+    if (name === "logs" && selectedLogName && (wasHidden || !logSocket)) {
+      connectLogs();
+    }
     saveWindowLayout();
   }
 
@@ -309,7 +314,7 @@
     });
     activateWindow(windowNamed("query"));
     saveWindowLayout();
-    if (selectedName) connectLogs();
+    if (selectedLogName) connectLogs();
   }
 
   function initializeWindowManager() {
@@ -491,7 +496,7 @@
     const logs = el("button", "button secondary", "Postgres logs");
     logs.type = "button";
     logs.addEventListener("click", () => {
-      selectInstance(details.name);
+      selectLogInstance(details.name);
       showWindow("logs");
     });
     const stateAction = el("button", "button secondary", details.running ? "Stop" : "Start");
@@ -517,21 +522,42 @@
       workspaceInstance.value = selectedName;
     } else if (selectedName) {
       closeQuerySocket();
-      closeLogSocket();
       selectedName = "";
       queryState.textContent = "detached";
-      logsInstanceName.textContent = "no instance selected";
     } else if (known.length) {
       const initial = known.find(value => value.running) || known[0];
       selectedName = initial.name;
       workspaceInstance.value = initial.name;
-      logsInstanceName.textContent = initial.name;
       connectQuery();
-      if (windowIsVisible("logs")) connectLogs();
     }
     list.querySelectorAll(".node").forEach(node => {
       node.dataset.selected = String(node.dataset.instance === selectedName);
     });
+
+    const previousLogName = selectedLogName;
+    logsInstance.replaceChildren(...known.map(details => {
+      const option = document.createElement("option");
+      option.value = details.name;
+      option.textContent = `${details.name} · PostgreSQL ${details.version}`;
+      return option;
+    }));
+    logsInstance.disabled = known.length === 0;
+    if (selectedLogName && known.some(value => value.name === selectedLogName)) {
+      logsInstance.value = selectedLogName;
+    } else if (known.length) {
+      const initial = known.find(value => value.name === selectedName)
+        || known.find(value => value.running)
+        || known[0];
+      selectedLogName = initial.name;
+      logsInstance.value = initial.name;
+    } else {
+      selectedLogName = "";
+      closeLogSocket();
+    }
+    logsInstanceName.textContent = selectedLogName || "no instance selected";
+    if (selectedLogName !== previousLogName && windowIsVisible("logs")) {
+      connectLogs();
+    }
 
     const running = known.filter(value => value.running);
     [linkSource, linkTarget].forEach((select, selectIndex) => {
@@ -1524,13 +1550,13 @@
 
   function connectLogs() {
     closeLogSocket();
-    if (!selectedName || !windowIsVisible("logs")) return;
+    if (!selectedLogName || !windowIsVisible("logs")) return;
     const generation = logGeneration;
     logStreamState.textContent = "Opening stream";
     logStreamState.classList.remove("live");
     logLines = 0;
     logOutput.innerHTML = "<span>Loading retained server output…</span>";
-    const socket = new WebSocket(wsURL(`/api/instances/${encodeURIComponent(selectedName)}/logs`));
+    const socket = new WebSocket(wsURL(`/api/instances/${encodeURIComponent(selectedLogName)}/logs`));
     logSocket = socket;
     socket.addEventListener("open", () => {
       if (generation !== logGeneration) return;
@@ -1550,24 +1576,29 @@
       if (generation !== logGeneration) return;
       logStreamState.textContent = "Reconnecting";
       logStreamState.classList.remove("live");
-      if (selectedName && windowIsVisible("logs")) setTimeout(() => {
+      if (selectedLogName && windowIsVisible("logs")) setTimeout(() => {
         if (generation === logGeneration) connectLogs();
       }, 1250);
     });
+  }
+
+  function selectLogInstance(name) {
+    if (!name || name === selectedLogName) return;
+    selectedLogName = name;
+    logsInstance.value = name;
+    logsInstanceName.textContent = name;
+    if (windowIsVisible("logs")) connectLogs();
   }
 
   function selectInstance(name) {
     if (name !== selectedName) {
       selectedName = name;
       workspaceInstance.value = name;
-      closeLogSocket();
       connectQuery();
     }
-    logsInstanceName.textContent = name || "no instance selected";
     list.querySelectorAll(".node").forEach(node => {
       node.dataset.selected = String(node.dataset.instance === name);
     });
-    if (windowIsVisible("logs")) connectLogs();
     activateWindow(workspace);
   }
 
@@ -1697,6 +1728,7 @@
   });
 
   workspaceInstance.addEventListener("change", () => selectInstance(workspaceInstance.value));
+  logsInstance.addEventListener("change", () => selectLogInstance(logsInstance.value));
   runQuery.addEventListener("click", () => {
     if (!querySocket || querySocket.readyState !== WebSocket.OPEN) {
       showError("The query session is not attached yet");

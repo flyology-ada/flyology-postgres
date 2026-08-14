@@ -25,7 +25,8 @@ over the daemon's Unix-domain socket; psqlbench does not invoke the Docker CLI.
   also drain pages automatically to an explicit 5,000-row display cap;
 - continuously collects timestamped output for every owned container into a
   bounded 1,024-line ring, and replays the selected server's retained output
-  before following it live;
+  before following it live, with an independent node selector in the logs
+  window;
 - serves a fixed, windowed topology workbench with live WebSocket activity;
 - creates supervised, cross-version logical links for a managed three-column
   demo table and applies future inserts, updates, deletes, and truncates;

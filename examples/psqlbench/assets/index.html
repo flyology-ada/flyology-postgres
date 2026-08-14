@@ -292,7 +292,11 @@
       </div>
       <div class="workspace-panel logs-panel" id="logs-panel">
         <div class="log-toolbar">
-          <div>
+          <div class="log-source">
+            <label class="log-instance-selector" for="logs-instance">
+              <span>Node</span>
+              <select id="logs-instance" aria-label="Postgres log source"></select>
+            </label>
             <span class="stream-state" id="log-stream-state">Opening stream</span>
             <span class="retention-note">retained history plus live Postgres stdout + stderr for this instance</span>
           </div>
