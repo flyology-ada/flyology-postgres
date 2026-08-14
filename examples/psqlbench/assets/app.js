@@ -9,6 +9,8 @@
   const events = document.querySelector("#event-list");
   const streamState = document.querySelector("#stream-state");
   const activityFilter = document.querySelector("#activity-filter");
+  const activityTrafficFilter = document.querySelector("#activity-traffic-filter");
+  const eventFilterEmpty = document.querySelector("#event-filter-empty");
   const activityTitle = document.querySelector("#activity-title");
   const toast = document.querySelector("#toast");
   const workspace = document.querySelector("#instance-workspace");
@@ -1077,7 +1079,7 @@
     if (activityFilter.dataset.signature !== filterSignature) {
       const selectedActivity = activityFilter.value;
       activityFilter.replaceChildren(
-        new Option("All activity", ""),
+        new Option("All links", ""),
         ...values.map(value => new Option(`${value.name} · ${value.mode.startsWith("physical") ? "physical" : "logical"}`, value.name))
       );
       activityFilter.dataset.signature = filterSignature;
@@ -1426,6 +1428,9 @@
     item.dataset.link = value.link || "";
     const timestamp = el("time", "", new Date().toLocaleTimeString([], { hour12: false }));
     const isLinkActivity = value.type === "link.activity";
+    item.dataset.traffic = isLinkActivity && quietLinkActivityKinds.has(value.kind)
+      ? "control"
+      : "data";
     const type = el("span", "event-type", isLinkActivity ? `${value.link} / ${value.kind}` : (value.type || "event"));
     const detail = isLinkActivity
       ? [value.stage, value.direction, value.lsn, value.detail].filter(Boolean).join(" · ")
@@ -1436,15 +1441,27 @@
         })();
     item.append(timestamp, type, el("span", "event-detail", detail));
     events.prepend(item);
-    while (events.children.length > 80) events.lastElementChild.remove();
+    const retainedEvents = events.querySelectorAll(".event");
+    if (retainedEvents.length > 80) retainedEvents[retainedEvents.length - 1].remove();
     applyActivityFilter();
   }
 
   function applyActivityFilter() {
     const selected = activityFilter.value;
+    const traffic = activityTrafficFilter.value;
+    let visible = 0;
     events.querySelectorAll(".event").forEach(item => {
-      item.hidden = Boolean(selected) && item.dataset.link !== selected;
+      const linkMatches = !selected || item.dataset.link === selected;
+      const trafficMatches = traffic === "all" || item.dataset.traffic === traffic;
+      item.hidden = !linkMatches || !trafficMatches;
+      if (!item.hidden) visible += 1;
     });
+    eventFilterEmpty.hidden = visible > 0;
+    eventFilterEmpty.textContent = traffic === "data"
+      ? "Waiting for data or state changes. Control traffic is hidden."
+      : traffic === "control"
+        ? "Waiting for replication control traffic."
+        : "Waiting for replication traffic.";
     activityTitle.textContent = selected ? `${selected}.wire` : "replication.wire";
   }
 
@@ -1934,6 +1951,7 @@
     logOutput.textContent = "View cleared. New server output will appear here.\n";
   });
   activityFilter.addEventListener("change", applyActivityFilter);
+  activityTrafficFilter.addEventListener("change", applyActivityFilter);
 
   updateSQLHighlight();
   initializeWindowManager();

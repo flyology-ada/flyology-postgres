@@ -470,8 +470,11 @@ kbd { background: var(--surface); border: 1px solid var(--line); border-radius: 
 .activity-filter { align-items: center; display: flex; gap: .55rem; }
 .activity-filter span { color: var(--ink-soft); font-family: var(--mono); font-size: .64rem; text-transform: uppercase; }
 .activity-filter select { min-height: 2.15rem; min-width: 12rem; padding: .35rem 2rem .35rem .65rem; }
+.traffic-filter select { min-width: 8.5rem; }
 .event { align-items: baseline; border-bottom: 1px solid var(--line); display: grid; gap: 1rem; grid-template-columns: 5rem minmax(10rem, 14rem) minmax(0, 1fr); padding: .8rem 1.5rem; }
 .event[hidden] { display: none; }
+.event-filter-empty { color: var(--ink-soft); font-family: var(--mono); font-size: .62rem; list-style: none; padding: 1.5rem; }
+.event-filter-empty[hidden] { display: none; }
 .event:last-child { border-bottom: 0; }
 .event time, .event-type, .event-detail { font-family: var(--mono); font-size: .7rem; }
 .event time { color: var(--ink-soft); }

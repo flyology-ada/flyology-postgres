@@ -57,7 +57,9 @@ over the daemon's Unix-domain socket; psqlbench does not invoke the Docker CLI.
 - exposes a selectable per-link activity stream for logical pgoutput messages
   and physical `XLogData`, primary keepalives, standby write/flush/apply
   feedback, hot-standby feedback, and upstream acknowledgements, both inline
-  on each topology link and in the filterable global ledger;
+  on each topology link and in the filterable global ledger; data and state
+  changes are shown by default while lower-cadence protocol control traffic
+  remains available as a separate view;
 - previews decoded old/new tuple values when an insert, update, or delete
   activity row is hovered or keyboard-focused;
 - renders each replica's current and applied LSN, exact byte lag, and replayed

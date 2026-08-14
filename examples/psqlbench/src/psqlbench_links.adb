@@ -62,6 +62,13 @@ package body Psqlbench_Links is
    use type Psqlbench_Context.Link_Command_Kind;
    use type Psqlbench_Context.Link_Mode;
 
+   Relay_Keepalive_Interval : constant Ada.Real_Time.Time_Span :=
+     Ada.Real_Time.Seconds (10);
+   Relay_Reply_Interval : constant Ada.Real_Time.Time_Span :=
+     Ada.Real_Time.Seconds (30);
+   Upstream_Feedback_Interval : constant Ada.Real_Time.Time_Span :=
+     Ada.Real_Time.Seconds (10);
+
    function Execution_Model_Name
      (Model : Flyology.Execution_Model) return String is
      (if Model = Flyology.Native_Task then "native task"
@@ -633,6 +640,7 @@ package body Psqlbench_Links is
    is
       Command : Replication.Command;
       Last_Keepalive : Ada.Real_Time.Time := Ada.Real_Time.Clock;
+      Last_Reply_Request : Ada.Real_Time.Time := Ada.Real_Time.Clock;
       Streaming : Boolean := False;
 
       procedure Shape_Delay (Seconds : Duration) is
@@ -756,25 +764,40 @@ package body Psqlbench_Links is
                      Replication_Server.Send_XLog_Data
                        (Client, Frame.WAL_Start, Frame.WAL_End, Frame.Sent_At,
                         Data, Timeout => 10.0);
+                     Last_Keepalive := Ada.Real_Time.Clock;
                   end if;
                end;
             elsif Ada.Real_Time.Clock - Last_Keepalive >=
-              Ada.Real_Time.Seconds (1)
+              Relay_Keepalive_Interval
             then
-               Replication_Server.Send_Primary_Keepalive
-                 (Client,
-                  WAL_End =>
-                    (if Faults.Paused then State.Relay.Acknowledged
-                     else State.Relay.Current_WAL),
-                  Sent_At => 0,
-                  Reply_Requested => True,
-                  Timeout => 10.0);
-               Emit
-                 (State.Root.all, State.Link, "relay", "relay-to-downstream",
-                  "PRIMARY_KEEPALIVE", State.Relay.Current_WAL,
-                  (if Faults.Paused then "delivery held"
-                   else "reply requested"));
-               Last_Keepalive := Ada.Real_Time.Clock;
+               declare
+                  Now : constant Ada.Real_Time.Time := Ada.Real_Time.Clock;
+                  Current_WAL : constant Replication.LSN :=
+                    State.Relay.Current_WAL;
+                  Acknowledged : constant Replication.LSN :=
+                    State.Relay.Acknowledged;
+                  Need_Reply : constant Boolean :=
+                    Current_WAL > Acknowledged
+                    or else Now - Last_Reply_Request >= Relay_Reply_Interval;
+               begin
+                  Replication_Server.Send_Primary_Keepalive
+                    (Client,
+                     WAL_End =>
+                       (if Faults.Paused then Acknowledged else Current_WAL),
+                     Sent_At => 0,
+                     Reply_Requested => Need_Reply,
+                     Timeout => 10.0);
+                  Emit
+                    (State.Root.all, State.Link, "relay",
+                     "relay-to-downstream", "PRIMARY_KEEPALIVE", Current_WAL,
+                     (if Faults.Paused then "delivery held"
+                      elsif Need_Reply then "reply requested"
+                      else "idle"));
+                  Last_Keepalive := Now;
+                  if Need_Reply then
+                     Last_Reply_Request := Now;
+                  end if;
+               end;
             else
                delay 0.010;
             end if;
@@ -1854,6 +1877,7 @@ package body Psqlbench_Links is
             Decoder : Logical.Decoder;
             Last_Ack : Replication.LSN := 0;
             Last_Feedback : Ada.Real_Time.Time := Ada.Real_Time.Clock;
+            Feedback_Requested : Boolean := False;
          begin
             Connect
               (Socket, Session, Source_Port,
@@ -1918,6 +1942,9 @@ package body Psqlbench_Links is
                            elsif Replication.Kind (Frame) =
                              Replication.Primary_Keepalive
                            then
+                              Feedback_Requested :=
+                                Feedback_Requested
+                                or else Replication.Reply_Requested (Frame);
                               Relay.Observe_WAL
                                 (Replication.WAL_End (Frame));
                               Context.Links.Record_Observed
@@ -1937,8 +1964,9 @@ package body Psqlbench_Links is
                end;
 
                if Relay.Acknowledged > Last_Ack
+                 or else Feedback_Requested
                  or else Ada.Real_Time.Clock - Last_Feedback >=
-                   Ada.Real_Time.Seconds (1)
+                   Upstream_Feedback_Interval
                then
                   if Relay.Acknowledged > Last_Ack then
                      Last_Ack := Relay.Acknowledged;
@@ -1953,6 +1981,7 @@ package body Psqlbench_Links is
                        (Last_Ack, Last_Ack, Last_Ack, Sent_At => 0),
                      Timeout => 10.0);
                   Last_Feedback := Ada.Real_Time.Clock;
+                  Feedback_Requested := False;
                end if;
             end loop;
             Close (Socket);
@@ -2475,6 +2504,7 @@ package body Psqlbench_Links is
             Session : Client.Session (Channel'Access);
             Last_Ack : Replication.LSN := 0;
             Last_Feedback : Ada.Real_Time.Time := Ada.Real_Time.Clock;
+            Feedback_Requested : Boolean := False;
             Start : Replication.LSN;
          begin
             while not Relay.Start_Requested and then not Relay.Stopped loop
@@ -2540,6 +2570,9 @@ package body Psqlbench_Links is
                            if Replication.Kind (Frame) =
                              Replication.Primary_Keepalive
                            then
+                              Feedback_Requested :=
+                                Feedback_Requested
+                                or else Replication.Reply_Requested (Frame);
                               Relay.Observe_WAL
                                 (Replication.WAL_End (Frame));
                               Context.Links.Record_Observed
@@ -2559,8 +2592,9 @@ package body Psqlbench_Links is
                end;
 
                if Relay.Acknowledged > Last_Ack
+                 or else Feedback_Requested
                  or else Ada.Real_Time.Clock - Last_Feedback >=
-                   Ada.Real_Time.Seconds (1)
+                   Upstream_Feedback_Interval
                then
                   if Relay.Acknowledged > Last_Ack then
                      Last_Ack := Relay.Acknowledged;
@@ -2575,6 +2609,7 @@ package body Psqlbench_Links is
                        (Last_Ack, Last_Ack, Last_Ack, Sent_At => 0),
                      Timeout => 10.0);
                   Last_Feedback := Ada.Real_Time.Clock;
+                  Feedback_Requested := False;
                end if;
             end loop;
             Close (Socket);

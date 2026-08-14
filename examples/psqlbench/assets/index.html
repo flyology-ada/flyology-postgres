@@ -329,9 +329,17 @@
           </div>
           <div class="activity-controls">
             <label class="activity-filter">
-              <span>Stream</span>
+              <span>Link</span>
               <select id="activity-filter" aria-controls="event-list">
-                <option value="">All activity</option>
+                <option value="">All links</option>
+              </select>
+            </label>
+            <label class="activity-filter traffic-filter">
+              <span>Traffic</span>
+              <select id="activity-traffic-filter" aria-controls="event-list">
+                <option value="data">Data + state</option>
+                <option value="all">All traffic</option>
+                <option value="control">Control only</option>
               </select>
             </label>
             <span class="stream-state" id="stream-state">Opening stream</span>
@@ -341,7 +349,9 @@
             <button type="button" data-window-action="hide" aria-label="Hide replication wire window" title="Hide window">×</button>
           </div>
         </div>
-        <ol class="event-list" id="event-list" aria-live="polite"></ol>
+        <ol class="event-list" id="event-list" aria-live="polite">
+          <li class="event-filter-empty" id="event-filter-empty">Waiting for data or state changes. Control traffic is hidden.</li>
+        </ol>
     </section>
 
     <section class="lab-window supervision-section" data-window="supervision" data-dock="right-bottom" aria-labelledby="supervision-title">
