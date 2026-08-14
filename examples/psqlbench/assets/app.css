@@ -157,6 +157,7 @@ h3 { font-size: 1.05rem; font-weight: 590; margin-bottom: 0; }
 .button.primary { background: var(--ink); color: var(--paper); }
 .button.secondary { background: var(--paper); }
 .button.danger { border-color: var(--danger); color: var(--danger); background: var(--paper); }
+.button.danger[data-confirming="true"] { background: var(--danger); color: var(--paper); }
 .button.compact { font-size: .68rem; padding: .42rem .75rem; }
 .button:hover { transform: translateY(-1px); }
 .button:disabled { cursor: wait; opacity: .55; transform: none; }

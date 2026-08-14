@@ -528,7 +528,41 @@
       applyActivityFilter();
       events.scrollIntoView({ behavior: "smooth", block: "start" });
     });
-    actions.append(insert, pattern, inspect, activity, stateAction);
+    const remove = el("button", "button danger", "Remove link");
+    remove.type = "button";
+    const removeDescription = `Stop ${link.name} and remove it from the persisted topology. Postgres containers and data are kept.`;
+    remove.title = removeDescription;
+    remove.setAttribute("aria-label", `Remove replication link ${link.name}`);
+    let removeTimer;
+    const resetRemove = () => {
+      clearTimeout(removeTimer);
+      remove.dataset.confirming = "false";
+      remove.textContent = "Remove link";
+      remove.title = removeDescription;
+      remove.setAttribute("aria-label", `Remove replication link ${link.name}`);
+    };
+    remove.addEventListener("click", async () => {
+      if (remove.dataset.confirming !== "true") {
+        remove.dataset.confirming = "true";
+        remove.textContent = "Confirm removal";
+        remove.title = `${removeDescription} Select again to confirm.`;
+        remove.setAttribute("aria-label", `Confirm removal of replication link ${link.name}`);
+        removeTimer = setTimeout(resetRemove, 6000);
+        return;
+      }
+      clearTimeout(removeTimer);
+      remove.dataset.confirming = "false";
+      remove.textContent = "Removing link";
+      await applyLinkAction(link.name, "remove", remove);
+      if (remove.isConnected) resetRemove();
+    });
+    remove.addEventListener("keydown", event => {
+      if (event.key === "Escape" && remove.dataset.confirming === "true") {
+        event.preventDefault();
+        resetRemove();
+      }
+    });
+    actions.append(insert, pattern, inspect, activity, stateAction, remove);
     article.append(heading, route, stats);
     if (!physical) article.append(mapping);
     article.append(replay, failureLab, detail, live, actions);
