@@ -86,16 +86,27 @@
       <div class="section-heading">
         <div>
           <p class="eyebrow">02 / Replication paths</p>
-          <h2 id="links-title">Logical bridges</h2>
+          <h2 id="links-title">Replication links</h2>
         </div>
-        <button class="button primary" type="button" id="open-link">New logical link</button>
+        <div class="topology-actions">
+          <label class="preset-control">
+            <span>Full topology preset</span>
+            <select id="topology-preset" aria-label="Sample topology preset">
+              <option value="logical-stream">2 DBs + cross-version logical stream</option>
+              <option value="physical-standby">Primary + physical standby + WAL link</option>
+              <option value="mixed-lab">3 DBs + logical and physical links</option>
+            </select>
+          </label>
+          <button class="button secondary" type="button" id="launch-preset">Create topology</button>
+          <button class="button primary" type="button" id="open-link">New replication link</button>
+        </div>
       </div>
 
       <form class="create-panel" id="link-form" hidden>
         <div class="form-heading">
           <div>
-            <p class="eyebrow">Flyology client → server → client</p>
-            <h3>Managed logical bridge</h3>
+            <p class="eyebrow" id="link-path-label">Flyology client → server → client</p>
+            <h3 id="link-form-title">Managed logical bridge</h3>
           </div>
           <button class="icon-button" type="button" id="close-link" aria-label="Close new link form">×</button>
         </div>
@@ -108,38 +119,51 @@
             <span>Source</span>
             <select name="source" id="link-source" required></select>
           </label>
-          <label>
+          <label id="logical-target-field">
             <span>Target</span>
             <select name="target" id="link-target" required></select>
+          </label>
+          <label id="physical-target-field" hidden>
+            <span>Standby name</span>
+            <input name="standby" id="link-standby" pattern="[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?" maxlength="40" placeholder="orders-standby" autocomplete="off">
+          </label>
+          <label id="physical-port-field" hidden>
+            <span>Standby host port</span>
+            <input name="target_port" id="link-target-port" type="number" min="1024" max="65535" value="55434">
           </label>
           <label>
             <span>Replication pattern</span>
             <select name="mode" id="link-mode" required>
               <option value="logical-committed">Logical · committed transactions · protocol v1</option>
               <option value="logical-streaming">Logical · streamed transactions · protocol v2</option>
+              <option value="physical-streaming">Physical · WAL streaming · same major</option>
             </select>
           </label>
         </div>
-        <div class="bridge-contract">
+        <div class="bridge-contract" id="logical-contract">
           <strong>Future changes only</strong>
           <span>Creates the same empty <code>public.psqlbench_&lt;link&gt;</code> demo table on both nodes. Inserts, updates, deletes, and truncates flow through our pgoutput decoder, encoder, replication server, and downstream client.</span>
         </div>
+        <div class="bridge-contract" id="physical-contract" hidden>
+          <strong>Snapshot, then live WAL</strong>
+          <span>Creates a new same-version standby from <code>pg_basebackup</code>, or reconnects a matching managed standby. Recovery connects only to the Flyology relay; our physical client proxies WAL and the server relays standby feedback.</span>
+        </div>
         <div class="form-actions">
-          <p>Source slot acknowledgements advance only after the target transaction commits.</p>
+          <p id="link-form-note">Source slot acknowledgements advance only after the target transaction commits.</p>
           <button class="button primary" type="submit">Start bridge</button>
         </div>
       </form>
 
       <div class="bridge-map" aria-label="Flyology replication bridge stages">
-        <div><span>01</span><strong>Source Postgres</strong><small>pgoutput slot</small></div>
+        <div><span>01</span><strong>Source Postgres</strong><small>logical slot or WAL</small></div>
         <i aria-hidden="true">→</i>
-        <div><span>02</span><strong>Flyology client</strong><small>decode + log</small></div>
+        <div><span>02</span><strong>Flyology client</strong><small>decode or proxy + log</small></div>
         <i aria-hidden="true">→</i>
         <div><span>03</span><strong>Flyology server</strong><small>COPY BOTH relay</small></div>
         <i aria-hidden="true">→</i>
-        <div><span>04</span><strong>Flyology client</strong><small>apply + ack</small></div>
+        <div><span>04</span><strong>Downstream consumer</strong><small>client or walreceiver</small></div>
         <i aria-hidden="true">→</i>
-        <div><span>05</span><strong>Target Postgres</strong><small>committed rows</small></div>
+        <div><span>05</span><strong>Target Postgres</strong><small>rows or recovery WAL</small></div>
       </div>
 
       <div class="link-list" id="link-list" aria-live="polite">
@@ -213,9 +237,17 @@
         <div class="section-heading compact">
           <div>
             <p class="eyebrow">04 / Supervised activity</p>
-            <h2>Live events</h2>
+            <h2 id="activity-title">Live events</h2>
           </div>
-          <span class="stream-state" id="stream-state">Opening stream</span>
+          <div class="activity-controls">
+            <label class="activity-filter">
+              <span>Stream</span>
+              <select id="activity-filter" aria-controls="event-list">
+                <option value="">All activity</option>
+              </select>
+            </label>
+            <span class="stream-state" id="stream-state">Opening stream</span>
+          </div>
         </div>
         <ol class="event-list" id="event-list" aria-live="polite"></ol>
       </div>
@@ -223,11 +255,11 @@
       <aside class="next-section" aria-labelledby="next-title">
         <p class="eyebrow">Flight plan</p>
         <h2 id="next-title">Replication flight plan</h2>
-        <p>Logical demo-table links now pass through Flyology on both sides of a Flyology replication server. Next: arbitrary relations, snapshots, then physical WAL proxying.</p>
+        <p>Logical demo-table links and real physical standby WAL now pass through Flyology replication clients and servers. Next: snapshot-aware logical initialization and two-phase decoding.</p>
         <ol>
-          <li><span>01</span> Managed logical tables</li>
+          <li><span>01</span> Snapshot-aware initialization</li>
           <li><span>02</span> Arbitrary relation mapping</li>
-          <li><span>03</span> Physical streaming proxy</li>
+          <li><span>03</span> Two-phase transactions</li>
         </ol>
       </aside>
     </section>

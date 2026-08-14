@@ -13,7 +13,7 @@ package body Psqlbench_Docker is
    package Argument_Strings is new Ada.Strings.Bounded.Generic_Bounded_Length
      (Max => 256);
 
-   Max_Arguments : constant := 48;
+   Max_Arguments : constant := 64;
    type Argument_Array is array (Positive range 1 .. Max_Arguments) of
      Argument_Strings.Bounded_String;
 
@@ -354,6 +354,76 @@ package body Psqlbench_Docker is
       return Run (Item, Token, Deadline);
    end Instance_Port;
 
+   function Instance_Version
+     (Name     : String;
+      Token    : access Flyology.Cancellation.Token := null;
+      Deadline : Ada.Real_Time.Time := Ada.Real_Time.Time_Last) return Result
+   is
+      Item : Command;
+   begin
+      Add (Item, "container");
+      Add (Item, "inspect");
+      Add (Item, "--format");
+      Add
+        (Item,
+         "{{index .Config.Labels ""org.flyology.psqlbench.version""}}");
+      Add (Item, "psqlbench-" & Name);
+      return Run (Item, Token, Deadline);
+   end Instance_Version;
+
+   function Instance_Role
+     (Name     : String;
+      Token    : access Flyology.Cancellation.Token := null;
+      Deadline : Ada.Real_Time.Time := Ada.Real_Time.Time_Last) return Result
+   is
+      Item : Command;
+   begin
+      Add (Item, "container");
+      Add (Item, "inspect");
+      Add (Item, "--format");
+      Add
+        (Item,
+         "{{index .Config.Labels ""org.flyology.psqlbench.role""}}");
+      Add (Item, "psqlbench-" & Name);
+      return Run (Item, Token, Deadline);
+   end Instance_Role;
+
+   function Inspect_Instance
+     (Name     : String;
+      Token    : access Flyology.Cancellation.Token := null;
+      Deadline : Ada.Real_Time.Time := Ada.Real_Time.Time_Last) return Result
+   is
+      Item : Command;
+   begin
+      Add (Item, "container");
+      Add (Item, "inspect");
+      Add (Item, "psqlbench-" & Name);
+      return Run (Item, Token, Deadline);
+   end Inspect_Instance;
+
+   function Enable_Replication_Access
+     (Name     : String;
+      Token    : access Flyology.Cancellation.Token := null;
+      Deadline : Ada.Real_Time.Time := Ada.Real_Time.Time_Last) return Result
+   is
+      Item : Command;
+   begin
+      Add (Item, "container");
+      Add (Item, "exec");
+      Add (Item, "--user");
+      Add (Item, "postgres");
+      Add (Item, "psqlbench-" & Name);
+      Add (Item, "sh");
+      Add (Item, "-c");
+      Add
+        (Item,
+         "grep -qxF 'host replication psqlbench samenet scram-sha-256' "
+         & """$PGDATA/pg_hba.conf"" || printf '%s\n' "
+         & "'host replication psqlbench samenet scram-sha-256' >> "
+         & """$PGDATA/pg_hba.conf""; pg_ctl reload");
+      return Run (Item, Token, Deadline);
+   end Enable_Replication_Access;
+
    function Logs
      (Name     : String;
       Since    : String;
@@ -440,6 +510,161 @@ package body Psqlbench_Docker is
       return Apply (Name, Start_Instance, Token, Deadline);
    end Create_Instance;
 
+   function Bootstrap_Physical_Standby
+     (Name       : String;
+      Source     : String;
+      Version    : String;
+      Port       : Positive;
+      Slot       : String;
+      Relay_Port : Positive;
+      Token      : access Flyology.Cancellation.Token := null;
+      Deadline   : Ada.Real_Time.Time := Ada.Real_Time.Time_Last)
+      return Result
+   is
+      Volume_Name : constant String := Container_Name (Name) & "-data";
+      Image : constant String := "postgres:" & Version & "-bookworm";
+      Volume : Command;
+      Prepare : Command;
+      Backup : Command;
+      Create : Command;
+      Value : Result;
+   begin
+      declare
+         Remove_Stale : Command;
+         Ignored : Result;
+         pragma Unreferenced (Ignored);
+      begin
+         Add (Remove_Stale, "volume");
+         Add (Remove_Stale, "rm");
+         Add (Remove_Stale, Volume_Name);
+         Ignored := Run (Remove_Stale, Token, Deadline);
+      end;
+
+      Add (Volume, "volume");
+      Add (Volume, "create");
+      Add (Volume, "--label");
+      Add (Volume, "org.flyology.psqlbench.instance=" & Name);
+      Add (Volume, Volume_Name);
+      Value := Run (Volume, Token, Deadline);
+      if not Value.Success then
+         return Value;
+      end if;
+
+      Add (Prepare, "container");
+      Add (Prepare, "run");
+      Add (Prepare, "--rm");
+      Add (Prepare, "--env");
+      Add (Prepare, "PGDATA=/var/lib/postgresql/data");
+      Add (Prepare, "--mount");
+      Add
+        (Prepare,
+         "type=volume,source=" & Volume_Name
+         & ",target=/var/lib/postgresql/data");
+      Add (Prepare, Image);
+      Add (Prepare, "sh");
+      Add (Prepare, "-c");
+      Add
+        (Prepare,
+         "chown -R postgres:postgres /var/lib/postgresql/data");
+      Value := Run (Prepare, Token, Deadline);
+      if not Value.Success then
+         return Value;
+      end if;
+
+      Add (Backup, "container");
+      Add (Backup, "run");
+      Add (Backup, "--rm");
+      Add (Backup, "--network");
+      Add (Backup, "psqlbench");
+      Add (Backup, "--env");
+      Add (Backup, "PGPASSWORD=psqlbench");
+      Add (Backup, "--env");
+      Add (Backup, "PGDATA=/var/lib/postgresql/data");
+      Add (Backup, "--user");
+      Add (Backup, "postgres");
+      Add (Backup, "--mount");
+      Add
+        (Backup,
+         "type=volume,source=" & Volume_Name
+         & ",target=/var/lib/postgresql/data");
+      Add (Backup, Image);
+      Add (Backup, "pg_basebackup");
+      Add (Backup, "--host");
+      Add (Backup, Container_Name (Source));
+      Add (Backup, "--username");
+      Add (Backup, "psqlbench");
+      Add (Backup, "--pgdata");
+      Add (Backup, "/var/lib/postgresql/data");
+      Add (Backup, "--format=plain");
+      Add (Backup, "--wal-method=stream");
+      Add (Backup, "--checkpoint=fast");
+      Add (Backup, "--slot");
+      Add (Backup, Slot);
+      Add (Backup, "--write-recovery-conf");
+      Value := Run (Backup, Token, Deadline);
+      if not Value.Success then
+         return Value;
+      end if;
+
+      Add (Create, "container");
+      Add (Create, "create");
+      Add (Create, "--name");
+      Add (Create, Container_Name (Name));
+      Add (Create, "--hostname");
+      Add (Create, Name);
+      Add (Create, "--network");
+      Add (Create, "psqlbench");
+      Add (Create, "--add-host");
+      Add (Create, "host.docker.internal:host-gateway");
+      Add (Create, "--label");
+      Add (Create, "org.flyology.psqlbench.instance=" & Name);
+      Add (Create, "--label");
+      Add (Create, "org.flyology.psqlbench.version=" & Version);
+      Add (Create, "--label");
+      Add (Create, "org.flyology.psqlbench.port=" & Compact (Port));
+      Add (Create, "--label");
+      Add (Create, "org.flyology.psqlbench.role=physical-standby");
+      Add (Create, "--env");
+      Add (Create, "PGDATA=/var/lib/postgresql/data");
+      Add (Create, "--env");
+      Add (Create, "POSTGRES_PASSWORD=psqlbench");
+      Add (Create, "--publish");
+      Add (Create, "127.0.0.1:" & Compact (Port) & ":5432");
+      Add (Create, "--mount");
+      Add
+        (Create,
+         "type=volume,source=" & Volume_Name
+         & ",target=/var/lib/postgresql/data");
+      Add (Create, "--health-cmd");
+      Add (Create, "pg_isready -U psqlbench -d postgres");
+      Add (Create, "--health-interval");
+      Add (Create, "1s");
+      Add (Create, "--health-timeout");
+      Add (Create, "3s");
+      Add (Create, "--health-retries");
+      Add (Create, "60");
+      Add (Create, Image);
+      Add (Create, "-c");
+      Add (Create, "listen_addresses=*");
+      Add (Create, "-c");
+      Add
+        (Create,
+         "primary_conninfo=host=host.docker.internal port="
+         & Compact (Relay_Port)
+         & " user=psqlbench password=psqlbench application_name=" & Name);
+      Add (Create, "-c");
+      Add (Create, "primary_slot_name=" & Slot);
+      Add (Create, "-c");
+      Add (Create, "hot_standby=on");
+      Add (Create, "-c");
+      Add (Create, "wal_level=logical");
+      Add (Create, "-c");
+      Add (Create, "max_wal_senders=20");
+      Add (Create, "-c");
+      Add (Create, "max_replication_slots=20");
+      return Run (Create, Token, Deadline);
+   end Bootstrap_Physical_Standby;
+
    function Apply
      (Name     : String;
       Action   : Instance_Action;
@@ -447,6 +672,7 @@ package body Psqlbench_Docker is
       Deadline : Ada.Real_Time.Time := Ada.Real_Time.Time_Last) return Result
    is
       Item : Command;
+      Value : Result;
    begin
       Add (Item, "container");
       Add
@@ -463,7 +689,20 @@ package body Psqlbench_Docker is
          Add (Item, "--volumes");
       end if;
       Add (Item, Container_Name (Name));
-      return Run (Item, Token, Deadline);
+      Value := Run (Item, Token, Deadline);
+      if Value.Success and then Action = Remove_Instance then
+         declare
+            Volume : Command;
+            Ignored : Result;
+            pragma Unreferenced (Ignored);
+         begin
+            Add (Volume, "volume");
+            Add (Volume, "rm");
+            Add (Volume, Container_Name (Name) & "-data");
+            Ignored := Run (Volume, Token, Deadline);
+         end;
+      end if;
+      return Value;
    end Apply;
 
 end Psqlbench_Docker;

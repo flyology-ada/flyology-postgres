@@ -178,6 +178,8 @@ package body Psqlbench_Context is
       procedure Create
         (Name, Source, Target : String;
          Mode     : Link_Mode;
+         Target_Version : String;
+         Target_Port : Natural;
          Accepted : out Boolean;
          Detail   : out String;
          Last     : out Natural)
@@ -203,7 +205,7 @@ package body Psqlbench_Context is
          end loop;
          if Free = 0 or else Command_Count = Link_Command_Capacity then
             declare
-               Message : constant String := "logical link capacity is full";
+               Message : constant String := "replication link capacity is full";
             begin
                Last := Natural'Min (Message'Length, Detail'Length);
                Detail (Detail'First .. Detail'First + Last - 1) :=
@@ -220,6 +222,11 @@ package body Psqlbench_Context is
            (Entries (Free).Source, Entries (Free).Source_Length, Source);
          Store
            (Entries (Free).Target, Entries (Free).Target_Length, Target);
+         Store
+           (Entries (Free).Target_Version,
+            Entries (Free).Target_Version_Length,
+            Target_Version);
+         Entries (Free).Target_Port := Target_Port;
          declare
             Table_Name : constant String := "psqlbench_" & Name;
          begin
@@ -307,6 +314,36 @@ package body Psqlbench_Context is
             end if;
          end loop;
       end Record_Change;
+
+      procedure Record_Start
+        (Name : String; LSN : Interfaces.Unsigned_64) is
+      begin
+         for Index in Entries'Range loop
+            if Same_Name (Entries (Index), Name) then
+               Entries (Index).Start_LSN := LSN;
+               if Entries (Index).Last_LSN < LSN then
+                  Entries (Index).Last_LSN := LSN;
+               end if;
+               if Entries (Index).Applied_LSN < LSN then
+                  Entries (Index).Applied_LSN := LSN;
+               end if;
+               return;
+            end if;
+         end loop;
+      end Record_Start;
+
+      procedure Record_Applied
+        (Name : String; LSN : Interfaces.Unsigned_64) is
+      begin
+         for Index in Entries'Range loop
+            if Same_Name (Entries (Index), Name) then
+               if LSN > Entries (Index).Applied_LSN then
+                  Entries (Index).Applied_LSN := LSN;
+               end if;
+               return;
+            end if;
+         end loop;
+      end Record_Applied;
 
       procedure Snapshot (Value : out Link_Array; Count : out Natural) is
       begin

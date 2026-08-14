@@ -39,6 +39,26 @@ package Psqlbench_Docker is
       Token    : access Flyology.Cancellation.Token := null;
       Deadline : Ada.Real_Time.Time := Ada.Real_Time.Time_Last) return Result;
 
+   function Instance_Version
+     (Name     : String;
+      Token    : access Flyology.Cancellation.Token := null;
+      Deadline : Ada.Real_Time.Time := Ada.Real_Time.Time_Last) return Result;
+
+   function Instance_Role
+     (Name     : String;
+      Token    : access Flyology.Cancellation.Token := null;
+      Deadline : Ada.Real_Time.Time := Ada.Real_Time.Time_Last) return Result;
+
+   function Inspect_Instance
+     (Name     : String;
+      Token    : access Flyology.Cancellation.Token := null;
+      Deadline : Ada.Real_Time.Time := Ada.Real_Time.Time_Last) return Result;
+
+   function Enable_Replication_Access
+     (Name     : String;
+      Token    : access Flyology.Cancellation.Token := null;
+      Deadline : Ada.Real_Time.Time := Ada.Real_Time.Time_Last) return Result;
+
    function Logs
      (Name     : String;
       Since    : String;
@@ -52,6 +72,17 @@ package Psqlbench_Docker is
       Port     : Positive;
       Token    : access Flyology.Cancellation.Token := null;
       Deadline : Ada.Real_Time.Time := Ada.Real_Time.Time_Last) return Result;
+
+   function Bootstrap_Physical_Standby
+     (Name       : String;
+      Source     : String;
+      Version    : String;
+      Port       : Positive;
+      Slot       : String;
+      Relay_Port : Positive;
+      Token      : access Flyology.Cancellation.Token := null;
+      Deadline   : Ada.Real_Time.Time := Ada.Real_Time.Time_Last)
+      return Result;
 
    type Instance_Action is (Start_Instance, Stop_Instance, Remove_Instance);
 

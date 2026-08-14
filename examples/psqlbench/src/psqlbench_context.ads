@@ -36,7 +36,8 @@ package Psqlbench_Context is
      (Link_Empty, Link_Pending, Link_Starting, Link_Running,
       Link_Stopping, Link_Stopped, Link_Failed);
 
-   type Link_Mode is (Logical_Committed, Logical_Streaming);
+   type Link_Mode is
+     (Logical_Committed, Logical_Streaming, Physical_Streaming);
 
    type Link_Record is record
       Status        : Link_Status := Link_Empty;
@@ -47,11 +48,16 @@ package Psqlbench_Context is
       Source        : String (1 .. Max_Instance_Name_Bytes) := (others => ' ');
       Target_Length : Natural range 0 .. Max_Instance_Name_Bytes := 0;
       Target        : String (1 .. Max_Instance_Name_Bytes) := (others => ' ');
+      Target_Version_Length : Natural range 0 .. 16 := 0;
+      Target_Version : String (1 .. 16) := (others => ' ');
+      Target_Port   : Natural range 0 .. 65_535 := 0;
       Table_Length  : Natural range 0 .. 63 := 0;
       Table_Name    : String (1 .. 63) := (others => ' ');
       Relay_Port    : Natural range 0 .. 65_535 := 0;
       Change_Count  : Event_Sequence := 0;
+      Start_LSN     : Interfaces.Unsigned_64 := 0;
       Last_LSN      : Interfaces.Unsigned_64 := 0;
+      Applied_LSN   : Interfaces.Unsigned_64 := 0;
       Detail_Length : Natural range 0 .. Max_Link_Detail_Bytes := 0;
       Detail        : String (1 .. Max_Link_Detail_Bytes) := (others => ' ');
    end record;
@@ -112,6 +118,8 @@ package Psqlbench_Context is
       procedure Create
         (Name, Source, Target : String;
          Mode     : Link_Mode;
+         Target_Version : String;
+         Target_Port : Natural;
          Accepted : out Boolean;
          Detail   : out String;
          Last     : out Natural);
@@ -125,6 +133,10 @@ package Psqlbench_Context is
         (Name : String; Status : Link_Status; Detail : String := "");
       procedure Forget (Name : String);
       procedure Record_Change
+        (Name : String; LSN : Interfaces.Unsigned_64);
+      procedure Record_Start
+        (Name : String; LSN : Interfaces.Unsigned_64);
+      procedure Record_Applied
         (Name : String; LSN : Interfaces.Unsigned_64);
       procedure Snapshot (Value : out Link_Array; Count : out Natural);
    private

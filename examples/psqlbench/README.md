@@ -35,13 +35,30 @@ client support is available and verified.
   stateful pgoutput decoder/encoder, Flyology Postgres replication server, and
   a second Flyology Postgres replication client before applying it to the
   target; source slot acknowledgement advances only after target commit;
+- provisions a new same-version physical standby with `pg_basebackup`, then
+  routes its live recovery stream through a Flyology physical replication
+  client and Flyology replication server before PostgreSQL's walreceiver
+  applies it; standby feedback is proxied back to the source slot;
+- exposes a selectable per-link activity stream for logical pgoutput messages
+  and physical `XLogData`, primary keepalives, standby write/flush/apply
+  feedback, hot-standby feedback, and upstream acknowledgements, both inline
+  on each topology link and in the filterable global ledger;
+- previews decoded old/new tuple values when an insert, update, or delete
+  activity row is hovered or keyboard-focused;
+- renders each replica's current and applied LSN, exact byte lag, and replayed
+  share of the WAL span observed since that link started;
+- creates idempotent logical-stream, physical-standby, and mixed-version sample
+  topologies from UI presets, reusing matching managed containers after an app
+  restart;
 - runs Docker operations through one bounded native executor; and
 - supervises Docker readiness, log collection, the dynamic link family, and the
   HTTP service as a dependency-ordered topology.
 
 The logical bridge deliberately begins with future changes on an empty managed
-table. Initial snapshot copying, arbitrary relation mapping, two-phase logical
-transactions, and physical WAL proxying are the next replication slices.
+table. Logical initial snapshots, arbitrary relation mapping, and two-phase
+logical transactions are the next replication slices. Physical bootstrap WAL
+is fetched by `pg_basebackup`; after recovery starts, all live WAL passes
+through the observable Flyology proxy.
 
 ## Functional outline
 
@@ -53,10 +70,10 @@ The workbench grows in four layers while keeping the browser API stable:
 2. **Query sessions (implemented):** attach an authenticated frontend connection
    to any node, cancel work in progress, and render bounded tabular or diagnostic
    results alongside retained, real-time Postgres logs.
-3. **Replication links (logical baseline implemented):** own a typed link,
-   publication, slot, internal relay, and target apply session. Add selectable
-   logical transaction modes and physical standby bootstrapping next.
-4. **Protocol observation (logical baseline implemented):** route replication through Flyology Postgres and
+3. **Replication links (logical and physical baselines implemented):** own a
+   typed link, slots, internal relay, logical target apply session, or
+   automatically provisioned same-major physical standby.
+4. **Protocol observation (implemented):** route replication through Flyology Postgres and
    stream WAL positions, lag, keepalives, relation metadata, tuple changes, and
    link failures to the activity ledger.
 
@@ -67,8 +84,8 @@ The intended desktop layout is deliberately topology-first:
 +-------------------------------------------------------------------+
 | BUILD THE TOPOLOGY. WATCH THE WIRE.                [+ New instance]|
 +-------------------------------------------------------------------+
-|  primary-17            physical / WAL             standby-16      |
-|  PG 17.10  [healthy]  =========================>  PG 16.14 [live] |
+|  primary-17            physical / WAL             standby-17      |
+|  PG 17.10  [healthy]  =========================>  PG 17.10 [live] |
 |  :55432                 0/3A7D2C10 · 18 ms         :55433          |
 |  [Inspect] [Stop]                         [Inspect] [Stop]         |
 |                                                                   |
@@ -86,10 +103,13 @@ The intended desktop layout is deliberately topology-first:
 +--------------------------------------+----------------------------+
 ```
 
-The current UI implements instance nodes, managed logical-link creation and
-status, the selected-instance Query and Logs workspace, and a live protocol
-activity ledger. Each link exposes its internal loopback relay only for
-observation; Postgres nodes never connect directly around it.
+The current UI implements instance nodes, managed logical and physical-link
+creation and status, the selected-instance Query and Logs workspace, and a live
+protocol activity ledger. Logical relays bind loopback. A physical relay binds
+all host IPv4 interfaces so its Docker standby can reach it through
+`host.docker.internal`; it uses the demo password in cleartext and is suitable
+only for this local workbench. Live recovery never connects directly to the
+source.
 
 ## Build and run
 
@@ -106,10 +126,10 @@ Open <http://127.0.0.1:8080/>. Set `PSQLBENCH_PORT` to choose another loopback
 port. Set `PSQLBENCH_ASSET_ROOT` when starting the binary outside this crate
 directory.
 
-The demo creates only containers and networks with the `psqlbench` prefix and
-Flyology ownership labels. Removing an instance removes its container. Named
-volume management will be added with replication bootstrapping, so this slice
-does not claim that deleted instance data is recoverable.
+The demo creates only containers, physical-standby volumes, and networks with
+the `psqlbench` prefix and Flyology ownership labels. Removing an instance
+removes its container and any psqlbench physical-standby volume with the same
+name.
 
 ## Docker transport boundary
 

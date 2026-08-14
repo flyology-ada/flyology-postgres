@@ -8,6 +8,8 @@
   const closeCreate = document.querySelector("#close-create");
   const events = document.querySelector("#event-list");
   const streamState = document.querySelector("#stream-state");
+  const activityFilter = document.querySelector("#activity-filter");
+  const activityTitle = document.querySelector("#activity-title");
   const toast = document.querySelector("#toast");
   const workspace = document.querySelector("#instance-workspace");
   const workspaceInstance = document.querySelector("#workspace-instance");
@@ -32,10 +34,30 @@
   const closeLink = document.querySelector("#close-link");
   const linkSource = document.querySelector("#link-source");
   const linkTarget = document.querySelector("#link-target");
+  const linkMode = document.querySelector("#link-mode");
+  const logicalTargetField = document.querySelector("#logical-target-field");
+  const physicalTargetField = document.querySelector("#physical-target-field");
+  const physicalPortField = document.querySelector("#physical-port-field");
+  const linkStandby = document.querySelector("#link-standby");
+  const linkTargetPort = document.querySelector("#link-target-port");
+  const linkFormTitle = document.querySelector("#link-form-title");
+  const linkPathLabel = document.querySelector("#link-path-label");
+  const logicalContract = document.querySelector("#logical-contract");
+  const physicalContract = document.querySelector("#physical-contract");
+  const linkFormNote = document.querySelector("#link-form-note");
+  const topologyPreset = document.querySelector("#topology-preset");
+  const launchPreset = document.querySelector("#launch-preset");
 
   let toastTimer;
   let instances = [];
   let links = [];
+  const linkActivity = new Map();
+  const quietLinkActivityKinds = new Set([
+    "PRIMARY_KEEPALIVE",
+    "STANDBY_STATUS_UPDATE",
+    "HOT_STANDBY_FEEDBACK",
+    "UPSTREAM_ACK"
+  ]);
   let selectedName = "";
   let activeTab = "query";
   let querySocket;
@@ -45,6 +67,36 @@
   let logSocket;
   let logGeneration = 0;
   let logLines = 0;
+
+  const topologyPresets = {
+    "logical-stream": {
+      instances: [
+        { name: "preset-source-17", version: "17.10", port: 55510 },
+        { name: "preset-target-18", version: "18.4", port: 55511 }
+      ],
+      links: [
+        { name: "preset-stream", source: "preset-source-17", target: "preset-target-18", mode: "logical-streaming" }
+      ]
+    },
+    "physical-standby": {
+      instances: [
+        { name: "preset-primary-18", version: "18.4", port: 55512 }
+      ],
+      links: [
+        { name: "preset-wal", source: "preset-primary-18", target: "preset-standby-18", target_port: 55513, mode: "physical-streaming" }
+      ]
+    },
+    "mixed-lab": {
+      instances: [
+        { name: "lab-primary-14", version: "14.23", port: 55514 },
+        { name: "lab-logical-18", version: "18.4", port: 55515 }
+      ],
+      links: [
+        { name: "lab-committed", source: "lab-primary-14", target: "lab-logical-18", mode: "logical-committed" },
+        { name: "lab-physical", source: "lab-primary-14", target: "lab-standby-14", target_port: 55516, mode: "physical-streaming" }
+      ]
+    }
+  };
 
   function showError(message) {
     clearTimeout(toastTimer);
@@ -83,6 +135,13 @@
     if (className) value.className = className;
     if (text !== undefined) value.textContent = text;
     return value;
+  }
+
+  function formatBytes(value) {
+    const bytes = Math.max(0, Number(value) || 0);
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
   }
 
   function wsURL(path) {
@@ -151,40 +210,130 @@
       if (running.some(value => value.name === previous)) select.value = previous;
       else if (running.length > selectIndex) select.value = running[selectIndex].name;
     });
-    openLink.disabled = running.length < 2;
+    openLink.disabled = running.length < 1;
+  }
+
+  function syncLinkMode() {
+    const physical = linkMode.value === "physical-streaming";
+    logicalTargetField.hidden = physical;
+    physicalTargetField.hidden = !physical;
+    physicalPortField.hidden = !physical;
+    logicalContract.hidden = physical;
+    physicalContract.hidden = !physical;
+    linkTarget.required = !physical;
+    linkStandby.required = physical;
+    linkTargetPort.required = physical;
+    linkFormTitle.textContent = physical ? "Managed physical standby" : "Managed logical bridge";
+    linkPathLabel.textContent = physical ? "Flyology client → server → Postgres walreceiver" : "Flyology client → server → client";
+    linkFormNote.textContent = physical
+      ? "The base backup is a bootstrap step. Every live recovery WAL byte passes through the Flyology relay."
+      : "Source slot acknowledgements advance only after the target transaction commits.";
+  }
+
+  function linkStructure(link) {
+    return JSON.stringify([
+      link.name, link.source, link.target, link.target_version,
+      link.target_port, link.table, link.status, link.mode,
+      link.relay_port, link.detail
+    ]);
+  }
+
+  function updateLinkMetrics(article, link) {
+    const physical = link.mode === "physical-streaming";
+    const values = {
+      endpoint: physical ? `127.0.0.1:${link.target_port}` : `public.${link.table}`,
+      changes: String(link.changes || 0),
+      "last-lsn": link.last_lsn || "waiting",
+      relay: physical ? `0.0.0.0:${link.relay_port}` : `127.0.0.1:${link.relay_port}`
+    };
+    Object.entries(values).forEach(([name, value]) => {
+      const output = article.querySelector(`[data-stat="${name}"]`);
+      if (output && output.textContent !== value) output.textContent = value;
+    });
+
+    const replay = article.querySelector(".replay-progress");
+    replay.classList.toggle("caught-up", Boolean(link.caught_up));
+    replay.querySelector(".replay-state").textContent = link.caught_up
+      ? "Caught up"
+      : `${formatBytes(link.lag_bytes)} behind`;
+    replay.querySelector(".replay-lsns").textContent =
+      `${link.applied_lsn || "waiting"} → ${link.last_lsn || "waiting"}`;
+    const meter = replay.querySelector("meter");
+    const spanBytes = Math.max(1, Number(link.span_bytes) || 0);
+    meter.max = spanBytes;
+    meter.value = link.caught_up
+      ? spanBytes
+      : Math.min(spanBytes, Number(link.replayed_bytes) || 0);
+    replay.querySelector(".replay-summary").textContent =
+      `${formatBytes(link.replayed_bytes)} replayed across ${formatBytes(link.span_bytes)} observed`;
   }
 
   function linkNode(link) {
     const article = el("article", `link-card ${link.status}`);
+    article.dataset.link = link.name;
+    article.dataset.snapshot = linkStructure(link);
     const heading = el("div", "link-card-heading");
     const title = document.createElement("div");
     const streamed = link.mode === "logical-streaming";
-    title.append(el("span", "node-version", streamed ? "LOGICAL · STREAMING · PGOUTPUT V2" : "LOGICAL · COMMITTED · PGOUTPUT V1"), el("h3", "node-name", link.name));
+    const physical = link.mode === "physical-streaming";
+    const modeLabel = physical ? `PHYSICAL · WAL STREAMING · POSTGRES ${link.target_version}` : (streamed ? "LOGICAL · STREAMING · PGOUTPUT V2" : "LOGICAL · COMMITTED · PGOUTPUT V1");
+    title.append(el("span", "node-version", modeLabel), el("h3", "node-name", link.name));
     heading.append(title, el("span", "node-status", link.status));
 
     const route = el("div", "link-route");
     route.append(
       el("strong", "", link.source),
-      el("span", "", "client → server → client"),
+      el("span", "", physical ? "client → server → walreceiver" : "client → server → client"),
       el("strong", "", link.target)
     );
 
     const stats = el("dl", "link-stats");
-    [["table", `public.${link.table}`], ["changes", String(link.changes || 0)], ["last lsn", link.last_lsn || "waiting"], ["relay", `127.0.0.1:${link.relay_port}`]]
-      .forEach(([key, value]) => {
+    [["endpoint", physical ? "standby port" : "table", physical ? `127.0.0.1:${link.target_port}` : `public.${link.table}`], ["changes", physical ? "wal frames" : "changes", String(link.changes || 0)], ["last-lsn", "last lsn", link.last_lsn || "waiting"], ["relay", "relay", physical ? `0.0.0.0:${link.relay_port}` : `127.0.0.1:${link.relay_port}`]]
+      .forEach(([name, key, value]) => {
         const row = document.createElement("div");
-        row.append(el("dt", "", key), el("dd", "", value));
+        const output = el("dd", "", value);
+        output.dataset.stat = name;
+        row.append(el("dt", "", key), output);
         stats.append(row);
       });
 
+    const replay = el("div", `replay-progress${link.caught_up ? " caught-up" : ""}`);
+    const replayHead = el("div", "replay-progress-head");
+    replayHead.append(
+      el("strong", "replay-state", link.caught_up ? "Caught up" : `${formatBytes(link.lag_bytes)} behind`),
+      el("span", "replay-lsns", `${link.applied_lsn || "waiting"} → ${link.last_lsn || "waiting"}`)
+    );
+    const meter = document.createElement("meter");
+    const spanBytes = Math.max(1, Number(link.span_bytes) || 0);
+    meter.min = 0;
+    meter.max = spanBytes;
+    meter.value = link.caught_up ? spanBytes : Math.min(spanBytes, Number(link.replayed_bytes) || 0);
+    meter.setAttribute("aria-label", `${link.name} replica replay progress`);
+    replay.append(replayHead, meter, el("small", "replay-summary", `${formatBytes(link.replayed_bytes)} replayed across ${formatBytes(link.span_bytes)} observed`));
+
     const detail = el("p", "link-detail", link.detail || "Waiting for supervised link activity");
+    const live = el("section", "link-live");
+    live.setAttribute("aria-label", `${link.name} live replication activity`);
+    const liveHeading = el("div", "link-live-heading");
+    liveHeading.append(
+      el("strong", "", "Live replication"),
+      el("span", "", physical ? "WAL + feedback" : "pgoutput + apply")
+    );
+    const liveEvents = el("ol", "link-event-stream");
+    (linkActivity.get(link.name) || []).forEach(value => liveEvents.append(linkEventNode(value)));
+    if (!liveEvents.children.length) {
+      liveEvents.append(el("li", "link-event-empty", "Waiting for replication traffic"));
+    }
+    live.append(liveHeading, liveEvents);
     const actions = el("div", "node-actions");
     const insert = el("button", "button primary", "Insert demo row");
     insert.type = "button";
     insert.disabled = link.status !== "running";
     insert.addEventListener("click", () => {
       selectInstance(link.source);
-      queryInput.value = `insert into public."${link.table}" (id, payload)\nvalues ((extract(epoch from clock_timestamp()) * 1000000)::bigint,\n        'sent through ${link.name}')\nreturning *;`;
+      queryInput.value = physical
+        ? `create table if not exists public.psqlbench_physical_probe (id bigserial primary key, payload text, changed_at timestamptz default clock_timestamp());\ninsert into public.psqlbench_physical_probe (payload) values ('WAL through ${link.name}') returning *;`
+        : `insert into public."${link.table}" (id, payload)\nvalues ((extract(epoch from clock_timestamp()) * 1000000)::bigint,\n        'sent through ${link.name}')\nreturning *;`;
       switchTab("query");
       queryInput.focus();
     });
@@ -192,12 +341,15 @@
     inspect.type = "button";
     inspect.addEventListener("click", () => {
       selectInstance(link.target);
-      queryInput.value = `select * from public."${link.table}" order by id desc limit 20;`;
+      queryInput.value = physical
+        ? "select pg_is_in_recovery() as in_recovery, pg_last_wal_replay_lsn() as replay_lsn;\nselect * from public.psqlbench_physical_probe order by id desc limit 20;"
+        : `select * from public."${link.table}" order by id desc limit 20;`;
       switchTab("query");
     });
     const pattern = el("button", "button secondary", streamed ? "Load streamed transaction" : "Load message patterns");
     pattern.type = "button";
-    pattern.disabled = link.status !== "running";
+    pattern.disabled = physical || link.status !== "running";
+    if (physical) pattern.hidden = true;
     pattern.addEventListener("click", () => {
       selectInstance(link.source);
       queryInput.value = streamed
@@ -210,21 +362,133 @@
     stop.type = "button";
     stop.disabled = !["running", "starting", "pending"].includes(link.status);
     stop.addEventListener("click", () => applyLinkAction(link.name, "stop", stop));
-    actions.append(insert, pattern, inspect, stop);
-    article.append(heading, route, stats, detail, actions);
+    const activity = el("button", "button secondary", "View activity");
+    activity.type = "button";
+    activity.addEventListener("click", () => {
+      activityFilter.value = link.name;
+      applyActivityFilter();
+      events.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    actions.append(insert, pattern, inspect, activity, stop);
+    article.append(heading, route, stats, replay, detail, live, actions);
     return article;
+  }
+
+  function linkEventNode(value) {
+    const item = el("li", "link-event");
+    item.append(
+      el("span", "link-event-kind", value.kind || "event"),
+      el("span", "link-event-path", [value.stage, value.direction].filter(Boolean).join(" · ")),
+      el("span", "link-event-lsn", value.lsn || value.detail || "observed")
+    );
+    const tupleEvent = ["INSERT_MESSAGE", "UPDATE_MESSAGE", "DELETE_MESSAGE"].includes(value.kind);
+    if (tupleEvent && value.detail) {
+      item.classList.add("inspectable");
+      item.tabIndex = 0;
+      item.setAttribute("aria-label", `${value.kind}: ${value.detail}`);
+      const popup = el("aside", "link-event-popover");
+      popup.setAttribute("role", "tooltip");
+      popup.append(
+        el("strong", "", value.kind.replace("_MESSAGE", "")),
+        el("span", "", [value.stage, value.direction, value.lsn].filter(Boolean).join(" · ")),
+        el("code", "", value.detail)
+      );
+      item.append(popup);
+    }
+    return item;
+  }
+
+  function updateLinkEventNode(item, value) {
+    item.querySelector(".link-event-kind").textContent = value.kind || "event";
+    item.querySelector(".link-event-path").textContent =
+      [value.stage, value.direction].filter(Boolean).join(" · ");
+    item.querySelector(".link-event-lsn").textContent =
+      value.lsn || value.detail || "observed";
+    const popup = item.querySelector(".link-event-popover");
+    if (popup) {
+      popup.querySelector("span").textContent =
+        [value.stage, value.direction, value.lsn].filter(Boolean).join(" · ");
+      popup.querySelector("code").textContent = value.detail;
+      item.setAttribute("aria-label", `${value.kind}: ${value.detail}`);
+    }
+  }
+
+  function rememberLinkActivity(value) {
+    if (value.type !== "link.activity" || !value.link) return;
+    const retained = linkActivity.get(value.link) || [];
+    const quietIndex = quietLinkActivityKinds.has(value.kind)
+      ? retained.findIndex(previous =>
+        previous.kind === value.kind &&
+        previous.direction === value.direction)
+      : -1;
+    if (quietIndex >= 0) {
+      const previous = retained[quietIndex];
+      if (previous.lsn === value.lsn && previous.detail === value.detail) return;
+      retained[quietIndex] = value;
+      linkActivity.set(value.link, retained);
+      const card = Array.from(document.querySelectorAll(".link-card"))
+        .find(item => item.dataset.link === value.link);
+      const row = card?.querySelector(".link-event-stream")?.children[quietIndex];
+      if (row) updateLinkEventNode(row, value);
+      return;
+    }
+    retained.unshift(value);
+    if (retained.length > 10) retained.length = 10;
+    linkActivity.set(value.link, retained);
+
+    const card = Array.from(document.querySelectorAll(".link-card"))
+      .find(item => item.dataset.link === value.link);
+    const stream = card?.querySelector(".link-event-stream");
+    if (stream) {
+      stream.querySelector(".link-event-empty")?.remove();
+      stream.prepend(linkEventNode(value));
+      while (stream.children.length > 10) stream.lastElementChild.remove();
+    }
   }
 
   function renderLinks(values) {
     links = values;
-    linkList.replaceChildren();
+    const names = new Set(values.map(value => value.name));
+    for (const name of linkActivity.keys()) {
+      if (!names.has(name)) linkActivity.delete(name);
+    }
+    const filterSignature = values.map(value => `${value.name}:${value.mode}`).join("|");
+    if (activityFilter.dataset.signature !== filterSignature) {
+      const selectedActivity = activityFilter.value;
+      activityFilter.replaceChildren(
+        new Option("All activity", ""),
+        ...values.map(value => new Option(`${value.name} · ${value.mode.startsWith("physical") ? "physical" : "logical"}`, value.name))
+      );
+      activityFilter.dataset.signature = filterSignature;
+      if (values.some(value => value.name === selectedActivity)) {
+        activityFilter.value = selectedActivity;
+      }
+    }
+    applyActivityFilter();
     if (!values.length) {
+      linkList.replaceChildren();
       const empty = el("div", "link-empty");
-      empty.append(el("p", "", "No logical bridges yet. Create two running instances to connect a managed demo table."));
+      empty.append(el("p", "", "No replication links yet. Connect two nodes logically, or create a physical standby from one running source."));
       linkList.append(empty);
       return;
     }
-    values.forEach(value => linkList.append(linkNode(value)));
+    linkList.querySelector(".link-empty")?.remove();
+    const existing = new Map(Array.from(linkList.querySelectorAll(".link-card"))
+      .map(card => [card.dataset.link, card]));
+    values.forEach(value => {
+      let card = existing.get(value.name);
+      const snapshot = linkStructure(value);
+      if (!card || card.dataset.snapshot !== snapshot) {
+        const replacement = linkNode(value);
+        if (card) card.replaceWith(replacement);
+        card = replacement;
+      } else {
+        updateLinkMetrics(card, value);
+      }
+      linkList.append(card);
+      existing.delete(value.name);
+    });
+    existing.forEach(card => card.remove());
   }
 
   async function refreshLinks() {
@@ -245,6 +509,78 @@
     } finally {
       button.disabled = false;
     }
+  }
+
+  async function ensurePresetInstance(specification) {
+    const current = (await request("/api/instances")).map(detailsOf);
+    const existing = current.find(value => value.name === specification.name);
+    if (existing) {
+      if (existing.version !== specification.version ||
+          Number(existing.port) !== specification.port) {
+        throw new Error(`${specification.name} already exists with a different version or port`);
+      }
+      if (!existing.running) {
+        await request(`/api/instances/${encodeURIComponent(specification.name)}/start`, { method: "POST" });
+      }
+      return;
+    }
+    await request("/api/instances", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(specification)
+    });
+  }
+
+  async function ensurePresetLink(specification) {
+    const current = await request("/api/links");
+    const existing = current.find(value => value.name === specification.name);
+    if (existing) {
+      const matches = existing.source === specification.source &&
+        existing.target === specification.target &&
+        existing.mode === specification.mode &&
+        (specification.mode !== "physical-streaming" ||
+          Number(existing.target_port) === specification.target_port);
+      if (!matches) throw new Error(`${specification.name} already names a different link`);
+      if (["stopped", "failed"].includes(existing.status)) {
+        throw new Error(`${specification.name} is stopped; remove it before recreating this preset`);
+      }
+      return;
+    }
+    await request("/api/links", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target_port: 0, ...specification })
+    });
+  }
+
+  async function waitForPresetInstances(names) {
+    const deadline = Date.now() + 60000;
+    while (Date.now() < deadline) {
+      const current = await request("/api/instances");
+      const ready = new Set(current
+        .filter(value => String(value.Status || "").toLowerCase().includes("healthy"))
+        .map(value => detailsOf(value).name));
+      if (names.every(name => ready.has(name))) return;
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    throw new Error("Timed out waiting for preset Postgres instances to become healthy");
+  }
+
+  async function createPreset(name) {
+    const preset = topologyPresets[name];
+    if (!preset) throw new Error("Choose a known topology preset");
+    for (const instance of preset.instances) {
+      launchPreset.textContent = `Starting ${instance.name}`;
+      await ensurePresetInstance(instance);
+    }
+    launchPreset.textContent = "Waiting for Postgres";
+    await waitForPresetInstances(preset.instances.map(instance => instance.name));
+    await refreshInstances();
+    for (const link of preset.links) {
+      launchPreset.textContent = `Linking ${link.name}`;
+      await ensurePresetLink(link);
+    }
+    await refreshLinks();
   }
 
   function renderInstances(values) {
@@ -293,14 +629,31 @@
 
   function addEvent(value) {
     if (value.type === "heartbeat") return;
+    rememberLinkActivity(value);
     const item = el("li", "event");
+    item.dataset.link = value.link || "";
     const timestamp = el("time", "", new Date().toLocaleTimeString([], { hour12: false }));
-    const type = el("span", "event-type", value.type || "event");
-    const detail = { ...value };
-    delete detail.type;
-    item.append(timestamp, type, el("span", "event-detail", Object.keys(detail).length ? JSON.stringify(detail) : "-"));
+    const isLinkActivity = value.type === "link.activity";
+    const type = el("span", "event-type", isLinkActivity ? `${value.link} / ${value.kind}` : (value.type || "event"));
+    const detail = isLinkActivity
+      ? [value.stage, value.direction, value.lsn, value.detail].filter(Boolean).join(" · ")
+      : (() => {
+          const fields = { ...value };
+          delete fields.type;
+          return Object.keys(fields).length ? JSON.stringify(fields) : "-";
+        })();
+    item.append(timestamp, type, el("span", "event-detail", detail));
     events.prepend(item);
     while (events.children.length > 80) events.lastElementChild.remove();
+    applyActivityFilter();
+  }
+
+  function applyActivityFilter() {
+    const selected = activityFilter.value;
+    events.querySelectorAll(".event").forEach(item => {
+      item.hidden = Boolean(selected) && item.dataset.link !== selected;
+    });
+    activityTitle.textContent = selected ? `${selected} activity stream` : "Live events";
   }
 
   function connectEvents() {
@@ -548,21 +901,41 @@
 
   openLink.addEventListener("click", () => {
     linkForm.hidden = false;
+    syncLinkMode();
     linkForm.elements.name.focus();
   });
+  launchPreset.addEventListener("click", async () => {
+    launchPreset.disabled = true;
+    topologyPreset.disabled = true;
+    try {
+      await createPreset(topologyPreset.value);
+      launchPreset.textContent = "Preset ready";
+      setTimeout(() => { launchPreset.textContent = "Create topology"; }, 1800);
+    } catch (error) {
+      showError(error.message);
+      launchPreset.textContent = "Create topology";
+    } finally {
+      launchPreset.disabled = false;
+      topologyPreset.disabled = false;
+    }
+  });
   closeLink.addEventListener("click", () => { linkForm.hidden = true; });
+  linkMode.addEventListener("change", syncLinkMode);
   linkForm.addEventListener("submit", async event => {
     event.preventDefault();
     const submit = linkForm.querySelector("[type=submit]");
     submit.disabled = true;
     try {
       const data = new FormData(linkForm);
+      const physical = data.get("mode") === "physical-streaming";
       await request("/api/links", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: data.get("name"), source: data.get("source"), target: data.get("target"), mode: data.get("mode") })
+        body: JSON.stringify({ name: data.get("name"), source: data.get("source"), target: physical ? data.get("standby") : data.get("target"), target_port: physical ? Number(data.get("target_port")) : 0, mode: data.get("mode") })
       });
       linkForm.reset();
+      linkTargetPort.value = "55434";
+      syncLinkMode();
       linkForm.hidden = true;
       await refreshLinks();
     } catch (error) {
@@ -603,6 +976,7 @@
     logLines = 0;
     logOutput.textContent = "View cleared. New server output will appear here.\n";
   });
+  activityFilter.addEventListener("change", applyActivityFilter);
 
   refreshStatus();
   refreshInstances();

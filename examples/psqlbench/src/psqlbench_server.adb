@@ -28,9 +28,16 @@ package body Psqlbench_Server is
    package Sockets renames Flyology.IO.Sockets;
 
    use type Interfaces.Unsigned_64;
+   use type Psqlbench_Context.Link_Mode;
 
    function Compact (Value : Natural) return String is
      (Ada.Strings.Fixed.Trim (Natural'Image (Value), Ada.Strings.Both));
+
+   function JSON_Integer
+     (Value : Interfaces.Unsigned_64) return Long_Long_Integer is
+     (if Value > Interfaces.Unsigned_64 (Long_Long_Integer'Last)
+      then Long_Long_Integer'Last
+      else Long_Long_Integer (Value));
 
    function Port return Sockets.Port is
      (Sockets.Port'Value
@@ -207,7 +214,8 @@ package body Psqlbench_Server is
         (Value : Psqlbench_Context.Link_Mode) return String is
         (case Value is
             when Psqlbench_Context.Logical_Committed => "logical-committed",
-            when Psqlbench_Context.Logical_Streaming => "logical-streaming");
+            when Psqlbench_Context.Logical_Streaming => "logical-streaming",
+            when Psqlbench_Context.Physical_Streaming => "physical-streaming");
 
       function Links_Document
         (Value : Psqlbench_Context.Link_Array; Count : Natural)
@@ -228,6 +236,17 @@ package body Psqlbench_Server is
             Psqlbench_JSON.String_Value
               (Document, "target",
                Value (Index).Target (1 .. Value (Index).Target_Length));
+            if Value (Index).Target_Version_Length > 0 then
+               Psqlbench_JSON.String_Value
+                 (Document, "target_version",
+                  Value (Index).Target_Version
+                    (1 .. Value (Index).Target_Version_Length));
+            end if;
+            if Value (Index).Target_Port > 0 then
+               Psqlbench_JSON.Integer_Value
+                 (Document, "target_port",
+                  Long_Long_Integer (Value (Index).Target_Port));
+            end if;
             Psqlbench_JSON.String_Value
               (Document, "table",
                Value (Index).Table_Name (1 .. Value (Index).Table_Length));
@@ -248,6 +267,39 @@ package body Psqlbench_Server is
                     (Flyology.Postgres.Replication.LSN
                        (Value (Index).Last_LSN)));
             end if;
+            if Value (Index).Applied_LSN > 0 then
+               Psqlbench_JSON.String_Value
+                 (Document, "applied_lsn",
+                  Flyology.Postgres.Replication.Image
+                    (Flyology.Postgres.Replication.LSN
+                       (Value (Index).Applied_LSN)));
+            end if;
+            declare
+               Start : constant Interfaces.Unsigned_64 :=
+                 Value (Index).Start_LSN;
+               Current : constant Interfaces.Unsigned_64 :=
+                 Value (Index).Last_LSN;
+               Applied : constant Interfaces.Unsigned_64 :=
+                 Value (Index).Applied_LSN;
+               Span : constant Interfaces.Unsigned_64 :=
+                 (if Current > Start then Current - Start else 0);
+               Replayed : constant Interfaces.Unsigned_64 :=
+                 (if Applied > Start
+                  then Interfaces.Unsigned_64'Min (Applied - Start, Span)
+                  else 0);
+               Lag : constant Interfaces.Unsigned_64 :=
+                 (if Current > Applied then Current - Applied else 0);
+            begin
+               Psqlbench_JSON.Integer_Value
+                 (Document, "span_bytes", JSON_Integer (Span));
+               Psqlbench_JSON.Integer_Value
+                 (Document, "replayed_bytes", JSON_Integer (Replayed));
+               Psqlbench_JSON.Integer_Value
+                 (Document, "lag_bytes", JSON_Integer (Lag));
+               Psqlbench_JSON.Boolean_Value
+                 (Document, "caught_up",
+                  Current > 0 and then Applied >= Current);
+            end;
             Psqlbench_JSON.String_Value
               (Document, "detail",
                (if Value (Index).Detail_Length = 0 then ""
@@ -377,6 +429,8 @@ package body Psqlbench_Server is
            Psqlbench_JSON.String_Field (X.Content, "target");
          Mode_Text : constant String :=
            Psqlbench_JSON.String_Field (X.Content, "mode");
+         Target_Port : constant Natural :=
+           Psqlbench_JSON.Natural_Field (X.Content, "target_port", 55_433);
          Mode : Psqlbench_Context.Link_Mode;
          Accepted : Boolean;
          Detail : String (1 .. 192);
@@ -386,10 +440,13 @@ package body Psqlbench_Server is
             Mode := Psqlbench_Context.Logical_Committed;
          elsif Mode_Text = "logical-streaming" then
             Mode := Psqlbench_Context.Logical_Streaming;
+         elsif Mode_Text = "physical-streaming" then
+            Mode := Psqlbench_Context.Physical_Streaming;
          else
             X.Problem
               (400, "invalid-link-mode",
-               "Choose logical-committed or logical-streaming");
+               "Choose logical-committed, logical-streaming, "
+               & "or physical-streaming");
             return;
          end if;
          if not Psqlbench_JSON.Valid_Name (Name) or else Name'Length > 24 then
@@ -409,10 +466,84 @@ package body Psqlbench_Server is
               (400, "identical-link-endpoints",
                "Choose different source and target instances");
             return;
+         elsif Mode = Psqlbench_Context.Physical_Streaming
+           and then Target_Port not in 1_024 .. 65_535
+         then
+            X.Problem
+              (400, "invalid-standby-port",
+               "Choose an unprivileged TCP port from 1024 through 65535");
+            return;
          end if;
 
-         State.Root.Links.Create
-           (Name, Source, Target, Mode, Accepted, Detail, Last);
+         if Mode = Psqlbench_Context.Physical_Streaming then
+            declare
+               Source_Version : constant Psqlbench_Docker.Result :=
+                 Psqlbench_Docker.Instance_Version
+                   (Source, X.Cancellation, X.Deadline);
+               Target_Inspect : constant Psqlbench_Docker.Result :=
+                 Psqlbench_Docker.Inspect_Instance
+                   (Target, X.Cancellation, X.Deadline);
+               Target_Role : constant Psqlbench_Docker.Result :=
+                 Psqlbench_Docker.Instance_Role
+                   (Target, X.Cancellation, X.Deadline);
+               Target_Version : constant Psqlbench_Docker.Result :=
+                 Psqlbench_Docker.Instance_Version
+                   (Target, X.Cancellation, X.Deadline);
+               Existing_Port : constant Psqlbench_Docker.Result :=
+                 Psqlbench_Docker.Instance_Port
+                   (Target, X.Cancellation, X.Deadline);
+               Version : constant String :=
+                 (if Source_Version.Success
+                  then Ada.Strings.Fixed.Trim
+                    (Psqlbench_Docker.Text (Source_Version), Ada.Strings.Both)
+                  else "");
+
+               function Port_Matches return Boolean is
+               begin
+                  return Existing_Port.Success
+                    and then Natural'Value
+                      (Ada.Strings.Fixed.Trim
+                         (Psqlbench_Docker.Text (Existing_Port),
+                          Ada.Strings.Both)) = Target_Port;
+               exception
+                  when Constraint_Error => return False;
+               end Port_Matches;
+            begin
+               if not Source_Version.Success then
+                  X.Problem
+                    (404, "physical-source-not-found",
+                     "The physical source must be a managed instance");
+                  return;
+               elsif Target_Inspect.Success
+                 and then
+                   (not Target_Role.Success
+                    or else Ada.Strings.Fixed.Trim
+                      (Psqlbench_Docker.Text (Target_Role),
+                       Ada.Strings.Both) /=
+                        "physical-standby"
+                    or else not Target_Version.Success
+                    or else Ada.Strings.Fixed.Trim
+                      (Psqlbench_Docker.Text (Target_Version),
+                       Ada.Strings.Both) /=
+                        Version
+                    or else not Port_Matches)
+               then
+                  X.Problem
+                    (409, "physical-target-incompatible",
+                     "An existing target must be a matching psqlbench "
+                     & "physical standby");
+                  return;
+               end if;
+
+               State.Root.Links.Create
+                 (Name, Source, Target, Mode, Version, Target_Port,
+                  Accepted, Detail, Last);
+            end;
+         else
+            State.Root.Links.Create
+              (Name, Source, Target, Mode, "", 0,
+               Accepted, Detail, Last);
+         end if;
          if not Accepted then
             X.Problem
               (409, "link-create-failed",

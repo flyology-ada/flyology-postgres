@@ -64,6 +64,10 @@ package body Psqlbench_Links is
    function Target_Name (Item : Psqlbench_Context.Link_Record) return String is
      (Text (Item.Target, Item.Target_Length));
 
+   function Target_Version
+     (Item : Psqlbench_Context.Link_Record) return String is
+     (Text (Item.Target_Version, Item.Target_Version_Length));
+
    function Table_Name (Item : Psqlbench_Context.Link_Record) return String is
      (Text (Item.Table_Name, Item.Table_Length));
 
@@ -88,11 +92,85 @@ package body Psqlbench_Links is
    function Mode_Image (Item : Psqlbench_Context.Link_Record) return String is
      (case Item.Mode is
          when Psqlbench_Context.Logical_Committed => "logical committed",
-         when Psqlbench_Context.Logical_Streaming => "logical streaming");
+         when Psqlbench_Context.Logical_Streaming => "logical streaming",
+         when Psqlbench_Context.Physical_Streaming => "physical streaming");
+
+   function Compact (Value : Natural) return String is
+     (Ada.Strings.Fixed.Trim (Natural'Image (Value), Ada.Strings.Both));
+
+   function Preview (Value : String; Limit : Positive := 140) return String is
+     (if Value'Length <= Limit then Value
+      else Value (Value'First .. Value'First + Limit - 1) & "...");
+
+   function Tuple_Value_Image (Item : Logical.Tuple_Value) return String is
+   begin
+      case Logical.Kind (Item) is
+         when Logical.Null_Value =>
+            return "NULL";
+         when Logical.Unchanged_Toast_Value =>
+            return "<unchanged TOAST>";
+         when Logical.Text_Value =>
+            return '"' & Preview (Logical.Text (Item)) & '"';
+         when Logical.Binary_Value =>
+            declare
+               Bytes : constant Logical.Byte_Array := Logical.Value (Item);
+            begin
+               return "<binary " & Compact (Bytes'Length) & " bytes>";
+            end;
+      end case;
+   end Tuple_Value_Image;
+
+   function Tuple_Image (Item : Logical.Tuple_Data) return String is
+      Result : Unbounded_String := To_Unbounded_String ("{");
+   begin
+      for Index in 1 .. Logical.Column_Count (Item) loop
+         if Index > 1 then
+            Append (Result, ", ");
+         end if;
+         Append
+           (Result,
+            (case Index is
+                when 1 => "id",
+                when 2 => "payload",
+                when 3 => "changed_at",
+                when others => "column_" & Compact (Index))
+            & "=" & Tuple_Value_Image (Logical.Column (Item, Index)));
+      end loop;
+      Append (Result, "}");
+      return To_String (Result);
+   end Tuple_Image;
+
+   function Change_Context (Item : Logical.Message) return String is
+      Relation : constant String :=
+        Ada.Strings.Fixed.Trim
+          (Logical.UInt32'Image (Logical.Relation_Id (Item)),
+           Ada.Strings.Both);
+      Transaction : constant Logical.Transaction_Id :=
+        Logical.Transaction (Item);
+   begin
+      return "relation=" & Relation
+        & (if Transaction = 0 then ""
+           else " xid="
+             & Ada.Strings.Fixed.Trim
+               (Logical.Transaction_Id'Image (Transaction),
+                Ada.Strings.Both));
+   end Change_Context;
 
    function Message_Detail (Item : Logical.Message) return String is
    begin
       case Logical.Kind (Item) is
+         when Logical.Insert_Message =>
+            return Change_Context (Item) & " new="
+              & Tuple_Image (Logical.New_Tuple (Item));
+         when Logical.Update_Message =>
+            return Change_Context (Item)
+              & (if Logical.Old_Kind (Item) = Logical.No_Old_Tuple
+                 then ""
+                 else " old=" & Tuple_Image (Logical.Old_Tuple (Item)))
+              & " new=" & Tuple_Image (Logical.New_Tuple (Item));
+         when Logical.Delete_Message =>
+            return Change_Context (Item)
+              & " old=" & Tuple_Image (Logical.Old_Tuple (Item));
          when Logical.Logical_Decoding_Message =>
             return
               (if Logical.Is_Transactional (Item)
@@ -289,6 +367,11 @@ package body Psqlbench_Links is
       function Upstream_Ready return Boolean;
       procedure Acknowledge (LSN : Replication.LSN);
       function Acknowledged return Replication.LSN;
+      procedure Observe_WAL (LSN : Replication.LSN);
+      function Current_WAL return Replication.LSN;
+      procedure Request_Start (LSN : Replication.LSN);
+      function Start_Requested return Boolean;
+      function Requested_Start return Replication.LSN;
    private
       Frames : Relay_Frame_Array;
       Head : Positive := 1;
@@ -300,6 +383,9 @@ package body Psqlbench_Links is
       Server_Is_Ready : Boolean := False;
       Upstream_Is_Ready : Boolean := False;
       Applied : Replication.LSN := 0;
+      Current : Replication.LSN := 0;
+      Has_Start_Request : Boolean := False;
+      Requested_Position : Replication.LSN := 0;
    end Relay_State;
 
    protected body Relay_State is
@@ -379,22 +465,50 @@ package body Psqlbench_Links is
       end Acknowledge;
 
       function Acknowledged return Replication.LSN is (Applied);
+
+      procedure Observe_WAL (LSN : Replication.LSN) is
+      begin
+         if LSN > Current then
+            Current := LSN;
+         end if;
+      end Observe_WAL;
+
+      function Current_WAL return Replication.LSN is (Current);
+
+      procedure Request_Start (LSN : Replication.LSN) is
+      begin
+         Requested_Position := LSN;
+         Has_Start_Request := True;
+      end Request_Start;
+
+      function Start_Requested return Boolean is (Has_Start_Request);
+
+      function Requested_Start return Replication.LSN is
+        (Requested_Position);
    end Relay_State;
 
    type Relay_Context is limited record
       Relay : access Relay_State;
       Root  : access Psqlbench_Context.Context;
       Link  : Psqlbench_Context.Link_Record;
+      System_Id : Replication.UInt64 := 0;
+      Timeline : Replication.UInt32 := 1;
+      Current_WAL : Replication.LSN := 0;
    end record;
 
    function Authenticate
      (State    : in out Relay_Context;
       Startup  : Protocol.Startup_Information;
       Password : String) return Boolean is
-      pragma Unreferenced (State, Password);
    begin
-      return Startup.Replication_Mode =
-        Protocol.Logical_Replication_Connection;
+      return To_String (Startup.User) = "psqlbench"
+        and then Password = "psqlbench"
+        and then
+          (if State.Link.Mode = Psqlbench_Context.Physical_Streaming
+           then Startup.Replication_Mode =
+             Protocol.Physical_Replication_Connection
+           else Startup.Replication_Mode =
+             Protocol.Logical_Replication_Connection);
    end Authenticate;
 
    function Lookup_SCRAM_Verifier
@@ -410,16 +524,70 @@ package body Psqlbench_Links is
       Client  : in out Server_Sessions.Session;
       Message : Protocol.Message)
    is
-      Command : constant Replication.Command :=
-        Replication.Decode_Command (Message);
+      Command : Replication.Command;
       Last_Keepalive : Ada.Real_Time.Time := Ada.Real_Time.Clock;
+      Streaming : Boolean := False;
    begin
-      if Protocol.Kind (Message) /= Protocol.Query
-        or else Replication.Kind (Command) /=
-          Replication.Start_Logical_Command
+      if Protocol.Kind (Message) /= Protocol.Query then
+         Server_Sessions.Send_Error
+           (Client, "psqlbench relay only accepts replication commands",
+            SQL_State => "0A000", Timeout => 10.0);
+         Server_Sessions.Send_Ready (Client, Timeout => 10.0);
+         return;
+      end if;
+
+      Command := Replication.Decode_Command (Message);
+      if State.Link.Mode = Psqlbench_Context.Physical_Streaming then
+         case Replication.Kind (Command) is
+            when Replication.Identify_System_Command =>
+               Replication_Server.Send_Identify_System
+                 (Client,
+                  System_Id   => State.System_Id,
+                  Timeline    => State.Timeline,
+                  Current_WAL => State.Current_WAL,
+                  Timeout     => 10.0);
+               return;
+            when Replication.Show_Command =>
+               declare
+                  Parameter : constant String :=
+                    Replication.Parameter (Command);
+                  Value : constant String :=
+                    (if Parameter = "wal_segment_size" then "16MB"
+                     elsif Parameter = "data_directory_mode" then "0700"
+                     elsif Parameter = "wal_level" then "logical"
+                     else "on");
+               begin
+                  Replication_Server.Send_Show
+                    (Client, Parameter, Value, Timeout => 10.0);
+               end;
+               return;
+            when Replication.Timeline_History_Command =>
+               Server_Sessions.Send_Error
+                 (Client, "timeline history is unavailable for this live proxy",
+                  SQL_State => "0A000", Timeout => 10.0);
+               Server_Sessions.Send_Ready (Client, Timeout => 10.0);
+               return;
+            when Replication.Start_Physical_Command =>
+               if Replication.Slot_Name (Command) /= Slot_Name (State.Link) then
+                  Server_Sessions.Send_Error
+                    (Client, "physical slot does not belong to this relay",
+                     SQL_State => "42704", Timeout => 10.0);
+                  Server_Sessions.Send_Ready (Client, Timeout => 10.0);
+                  return;
+               end if;
+               State.Relay.Request_Start (Replication.Position (Command));
+            when others =>
+               Server_Sessions.Send_Error
+                 (Client, "command is not available on a physical relay",
+                  SQL_State => "0A000", Timeout => 10.0);
+               Server_Sessions.Send_Ready (Client, Timeout => 10.0);
+               return;
+         end case;
+      elsif Replication.Kind (Command) /=
+        Replication.Start_Logical_Command
       then
          Server_Sessions.Send_Error
-           (Client, "psqlbench relay only accepts logical START_REPLICATION",
+           (Client, "psqlbench logical relay expects START_REPLICATION",
             SQL_State => "0A000", Timeout => 10.0);
          Server_Sessions.Send_Ready (Client, Timeout => 10.0);
          return;
@@ -432,6 +600,7 @@ package body Psqlbench_Links is
       end if;
 
       Replication_Server.Begin_Streaming (Client, Timeout => 10.0);
+      Streaming := True;
       Emit
         (State.Root.all, State.Link, "relay", "downstream", "copy-both");
       while not State.Relay.Stopped loop
@@ -454,10 +623,14 @@ package body Psqlbench_Links is
             then
                Replication_Server.Send_Primary_Keepalive
                  (Client,
-                  WAL_End => State.Relay.Acknowledged,
+                  WAL_End => State.Relay.Current_WAL,
                   Sent_At => 0,
                   Reply_Requested => True,
                   Timeout => 10.0);
+               Emit
+                 (State.Root.all, State.Link, "relay", "relay-to-downstream",
+                  "PRIMARY_KEEPALIVE", State.Relay.Current_WAL,
+                  "reply requested");
                Last_Keepalive := Ada.Real_Time.Clock;
             else
                delay 0.010;
@@ -474,6 +647,29 @@ package body Psqlbench_Links is
                   then
                      State.Relay.Acknowledge
                        (Replication.Applied_LSN (Feedback));
+                     State.Root.Links.Record_Applied
+                       (Link_Name (State.Link),
+                        Replication.Applied_LSN (Feedback));
+                     Emit
+                       (State.Root.all, State.Link, "feedback",
+                        "downstream-to-relay", "STANDBY_STATUS_UPDATE",
+                        Replication.Applied_LSN (Feedback),
+                        "write="
+                        & Replication.Image
+                          (Replication.Received_LSN (Feedback))
+                        & " flush="
+                        & Replication.Image
+                          (Replication.Flushed_LSN (Feedback))
+                        & " apply="
+                        & Replication.Image
+                          (Replication.Applied_LSN (Feedback)));
+                  elsif Replication.Kind (Feedback) =
+                    Replication.Hot_Standby_Feedback
+                  then
+                     Emit
+                       (State.Root.all, State.Link, "feedback",
+                        "downstream-to-relay", "HOT_STANDBY_FEEDBACK",
+                        Detail => "xmin horizon received");
                   end if;
                end;
             exception
@@ -481,6 +677,14 @@ package body Psqlbench_Links is
             end;
          end;
       end loop;
+   exception
+      when Error : others =>
+         if Streaming and then not State.Relay.Stopped then
+            State.Relay.Fail
+              ("downstream replication consumer: "
+               & Ada.Exceptions.Exception_Message (Error));
+         end if;
+         raise;
    end Handle_Relay;
 
    package Relay_Server is new Flyology.Postgres.Server
@@ -488,7 +692,7 @@ package body Psqlbench_Links is
       Authenticate          => Authenticate,
       Lookup_SCRAM_Verifier => Lookup_SCRAM_Verifier,
       Handle                => Handle_Relay,
-      Authentication        => Flyology.Postgres.Trust,
+      Authentication        => Flyology.Postgres.Cleartext_Password,
       Handler_Model         => Flyology.Lightweight_Task,
       Command_Timeout       => 2.0);
 
@@ -507,7 +711,7 @@ package body Psqlbench_Links is
          end;
       end loop;
       if Client.State (Session) /= Client.Copy_Both_Active then
-         raise Program_Error with "logical stream did not enter COPY BOTH";
+         raise Program_Error with "replication stream did not enter COPY BOTH";
       end if;
    end Start_Copy;
 
@@ -685,7 +889,7 @@ package body Psqlbench_Links is
       end case;
    end Apply_Message;
 
-   procedure Run_Link
+   procedure Run_Logical_Link
      (Context : in out Psqlbench_Context.Context;
       Item    : Psqlbench_Context.Link_Record;
       Control : not null access Flyology.Supervision.Generation_Control)
@@ -703,7 +907,8 @@ package body Psqlbench_Links is
       Server_Context : aliased Relay_Context :=
         (Relay => Relay'Unrestricted_Access,
          Root  => Context'Unrestricted_Access,
-         Link  => Item);
+         Link  => Item,
+         others => <>);
 
       procedure Setup is
          Source_Socket : aliased Sockets.Socket_Type;
@@ -768,6 +973,7 @@ package body Psqlbench_Links is
       Context.Links.Set_Status (Link, Psqlbench_Context.Link_Starting,
                                 "preparing publication and logical slot");
       Setup;
+      Context.Links.Record_Start (Link, Start_LSN);
 
       Sockets.Create_Socket (Listener);
       Sockets.Set_Socket_Option
@@ -878,12 +1084,21 @@ package body Psqlbench_Links is
                                     Replication.WAL_End (Frame),
                                     Message_Detail (Logical_Message));
                                  Relay.Push (Forward, Accepted);
+                                 Relay.Observe_WAL
+                                   (Replication.WAL_End (Frame));
                                  exit when not Accepted;
                               end;
                            elsif Replication.Kind (Frame) =
                              Replication.Primary_Keepalive
                            then
-                              null;
+                              Relay.Observe_WAL
+                                (Replication.WAL_End (Frame));
+                              Emit
+                                (Context, Item, "upstream",
+                                 "source-to-relay", "PRIMARY_KEEPALIVE",
+                                 Replication.WAL_End (Frame),
+                                 (if Replication.Reply_Requested (Frame)
+                                  then "reply requested" else "observed"));
                            end if;
                         end;
                      end if;
@@ -898,6 +1113,10 @@ package body Psqlbench_Links is
                then
                   if Relay.Acknowledged > Last_Ack then
                      Last_Ack := Relay.Acknowledged;
+                     Emit
+                       (Context, Item, "ack", "relay-to-source",
+                        "STANDBY_STATUS_UPDATE", Last_Ack,
+                        "target commit acknowledged upstream");
                   end if;
                   Client.Send_Command
                     (Session,
@@ -1005,9 +1224,10 @@ package body Psqlbench_Links is
                                  Logical.Message_Kind'Image
                                    (Logical.Kind (Message)),
                                  Replication.WAL_End (Frame),
-                                 (if Changed then "row applied"
-                                  elsif Message_Detail (Message)'Length > 0
-                                  then Message_Detail (Message)
+                                 (if Message_Detail (Message)'Length > 0
+                                  then (if Changed then "applied: " else "")
+                                    & Message_Detail (Message)
+                                  elsif Changed then "row applied"
                                   else "observed"));
                               if Changed then
                                  Context.Links.Record_Change
@@ -1093,6 +1313,383 @@ package body Psqlbench_Links is
            (Link_Name (Item), Psqlbench_Context.Link_Failed,
             Ada.Exceptions.Exception_Message (Error));
          raise;
+   end Run_Logical_Link;
+
+   procedure Run_Physical_Link
+     (Context : in out Psqlbench_Context.Context;
+      Item    : Psqlbench_Context.Link_Record;
+      Control : not null access Flyology.Supervision.Generation_Control)
+   is
+      Source_Port : constant Positive := Instance_Port (Source_Name (Item));
+      Link : constant String := Link_Name (Item);
+      Slot : constant String := Slot_Name (Item);
+      Target : constant String := Target_Name (Item);
+      Relay : aliased Relay_State;
+      Listener : Sockets.Socket_Type;
+      Server : aliased Relay_Server.Server (Capacity => 2);
+      Server_Context : aliased Relay_Context :=
+        (Relay => Relay'Unrestricted_Access,
+         Root  => Context'Unrestricted_Access,
+         Link  => Item,
+         others => <>);
+      Bootstrap_Deadline : constant Ada.Real_Time.Time :=
+        Ada.Real_Time.Clock + Ada.Real_Time.Seconds (180);
+
+      procedure Setup is
+         Source_Socket : aliased Sockets.Socket_Type;
+         Source_Channel : aliased Transports.Socket_Transport
+           (Source_Socket'Access);
+         Source : Client.Session (Source_Channel'Access);
+         Position : Unbounded_String;
+         Has_Row : Boolean;
+         Existing_Target : Psqlbench_Docker.Result;
+      begin
+         Connect
+           (Source_Socket, Source, Source_Port,
+            "psqlbench/physical-setup/" & Link);
+         Client.Send_Query
+           (Source,
+            "SELECT restart_lsn::text FROM pg_replication_slots "
+            & "WHERE slot_name=" & Quote_Literal (Slot)
+            & " AND slot_type='physical'",
+            Timeout => 20.0);
+         Consume_Query (Source, Position, Has_Row);
+         if not Has_Row then
+            declare
+               Created : constant String := Scalar_SQL
+                 (Source,
+                  "SELECT COALESCE(lsn,pg_current_wal_lsn())::text "
+                  & "FROM pg_create_physical_replication_slot("
+                  & Quote_Literal (Slot) & ",true)");
+            begin
+               Position := To_Unbounded_String (Created);
+            end;
+         end if;
+         Emit
+           (Context, Item, "setup", "source", "physical-slot-ready",
+            (if Length (Position) = 0 then 0
+             else Replication.Value (To_String (Position))),
+            Slot);
+
+         Existing_Target := Psqlbench_Docker.Inspect_Instance (Target);
+         if not Existing_Target.Success then
+            declare
+               Access_Result : constant Psqlbench_Docker.Result :=
+                 Psqlbench_Docker.Enable_Replication_Access
+                   (Source_Name (Item), Deadline => Bootstrap_Deadline);
+            begin
+               if not Access_Result.Success then
+                  raise Program_Error with
+                    "source replication access: "
+                    & Psqlbench_Docker.Text (Access_Result);
+               end if;
+            end;
+            Context.Links.Set_Status
+              (Link, Psqlbench_Context.Link_Starting,
+               "taking a direct base backup before the proxied WAL path starts");
+            declare
+               Result : constant Psqlbench_Docker.Result :=
+                 Psqlbench_Docker.Bootstrap_Physical_Standby
+                   (Name       => Target,
+                    Source     => Source_Name (Item),
+                    Version    => Target_Version (Item),
+                    Port       => Positive (Item.Target_Port),
+                    Slot       => Slot,
+                    Relay_Port => Positive (Item.Relay_Port),
+                    Deadline   => Bootstrap_Deadline);
+            begin
+               if not Result.Success then
+                  raise Program_Error with
+                    "standby bootstrap: " & Psqlbench_Docker.Text (Result);
+               end if;
+            end;
+            Emit
+              (Context, Item, "bootstrap", "source-to-target",
+               "base-backup-complete", Detail => "direct bootstrap only");
+         else
+            Emit
+              (Context, Item, "bootstrap", "target", "standby-reused");
+         end if;
+
+         Server_Context.System_Id := Replication.UInt64'Value
+           (Scalar_SQL
+              (Source,
+               "SELECT system_identifier::text FROM pg_control_system()"));
+         Server_Context.Timeline := Replication.UInt32'Value
+           (Scalar_SQL
+              (Source,
+               "SELECT timeline_id::text FROM pg_control_checkpoint()"));
+         Server_Context.Current_WAL := Replication.Value
+           (Scalar_SQL (Source, "SELECT pg_current_wal_lsn()::text"));
+         Relay.Observe_WAL (Server_Context.Current_WAL);
+      end Setup;
+   begin
+      Context.Links.Set_Status
+        (Link, Psqlbench_Context.Link_Starting,
+         "reserving a physical slot and preparing the standby");
+      Setup;
+
+      Sockets.Create_Socket (Listener);
+      Sockets.Set_Socket_Option
+        (Listener, Sockets.Socket_Level, (Sockets.Reuse_Address, True));
+      Sockets.Bind_Socket
+        (Listener,
+         Sockets.Network_Endpoint
+           (Sockets.Any_IPv4, Sockets.Port (Item.Relay_Port)));
+      Sockets.Listen_Socket (Listener, Length => 2);
+
+      declare
+         task Relay_Server_Task is
+            pragma Task_Info (Flyology.Native_Task);
+         end Relay_Server_Task;
+
+         task body Relay_Server_Task is
+         begin
+            Relay.Set_Server_Ready;
+            Relay_Server.Serve
+              (Server, Listener, Server_Context, Drain_Timeout => 1.0);
+         exception
+            when Error : others =>
+               Relay.Fail
+                 ("physical relay server: "
+                  & Ada.Exceptions.Exception_Message (Error));
+         end Relay_Server_Task;
+
+         task Upstream_Task is
+            pragma Task_Info (Flyology.Lightweight_Task);
+         end Upstream_Task;
+
+         task body Upstream_Task is
+            Socket : aliased Sockets.Socket_Type;
+            Channel : aliased Transports.Socket_Transport (Socket'Access);
+            Session : Client.Session (Channel'Access);
+            Last_Ack : Replication.LSN := 0;
+            Last_Feedback : Ada.Real_Time.Time := Ada.Real_Time.Clock;
+            Start : Replication.LSN;
+         begin
+            while not Relay.Start_Requested and then not Relay.Stopped loop
+               delay 0.020;
+            end loop;
+            if Relay.Stopped then
+               raise Flyology.Cancellation.Operation_Cancelled;
+            end if;
+            Start := Relay.Requested_Start;
+            Context.Links.Record_Start (Link, Start);
+            Connect
+              (Socket, Session, Source_Port,
+               "psqlbench/physical-upstream/" & Link,
+               Protocol.Physical_Replication_Connection);
+            Start_Copy
+              (Session, Replication.Start_Physical (Start, Slot));
+            Relay.Set_Upstream_Ready;
+            Emit
+              (Context, Item, "upstream", "source-to-relay", "copy-both",
+               Start);
+
+            while not Relay.Stopped loop
+               begin
+                  declare
+                     Event : constant Client.Copy_Event :=
+                       Client.Receive_Copy_Event (Session, Timeout => 0.5);
+                  begin
+                     Raise_Server_Error (Event);
+                     if Protocol.Response_Kind (Event) =
+                       Protocol.Copy_Data_Response
+                     then
+                        declare
+                           Frame : constant Replication.Stream_Message :=
+                             Replication.Decode
+                               (Protocol.Original_Message (Event));
+                        begin
+                           if Replication.Kind (Frame) = Replication.XLog_Data then
+                              declare
+                                 Data : constant Replication.Byte_Array :=
+                                   Replication.Data (Frame);
+                                 Forward : constant Relay_Frame :=
+                                   (WAL_Start => Replication.WAL_Start (Frame),
+                                    WAL_End   => Replication.WAL_End (Frame),
+                                    Sent_At   => Replication.Sent_At (Frame),
+                                    Data      =>
+                                      Flyology.Bytes.To_Unbounded_Bytes (Data));
+                                 Accepted : Boolean;
+                              begin
+                                 Relay.Push (Forward, Accepted);
+                                 exit when not Accepted;
+                                 Relay.Observe_WAL
+                                   (Replication.WAL_End (Frame));
+                                 Context.Links.Record_Change
+                                   (Link, Replication.WAL_End (Frame));
+                                 Emit
+                                   (Context, Item, "proxy", "source-to-standby",
+                                    "XLOG_DATA", Replication.WAL_End (Frame),
+                                    Compact (Data'Length) & " WAL bytes");
+                              end;
+                           end if;
+                           if Replication.Kind (Frame) =
+                             Replication.Primary_Keepalive
+                           then
+                              Relay.Observe_WAL
+                                (Replication.WAL_End (Frame));
+                              Emit
+                                (Context, Item, "upstream",
+                                 "source-to-relay", "PRIMARY_KEEPALIVE",
+                                 Replication.WAL_End (Frame),
+                                 (if Replication.Reply_Requested (Frame)
+                                  then "reply requested" else "observed"));
+                           end if;
+                        end;
+                     end if;
+                  end;
+               exception
+                  when Flyology.IO.Timeout_Error => null;
+               end;
+
+               if Relay.Acknowledged > Last_Ack
+                 or else Ada.Real_Time.Clock - Last_Feedback >=
+                   Ada.Real_Time.Seconds (1)
+               then
+                  if Relay.Acknowledged > Last_Ack then
+                     Last_Ack := Relay.Acknowledged;
+                     Emit
+                       (Context, Item, "ack", "relay-to-source",
+                        "STANDBY_STATUS_UPDATE", Last_Ack,
+                        "standby apply acknowledged upstream");
+                  end if;
+                  Client.Send_Command
+                    (Session,
+                     Replication.Make_Standby_Status_Update
+                       (Last_Ack, Last_Ack, Last_Ack, Sent_At => 0),
+                     Timeout => 10.0);
+                  Last_Feedback := Ada.Real_Time.Clock;
+               end if;
+            end loop;
+         exception
+            when Flyology.Cancellation.Operation_Cancelled =>
+               null;
+            when Error : others =>
+               Relay.Fail
+                 ("physical upstream client: "
+                  & Ada.Exceptions.Exception_Message (Error));
+         end Upstream_Task;
+
+         Ready_Deadline : constant Ada.Real_Time.Time :=
+           Ada.Real_Time.Clock + Ada.Real_Time.Seconds (60);
+      begin
+         while not Relay.Server_Ready loop
+            exit when Relay.Stopped;
+            if Ada.Real_Time.Clock >= Ready_Deadline then
+               raise Program_Error with "physical relay readiness timed out";
+            end if;
+            delay 0.020;
+         end loop;
+
+         declare
+            Started : constant Psqlbench_Docker.Result :=
+              Psqlbench_Docker.Apply
+                (Target, Psqlbench_Docker.Start_Instance,
+                 Deadline => Ready_Deadline);
+         begin
+            if not Started.Success then
+               raise Program_Error with
+                 "standby start: " & Psqlbench_Docker.Text (Started);
+            end if;
+         end;
+
+         while not Relay.Upstream_Ready loop
+            exit when Relay.Stopped;
+            if Ada.Real_Time.Clock >= Ready_Deadline then
+               raise Program_Error with
+                 "standby did not request WAL through the relay";
+            end if;
+            delay 0.050;
+         end loop;
+         if Relay.Stopped then
+            raise Program_Error with "physical relay stopped during startup";
+         end if;
+
+         Context.Links.Set_Status
+           (Link, Psqlbench_Context.Link_Running,
+            "Flyology physical client -> server -> Postgres walreceiver is live");
+         Emit
+           (Context, Item, "bridge", "relay-to-standby", "recovery-streaming",
+            Relay.Requested_Start);
+         Flyology.Supervision.Mark_Ready (Control.all);
+
+         while not Relay.Stopped loop
+            if Flyology.Supervision.Stopping (Control.all).Requested then
+               Relay.Stop;
+               exit;
+            end if;
+            delay 0.100;
+         end loop;
+
+         declare
+            Ignored : constant Psqlbench_Docker.Result :=
+              Psqlbench_Docker.Apply
+                (Target, Psqlbench_Docker.Stop_Instance,
+                 Deadline => Ada.Real_Time.Clock + Ada.Real_Time.Seconds (20));
+            pragma Unreferenced (Ignored);
+         begin
+            null;
+         end;
+         Relay.Stop;
+         Relay_Server.Request_Shutdown (Server);
+         Context.Links.Set_Status
+           (Link, Psqlbench_Context.Link_Stopped, "physical link stopped");
+         if Flyology.Supervision.Stopping (Control.all).Requested then
+            raise Flyology.Cancellation.Operation_Cancelled;
+         else
+            raise Program_Error with
+              "physical bridge stopped without a shutdown request";
+         end if;
+      exception
+         when Flyology.Cancellation.Operation_Cancelled =>
+            Relay.Stop;
+            Relay_Server.Request_Shutdown (Server);
+            Context.Links.Set_Status
+              (Link, Psqlbench_Context.Link_Stopped, "physical link stopped");
+            raise;
+         when Error : others =>
+            Relay.Stop;
+            Relay_Server.Request_Shutdown (Server);
+            declare
+               Ignored : constant Psqlbench_Docker.Result :=
+                 Psqlbench_Docker.Apply
+                   (Target, Psqlbench_Docker.Stop_Instance,
+                    Deadline => Ada.Real_Time.Clock + Ada.Real_Time.Seconds (20));
+               Failed : Boolean;
+               Detail : String (1 .. 320);
+               Last : Natural;
+               pragma Unreferenced (Ignored);
+            begin
+               Relay.Read_Failure (Failed, Detail, Last);
+               Context.Links.Set_Status
+                 (Link, Psqlbench_Context.Link_Failed,
+                  (if Failed and Last > 0 then Detail (1 .. Last)
+                   else Ada.Exceptions.Exception_Message (Error)));
+            end;
+            raise;
+      end;
+   exception
+      when Flyology.Cancellation.Operation_Cancelled =>
+         raise;
+      when Error : others =>
+         Context.Links.Set_Status
+           (Link, Psqlbench_Context.Link_Failed,
+            Ada.Exceptions.Exception_Message (Error));
+         raise;
+   end Run_Physical_Link;
+
+   procedure Run_Link
+     (Context : in out Psqlbench_Context.Context;
+      Item    : Psqlbench_Context.Link_Record;
+      Control : not null access Flyology.Supervision.Generation_Control) is
+   begin
+      if Item.Mode = Psqlbench_Context.Physical_Streaming then
+         Run_Physical_Link (Context, Item, Control);
+      else
+         Run_Logical_Link (Context, Item, Control);
+      end if;
    end Run_Link;
 
    type Family_Context is limited record
@@ -1119,10 +1716,10 @@ package body Psqlbench_Links is
       Value.Restart := Flyology.Supervision.On_Failure;
       Value.Impact := Flyology.Supervision.Isolate_Child;
       Value.Stopping :=
-        (Grace             => Ada.Real_Time.Seconds (3),
+        (Grace             => Ada.Real_Time.Seconds (25),
          Request_Abort     => False,
          Abort_Observation => Ada.Real_Time.Seconds (1));
-      Value.Readiness_Timeout := Ada.Real_Time.Seconds (30);
+      Value.Readiness_Timeout := Ada.Real_Time.Seconds (240);
       Value.Restart_Safe := True;
       Value.Task_Model := Flyology.Native_Task;
       return Value;
