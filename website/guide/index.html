@@ -69,6 +69,7 @@
             <li><a href="#extended">Extended queries</a></li>
             <li><a href="#copy">Stream COPY</a></li>
             <li><a href="#replication">Stream replication</a></li>
+            <li><a href="#base-backup">Take a base backup</a></li>
             <li><a href="#cancel">Cancel work</a></li>
             <li><a href="#server">Build a server</a></li>
             <li><a href="#parse-sql">Parse PostgreSQL 14–18 SQL</a></li>
@@ -404,8 +405,192 @@ end case;</code></pre>
             <p><a href="../api/">Search the generated replication API reference</a></p>
           </section>
 
-          <section id="cancel">
+          <section id="base-backup">
             <span class="step-label">STEP 08</span>
+            <h2>Take a physical base backup without <code>pg_basebackup</code></h2>
+            <p><a href="../api/440d89140bcaba59ed49867d1e12b0db75b732109d3b378eb45137b5e9ec50d4.html"><code>Flyology.Postgres.Replication.Base_Backups</code></a> exposes the replication-protocol operation that <code>pg_basebackup</code> uses. The application still owns transport setup, storage, durability, and extraction policy.</p>
+            <p>The package models the distinct PostgreSQL 14 and 15+ wire streams. It adds PostgreSQL 17+ manifest upload and incremental options. Each receive operation returns one owned event.</p>
+
+            <h3>Open a physical replication session</h3>
+            <p>BASE_BACKUP requires a physical replication connection. Authenticate through the normal client startup path. Set <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#bdc2324105a208204c7a68a1c0b66bc8d6c5f4f8a6ec775e43e03a678e46005e"><code>Replication_Mode</code></a> to <a href="../api/a36ef088ca3b7ae38c4f7d063dac83b579fe57b8032d3e535083cd0c1652da94.html#f7888623d7f0911f3223658d72f7edd1772ec84a8c3a4fbe6c71a8d6722ca781"><code>Physical_Replication_Connection</code></a>.</p>
+            <p>Construct <a href="../api/440d89140bcaba59ed49867d1e12b0db75b732109d3b378eb45137b5e9ec50d4.html#1cd2fd44d817ebad38bf4631c7386576738922a31baf5e2b7bf41a3f4c6d9746"><code>Options</code></a> with the actual server major. The major selects a capability boundary, not a preferred syntax. PostgreSQL 14 options cannot enable compression or incremental mode. PostgreSQL 15 options cannot upload a prior manifest.</p>
+            <figure class="code-panel">
+              <figcaption>physical-replication startup and backup policy</figcaption>
+              <button class="copy-button" type="button" data-copy>Copy</button>
+              <pre><code class="language-ada">Client.Startup_TLS
+  (Session,
+   Backend,
+   Server_Name      =&gt; "db.example.com",
+   User             =&gt; "backup_agent",
+   Database         =&gt; "postgres",
+   Password         =&gt; Password,
+   Replication_Mode =&gt; Protocol.Physical_Replication_Connection,
+   Timeout          =&gt; 10.0);
+
+Settings := Base_Backups.Defaults (Server_Major);
+Base_Backups.Set_Label (Settings, "nightly-2026-08-13");
+Base_Backups.Set_Checkpoint
+  (Settings, Base_Backups.Spread_Checkpoint);
+Base_Backups.Include_WAL (Settings);
+Base_Backups.Set_Progress (Settings);
+Base_Backups.Include_Tablespace_Map (Settings);
+Base_Backups.Set_Manifest
+  (Settings,
+   Base_Backups.Include_Manifest,
+   Base_Backups.SHA256_Checksum);</code></pre>
+            </figure>
+            <p><a href="../api/440d89140bcaba59ed49867d1e12b0db75b732109d3b378eb45137b5e9ec50d4.html#ffbb5e2b0a33049ba55f9926522fc7566dc500327f6857861dfed589375cbb7a"><code>Include_WAL</code></a> asks PostgreSQL to place the WAL required for recovery in the backup. If this option is disabled, the application must retain the required WAL independently.</p>
+            <p><a href="../api/440d89140bcaba59ed49867d1e12b0db75b732109d3b378eb45137b5e9ec50d4.html#9d7d8c873164021dcff3385cc5ebbdebfc477601714d73c9cf3404f02d76c880"><code>Wait_For_Archive</code></a> controls whether PostgreSQL waits for the ending segment to reach its WAL archive. This option does not make local storage durable. <a href="../api/440d89140bcaba59ed49867d1e12b0db75b732109d3b378eb45137b5e9ec50d4.html#1264c17e2f715ebd8515cc31076bf45b4ac0b8c235d8d0f5ed3b81ade999c53c"><code>Set_Maximum_Rate</code></a> accepts zero or 32 through 1,048,576 KiB/s.</p>
+            <div class="decision-list">
+              <dl>
+                <div class="decision-row"><dt>PostgreSQL 14</dt><dd>Legacy command keywords and a separate COPY OUT stream for every tablespace archive plus an optional manifest. Archive identity follows tablespace order; there is no server-sent archive-name frame.</dd></div>
+                <div class="decision-row"><dt>PostgreSQL 15–16</dt><dd>Parenthesized options, client/server/blackhole targets, gzip/LZ4/zstd compression, and one COPY OUT stream multiplexed with archive, manifest, data, and progress markers.</dd></div>
+                <div class="decision-row"><dt>PostgreSQL 17–18</dt><dd>The PostgreSQL 15+ stream plus <code>UPLOAD_MANIFEST</code> followed by an <code>INCREMENTAL</code> backup. The server must have <code>summarize_wal=on</code>.</dd></div>
+              </dl>
+            </div>
+            <aside class="callout callout-teal">
+              <span class="callout-symbol" aria-hidden="true">i</span>
+              <p><a href="../api/440d89140bcaba59ed49867d1e12b0db75b732109d3b378eb45137b5e9ec50d4.html#87a750bf789d566d171b0ad440bc471c981c1b3440de9c53c1aa0dba43fd6bcf"><code>Start</code></a> accepts only the client target because only that target returns archive bytes. Use <a href="../api/440d89140bcaba59ed49867d1e12b0db75b732109d3b378eb45137b5e9ec50d4.html#580df127e4307fc899130f8c7a3d952ec74b0980be2576fbe68257c9ce98d3d9"><code>Command</code></a> for PostgreSQL 15+ server or blackhole targets. Consume the ordinary query completion for these targets. The library does not create a stream for data that PostgreSQL keeps or discards.</p>
+            </aside>
+
+            <h3>Stage each archive and manifest</h3>
+            <p>Create a private staging destination before the backup starts. Tablespace rows arrive before archive bytes and preserve SQL <code>NULL</code>. The base directory has no OID or external location. A size can be absent when progress was not requested.</p>
+            <p>Use <a href="../api/440d89140bcaba59ed49867d1e12b0db75b732109d3b378eb45137b5e9ec50d4.html#e8390b41b1a7cb2fe4456fa00b98b4d33a569aee17153a045607a4bca817d3ab"><code>Stream_Index</code></a> as the stable event key. On PostgreSQL 15+, <a href="../api/440d89140bcaba59ed49867d1e12b0db75b732109d3b378eb45137b5e9ec50d4.html#fcd38ab4144440bf5fb64ef8104b86a0b66c1350e325e2fec4479534812478b7"><code>Archive_Name</code></a> and <a href="../api/440d89140bcaba59ed49867d1e12b0db75b732109d3b378eb45137b5e9ec50d4.html#359e1f1ba4c5fa98433f25a99127cbd55a5a224a2ecefa3b9c3e365e6aefc537"><code>Archive_Location</code></a> expose the multiplexed marker. On PostgreSQL 14, map each stream ordinal to its preceding tablespace row.</p>
+            <figure class="code-panel">
+              <figcaption>bounded storage and consistency loop</figcaption>
+              <button class="copy-button" type="button" data-copy>Copy</button>
+              <pre><code class="language-ada">Backup : Base_Backups.Receiver (Session'Access);
+
+Base_Backups.Start (Backup, Settings);
+
+loop
+   declare
+      Event : constant Base_Backups.Event := Base_Backups.Receive (Backup);
+   begin
+      case Base_Backups.Kind (Event) is
+         when Base_Backups.Backup_Start =&gt;
+            Start_LSN := Base_Backups.Start_LSN (Event);
+            Timeline := Base_Backups.Timeline (Event);
+
+         when Base_Backups.Tablespace =&gt;
+            Register_Tablespace
+              (Has_Oid      =&gt; Base_Backups.Has_Tablespace_Oid (Event),
+               Has_Location =&gt;
+                 Base_Backups.Has_Tablespace_Location (Event),
+               Has_Size     =&gt; Base_Backups.Has_Tablespace_Size (Event));
+
+         when Base_Backups.Archive_Start =&gt;
+            Begin_Archive
+              (Index =&gt; Base_Backups.Stream_Index (Event),
+               Name  =&gt;
+                 (if Server_Major &gt;= 15
+                  then Base_Backups.Archive_Name (Event)
+                  else Legacy_Archive_Name
+                    (Base_Backups.Stream_Index (Event))));
+
+         when Base_Backups.Archive_Data =&gt;
+            Write_Archive_Chunk
+              (Base_Backups.Stream_Index (Event),
+               Base_Backups.Data (Event));
+
+         when Base_Backups.Manifest_Start =&gt;
+            Begin_Manifest;
+         when Base_Backups.Manifest_Data =&gt;
+            Write_Manifest_Chunk (Base_Backups.Data (Event));
+         when Base_Backups.Progress =&gt;
+            Report_Archive_Progress
+              (Base_Backups.Bytes_Completed (Event));
+
+         when Base_Backups.Backup_End =&gt;
+            End_LSN := Base_Backups.End_LSN (Event);
+            Saw_Consistent_End :=
+              Base_Backups.Timeline (Event) = Timeline
+              and then End_LSN &gt;= Start_LSN;
+
+         when Base_Backups.Notice =&gt;
+            Log_Notice (Base_Backups.Diagnostic (Event));
+         when Base_Backups.Parameter_Status =&gt;
+            Apply_Status (Base_Backups.Status (Event));
+         when Base_Backups.Error =&gt;
+            Failed := True;
+            Log_Error (Base_Backups.Diagnostic (Event));
+            -- Keep receiving so ReadyForQuery can restore the session.
+         when Base_Backups.Complete =&gt;
+            exit;
+      end case;
+   end;
+end loop;</code></pre>
+            </figure>
+            <p>Each <a href="../api/440d89140bcaba59ed49867d1e12b0db75b732109d3b378eb45137b5e9ec50d4.html#caaca7027192dc36968d0a4e70e50f323f5108ebcb86a5246c527df256a92b02"><code>Receive</code></a> call returns at most one PostgreSQL <code>CopyData</code> payload. The 16 MiB protocol limit bounds each payload. Write the current chunk, or give it to another bounded queue, before the next call.</p>
+            <p>A progress event reports bytes completed in the current archive or tablespace. It does not report a whole-backup total. The receiver validates marker order, archive counts, tablespace counts, manifest presence, signed progress values, timelines, and LSN order.</p>
+            <p>PostgreSQL streams ustar data without the two terminal zero blocks. Append the blocks before using a strict reader, or use a reader that accepts this convention.</p>
+            <p>Close and sync each sink after <a href="../api/440d89140bcaba59ed49867d1e12b0db75b732109d3b378eb45137b5e9ec50d4.html#d5e93122d3940f30a7f6e4e5bf7ef2974c45cfa37b02fe44694caf50199ce296"><code>Backup_End</code></a>. Publish the staging destination only after <a href="../api/440d89140bcaba59ed49867d1e12b0db75b732109d3b378eb45137b5e9ec50d4.html#d5e93122d3940f30a7f6e4e5bf7ef2974c45cfa37b02fe44694caf50199ce296"><code>Complete</code></a> confirms that the server is ready. On another outcome, quarantine the destination or remove it through the application's recoverable cleanup policy.</p>
+
+            <h3>Upload the prior manifest before an incremental backup</h3>
+            <p>PostgreSQL 17 and 18 calculate an incremental backup from a complete prior backup manifest. Retain that manifest as a separate durable object.</p>
+            <p>Call <a href="../api/440d89140bcaba59ed49867d1e12b0db75b732109d3b378eb45137b5e9ec50d4.html#3c799b276dcafae5f575473d500624f39ffdc02377a3153d19565832be04fb39"><code>Begin_Manifest_Upload</code></a>, then send bounded chunks with <a href="../api/440d89140bcaba59ed49867d1e12b0db75b732109d3b378eb45137b5e9ec50d4.html#d46ba9c43d80a50dc0fe988be48bd66fdec6931329ac8160042fe38a03b4a136"><code>Send_Manifest_Chunk</code></a>. Call <a href="../api/440d89140bcaba59ed49867d1e12b0db75b732109d3b378eb45137b5e9ec50d4.html#60740afacd42d2807135f0248172489f8734072d1a7aee77df2fe7ba278f42b6"><code>Finish_Manifest_Upload</code></a>, then drain COPY and query completion. PostgreSQL validates the manifest chain and required WAL summaries.</p>
+            <figure class="code-panel">
+              <figcaption>PostgreSQL 17+ incremental preparation</figcaption>
+              <button class="copy-button" type="button" data-copy>Copy</button>
+              <pre><code class="language-ada">Base_Backups.Begin_Manifest_Upload
+  (Session, Server_Major, Timeout =&gt; 10.0);
+
+while Prior_Manifest.Has_More loop
+   Base_Backups.Send_Manifest_Chunk
+     (Session, Prior_Manifest.Next_Chunk (32 * 1_024), Timeout =&gt; 10.0);
+end loop;
+Base_Backups.Finish_Manifest_Upload (Session, Timeout =&gt; 10.0);
+
+while not Client.Is_Ready (Session) loop
+   if Client.State (Session) in
+     Client.Copy_In_Active | Client.Copy_Completion_Active
+   then
+      Check (Client.Receive_Copy_Event (Session, Timeout =&gt; 10.0));
+   else
+      Check (Client.Receive_Query_Event (Session, Timeout =&gt; 10.0));
+   end if;
+end loop;
+
+Incremental := Base_Backups.Defaults (Server_Major);
+Base_Backups.Set_Incremental (Incremental);
+Base_Backups.Set_Manifest
+  (Incremental, Base_Backups.Include_Manifest);
+Base_Backups.Start (Backup, Incremental, Timeout =&gt; 10.0);</code></pre>
+            </figure>
+            <p>After the upload completes, enable <a href="../api/440d89140bcaba59ed49867d1e12b0db75b732109d3b378eb45137b5e9ec50d4.html#a249888ceebbe328a9479d85bd8561a47400c04218fed047816fa0d36882f08f"><code>Set_Incremental</code></a> on a new option set. Store the new manifest with its backup for the next link in the chain.</p>
+            <p>An incremental stream is not a standalone data directory. PostgreSQL recovery tooling must combine it with its ancestor backups.</p>
+
+            <h3>Cancel separately, then drain the active session</h3>
+            <p>Cancellation does not travel on the connection that carries archive data. Open another transport to the same server and apply the same TLS policy. Pass that transport to <a href="../api/440d89140bcaba59ed49867d1e12b0db75b732109d3b378eb45137b5e9ec50d4.html#26d3c01f7d3049b390015034134fa3f20239b4b8277dd376b7d07b64a0508c71"><code>Base_Backups.Cancel</code></a>.</p>
+            <p>PostgreSQL closes the cancellation transport without a response. Continue the main receive loop until <code>Complete</code>. A cancellation diagnostic normally has SQLSTATE <code>57014</code>.</p>
+            <p>Use the same sequence after a local disk error. Stop publishing data, request cancellation from another task, and drain the protocol before session reuse.</p>
+
+            <h3>Keep server semantics above the framing layer</h3>
+            <p><a href="../api/ff96781c12db30886b07c416225bc911e508827a3e8a450b9ed7538461f2299b.html#a7fa16eeaf65cf2bf2121103eb7a3a35133324ec10fa5f0f670ed44a0bd1d881"><code>Replication.Decode_Command</code></a> classifies <code>BASE_BACKUP</code> and PostgreSQL 17+ <code>UPLOAD_MANIFEST</code>. It preserves the original owned query for routing.</p>
+            <p><a href="../api/6c15b3174feab37eaa73dc7b0fe636155f6a3b83b4d4505a46753146f9112c3d.html"><code>Base_Backups.Server_Sessions</code></a> sends positions, nullable tablespace rows, COPY streams, multiplexed markers, progress, and manifest COPY IN. The package does not walk a live data directory or claim universal server support.</p>
+            <div class="decision-list">
+              <dl>
+                <div class="decision-row"><dt>Application policy</dt><dd>Authorize a dedicated replication identity, select allowed targets and paths, enforce rate and compression policy, and reject capabilities the backend cannot honor.</dd></div>
+                <div class="decision-row"><dt>Consistency</dt><dd>Enter and leave PostgreSQL-compatible backup mode, retain the WAL interval, and produce start/end LSNs and timelines from one coherent backup operation.</dd></div>
+                <div class="decision-row"><dt>Storage</dt><dd>Create tar archives, tablespace mappings, backup labels, manifests, checksums, durable staging, and failure cleanup outside the protocol package.</dd></div>
+                <div class="decision-row"><dt>Proxying</dt><dd>Forward cancellation and backpressure as well as bytes. Do not acknowledge completion to the downstream client before upstream completion and durable downstream writes.</dd></div>
+              </dl>
+            </div>
+
+            <h3>Replace a disposable <code>pg_basebackup</code> sidecar</h3>
+            <p>For an example such as <code>psqlbench</code>, keep the primary container and its readiness checks. Remove the container or subprocess that only invokes <code>pg_basebackup</code>.</p>
+            <p>Run the client-target flow into an example-owned staging directory. Include WAL and map external tablespaces only beneath disposable roots. Publish the directory after consistent end and completion events. Then start the disposable PostgreSQL instance from that directory.</p>
+            <p>This checkout has no <code>examples/psqlbench</code> tree. The protocol slice therefore documents the migration without adding a machine-specific substitute.</p>
+            <aside class="callout">
+              <span class="callout-symbol" aria-hidden="true">!</span>
+              <p>A physical backup contains the full cluster, including credentials and configuration. Use a dedicated <code>REPLICATION</code> role and restrictive <code>pg_hba.conf</code> rules. Require verified TLS, protected storage permissions, and redacted diagnostics.</p>
+              <p>Before extraction, reject absolute paths, <code>..</code> traversal, unexpected links, device nodes, and tablespace mappings outside approved roots.</p>
+            </aside>
+            <p><a href="https://github.com/flyology-ada/flyology-postgres/blob/main/docs/BASE_BACKUP.md">Read the full compatibility, incremental-backup, cancellation, security, and migration guide</a></p>
+          </section>
+
+          <section id="cancel">
+            <span class="step-label">STEP 09</span>
             <h2>Cancel on a separate connection</h2>
             <p>Postgres cancellation does not travel on the active query connection. Startup stores the backend process ID and variable-length secret.</p>
             <p><a href="../api/c2380bb30f7dfccb475f43619cb29c1fa17a0cb25f357d668a037d73caa23668.html"><code>Flyology.Postgres.Client_Sockets</code></a> supplies socket-based cancellation. <a href="../api/c2380bb30f7dfccb475f43619cb29c1fa17a0cb25f357d668a037d73caa23668.html#1d94fb103474d450c7761642c75e2288d812efdf863c0749c91ba9f5d9b7db59"><code>Cancel_TLS</code></a> verifies a separate encrypted connection, sends the credentials, and closes without waiting for a response.</p>
@@ -422,7 +607,7 @@ end case;</code></pre>
           </section>
 
           <section id="server">
-            <span class="step-label">STEP 09</span>
+            <span class="step-label">STEP 10</span>
             <h2>Build a Postgres protocol server</h2>
             <p><a href="../api/df1e88b4dad97e36b4fde35ee1bbc7e3355fa74f275b2a5d8c30b94dfa802cb3.html"><code>Flyology.Postgres.Server</code></a> is generic over application context, authentication callbacks, SCRAM verifier lookup, and a command handler. Each accepted connection receives one Flyology handler task.</p>
             <div class="decision-list">
@@ -438,7 +623,7 @@ end case;</code></pre>
           </section>
 
           <section id="parse-sql">
-            <span class="step-label">STEP 10</span>
+            <span class="step-label">STEP 11</span>
             <h2>Parse, analyze, and transform SQL</h2>
             <p>The versioned SQL crates parse PostgreSQL 14 through 18 syntax with native Ada parsers generated from each pinned upstream grammar. Select the crate for the PostgreSQL major that the application accepts.</p>
             <p>Use one of these owned packages for ordinary application code:</p>
@@ -594,7 +779,7 @@ alr -n build
           </section>
 
           <section id="examples">
-            <span class="step-label">STEP 11</span>
+            <span class="step-label">STEP 12</span>
             <h2>Run the example crates</h2>
             <p>The examples are independent nested Alire crates. <code>pgish</code> can require TLS from a configured certificate and key; <code>psqlish</code> supports verified TLS with separate certificate and connection host settings. Their integration uses an ephemeral CA in both directions.</p>
             <figure class="code-panel">
@@ -609,7 +794,7 @@ alr run</code></pre>
           </section>
 
           <section id="boundaries">
-            <span class="step-label">STEP 12</span>
+            <span class="step-label">STEP 13</span>
             <h2>Check the current boundaries before evaluation</h2>
             <p>The library is experimental. Treat these constraints as part of its public contract, not as incidental implementation details.</p>
             <div class="decision-list">

@@ -254,6 +254,17 @@ replication `CopyData`: `XLogData`, `PrimaryKeepalive`,
 decoding are symmetric, retain arbitrary WAL bytes, and accept timestamps
 before the PostgreSQL epoch.
 
+`Flyology.Postgres.Replication.Base_Backups` provides native `BASE_BACKUP`
+without invoking `pg_basebackup`. Typed, major-gated options cover PostgreSQL
+14 through 18; a `Receiver` emits start/end LSNs and timelines, nullable
+tablespace metadata, archive boundaries, one bounded archive or manifest chunk,
+progress, diagnostics, and completion. PostgreSQL 14's separate COPY streams
+and PostgreSQL 15+'s multiplexed `n`/`m`/`d`/`p` frames share the same event
+surface. PostgreSQL 17+ manifest upload uses the existing bounded COPY IN path
+before an incremental backup. See [Native BASE_BACKUP](docs/BASE_BACKUP.md) for
+the API, compatibility matrix, cancellation/security rules, and psqlbench
+migration sequence.
+
 `Flyology.Postgres.Replication.Logical` builds, encodes, and decodes every
 `pgoutput` message at its natural level: transaction control, transaction
 metadata, or row change. It supports protocol v1 committed transactions, v2
@@ -616,6 +627,13 @@ state, preserves unchanged TOAST, and compares the exact final rows. A separate
 slot-resume oracle persists one commit acknowledgement, resets the connection
 and decoder after 50 of the next transaction's 1,000 rows, and requires the
 whole interrupted transaction without a gap on reconnect.
+
+PostgreSQL 14, 17, and 18 also take a complete native client-side `BASE_BACKUP`
+through the public event receiver, including WAL, tablespace metadata, tar
+bytes, a SHA-256 backup manifest, and consistent start/end LSNs. PostgreSQL 18
+also uploads that manifest and takes an incremental successor, then cancels a
+second active backup through a separate TLS CancelRequest connection and must
+return SQLSTATE `57014` followed by `ReadyForQuery`.
 
 For the reverse direction, every major takes a real base backup, starts it with
 `standby.signal` and a quoted physical slot name against the Flyology primary
