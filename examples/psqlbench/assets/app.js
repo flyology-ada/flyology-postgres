@@ -267,6 +267,7 @@
       link.target_port, link.table, link.source_relation,
       link.target_relation, link.status, link.mode,
       link.relay_port, link.detail, link.desired_running, link.column_map,
+      link.resolved_column_map,
       link.flow_paused, link.latency_ms, link.bandwidth_kib, link.disconnects
     ]);
   }
@@ -435,18 +436,22 @@
     const mappingRules = String(link.column_map || "").split("\n")
       .map(value => value.trim())
       .filter(value => value && !value.startsWith("#"));
+    const resolvedMapping = String(link.resolved_column_map || "").split("\n")
+      .map(value => value.trim())
+      .filter(Boolean);
+    const visibleMapping = resolvedMapping.length ? resolvedMapping : mappingRules;
     const mappingSummary = document.createElement("summary");
     mappingSummary.textContent = mappingRules.length
       ? `Column projection · ${mappingRules.length} ${mappingRules.length === 1 ? "rule" : "rules"}`
-      : "Column projection · identity";
+      : `Column projection · identity${resolvedMapping.length ? ` · ${resolvedMapping.length} columns` : ""}`;
     mapping.append(mappingSummary);
-    if (mappingRules.length) {
-      mapping.append(el("pre", "", mappingRules.join("\n")));
+    if (visibleMapping.length) {
+      mapping.append(el("pre", "", visibleMapping.join("\n")));
     } else {
       mapping.append(el(
         "p",
         "link-mapping-note",
-        "All source columns map to same-named target columns; none are renamed, cast, or omitted."
+        "Waiting for relation metadata. Identity maps every source column to the same-named target column."
       ));
     }
     const live = el("section", "link-live");

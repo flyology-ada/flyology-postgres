@@ -885,7 +885,8 @@ package body Psqlbench_Links is
    end record;
 
    procedure Configure_Mapping
-     (Session : in out Client.Session;
+     (Context : in out Psqlbench_Context.Context;
+      Session : in out Client.Session;
       Item : Psqlbench_Context.Link_Record;
       Relation : in out Relation_State;
       Require_Replica_Keys : Boolean)
@@ -893,6 +894,8 @@ package body Psqlbench_Links is
       Rules : Psqlbench_Mappings.Mapping_Array;
       Rule_Count : Natural;
       Explicit : constant Boolean := Column_Map (Item)'Length > 0;
+      Resolved : Unbounded_String;
+      Invalid_Target : Unbounded_String;
 
       procedure Include
         (Source_Index : Positive; Target, Type_Name : String) is
@@ -951,15 +954,46 @@ package body Psqlbench_Links is
       for Index in 1 .. Relation.Count loop
          if Relation.Included (Index) then
             declare
+               Source : constant String := To_String (Relation.Names (Index));
                Target : constant String :=
                  To_String (Relation.Target_Names (Index));
                Type_Name : constant String :=
                  To_String (Relation.Target_Types (Index));
+               Valid : constant Boolean := Target_Column_Valid (Target);
             begin
-               if not Target_Column_Valid (Target) then
-                  raise Program_Error with
-                    "mapped target column is absent or generated: " & Target;
+               if Length (Resolved) > 0 then
+                  Append (Resolved, String'(1 => ASCII.LF));
                end if;
+               Append (Resolved, Source & " -> " & Target);
+               if Type_Name'Length > 0 then
+                  Append (Resolved, " :: " & Type_Name);
+               end if;
+               if Relation.Keys (Index) then
+                  Append (Resolved, " [replica identity]");
+               end if;
+               if not Valid then
+                  Append (Resolved, " [target missing or generated]");
+                  if Length (Invalid_Target) = 0 then
+                     Invalid_Target := To_Unbounded_String (Target);
+                  end if;
+               end if;
+            end;
+         end if;
+      end loop;
+      Context.Links.Record_Resolved_Column_Map
+        (Link_Name (Item), To_String (Resolved));
+      if Length (Invalid_Target) > 0 then
+         raise Program_Error with
+           "mapped target column is absent or generated: "
+           & To_String (Invalid_Target);
+      end if;
+
+      for Index in 1 .. Relation.Count loop
+         if Relation.Included (Index) then
+            declare
+               Type_Name : constant String :=
+                 To_String (Relation.Target_Types (Index));
+            begin
                if Type_Name'Length > 0 then
                   declare
                      Ignored : constant String :=
@@ -1022,7 +1056,8 @@ package body Psqlbench_Links is
    end Validate_Snapshot_Target;
 
    procedure Apply_Message
-     (Session : in out Client.Session;
+     (Context : in out Psqlbench_Context.Context;
+      Session : in out Client.Session;
       Item    : Psqlbench_Context.Link_Record;
       Message : Logical.Message;
       Relation : in out Relation_State;
@@ -1126,7 +1161,8 @@ package body Psqlbench_Links is
                   end;
                end loop;
                Configure_Mapping
-                 (Session, Item, Relation, Require_Replica_Keys => True);
+                 (Context, Session, Item, Relation,
+                  Require_Replica_Keys => True);
             end if;
 
          when Logical.Insert_Message =>
@@ -1636,7 +1672,7 @@ package body Psqlbench_Links is
                                               (Description, Index)));
                                  end loop;
                                  Configure_Mapping
-                                   (Target, Item, Snapshot_Relation,
+                                   (Context, Target, Item, Snapshot_Relation,
                                     Require_Replica_Keys => False);
                                  Validate_Snapshot_Target
                                    (Target, Item, Snapshot_Relation);
@@ -1992,7 +2028,7 @@ package body Psqlbench_Links is
                               Changed : Boolean;
                            begin
                               Apply_Message
-                                (Target, Item, Message, Relation,
+                                (Context, Target, Item, Message, Relation,
                                  In_Transaction, Active_Stream, Changed);
                               Emit
                                 (Context, Item, "apply", "relay-to-target",

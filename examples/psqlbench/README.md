@@ -91,7 +91,9 @@ unambiguous. Before snapshot or apply, psqlbench verifies source columns,
 target columns, cast types, generated/identity restrictions, and required
 target values. New unmapped source columns are ignored; removing a mapped
 column or changing the target incompatibly stops the link with a visible
-diagnostic before more changes are applied.
+diagnostic before more changes are applied. Each logical link also exposes the
+resolved runtime column map, replica-identity keys, and missing or generated
+target columns in its expandable projection view.
 Physical bootstrap WAL is streamed with PostgreSQL's replication protocol by
 the Flyology client;
 Docker installs the received archive without invoking `pg_basebackup`. After

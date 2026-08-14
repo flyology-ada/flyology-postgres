@@ -312,6 +312,11 @@ package body Psqlbench_Server is
                 else Value (Index).Column_Map
                   (1 .. Value (Index).Column_Map_Length)));
             Psqlbench_JSON.String_Value
+              (Document, "resolved_column_map",
+               (if Value (Index).Resolved_Column_Map_Length = 0 then ""
+                else Value (Index).Resolved_Column_Map
+                  (1 .. Value (Index).Resolved_Column_Map_Length)));
+            Psqlbench_JSON.String_Value
               (Document, "status", Link_Status_Image (Value (Index).Status));
             Psqlbench_JSON.Boolean_Value
               (Document, "desired_running", Value (Index).Desired_Running);

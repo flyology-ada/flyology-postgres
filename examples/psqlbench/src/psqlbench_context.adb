@@ -526,6 +526,20 @@ package body Psqlbench_Context is
          end loop;
       end Record_Observed;
 
+      procedure Record_Resolved_Column_Map
+        (Name : String; Value : String) is
+      begin
+         for Index in Entries'Range loop
+            if Same_Name (Entries (Index), Name) then
+               Store
+                 (Entries (Index).Resolved_Column_Map,
+                  Entries (Index).Resolved_Column_Map_Length,
+                  Value);
+               return;
+            end if;
+         end loop;
+      end Record_Resolved_Column_Map;
+
       procedure Configure_Faults
         (Name : String;
          Paused : Boolean;
