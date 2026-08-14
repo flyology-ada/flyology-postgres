@@ -7,6 +7,29 @@ Hand-written Guide, Architecture, and Journal pages follow
 Flyology Postgres API entity on a page to its verified generated GNATdoc unit
 or declaration entry.
 
+## Releases
+
+- Automatic index publication is driven by immutable annotated tags named
+  `<crate>/v<version>`, such as `flyology_postgres/v0.1.0`.
+- Before tagging, set the released crate's `alire.toml` to the exact stable
+  version, replace inappropriate `-dev` dependency constraints with stable
+  constraints, and run its required checks plus `alr show`. Its manifest name
+  and version must exactly match the tag.
+- Indexed crates in this repository are `flyology_postgres`,
+  `flyology_postgres_sql`, `flyology_postgres_sql_core`, and
+  `flyology_postgres_sql_v14` through `flyology_postgres_sql_v18`. Tag each
+  released crate independently, even when several tags point to one monorepo
+  commit.
+- Create and push the tag only after committing the release-ready manifests:
+
+  ```sh
+  git tag -a <crate>/v<version> -m "Release <crate> <version>"
+  git push origin refs/tags/<crate>/v<version>
+  ```
+
+- Never move, replace, or reuse a published release tag. Put the next
+  development-version change in a later commit.
+
 ## SQL parser changes
 
 The supported consumer parser is the generated owned AST API in
