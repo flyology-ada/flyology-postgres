@@ -49,6 +49,11 @@ package Psqlbench_Docker is
       Token    : access Flyology.Cancellation.Token := null;
       Deadline : Ada.Real_Time.Time := Ada.Real_Time.Time_Last) return Result;
 
+   function Instance_Running
+     (Name     : String;
+      Token    : access Flyology.Cancellation.Token := null;
+      Deadline : Ada.Real_Time.Time := Ada.Real_Time.Time_Last) return Result;
+
    function Inspect_Instance
      (Name     : String;
       Token    : access Flyology.Cancellation.Token := null;

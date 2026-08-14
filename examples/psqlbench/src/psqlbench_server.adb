@@ -18,6 +18,7 @@ with Interfaces;
 with Psqlbench_Assets;
 with Psqlbench_Docker;
 with Psqlbench_JSON;
+with Psqlbench_Persistence;
 with Psqlbench_Query;
 
 package body Psqlbench_Server is
@@ -28,6 +29,8 @@ package body Psqlbench_Server is
    package Sockets renames Flyology.IO.Sockets;
 
    use type Interfaces.Unsigned_64;
+   use type Psqlbench_Docker.Instance_Action;
+   use type Psqlbench_Context.Link_Command_Kind;
    use type Psqlbench_Context.Link_Mode;
 
    function Compact (Value : Natural) return String is
@@ -63,7 +66,8 @@ package body Psqlbench_Server is
       package Routing is new HTTP.Routing (Application_Context);
 
       function Status_Document
-        (Ready : Boolean; Detail : String) return String
+        (Ready : Boolean; Detail : String;
+         Desired_Instances, Desired_Links : Natural) return String
       is
          Document : Psqlbench_JSON.Writer;
       begin
@@ -72,6 +76,13 @@ package body Psqlbench_Server is
          Psqlbench_JSON.Boolean_Value (Document, "docker_ready", Ready);
          Psqlbench_JSON.String_Value (Document, "docker_transport", "cli");
          Psqlbench_JSON.String_Value (Document, "detail", Detail);
+         Psqlbench_JSON.String_Value
+           (Document, "state_file", Psqlbench_Persistence.State_Path);
+         Psqlbench_JSON.Integer_Value
+           (Document, "desired_instances",
+            Long_Long_Integer (Desired_Instances));
+         Psqlbench_JSON.Integer_Value
+           (Document, "desired_links", Long_Long_Integer (Desired_Links));
          Psqlbench_JSON.End_Object (Document);
          return Psqlbench_JSON.Finish (Document);
       end Status_Document;
@@ -202,6 +213,7 @@ package body Psqlbench_Server is
          case Value is
             when Psqlbench_Context.Link_Empty    => return "empty";
             when Psqlbench_Context.Link_Pending  => return "pending";
+            when Psqlbench_Context.Link_Restoring => return "restoring";
             when Psqlbench_Context.Link_Starting => return "starting";
             when Psqlbench_Context.Link_Running  => return "running";
             when Psqlbench_Context.Link_Stopping => return "stopping";
@@ -267,6 +279,8 @@ package body Psqlbench_Server is
                  (1 .. Value (Index).Target_Table_Length));
             Psqlbench_JSON.String_Value
               (Document, "status", Link_Status_Image (Value (Index).Status));
+            Psqlbench_JSON.Boolean_Value
+              (Document, "desired_running", Value (Index).Desired_Running);
             Psqlbench_JSON.String_Value
               (Document, "mode", Link_Mode_Image (Value (Index).Mode));
             Psqlbench_JSON.Integer_Value
@@ -360,6 +374,51 @@ package body Psqlbench_Server is
          return Psqlbench_JSON.Finish (Document);
       end Link_Event_Document;
 
+      function Topology_Document
+        (Instances : Psqlbench_Context.Instance_Array;
+         Instance_Count : Natural;
+         Links : Psqlbench_Context.Link_Array;
+         Link_Count : Natural) return String
+      is
+         Document : Psqlbench_JSON.Writer;
+      begin
+         Psqlbench_JSON.Initialize (Document);
+         Psqlbench_JSON.Start_Object (Document);
+         Psqlbench_JSON.String_Value
+           (Document, "state_file", Psqlbench_Persistence.State_Path);
+         Psqlbench_JSON.Start_Array (Document, "instances");
+         for Index in 1 .. Instance_Count loop
+            Psqlbench_JSON.Start_Object (Document);
+            Psqlbench_JSON.String_Value
+              (Document, "name",
+               Instances (Index).Name
+                 (1 .. Instances (Index).Name_Length));
+            Psqlbench_JSON.String_Value
+              (Document, "version",
+               Instances (Index).Version
+                 (1 .. Instances (Index).Version_Length));
+            Psqlbench_JSON.Integer_Value
+              (Document, "port", Long_Long_Integer (Instances (Index).Port));
+            Psqlbench_JSON.Boolean_Value
+              (Document, "running", Instances (Index).Desired_Running);
+            Psqlbench_JSON.End_Object (Document);
+         end loop;
+         Psqlbench_JSON.End_Array (Document, "instances");
+         Psqlbench_JSON.Start_Array (Document, "links");
+         for Index in 1 .. Link_Count loop
+            Psqlbench_JSON.Start_Object (Document);
+            Psqlbench_JSON.String_Value
+              (Document, "name",
+               Links (Index).Name (1 .. Links (Index).Name_Length));
+            Psqlbench_JSON.Boolean_Value
+              (Document, "running", Links (Index).Desired_Running);
+            Psqlbench_JSON.End_Object (Document);
+         end loop;
+         Psqlbench_JSON.End_Array (Document, "links");
+         Psqlbench_JSON.End_Object (Document);
+         return Psqlbench_JSON.Finish (Document);
+      end Topology_Document;
+
       procedure Home
         (State : in out Application_Context;
          X     : in out App.Exchange) is
@@ -395,13 +454,21 @@ package body Psqlbench_Server is
       is
          Detail : String (1 .. 256);
          Last   : Natural;
+         Desired_Instances : Psqlbench_Context.Instance_Array;
+         Desired_Instance_Count : Natural;
+         Desired_Links : Psqlbench_Context.Link_Array;
+         Desired_Link_Count : Natural;
       begin
          State.Root.Docker.Read_Detail (Detail, Last);
+         State.Root.Instances.Snapshot
+           (Desired_Instances, Desired_Instance_Count);
+         State.Root.Links.Snapshot (Desired_Links, Desired_Link_Count);
          X.JSON
            (200,
             Status_Document
               (State.Root.Docker.Ready,
-               (if Last = 0 then "" else Detail (1 .. Last))));
+               (if Last = 0 then "" else Detail (1 .. Last)),
+               Desired_Instance_Count, Desired_Link_Count));
       end Status;
 
       procedure Instances
@@ -420,6 +487,22 @@ package body Psqlbench_Server is
                Diagnostic (Psqlbench_Docker.Text (Value)));
          end if;
       end Instances;
+
+      procedure Topology
+        (State : in out Application_Context;
+         X     : in out App.Exchange)
+      is
+         Instances : Psqlbench_Context.Instance_Array;
+         Instance_Count : Natural;
+         Links : Psqlbench_Context.Link_Array;
+         Link_Count : Natural;
+      begin
+         State.Root.Instances.Snapshot (Instances, Instance_Count);
+         State.Root.Links.Snapshot (Links, Link_Count);
+         X.JSON
+           (200, Topology_Document
+              (Instances, Instance_Count, Links, Link_Count));
+      end Topology;
 
       procedure Links
         (State : in out Application_Context;
@@ -603,6 +686,7 @@ package body Psqlbench_Server is
                 else Detail (1 .. Last)));
             return;
          end if;
+         Psqlbench_Persistence.Save (State.Root.all);
          State.Root.Events.Append
            (Link_Event_Document (Name, "created"));
          X.JSON
@@ -622,7 +706,9 @@ package body Psqlbench_Server is
          Kind : Psqlbench_Context.Link_Command_Kind;
          Accepted : Boolean;
       begin
-         if Action = "stop" then
+         if Action = "start" then
+            Kind := Psqlbench_Context.Create_Link;
+         elsif Action = "stop" then
             Kind := Psqlbench_Context.Stop_Link;
          elsif Action = "remove" then
             Kind := Psqlbench_Context.Remove_Link;
@@ -634,6 +720,9 @@ package body Psqlbench_Server is
          if not Accepted then
             X.Problem (404, "link-not-found", "Link was not found");
             return;
+         end if;
+         if Kind /= Psqlbench_Context.Remove_Link then
+            Psqlbench_Persistence.Save (State.Root.all);
          end if;
          X.JSON
            (202, Link_Document (Name, "", "", Action & "-requested"));
@@ -679,6 +768,28 @@ package body Psqlbench_Server is
                   Diagnostic (Psqlbench_Docker.Text (Value)));
                return;
             end if;
+            declare
+               Accepted : Boolean;
+            begin
+               State.Root.Instances.Upsert
+                 (Name, Version, Port_No, True, Accepted);
+               if not Accepted then
+                  declare
+                     Ignored : constant Psqlbench_Docker.Result :=
+                       Psqlbench_Docker.Apply
+                         (Name, Psqlbench_Docker.Remove_Instance,
+                          X.Cancellation, X.Deadline);
+                     pragma Unreferenced (Ignored);
+                  begin
+                     null;
+                  end;
+                  X.Problem
+                    (507, "instance-capacity",
+                     "Desired instance capacity is full");
+                  return;
+               end if;
+            end;
+            Psqlbench_Persistence.Save (State.Root.all);
             State.Root.Events.Append
               (Instance_Document (Name, Version, Port_No, Event => True));
             X.JSON
@@ -713,6 +824,14 @@ package body Psqlbench_Server is
             X.Problem (404, "unknown-instance-action", "Unknown action");
             return;
          end if;
+         if Kind = Psqlbench_Docker.Remove_Instance
+           and then State.Root.Links.References_Instance (Name)
+         then
+            X.Problem
+              (409, "instance-has-links",
+               "Remove replication links that reference this instance first");
+            return;
+         end if;
 
          declare
             Value : constant Psqlbench_Docker.Result :=
@@ -725,6 +844,41 @@ package body Psqlbench_Server is
                   Diagnostic (Psqlbench_Docker.Text (Value)));
                return;
             end if;
+            if Kind = Psqlbench_Docker.Remove_Instance then
+               State.Root.Instances.Forget (Name);
+            else
+               declare
+                  Accepted : Boolean;
+               begin
+                  State.Root.Instances.Set_Running
+                    (Name, Kind = Psqlbench_Docker.Start_Instance, Accepted);
+                  if not Accepted then
+                     declare
+                        Version : constant Psqlbench_Docker.Result :=
+                          Psqlbench_Docker.Instance_Version
+                            (Name, X.Cancellation, X.Deadline);
+                        Port_Value : constant Psqlbench_Docker.Result :=
+                          Psqlbench_Docker.Instance_Port
+                            (Name, X.Cancellation, X.Deadline);
+                     begin
+                        if Version.Success and then Port_Value.Success then
+                           State.Root.Instances.Upsert
+                             (Name,
+                              Ada.Strings.Fixed.Trim
+                                (Psqlbench_Docker.Text (Version),
+                                 Ada.Strings.Both),
+                              Natural'Value
+                                (Ada.Strings.Fixed.Trim
+                                   (Psqlbench_Docker.Text (Port_Value),
+                                    Ada.Strings.Both)),
+                              Kind = Psqlbench_Docker.Start_Instance,
+                              Accepted);
+                        end if;
+                     end;
+                  end if;
+               end;
+            end if;
+            Psqlbench_Persistence.Save (State.Root.all);
             State.Root.Events.Append
               (Action_Document (Name, Action, Event => True));
             X.JSON (200, Action_Document (Name, Action, Event => False));
@@ -1010,7 +1164,7 @@ package body Psqlbench_Server is
       type Service_Context is limited record
          Application : aliased Application_Context;
          Routes      : aliased Routing.Router
-           (Capacity => 13, Slashes => Routing.Strict_Slashes);
+           (Capacity => 14, Slashes => Routing.Strict_Slashes);
          Budget      : aliased HTTP.Ingress_Budget
            (Limit => 4 * 1_024 * 1_024);
       end record;
@@ -1067,6 +1221,8 @@ package body Psqlbench_Server is
       State.Routes.Get ("/api/status", Status'Access, Name => "api.status");
       State.Routes.Get
         ("/api/instances", Instances'Access, Name => "api.instances");
+      State.Routes.Get
+        ("/api/topology", Topology'Access, Name => "api.topology");
       State.Routes.Get ("/api/links", Links'Access, Name => "api.links");
       State.Routes.Post
         ("/api/links", Create_Link'Access, Name => "api.link.create",

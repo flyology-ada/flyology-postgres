@@ -154,6 +154,92 @@ package body Psqlbench_Context is
       end Read_Detail;
    end Docker_Status;
 
+   protected body Instance_Registry is
+      function Same_Name
+        (Item : Instance_Record; Name : String) return Boolean is
+        (Item.Occupied
+         and then Item.Name_Length = Name'Length
+         and then Item.Name (1 .. Item.Name_Length) = Name);
+
+      procedure Store
+        (Target : out String; Length : out Natural; Value : String) is
+      begin
+         Length := Natural'Min (Target'Length, Value'Length);
+         Target := (others => ' ');
+         if Length > 0 then
+            Target (Target'First .. Target'First + Length - 1) :=
+              Value (Value'First .. Value'First + Length - 1);
+         end if;
+      end Store;
+
+      procedure Upsert
+        (Name, Version : String;
+         Port          : Natural;
+         Running       : Boolean;
+         Accepted      : out Boolean)
+      is
+         Slot : Natural := 0;
+      begin
+         Accepted := False;
+         for Index in Entries'Range loop
+            if Same_Name (Entries (Index), Name) then
+               Slot := Index;
+               exit;
+            elsif Slot = 0 and then not Entries (Index).Occupied then
+               Slot := Index;
+            end if;
+         end loop;
+         if Slot = 0 then
+            return;
+         end if;
+         Entries (Slot) := (others => <>);
+         Entries (Slot).Occupied := True;
+         Entries (Slot).Desired_Running := Running;
+         Store
+           (Entries (Slot).Name, Entries (Slot).Name_Length, Name);
+         Store
+           (Entries (Slot).Version, Entries (Slot).Version_Length, Version);
+         Entries (Slot).Port := Port;
+         Accepted := True;
+      end Upsert;
+
+      procedure Set_Running
+        (Name : String; Running : Boolean; Accepted : out Boolean) is
+      begin
+         Accepted := False;
+         for Item of Entries loop
+            if Same_Name (Item, Name) then
+               Item.Desired_Running := Running;
+               Accepted := True;
+               return;
+            end if;
+         end loop;
+      end Set_Running;
+
+      procedure Forget (Name : String) is
+      begin
+         for Item of Entries loop
+            if Same_Name (Item, Name) then
+               Item := (others => <>);
+               return;
+            end if;
+         end loop;
+      end Forget;
+
+      procedure Snapshot
+        (Value : out Instance_Array; Count : out Natural) is
+      begin
+         Value := (others => <>);
+         Count := 0;
+         for Item of Entries loop
+            if Item.Occupied then
+               Count := Count + 1;
+               Value (Count) := Item;
+            end if;
+         end loop;
+      end Snapshot;
+   end Instance_Registry;
+
    protected body Link_Registry is
       function Same_Name (Item : Link_Record; Name : String) return Boolean is
         (Item.Status /= Link_Empty
@@ -195,7 +281,9 @@ package body Psqlbench_Context is
          Target_Port : Natural;
          Accepted : out Boolean;
          Detail   : out String;
-         Last     : out Natural)
+         Last     : out Natural;
+         Desired_Running : Boolean := True;
+         Restoring : Boolean := False)
       is
          Free : Natural := 0;
       begin
@@ -218,7 +306,8 @@ package body Psqlbench_Context is
          end loop;
          if Free = 0 or else Command_Count = Link_Command_Capacity then
             declare
-               Message : constant String := "replication link capacity is full";
+               Message : constant String :=
+                 "replication link capacity is full";
             begin
                Last := Natural'Min (Message'Length, Detail'Length);
                Detail (Detail'First .. Detail'First + Last - 1) :=
@@ -228,8 +317,12 @@ package body Psqlbench_Context is
          end if;
 
          Entries (Free) := (others => <>);
-         Entries (Free).Status := Link_Pending;
+         Entries (Free).Status :=
+           (if not Desired_Running then Link_Stopped
+            elsif Restoring then Link_Restoring
+            else Link_Pending);
          Entries (Free).Mode := Mode;
+         Entries (Free).Desired_Running := Desired_Running;
          Store (Entries (Free).Name, Entries (Free).Name_Length, Name);
          Store
            (Entries (Free).Source, Entries (Free).Source_Length, Source);
@@ -274,7 +367,9 @@ package body Psqlbench_Context is
                Effective_Target_Table);
          end;
          Entries (Free).Relay_Port := 58_000 + Free;
-         Enqueue (Create_Link, Name);
+         if Desired_Running then
+            Enqueue (Create_Link, Name);
+         end if;
          Accepted := True;
       end Create;
 
@@ -289,9 +384,18 @@ package body Psqlbench_Context is
          end if;
          for Index in Entries'Range loop
             if Same_Name (Entries (Index), Name) then
+               if Action = Create_Link
+                 and then Entries (Index).Status /= Link_Stopped
+               then
+                  return;
+               end if;
                Enqueue (Action, Name);
-               if Action = Stop_Link then
+               if Action = Create_Link then
+                  Entries (Index).Status := Link_Restoring;
+                  Entries (Index).Desired_Running := True;
+               elsif Action = Stop_Link then
                   Entries (Index).Status := Link_Stopping;
+                  Entries (Index).Desired_Running := False;
                end if;
                Accepted := True;
                return;
@@ -381,6 +485,23 @@ package body Psqlbench_Context is
             end if;
          end loop;
       end Record_Applied;
+
+      function References_Instance (Name : String) return Boolean is
+      begin
+         for Item of Entries loop
+            if Item.Status /= Link_Empty
+              and then
+                ((Item.Source_Length = Name'Length
+                  and then Item.Source (1 .. Item.Source_Length) = Name)
+                 or else
+                   (Item.Target_Length = Name'Length
+                    and then Item.Target (1 .. Item.Target_Length) = Name))
+            then
+               return True;
+            end if;
+         end loop;
+         return False;
+      end References_Instance;
 
       procedure Snapshot (Value : out Link_Array; Count : out Natural) is
       begin

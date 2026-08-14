@@ -25,6 +25,7 @@ with Flyology.Supervision.Input_Children;
 with Interfaces;
 with Psqlbench_Docker;
 with Psqlbench_JSON;
+with Psqlbench_Persistence;
 
 package body Psqlbench_Links is
 
@@ -2542,6 +2543,7 @@ package body Psqlbench_Links is
                         end loop;
                         if Command.Kind = Psqlbench_Context.Remove_Link then
                            Context.Links.Forget (Name);
+                           Psqlbench_Persistence.Save (Context);
                         else
                            Context.Links.Set_Status
                              (Name, Psqlbench_Context.Link_Stopped,

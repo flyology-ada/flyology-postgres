@@ -12,6 +12,7 @@ with Psqlbench_Docker;
 with Psqlbench_Logs;
 with Psqlbench_JSON;
 with Psqlbench_Links;
+with Psqlbench_Persistence;
 with Psqlbench_Server;
 with Psqlbench_Signals;
 
@@ -19,15 +20,17 @@ procedure Psqlbench is
    use type Flyology.Supervision.Supervisor_Outcome;
 
    type Service_Kind is
-     (Docker_Control, Log_Control, Link_Control, HTTP_Control);
+     (Docker_Control, Topology_Control, Log_Control, Link_Control,
+      HTTP_Control);
 
    function Logical_Id
      (Child : Service_Kind) return Flyology.Supervision.Child_Id is
      (case Child is
          when Docker_Control => 1,
-         when Log_Control    => 2,
-         when Link_Control   => 3,
-         when HTTP_Control   => 4);
+         when Topology_Control => 2,
+         when Log_Control    => 3,
+         when Link_Control   => 4,
+         when HTTP_Control   => 5);
 
    function Specification
      (Child : Service_Kind)
@@ -40,6 +43,7 @@ procedure Psqlbench is
       Value.Impact :=
         (case Child is
             when Docker_Control => Flyology.Supervision.Restart_Dependents,
+            when Topology_Control => Flyology.Supervision.Restart_Dependents,
             when Log_Control    => Flyology.Supervision.Restart_Dependents,
             when Link_Control   => Flyology.Supervision.Restart_Dependents,
             when HTTP_Control   => Flyology.Supervision.Isolate_Child);
@@ -47,7 +51,10 @@ procedure Psqlbench is
         (Grace             => Ada.Real_Time.Seconds (3),
          Request_Abort     => False,
          Abort_Observation => Ada.Real_Time.Seconds (1));
-      Value.Readiness_Timeout := Ada.Real_Time.Seconds (15);
+      Value.Readiness_Timeout :=
+        (if Child = Topology_Control
+         then Ada.Real_Time.Seconds (120)
+         else Ada.Real_Time.Seconds (15));
       Value.Restart_Safe := True;
       Value.Task_Model := Flyology.Native_Task;
       Value.Has_Group := False;
@@ -58,8 +65,9 @@ procedure Psqlbench is
    function Depends_On
      (Child        : Service_Kind;
       Prerequisite : Service_Kind) return Boolean is
-     ((Child = Log_Control and then Prerequisite = Docker_Control)
-      or else (Child = Link_Control and then Prerequisite = Docker_Control)
+     ((Child = Topology_Control and then Prerequisite = Docker_Control)
+      or else (Child = Log_Control and then Prerequisite = Topology_Control)
+      or else (Child = Link_Control and then Prerequisite = Topology_Control)
       or else (Child = HTTP_Control and then Prerequisite = Log_Control)
       or else (Child = HTTP_Control and then Prerequisite = Link_Control));
 
@@ -130,6 +138,36 @@ procedure Psqlbench is
       Execute             => Run_Docker,
       Task_Model          => Flyology.Native_Task);
 
+   procedure Run_Topology
+     (Context : in out Psqlbench_Context.Context;
+      Control : not null access Flyology.Supervision.Generation_Control) is
+      use type Ada.Real_Time.Time;
+   begin
+      Psqlbench_Persistence.Load_And_Reconcile
+        (Context,
+         Flyology.Supervision.Stopping (Control.all),
+         Ada.Real_Time.Clock + Ada.Real_Time.Seconds (120));
+      Flyology.Supervision.Mark_Ready (Control.all);
+      loop
+         if Flyology.Supervision.Stopping (Control.all).Requested then
+            raise Flyology.Cancellation.Operation_Cancelled;
+         end if;
+         delay 0.100;
+      end loop;
+   exception
+      when Error : others =>
+         Ada.Text_IO.Put_Line
+           (Ada.Text_IO.Standard_Error,
+            "topology reconciliation failed: "
+            & Ada.Exceptions.Exception_Information (Error));
+         raise;
+   end Run_Topology;
+
+   package Topology_Child is new Flyology.Supervision.Children
+     (Application_Context => Psqlbench_Context.Context,
+      Execute             => Run_Topology,
+      Task_Model          => Flyology.Native_Task);
+
    package HTTP_Child is new Flyology.Supervision.Children
      (Application_Context => Psqlbench_Context.Context,
       Execute             => Psqlbench_Server.Execute,
@@ -154,6 +192,8 @@ procedure Psqlbench is
       case Child is
          when Docker_Control =>
             Docker_Child.Run (Context, Control, Result);
+         when Topology_Control =>
+            Topology_Child.Run (Context, Control, Result);
          when Log_Control =>
             Log_Child.Run (Context, Control, Result);
          when Link_Control =>
@@ -204,7 +244,12 @@ begin
    if Result.Outcome /= Flyology.Supervision.Shutdown_Completed then
       Ada.Text_IO.Put_Line
         (Ada.Text_IO.Standard_Error,
-         "psqlbench stopped: " & Result.Outcome'Image);
+         "psqlbench stopped: " & Result.Outcome'Image
+         & " child=" & Result.Child'Image
+         & " reason=" & Result.Termination.Kind'Image
+         & (if Result.Termination.Message_Length = 0 then ""
+            else " " & Result.Termination.Message
+              (1 .. Result.Termination.Message_Length)));
       Ada.Command_Line.Set_Exit_Status (Ada.Command_Line.Failure);
    end if;
 exception

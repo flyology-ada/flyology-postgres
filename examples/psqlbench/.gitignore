@@ -2,3 +2,6 @@
 /bin/
 /config/
 /obj/
+/psqlbench-state.jsonl
+/psqlbench-state.jsonl.tmp
+/psqlbench-state.jsonl.previous

@@ -1,3 +1,4 @@
+with Ada.Characters.Handling;
 with Util.Properties;
 with Util.Properties.JSON;
 with Util.Serialize.IO.JSON;
@@ -109,6 +110,29 @@ package body Psqlbench_JSON is
       end if;
       return Natural'Value (Values.Get (Name));
    end Natural_Field;
+
+   function Boolean_Field
+     (Document : String;
+      Name     : String;
+      Default  : Boolean) return Boolean
+   is
+      Values : constant Util.Properties.Manager := Properties (Document);
+   begin
+      if not Values.Exists (Name) then
+         return Default;
+      end if;
+      declare
+         Value : constant String :=
+           Ada.Characters.Handling.To_Lower (Values.Get (Name));
+      begin
+         if Value = "true" then
+            return True;
+         elsif Value = "false" then
+            return False;
+         end if;
+      end;
+      raise Constraint_Error with "JSON field " & Name & " is not boolean";
+   end Boolean_Field;
 
    function Valid_Name (Value : String) return Boolean is
    begin

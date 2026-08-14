@@ -74,6 +74,15 @@ the Flyology client;
 Docker installs the received archive without invoking `pg_basebackup`. After
 recovery starts, all live WAL passes through the observable Flyology proxy.
 
+The desired topology is stored as bounded JSON Lines in
+`psqlbench-state.jsonl` (override with `PSQLBENCH_STATE_FILE`). On startup a
+supervised reconciliation generation adopts or recreates managed instances,
+validates their version and port, restores each link with its desired running
+state, and only then admits the HTTP service. Logical links resume their slot
+and snapshot marker; physical links reconnect an existing standby or bootstrap
+one when its container is absent. State replacement uses temporary and previous
+files so an interrupted write remains recoverable.
+
 ## Functional outline
 
 The workbench grows in four layers while keeping the browser API stable:

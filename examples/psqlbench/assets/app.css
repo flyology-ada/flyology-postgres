@@ -115,6 +115,18 @@ h1 em { color: var(--violet); font-style: normal; }
 
 .workbench { min-height: 24rem; }
 .link-workbench { margin-top: 1.25rem; }
+.topology-state {
+  align-items: baseline;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  font-family: var(--mono);
+  font-size: .66rem;
+  gap: .8rem;
+  padding: .7rem 1.75rem;
+}
+.topology-state strong { color: var(--teal-deep); text-transform: uppercase; }
+.topology-state span { color: var(--ink-soft); }
 .section-heading {
   align-items: center;
   border-bottom: 1px solid var(--line);

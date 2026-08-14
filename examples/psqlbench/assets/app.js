@@ -48,10 +48,12 @@
   const linkFormNote = document.querySelector("#link-form-note");
   const topologyPreset = document.querySelector("#topology-preset");
   const launchPreset = document.querySelector("#launch-preset");
+  const topologyState = document.querySelector("#topology-state");
 
   let toastTimer;
   let instances = [];
   let links = [];
+  let desiredTopology = { instances: [], links: [], state_file: "" };
   const linkActivity = new Map();
   const quietLinkActivityKinds = new Set([
     "PRIMARY_KEEPALIVE",
@@ -133,11 +135,16 @@
 
   function detailsOf(instance) {
     const labels = labelsOf(instance.Labels);
+    const name = labels["org.flyology.psqlbench.instance"] || String(instance.Names || "").replace(/^psqlbench-/, "");
+    const desired = desiredTopology.instances.find(value => value.name === name);
+    const linkManaged = labels["org.flyology.psqlbench.role"] === "physical-standby";
     return {
-      name: labels["org.flyology.psqlbench.instance"] || String(instance.Names || "").replace(/^psqlbench-/, ""),
+      name,
       version: labels["org.flyology.psqlbench.version"] || String(instance.Image || "postgres:?").split(":")[1],
       port: labels["org.flyology.psqlbench.port"] || "-",
-      running: String(instance.State || "").toLowerCase() === "running"
+      running: String(instance.State || "").toLowerCase() === "running",
+      desiredRunning: desired ? Boolean(desired.running) : null,
+      linkManaged
     };
   }
 
@@ -170,7 +177,7 @@
     head.append(title, el("span", "node-status", details.running ? "running" : (instance.State || "stopped")));
 
     const meta = el("dl", "node-meta");
-    [["host", `127.0.0.1:${details.port}`], ["container", instance.Names || `psqlbench-${details.name}`], ["health", instance.Status || "unknown"]]
+    [["host", `127.0.0.1:${details.port}`], ["container", instance.Names || `psqlbench-${details.name}`], ["health", instance.Status || "unknown"], ["desired", details.linkManaged ? "link-managed" : (details.desiredRunning === null ? "discovered" : (details.desiredRunning ? "running" : "stopped"))]]
       .forEach(([key, value]) => {
         const row = document.createElement("div");
         row.append(el("dt", "", key), el("dd", "", value));
@@ -247,7 +254,7 @@
       link.name, link.source, link.target, link.target_version,
       link.target_port, link.table, link.source_relation,
       link.target_relation, link.status, link.mode,
-      link.relay_port, link.detail
+      link.relay_port, link.detail, link.desired_running
     ]);
   }
 
@@ -306,7 +313,7 @@
     );
 
     const stats = el("dl", "link-stats");
-    [["endpoint", physical ? "standby port" : "target", physical ? `127.0.0.1:${link.target_port}` : link.target_relation], ["changes", physical ? "wal frames" : "changes", String(link.changes || 0)], ["last-lsn", "last lsn", link.last_lsn || "waiting"], ["relay", "relay", physical ? `0.0.0.0:${link.relay_port}` : `127.0.0.1:${link.relay_port}`]]
+    [["endpoint", physical ? "standby port" : "target", physical ? `127.0.0.1:${link.target_port}` : link.target_relation], ["changes", physical ? "wal frames" : "changes", String(link.changes || 0)], ["last-lsn", "last lsn", link.last_lsn || "waiting"], ["relay", "relay", physical ? `0.0.0.0:${link.relay_port}` : `127.0.0.1:${link.relay_port}`], ["desired", "desired", link.desired_running ? "running" : "stopped"]]
       .forEach(([name, key, value]) => {
         const row = document.createElement("div");
         const output = el("dd", "", value);
@@ -378,10 +385,12 @@
       switchTab("query");
       queryInput.focus();
     });
-    const stop = el("button", "button secondary", "Stop");
-    stop.type = "button";
-    stop.disabled = !["running", "starting", "pending"].includes(link.status);
-    stop.addEventListener("click", () => applyLinkAction(link.name, "stop", stop));
+    const stateAction = el("button", "button secondary", link.desired_running ? "Stop" : "Resume");
+    stateAction.type = "button";
+    stateAction.disabled = link.desired_running
+      ? !["running", "starting", "pending", "restoring"].includes(link.status)
+      : !["stopped", "failed"].includes(link.status);
+    stateAction.addEventListener("click", () => applyLinkAction(link.name, link.desired_running ? "stop" : "start", stateAction));
     const activity = el("button", "button secondary", "View activity");
     activity.type = "button";
     activity.addEventListener("click", () => {
@@ -389,7 +398,7 @@
       applyActivityFilter();
       events.scrollIntoView({ behavior: "smooth", block: "start" });
     });
-    actions.append(insert, pattern, inspect, activity, stop);
+    actions.append(insert, pattern, inspect, activity, stateAction);
     article.append(heading, route, stats, replay, detail, live, actions);
     return article;
   }
@@ -620,7 +629,10 @@
     try {
       const status = await request("/api/status");
       daemon.className = `daemon ${status.docker_ready ? "ready" : "failed"}`;
-      daemon.lastElementChild.textContent = status.docker_ready ? "Docker ready · CLI transport" : status.detail;
+      daemon.lastElementChild.textContent = status.docker_ready
+        ? `Docker ready · ${status.desired_instances} ${status.desired_instances === 1 ? "node" : "nodes"} / ${status.desired_links} ${status.desired_links === 1 ? "link" : "links"} saved`
+        : status.detail;
+      daemon.title = status.state_file || "";
     } catch (_error) {
       daemon.className = "daemon failed";
       daemon.lastElementChild.textContent = "Control plane unavailable";
@@ -629,7 +641,17 @@
 
   async function refreshInstances() {
     try {
-      renderInstances(await request("/api/instances"));
+      const [topology, actual] = await Promise.all([
+        request("/api/topology"),
+        request("/api/instances")
+      ]);
+      desiredTopology = topology;
+      const nodeCount = topology.instances.length;
+      const linkCount = topology.links.length;
+      topologyState.lastElementChild.textContent =
+        `${nodeCount} ${nodeCount === 1 ? "node" : "nodes"} and ${linkCount} ${linkCount === 1 ? "link" : "links"} persist across control-plane restarts`;
+      topologyState.title = topology.state_file || "";
+      renderInstances(actual);
     } catch (error) {
       showError(error.message);
     }
@@ -686,7 +708,7 @@
       try {
         const value = JSON.parse(message.data);
         addEvent(value);
-        if (String(value.type || "").startsWith("instance.")) refreshInstances();
+        if (String(value.type || "").startsWith("instance.") || value.type === "topology.reconciled") refreshInstances();
         if (String(value.type || "").startsWith("link.")) refreshLinks();
       } catch (_error) {
         addEvent({ type: "invalid.event", payload: String(message.data) });

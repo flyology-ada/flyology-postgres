@@ -388,6 +388,21 @@ package body Psqlbench_Docker is
       return Run (Item, Token, Deadline);
    end Instance_Role;
 
+   function Instance_Running
+     (Name     : String;
+      Token    : access Flyology.Cancellation.Token := null;
+      Deadline : Ada.Real_Time.Time := Ada.Real_Time.Time_Last) return Result
+   is
+      Item : Command;
+   begin
+      Add (Item, "container");
+      Add (Item, "inspect");
+      Add (Item, "--format");
+      Add (Item, "{{.State.Running}}");
+      Add (Item, "psqlbench-" & Name);
+      return Run (Item, Token, Deadline);
+   end Instance_Running;
+
    function Inspect_Instance
      (Name     : String;
       Token    : access Flyology.Cancellation.Token := null;

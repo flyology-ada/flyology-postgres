@@ -30,6 +30,11 @@ package Psqlbench_JSON is
       Name     : String;
       Default  : Natural) return Natural;
 
+   function Boolean_Field
+     (Document : String;
+      Name     : String;
+      Default  : Boolean) return Boolean;
+
    function Valid_Name (Value : String) return Boolean;
    function Valid_SQL_Identifier (Value : String) return Boolean;
    function Valid_Version (Value : String) return Boolean;

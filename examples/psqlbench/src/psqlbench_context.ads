@@ -11,6 +11,7 @@ package Psqlbench_Context is
    Link_Command_Capacity : constant := 16;
    Max_Link_Name_Bytes : constant := 24;
    Max_Link_Detail_Bytes : constant := 192;
+   Max_Instances : constant := 32;
 
    subtype Event_Sequence is Interfaces.Unsigned_64;
 
@@ -33,7 +34,7 @@ package Psqlbench_Context is
    type Log_Array is array (Positive range <>) of Log_Record;
 
    type Link_Status is
-     (Link_Empty, Link_Pending, Link_Starting, Link_Running,
+     (Link_Empty, Link_Pending, Link_Restoring, Link_Starting, Link_Running,
       Link_Stopping, Link_Stopped, Link_Failed);
 
    type Link_Mode is
@@ -68,6 +69,7 @@ package Psqlbench_Context is
       Start_LSN     : Interfaces.Unsigned_64 := 0;
       Last_LSN      : Interfaces.Unsigned_64 := 0;
       Applied_LSN   : Interfaces.Unsigned_64 := 0;
+      Desired_Running : Boolean := True;
       Detail_Length : Natural range 0 .. Max_Link_Detail_Bytes := 0;
       Detail        : String (1 .. Max_Link_Detail_Bytes) := (others => ' ');
    end record;
@@ -84,6 +86,20 @@ package Psqlbench_Context is
 
    type Link_Command_Array is
      array (Positive range 1 .. Link_Command_Capacity) of Link_Command;
+
+   type Instance_Record is record
+      Occupied       : Boolean := False;
+      Desired_Running : Boolean := True;
+      Name_Length    : Natural range 0 .. Max_Instance_Name_Bytes := 0;
+      Name           : String (1 .. Max_Instance_Name_Bytes) :=
+        (others => ' ');
+      Version_Length : Natural range 0 .. 16 := 0;
+      Version        : String (1 .. 16) := (others => ' ');
+      Port           : Natural range 0 .. 65_535 := 0;
+   end record;
+
+   type Instance_Array is
+     array (Positive range 1 .. Max_Instances) of Instance_Record;
 
    protected type Event_Log is
       procedure Append (Value : String);
@@ -124,6 +140,20 @@ package Psqlbench_Context is
       Detail_Value : String (1 .. 256) := (others => ' ');
    end Docker_Status;
 
+   protected type Instance_Registry is
+      procedure Upsert
+        (Name, Version : String;
+         Port          : Natural;
+         Running       : Boolean;
+         Accepted      : out Boolean);
+      procedure Set_Running
+        (Name : String; Running : Boolean; Accepted : out Boolean);
+      procedure Forget (Name : String);
+      procedure Snapshot (Value : out Instance_Array; Count : out Natural);
+   private
+      Entries : Instance_Array;
+   end Instance_Registry;
+
    protected type Link_Registry is
       procedure Create
         (Name, Source, Target : String;
@@ -134,7 +164,9 @@ package Psqlbench_Context is
          Target_Port : Natural;
          Accepted : out Boolean;
          Detail   : out String;
-         Last     : out Natural);
+         Last     : out Natural;
+         Desired_Running : Boolean := True;
+         Restoring : Boolean := False);
       procedure Request
         (Name     : String;
          Action   : Link_Command_Kind;
@@ -150,6 +182,7 @@ package Psqlbench_Context is
         (Name : String; LSN : Interfaces.Unsigned_64);
       procedure Record_Applied
         (Name : String; LSN : Interfaces.Unsigned_64);
+      function References_Instance (Name : String) return Boolean;
       procedure Snapshot (Value : out Link_Array; Count : out Natural);
    private
       Entries : Link_Array;
@@ -162,6 +195,7 @@ package Psqlbench_Context is
       Events : aliased Event_Log;
       Logs   : aliased Log_Store;
       Docker : Docker_Status;
+      Instances : Instance_Registry;
       Links  : Link_Registry;
    end record;
 
