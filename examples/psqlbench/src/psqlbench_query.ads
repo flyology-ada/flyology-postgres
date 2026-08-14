@@ -6,6 +6,7 @@ package Psqlbench_Query is
    Max_Query_Bytes : constant := 16 * 1_024;
    Max_Query_Event_Bytes : constant := 16 * 1_024;
    Query_Event_Capacity : constant := 1_024;
+   Query_Page_Size : constant := 250;
 
    type Query_Event is record
       Sequence : Psqlbench_Context.Event_Sequence := 0;
@@ -31,18 +32,23 @@ package Psqlbench_Query is
       Finished      : Boolean := False;
    end Event_Stream;
 
-   protected type Cancellation_State is
-      procedure Request;
-      function Requested return Boolean;
+   protected type Query_Control is
+      procedure Request_Cancel;
+      function Cancel_Requested return Boolean;
+      procedure Request_Page;
+      function Page_Exhausted return Boolean;
+      entry Wait_For_Row (Proceed : out Boolean);
    private
-      Is_Requested : Boolean := False;
-   end Cancellation_State;
+      Is_Cancelled   : Boolean := False;
+      Rows_Available : Natural range 0 .. Query_Page_Size :=
+        Query_Page_Size;
+   end Query_Control;
 
    procedure Execute
      (Name         : String;
       Port         : Positive;
       SQL          : String;
       Events       : in out Event_Stream;
-      Cancellation : in out Cancellation_State);
+      Control      : in out Query_Control);
 
 end Psqlbench_Query;

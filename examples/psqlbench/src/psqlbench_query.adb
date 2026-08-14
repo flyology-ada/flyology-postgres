@@ -23,8 +23,6 @@ package body Psqlbench_Query is
    use type Protocol.UInt32;
    use type Psqlbench_Context.Event_Sequence;
 
-   Max_Rows : constant := 1_000;
-
    type Type_Name_Array is array (Positive range <>) of Unbounded_String;
 
    function Compact (Value : Protocol.UInt32) return String is
@@ -96,21 +94,41 @@ package body Psqlbench_Query is
       end Read_After;
    end Event_Stream;
 
-   protected body Cancellation_State is
-      procedure Request is
+   protected body Query_Control is
+      procedure Request_Cancel is
       begin
-         Is_Requested := True;
-      end Request;
+         Is_Cancelled := True;
+      end Request_Cancel;
 
-      function Requested return Boolean is (Is_Requested);
-   end Cancellation_State;
+      function Cancel_Requested return Boolean is (Is_Cancelled);
+
+      procedure Request_Page is
+      begin
+         if Rows_Available = 0 and then not Is_Cancelled then
+            Rows_Available := Query_Page_Size;
+         end if;
+      end Request_Page;
+
+      function Page_Exhausted return Boolean is
+        (Rows_Available = 0);
+
+      entry Wait_For_Row (Proceed : out Boolean)
+        when Rows_Available > 0 or else Is_Cancelled
+      is
+      begin
+         Proceed := not Is_Cancelled;
+         if Proceed then
+            Rows_Available := Rows_Available - 1;
+         end if;
+      end Wait_For_Row;
+   end Query_Control;
 
    procedure Execute
      (Name         : String;
       Port         : Positive;
       SQL          : String;
       Events       : in out Event_Stream;
-      Cancellation : in out Cancellation_State)
+      Control      : in out Query_Control)
    is
       Server : constant Sockets.Endpoint := Sockets.Network_Endpoint
         (Sockets.Loopback_IPv4, Sockets.Port (Port));
@@ -154,6 +172,50 @@ package body Psqlbench_Query is
          Psqlbench_JSON.End_Object (Document);
          Events.Append (Psqlbench_JSON.Finish (Document));
       end Send_Simple;
+
+      procedure Send_Page_Ready is
+         Document : Psqlbench_JSON.Writer;
+      begin
+         Psqlbench_JSON.Initialize (Document);
+         Psqlbench_JSON.Start_Object (Document);
+         Psqlbench_JSON.String_Value
+           (Document, "type", "query.page-ready");
+         Psqlbench_JSON.Integer_Value
+           (Document, "rows", Long_Long_Integer (Row_Count));
+         Psqlbench_JSON.Integer_Value
+           (Document, "page_size", Query_Page_Size);
+         Psqlbench_JSON.End_Object (Document);
+         Events.Append (Psqlbench_JSON.Finish (Document));
+      end Send_Page_Ready;
+
+      procedure Cancel_Query is
+      begin
+         if not Cancel_Sent then
+            Client_Sockets.Cancel (Session, Server, Timeout => 5.0);
+            Cancel_Sent := True;
+            Send_Simple ("query.cancelling");
+         end if;
+      end Cancel_Query;
+
+      procedure Send_Ready is
+         Document : Psqlbench_JSON.Writer;
+      begin
+         Psqlbench_JSON.Initialize (Document);
+         Psqlbench_JSON.Start_Object (Document);
+         Psqlbench_JSON.String_Value
+           (Document, "type", "query.ready");
+         Psqlbench_JSON.Integer_Value
+           (Document, "rows", Long_Long_Integer (Row_Count));
+         Psqlbench_JSON.Integer_Value
+           (Document, "elapsed_ms",
+            Long_Long_Integer (Elapsed_Milliseconds));
+         Psqlbench_JSON.Boolean_Value
+           (Document, "truncated", Truncated);
+         Psqlbench_JSON.Boolean_Value
+           (Document, "cancelled", Cancel_Sent);
+         Psqlbench_JSON.End_Object (Document);
+         Events.Append (Psqlbench_JSON.Finish (Document));
+      end Send_Ready;
 
       procedure Resolve_Type_Names
         (Description : Protocol.Row_Description;
@@ -272,10 +334,8 @@ package body Psqlbench_Query is
       Client.Send_Query (Session, SQL, Timeout => 10.0);
 
       loop
-         if Cancellation.Requested and then not Cancel_Sent then
-            Client_Sockets.Cancel (Session, Server, Timeout => 5.0);
-            Cancel_Sent := True;
-            Send_Simple ("query.cancelling");
+         if Control.Cancel_Requested and then not Cancel_Sent then
+            Cancel_Query;
          end if;
          begin
             declare
@@ -297,14 +357,17 @@ package body Psqlbench_Query is
                         Psqlbench_JSON.String_Value
                           (Document, "type", "query.columns");
                         Psqlbench_JSON.Start_Array (Document, "columns");
-                        for Index in 1 .. Protocol.Field_Count (Description) loop
+                        for Index in
+                          1 .. Protocol.Field_Count (Description)
+                        loop
                            declare
                               Field : constant Protocol.Field_Description :=
                                 Protocol.Field_At (Description, Index);
                            begin
                               Psqlbench_JSON.Start_Object (Document);
                               Psqlbench_JSON.String_Value
-                                (Document, "name", Protocol.Field_Name (Field));
+                                (Document, "name",
+                                 Protocol.Field_Name (Field));
                               Psqlbench_JSON.Integer_Value
                                 (Document, "type_oid",
                                  Long_Long_Integer
@@ -321,48 +384,64 @@ package body Psqlbench_Query is
                      end;
 
                   when Protocol.Data_Row_Response =>
-                     Row_Count := Row_Count + 1;
-                     if Row_Count <= Max_Rows then
-                        declare
-                           Row : constant Protocol.Data_Row :=
-                             Protocol.Row_Data (Event);
-                           Document : Psqlbench_JSON.Writer;
-                        begin
-                           Psqlbench_JSON.Initialize (Document);
-                           Psqlbench_JSON.Start_Object (Document);
-                           Psqlbench_JSON.String_Value
-                             (Document, "type", "query.row");
-                           Psqlbench_JSON.Start_Array (Document, "values");
-                           for Index in 1 .. Protocol.Column_Count (Row) loop
+                     if Control.Page_Exhausted then
+                        Send_Page_Ready;
+                     end if;
+                     declare
+                        Proceed : Boolean;
+                     begin
+                        Control.Wait_For_Row (Proceed);
+                        if not Proceed then
+                           Cancel_Sent := True;
+                           Send_Simple ("query.cancelling");
+                           if Sockets.Is_Open (Socket) then
+                              Sockets.Close_Socket (Socket);
+                           end if;
+                           Send_Ready;
+                           exit;
+                        else
+                           Row_Count := Row_Count + 1;
+                           declare
+                              Row : constant Protocol.Data_Row :=
+                                Protocol.Row_Data (Event);
+                              Document : Psqlbench_JSON.Writer;
+                           begin
+                              Psqlbench_JSON.Initialize (Document);
+                              Psqlbench_JSON.Start_Object (Document);
+                              Psqlbench_JSON.String_Value
+                                (Document, "type", "query.row");
+                              Psqlbench_JSON.Start_Array (Document, "values");
+                              for Index in
+                                1 .. Protocol.Column_Count (Row)
+                              loop
+                                 declare
+                                    Value : constant Protocol.Column_Value :=
+                                      Protocol.Column_At (Row, Index);
+                                 begin
+                                    if Protocol.Is_Null (Value) then
+                                       Psqlbench_JSON.Null_Value (Document);
+                                    else
+                                       Psqlbench_JSON.String_Value
+                                         (Document, "",
+                                          Protocol.Column_Text (Value));
+                                    end if;
+                                 end;
+                              end loop;
+                              Psqlbench_JSON.End_Array (Document, "values");
+                              Psqlbench_JSON.End_Object (Document);
                               declare
-                                 Value : constant Protocol.Column_Value :=
-                                   Protocol.Column_At (Row, Index);
+                                 Data : constant String :=
+                                   Psqlbench_JSON.Finish (Document);
                               begin
-                                 if Protocol.Is_Null (Value) then
-                                    Psqlbench_JSON.Null_Value (Document);
+                                 if Data'Length <= Max_Query_Event_Bytes then
+                                    Events.Append (Data);
                                  else
-                                    Psqlbench_JSON.String_Value
-                                      (Document, "",
-                                       Protocol.Column_Text (Value));
+                                    Truncated := True;
                                  end if;
                               end;
-                           end loop;
-                           Psqlbench_JSON.End_Array (Document, "values");
-                           Psqlbench_JSON.End_Object (Document);
-                           declare
-                              Data : constant String :=
-                                Psqlbench_JSON.Finish (Document);
-                           begin
-                           if Data'Length <= Max_Query_Event_Bytes then
-                              Events.Append (Data);
-                           else
-                              Truncated := True;
-                           end if;
                            end;
-                        end;
-                     else
-                        Truncated := True;
-                     end if;
+                        end if;
+                     end;
 
                   when Protocol.Command_Complete_Response =>
                      declare
@@ -396,25 +475,7 @@ package body Psqlbench_Query is
                      end;
 
                   when Protocol.Ready_For_Query_Response =>
-                     declare
-                        Document : Psqlbench_JSON.Writer;
-                     begin
-                        Psqlbench_JSON.Initialize (Document);
-                        Psqlbench_JSON.Start_Object (Document);
-                        Psqlbench_JSON.String_Value
-                          (Document, "type", "query.ready");
-                        Psqlbench_JSON.Integer_Value
-                          (Document, "rows", Long_Long_Integer (Row_Count));
-                        Psqlbench_JSON.Integer_Value
-                          (Document, "elapsed_ms",
-                           Long_Long_Integer (Elapsed_Milliseconds));
-                        Psqlbench_JSON.Boolean_Value
-                          (Document, "truncated", Truncated);
-                        Psqlbench_JSON.Boolean_Value
-                          (Document, "cancelled", Cancel_Sent);
-                        Psqlbench_JSON.End_Object (Document);
-                        Events.Append (Psqlbench_JSON.Finish (Document));
-                     end;
+                     Send_Ready;
                      exit;
 
                   when Protocol.Copy_In_Response |

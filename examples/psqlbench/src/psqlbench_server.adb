@@ -1374,11 +1374,12 @@ package body Psqlbench_Server is
                      elsif SQL'Length = 0 then
                         X.Send_WebSocket
                           (Message_Document
-                             ("query.error", "A non-empty sql field is required"));
+                             ("query.error",
+                              "A non-empty sql field is required"));
                      else
                         declare
                            Query_Events : Psqlbench_Query.Event_Stream;
-                           Query_Cancel : Psqlbench_Query.Cancellation_State;
+                           Query_Control : Psqlbench_Query.Query_Control;
                            Cursor : Psqlbench_Context.Event_Sequence := 0;
                            Peer_Closed : Boolean := False;
 
@@ -1390,7 +1391,7 @@ package body Psqlbench_Server is
                            begin
                               Psqlbench_Query.Execute
                                 (Name, Port_No, SQL,
-                                 Query_Events, Query_Cancel);
+                                 Query_Events, Query_Control);
                            end Worker;
                         begin
                            loop
@@ -1433,22 +1434,26 @@ package body Psqlbench_Server is
                                        Message_Timeout => 30.0);
                                     if Next_Closed then
                                        Peer_Closed := True;
-                                       Query_Cancel.Request;
+                                       Query_Control.Request_Cancel;
                                     elsif Next_Kind = HTTP.Text_Frame then
                                        declare
                                           Next : constant String :=
                                             Flyology.Bytes.To_Byte_String
                                               (Next_Data);
+                                          Next_Command : constant String :=
+                                            Psqlbench_JSON.String_Field
+                                              (Next, "type");
                                        begin
-                                          if Psqlbench_JSON.String_Field
-                                               (Next, "type") = "cancel"
-                                          then
-                                             Query_Cancel.Request;
+                                          if Next_Command = "cancel" then
+                                             Query_Control.Request_Cancel;
+                                          elsif Next_Command = "more" then
+                                             Query_Control.Request_Page;
                                           else
                                              X.Send_WebSocket
                                                (Message_Document
                                                   ("query.busy",
-                                                   "Cancel or wait for the current query"));
+                                                   "Cancel or wait for "
+                                                   & "the current query"));
                                           end if;
                                        end;
                                     end if;

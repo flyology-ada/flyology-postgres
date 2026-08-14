@@ -894,6 +894,21 @@ main.desktop {
 .query-output { display: flex; flex-direction: column; min-height: 0; }
 .output-heading { height: 2.2rem; padding: 0 .7rem; }
 .result-scroll { flex: 1 1 auto; max-height: none; min-height: 0; }
+.result-loader {
+  align-items: center;
+  background: color-mix(in oklch, var(--surface) 94%, transparent);
+  border-top: 1px solid var(--line);
+  bottom: 0;
+  display: flex;
+  font-family: var(--mono);
+  font-size: .56rem;
+  justify-content: space-between;
+  padding: .4rem .6rem;
+  position: sticky;
+  z-index: 3;
+}
+.result-loader span { color: var(--ink-soft); }
+.result-loader .button { padding: .3rem .5rem; }
 .result-table { font-size: .62rem; }
 .result-table th, .result-table td { padding: .5rem .6rem; }
 

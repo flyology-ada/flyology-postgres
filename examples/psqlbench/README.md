@@ -19,8 +19,9 @@ over the daemon's Unix-domain socket; psqlbench does not invoke the Docker CLI.
 - streams columns, rows, command tags, notices, errors, duration, and
   cancellation state into a bounded tabular result, resolving every result
   type OID through that server's own `pg_type` catalog;
-- retains the complete 1,000-row display bound in a compact 1,024-event ring
-  and drains available event batches without per-row polling latency;
+- streams query results in demand-driven 250-row pages, pausing PostgreSQL
+  intake between pages until the result viewport requests more, while retaining
+  the compact 1,024-event ring and batched event draining;
 - continuously collects timestamped output for every owned container into a
   bounded 1,024-line ring, and replays the selected server's retained output
   before following it live;

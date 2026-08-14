@@ -77,6 +77,10 @@
   let queryGeneration = 0;
   let queryRunning = false;
   let resultBody;
+  let resultLoader;
+  let queryHasMore = false;
+  let queryPageSize = 250;
+  let loadedRowCount = 0;
   let logSocket;
   let logGeneration = 0;
   let logLines = 0;
@@ -1275,6 +1279,9 @@
 
   function resetQueryOutput() {
     resultBody = undefined;
+    resultLoader = undefined;
+    queryHasMore = false;
+    loadedRowCount = 0;
     queryMessages.replaceChildren();
     queryResult.replaceChildren(el("p", "output-empty", "Waiting for columns and rows."));
     commandTag.textContent = "running";
@@ -1285,6 +1292,8 @@
   }
 
   function beginTable(columns) {
+    resultLoader = undefined;
+    queryHasMore = false;
     const table = el("table", "result-table");
     const head = document.createElement("thead");
     const headRow = document.createElement("tr");
@@ -1317,6 +1326,35 @@
       row.append(cell);
     });
     resultBody.append(row);
+    loadedRowCount += 1;
+  }
+
+  function requestMoreRows() {
+    if (!queryHasMore || !querySocket
+      || querySocket.readyState !== WebSocket.OPEN) return;
+    queryHasMore = false;
+    if (resultLoader) {
+      const button = resultLoader.querySelector("button");
+      button.disabled = true;
+      button.textContent = "Loading next batch";
+    }
+    queryState.textContent = `${loadedRowCount} rows loaded · fetching ${queryPageSize} more`;
+    querySocket.send(JSON.stringify({ type: "more" }));
+  }
+
+  function offerNextPage(value) {
+    queryHasMore = true;
+    queryPageSize = Number(value.page_size) || 250;
+    if (resultLoader) resultLoader.remove();
+    resultLoader = el("div", "result-loader");
+    const count = Number(value.rows) || loadedRowCount;
+    const summary = el("span", "", `${count} rows loaded`);
+    const button = el("button", "button secondary", `Load ${queryPageSize} more`);
+    button.type = "button";
+    button.addEventListener("click", requestMoreRows);
+    resultLoader.append(summary, button);
+    queryResult.append(resultLoader);
+    queryState.textContent = `${count} rows loaded · scroll for more`;
   }
 
   function handleQueryEvent(value) {
@@ -1334,6 +1372,7 @@
         break;
       case "query.columns": beginTable(value.columns || []); break;
       case "query.row": addResultRow(value.values || []); break;
+      case "query.page-ready": offerNextPage(value); break;
       case "query.complete": commandTag.textContent = value.command || "complete"; break;
       case "query.notice": addQueryMessage(`${value.sql_state || "NOTICE"}: ${value.message}`); break;
       case "query.error":
@@ -1342,6 +1381,9 @@
         break;
       case "query.cancelling": queryState.textContent = "Cancellation requested"; break;
       case "query.ready":
+        queryHasMore = false;
+        if (resultLoader) resultLoader.remove();
+        resultLoader = undefined;
         queryRunning = false;
         runQuery.disabled = false;
         cancelQuery.disabled = true;
@@ -1612,6 +1654,11 @@
   queryInput.addEventListener("scroll", () => {
     queryHighlight.parentElement.scrollTop = queryInput.scrollTop;
     queryHighlight.parentElement.scrollLeft = queryInput.scrollLeft;
+  });
+  queryResult.addEventListener("scroll", () => {
+    const remaining = queryResult.scrollHeight
+      - queryResult.scrollTop - queryResult.clientHeight;
+    if (remaining < 96) requestMoreRows();
   });
   clearLogs.addEventListener("click", () => {
     logLines = 0;
