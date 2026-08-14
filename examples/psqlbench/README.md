@@ -61,7 +61,11 @@ over the daemon's Unix-domain socket; psqlbench does not invoke the Docker CLI.
 - creates idempotent logical-stream, physical-standby, and mixed-version sample
   topologies from UI presets, reusing matching managed containers after an app
   restart;
-- runs Docker operations through one bounded native executor; and
+- exposes a confirmed Reset lab action that stops every supervised link,
+  removes labeled psqlbench containers and their data volumes, and clears the
+  durable topology while preserving Postgres images and the private network;
+- runs Docker operations through a bounded Flyology HTTP Unix-socket client
+  pool; and
 - supervises Docker readiness, log collection, the dynamic link family, and the
   HTTP service as a dependency-ordered topology.
 
@@ -180,7 +184,9 @@ directory.
 The demo creates only containers, physical-standby volumes, and networks with
 the `psqlbench` prefix and Flyology ownership labels. Removing an instance
 removes its container and any psqlbench physical-standby volume with the same
-name.
+name. Reset lab removes every labeled psqlbench instance and attached data
+volume after stopping replication links. It does not remove pulled images, the
+`psqlbench` network, or unrelated Docker resources.
 
 ## Docker transport boundary
 

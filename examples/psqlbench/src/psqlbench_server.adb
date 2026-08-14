@@ -1,5 +1,6 @@
 with Ada.Environment_Variables;
 with Ada.Exceptions;
+with Ada.Real_Time;
 with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Text_IO;
@@ -30,6 +31,7 @@ package body Psqlbench_Server is
    package Sockets renames Flyology.IO.Sockets;
 
    use type Interfaces.Unsigned_64;
+   use type Ada.Real_Time.Time;
    use type Psqlbench_Docker.Instance_Action;
    use type Psqlbench_Context.Link_Command_Kind;
    use type Psqlbench_Context.Link_Mode;
@@ -88,6 +90,31 @@ package body Psqlbench_Server is
          Psqlbench_JSON.End_Object (Document);
          return Psqlbench_JSON.Finish (Document);
       end Status_Document;
+
+      function Reset_Document
+        (Instances_Removed, Links_Removed : Natural;
+         Event                            : Boolean) return String
+      is
+         Document : Psqlbench_JSON.Writer;
+      begin
+         Psqlbench_JSON.Initialize (Document);
+         Psqlbench_JSON.Start_Object (Document);
+         if Event then
+            Psqlbench_JSON.String_Value
+              (Document, "type", "topology.reset");
+         end if;
+         Psqlbench_JSON.Integer_Value
+           (Document, "instances_removed",
+            Long_Long_Integer (Instances_Removed));
+         Psqlbench_JSON.Integer_Value
+           (Document, "links_removed", Long_Long_Integer (Links_Removed));
+         Psqlbench_JSON.Boolean_Value
+           (Document, "images_preserved", True);
+         Psqlbench_JSON.Boolean_Value
+           (Document, "network_preserved", True);
+         Psqlbench_JSON.End_Object (Document);
+         return Psqlbench_JSON.Finish (Document);
+      end Reset_Document;
 
       function Instance_Document
         (Name, Version : String; Port_No : Natural;
@@ -534,6 +561,117 @@ package body Psqlbench_Server is
          State.Root.Links.Snapshot (Value, Count);
          X.JSON (200, Links_Document (Value, Count));
       end Links;
+
+      procedure Reset_Lab
+        (State : in out Application_Context;
+         X     : in out App.Exchange)
+      is
+         Confirmation : constant String :=
+           Psqlbench_JSON.String_Field (X.Content, "confirmation");
+         Links_Removed : Natural := 0;
+         Instances_Removed : Natural := 0;
+         Remaining_Links : Psqlbench_Context.Link_Array;
+         Remaining_Link_Count : Natural;
+         First_Error : Unbounded_String;
+
+         procedure Record_Error (Name, Detail : String) is
+         begin
+            if Length (First_Error) = 0 then
+               First_Error := To_Unbounded_String
+                 ("Could not remove " & Name & ": " & Diagnostic (Detail));
+            end if;
+         end Record_Error;
+
+         procedure Remove_Instance (Name : String) is
+         begin
+            if not Psqlbench_JSON.Valid_Name (Name) then
+               Record_Error (Name, "invalid managed instance label");
+               return;
+            end if;
+            declare
+               Removed : constant Psqlbench_Docker.Result :=
+                 Psqlbench_Docker.Apply
+                   (Name, Psqlbench_Docker.Remove_Instance,
+                    X.Cancellation, X.Deadline);
+            begin
+               if Removed.Success then
+                  Instances_Removed := Instances_Removed + 1;
+               else
+                  Record_Error (Name, Psqlbench_Docker.Text (Removed));
+               end if;
+            end;
+         end Remove_Instance;
+      begin
+         if Confirmation /= "reset-lab" then
+            X.Problem
+              (400, "reset-confirmation-required",
+               "Confirm the scoped lab reset before removing resources");
+            return;
+         end if;
+
+         State.Root.Links.Request_Remove_All (Links_Removed);
+         loop
+            State.Root.Links.Snapshot
+              (Remaining_Links, Remaining_Link_Count);
+            exit when Remaining_Link_Count = 0;
+            if X.Deadline /= Ada.Real_Time.Time_Last
+              and then Ada.Real_Time.Clock >= X.Deadline
+            then
+               X.Problem
+                 (504, "reset-link-timeout",
+                  "Timed out while stopping replication links; retry reset");
+               return;
+            end if;
+            delay 0.050;
+         end loop;
+
+         declare
+            Listed : constant Psqlbench_Docker.Result :=
+              Psqlbench_Docker.List_Instance_Names
+                (X.Cancellation, X.Deadline);
+         begin
+            if not Listed.Success then
+               X.Problem
+                 (503, "reset-list-failed",
+                  Diagnostic (Psqlbench_Docker.Text (Listed)));
+               return;
+            end if;
+            declare
+               Names : constant String := Psqlbench_Docker.Text (Listed);
+               First : Positive := Names'First;
+            begin
+               for Index in Names'Range loop
+                  if Names (Index) = ASCII.LF then
+                     if Index > First then
+                        Remove_Instance (Names (First .. Index - 1));
+                     end if;
+                     First := Index + 1;
+                  end if;
+               end loop;
+               if Names'Length > 0 and then First <= Names'Last then
+                  Remove_Instance (Names (First .. Names'Last));
+               end if;
+            end;
+         end;
+
+         State.Root.Instances.Clear;
+         Psqlbench_Persistence.Save (State.Root.all);
+         if Length (First_Error) > 0 then
+            X.Problem
+              (409, "reset-partial", To_String (First_Error));
+            return;
+         end if;
+         State.Root.Events.Append
+           (Reset_Document (Instances_Removed, Links_Removed, Event => True));
+         X.JSON
+           (200,
+            Reset_Document
+              (Instances_Removed, Links_Removed, Event => False));
+      exception
+         when Error : Constraint_Error =>
+            X.Problem
+              (400, "invalid-json", Ada.Exceptions.Exception_Message (Error));
+      end Reset_Lab;
 
       procedure Create_Link
         (State : in out Application_Context;
@@ -1263,7 +1401,7 @@ package body Psqlbench_Server is
       type Service_Context is limited record
          Application : aliased Application_Context;
          Routes      : aliased Routing.Router
-           (Capacity => 14, Slashes => Routing.Strict_Slashes);
+           (Capacity => 15, Slashes => Routing.Strict_Slashes);
          Budget      : aliased HTTP.Ingress_Budget
            (Limit => 4 * 1_024 * 1_024);
       end record;
@@ -1323,6 +1461,14 @@ package body Psqlbench_Server is
       State.Routes.Get
         ("/api/topology", Topology'Access, Name => "api.topology");
       State.Routes.Get ("/api/links", Links'Access, Name => "api.links");
+      State.Routes.Post
+        ("/api/lab/reset", Reset_Lab'Access, Name => "api.lab.reset",
+         Policy =>
+           (Routing.Default_Route_Policy with delta
+              Body_Handling => App.Buffer_Body,
+              Max_Body      => 1_024,
+              Timeout       => 120.0,
+              Concurrency   => 1));
       State.Routes.Post
         ("/api/links", Create_Link'Access, Name => "api.link.create",
          Policy =>

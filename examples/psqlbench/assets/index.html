@@ -52,9 +52,24 @@
         </div>
       </div>
 
-      <div class="topology-state" id="topology-state" role="status">
-        <strong>Desired state</strong>
-        <span>Loading the durable topology</span>
+      <div class="topology-state" id="topology-state">
+        <div role="status">
+          <strong>Desired state</strong>
+          <span id="topology-summary">Loading the durable topology</span>
+        </div>
+        <button class="button danger compact" type="button" id="open-reset" disabled>Reset lab</button>
+      </div>
+
+      <div class="reset-panel" id="reset-panel" role="region" aria-labelledby="reset-title" hidden>
+        <div class="reset-copy">
+          <strong id="reset-title">Reset this lab?</strong>
+          <p id="reset-summary">Managed instances and replication links will be removed.</p>
+          <small>Attached data volumes and durable topology state will be cleared. Postgres images, the psqlbench network, and unrelated Docker resources stay intact.</small>
+        </div>
+        <div class="reset-actions">
+          <button class="button secondary" type="button" id="cancel-reset">Cancel</button>
+          <button class="button danger" type="button" id="confirm-reset">Reset lab</button>
+        </div>
       </div>
 
       <form class="create-panel" id="create-form" hidden>

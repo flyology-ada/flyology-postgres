@@ -167,6 +167,7 @@ package Psqlbench_Context is
       procedure Set_Running
         (Name : String; Running : Boolean; Accepted : out Boolean);
       procedure Forget (Name : String);
+      procedure Clear;
       procedure Snapshot (Value : out Instance_Array; Count : out Natural);
    private
       Entries : Instance_Array;
@@ -190,6 +191,7 @@ package Psqlbench_Context is
         (Name     : String;
          Action   : Link_Command_Kind;
          Accepted : out Boolean);
+      procedure Request_Remove_All (Count : out Natural);
       procedure Take_Command
         (Value : out Link_Command; Available : out Boolean);
       procedure Set_Status

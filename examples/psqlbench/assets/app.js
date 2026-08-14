@@ -49,6 +49,12 @@
   const topologyPreset = document.querySelector("#topology-preset");
   const launchPreset = document.querySelector("#launch-preset");
   const topologyState = document.querySelector("#topology-state");
+  const topologySummary = document.querySelector("#topology-summary");
+  const openReset = document.querySelector("#open-reset");
+  const resetPanel = document.querySelector("#reset-panel");
+  const resetSummary = document.querySelector("#reset-summary");
+  const cancelReset = document.querySelector("#cancel-reset");
+  const confirmReset = document.querySelector("#confirm-reset");
 
   let toastTimer;
   let instances = [];
@@ -762,10 +768,11 @@
       desiredTopology = topology;
       const nodeCount = topology.instances.length;
       const linkCount = topology.links.length;
-      topologyState.lastElementChild.textContent =
+      topologySummary.textContent =
         `${nodeCount} ${nodeCount === 1 ? "node" : "nodes"} and ${linkCount} ${linkCount === 1 ? "link" : "links"} persist across control-plane restarts`;
       topologyState.title = topology.state_file || "";
       renderInstances(actual);
+      openReset.disabled = nodeCount === 0 && linkCount === 0 && actual.length === 0;
     } catch (error) {
       showError(error.message);
     }
@@ -822,8 +829,10 @@
       try {
         const value = JSON.parse(message.data);
         addEvent(value);
-        if (String(value.type || "").startsWith("instance.") || value.type === "topology.reconciled") refreshInstances();
-        if (String(value.type || "").startsWith("link.")) refreshLinks();
+        if (String(value.type || "").startsWith("instance.")
+          || value.type === "topology.reconciled" || value.type === "topology.reset") refreshInstances();
+        if (String(value.type || "").startsWith("link.") || value.type === "topology.reset") refreshLinks();
+        if (value.type === "topology.reset") refreshStatus();
       } catch (_error) {
         addEvent({ type: "invalid.event", payload: String(message.data) });
       }
@@ -1059,6 +1068,53 @@
     linkForm.hidden = false;
     syncLinkMode();
     linkForm.elements.name.focus();
+  });
+  openReset.addEventListener("click", () => {
+    const actualCount = instances.length;
+    const desiredCount = desiredTopology.instances.length;
+    const linkCount = desiredTopology.links.length;
+    resetSummary.textContent =
+      `Remove ${actualCount} managed ${actualCount === 1 ? "container" : "containers"}, including ${desiredCount} desired ${desiredCount === 1 ? "node" : "nodes"}, and ${linkCount} replication ${linkCount === 1 ? "link" : "links"}.`;
+    resetPanel.hidden = false;
+    confirmReset.focus();
+  });
+  cancelReset.addEventListener("click", () => {
+    resetPanel.hidden = true;
+    openReset.focus();
+  });
+  confirmReset.addEventListener("click", async () => {
+    const creationControls = [openCreate, openLink, topologyPreset, launchPreset];
+    creationControls.forEach(control => { control.disabled = true; });
+    openReset.disabled = true;
+    confirmReset.disabled = true;
+    cancelReset.disabled = true;
+    resetPanel.setAttribute("aria-busy", "true");
+    confirmReset.textContent = "Resetting lab";
+    try {
+      await request("/api/lab/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmation: "reset-lab" })
+      });
+      closeQuerySocket();
+      closeLogSocket();
+      selectedName = "";
+      workspace.hidden = true;
+      resetPanel.hidden = true;
+      await Promise.all([refreshInstances(), refreshLinks(), refreshStatus()]);
+      openCreate.focus();
+    } catch (error) {
+      await Promise.allSettled([refreshInstances(), refreshLinks(), refreshStatus()]);
+      showError(error.message);
+    } finally {
+      resetPanel.removeAttribute("aria-busy");
+      confirmReset.textContent = "Reset lab";
+      confirmReset.disabled = false;
+      cancelReset.disabled = false;
+      creationControls.forEach(control => { control.disabled = false; });
+      openReset.disabled = desiredTopology.instances.length === 0
+        && desiredTopology.links.length === 0 && instances.length === 0;
+    }
   });
   launchPreset.addEventListener("click", async () => {
     launchPreset.disabled = true;

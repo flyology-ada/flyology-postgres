@@ -226,6 +226,11 @@ package body Psqlbench_Context is
          end loop;
       end Forget;
 
+      procedure Clear is
+      begin
+         Entries := (others => <>);
+      end Clear;
+
       procedure Snapshot
         (Value : out Instance_Array; Count : out Natural) is
       begin
@@ -407,6 +412,23 @@ package body Psqlbench_Context is
             end if;
          end loop;
       end Request;
+
+      procedure Request_Remove_All (Count : out Natural) is
+      begin
+         Commands := (others => <>);
+         Command_Head := 1;
+         Command_Count := 0;
+         Count := 0;
+         for Item of Entries loop
+            if Item.Status /= Link_Empty then
+               Item.Status := Link_Stopping;
+               Item.Desired_Running := False;
+               Enqueue
+                 (Remove_Link, Item.Name (1 .. Item.Name_Length));
+               Count := Count + 1;
+            end if;
+         end loop;
+      end Request_Remove_All;
 
       procedure Take_Command
         (Value : out Link_Command; Available : out Boolean) is
