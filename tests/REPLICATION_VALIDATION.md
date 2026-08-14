@@ -10,6 +10,19 @@ TLS private keys are excluded.
 
 ## Evidence in the current matrix
 
+- PostgreSQL 14, 17, and 18 consume a native Flyology `BASE_BACKUP` from real
+  walsenders. The test requires the start LSN/timeline, nullable main-directory
+  tablespace metadata, at least one bounded tar-data event, a SHA-256 manifest,
+  a nondecreasing end LSN on the same timeline, and final `ReadyForQuery`.
+  PostgreSQL 18 also cancels an active, deliberately enlarged backup over a
+  separate verified-TLS connection and requires SQLSTATE `57014` plus clean
+  session recovery. PostgreSQL 17 and 18 upload the manifest of a full backup
+  through COPY IN and then complete a real incremental backup with a successor
+  manifest against a WAL-summarizing server.
+  These endpoints cover both the legacy multi-COPY protocol and the modern
+  multiplexed protocol; command codec unit tests cover the 15, 16, and 17
+  capability boundaries.
+
 - Every committed `pgoutput` scenario applies decoded row changes to a common
   deterministic state oracle. State becomes visible only at `Commit`,
   `StreamCommit`, or `CommitPrepared`; aborted streams and rolled-back prepared

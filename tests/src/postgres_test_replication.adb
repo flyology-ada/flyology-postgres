@@ -12,6 +12,7 @@ with Flyology.Postgres.Client;
 with Flyology.Postgres.Protocol;
 with Flyology.Postgres.Replication;
 with Flyology.Postgres.Replication.Feedback;
+with Flyology.Postgres.Replication.Base_Backups;
 with Flyology.Postgres.Replication.Logical;
 with Flyology.Postgres.Transports.TLS_Sockets;
 
@@ -20,6 +21,8 @@ procedure Postgres_Test_Replication is
    package Client renames Flyology.Postgres.Client;
    package Feedback renames Flyology.Postgres.Replication.Feedback;
    package Logical renames Flyology.Postgres.Replication.Logical;
+   package Base_Backups renames
+     Flyology.Postgres.Replication.Base_Backups;
    package OpenSSL renames Flyology.IO.TLS.OpenSSL;
    package Protocol renames Flyology.Postgres.Protocol;
    package Replication renames Flyology.Postgres.Replication;
@@ -29,6 +32,8 @@ procedure Postgres_Test_Replication is
      Flyology.Postgres.Transports.TLS_Sockets;
 
    use type Client.Operation_State;
+   use type Protocol.Byte;
+   use type Protocol.Byte_Offset;
    use type Logical.LSN;
    use type Logical.Message_Kind;
    use type Logical.Old_Tuple_Kind;
@@ -36,8 +41,8 @@ procedure Postgres_Test_Replication is
    use type Logical.Transaction_Id;
    use type Logical.Tuple_Value_Kind;
    use type Protocol.Backend_Message_Kind;
-   use type Protocol.UInt32;
    use type Replication.Stream_Message_Kind;
+   use type Base_Backups.Event_Kind;
 
    protected Result is
       procedure Pass;
@@ -94,7 +99,7 @@ procedure Postgres_Test_Replication is
       Backend : OpenSSL.OpenSSL_Provider;
       Socket  : aliased Sockets.Socket_Type;
       Channel : aliased Transports.TLS_Socket_Transport (Socket'Access);
-      Session : Client.Session (Channel'Access);
+      Session : aliased Client.Session (Channel'Access);
 
       Scenario : constant String :=
         Environment ("POSTGRES_REPLICATION_SCENARIO");
@@ -365,6 +370,235 @@ procedure Postgres_Test_Replication is
             "the stalled stream never reported a standby position");
          Finish_Stream;
       end Test_Physical_Stall;
+
+      procedure Test_Base_Backup is
+         Major : constant Base_Backups.Server_Major :=
+           Base_Backups.Server_Major'Value (Server_Major);
+         Settings : Base_Backups.Options := Base_Backups.Defaults (Major);
+         Receiver : Base_Backups.Receiver (Session'Access);
+         Saw_Start      : Boolean := False;
+         Saw_Tablespace : Boolean := False;
+         Saw_Archive    : Boolean := False;
+         Saw_Data       : Boolean := False;
+         Saw_Manifest   : Boolean := False;
+         Saw_Manifest_Data : Boolean := False;
+         Saw_End        : Boolean := False;
+         Start_Position : Replication.LSN := 0;
+         End_Position   : Replication.LSN := 0;
+         Start_Timeline : Replication.UInt32 := 0;
+         Cancelled      : Boolean := False;
+         Saw_Cancel_Error : Boolean := False;
+         Prior_Manifest : Flyology.Bytes.Unbounded_Bytes;
+      begin
+         Base_Backups.Set_Label
+           (Settings, "flyology native base backup " & Server_Major);
+         Base_Backups.Set_Progress (Settings);
+         Base_Backups.Set_Checkpoint
+           (Settings, Base_Backups.Fast_Checkpoint);
+         Base_Backups.Include_WAL (Settings);
+         Base_Backups.Wait_For_Archive (Settings, False);
+         Base_Backups.Include_Tablespace_Map (Settings);
+         Base_Backups.Set_Manifest
+           (Settings, Base_Backups.Include_Manifest,
+            Base_Backups.SHA256_Checksum);
+         Base_Backups.Start (Receiver, Settings, Timeout => 10.0);
+
+         loop
+            declare
+               Event : constant Base_Backups.Event :=
+                 Base_Backups.Receive (Receiver, Timeout => 30.0);
+            begin
+               case Base_Backups.Kind (Event) is
+                  when Base_Backups.Backup_Start =>
+                     Start_Position := Base_Backups.Start_LSN (Event);
+                     Start_Timeline := Base_Backups.Timeline (Event);
+                     Saw_Start := Start_Timeline > 0;
+                  when Base_Backups.Tablespace =>
+                     Saw_Tablespace := True;
+                  when Base_Backups.Archive_Start =>
+                     Saw_Archive := True;
+                     if Major >= 15 then
+                        Require
+                          (Base_Backups.Archive_Name (Event)'Length > 0,
+                           "modern backup archive has no file name");
+                     end if;
+                  when Base_Backups.Archive_Data =>
+                     Saw_Data := Saw_Data or else
+                       Base_Backups.Data (Event)'Length > 0;
+                     if Scenario = "base_backup_cancel" and then not Cancelled
+                     then
+                        declare
+                           Cancel_Socket : aliased Sockets.Socket_Type;
+                           Cancel_Channel : aliased
+                             Transports.TLS_Socket_Transport
+                               (Cancel_Socket'Access);
+                           Reply : Protocol.Byte_Array (1 .. 1);
+                        begin
+                           Sockets.Create_Socket (Cancel_Socket);
+                           Sockets.Connect
+                             (Cancel_Socket, Server, Timeout => 10.0);
+                           Cancel_Channel.Send_All
+                             (Protocol.Encode_SSL_Request, Timeout => 10.0);
+                           Cancel_Channel.Receive_Exactly
+                             (Reply, Timeout => 10.0);
+                           Require
+                             (Reply (Reply'First) =
+                                Protocol.Byte (Character'Pos ('S')),
+                              "cancel connection TLS was refused");
+                           Cancel_Channel.Upgrade_TLS
+                             (Backend, "localhost", Timeout => 10.0);
+                           Base_Backups.Cancel
+                             (Receiver, Cancel_Channel, Timeout => 10.0);
+                           Cancelled := True;
+                        end;
+                     end if;
+                  when Base_Backups.Manifest_Start =>
+                     Saw_Manifest := True;
+                  when Base_Backups.Manifest_Data =>
+                     Saw_Manifest_Data := Saw_Manifest_Data or else
+                       Base_Backups.Data (Event)'Length > 0;
+                     if Scenario = "base_backup_incremental" then
+                        Flyology.Bytes.Append
+                          (Prior_Manifest, Base_Backups.Data (Event));
+                     end if;
+                  when Base_Backups.Progress =>
+                     null;
+                  when Base_Backups.Backup_End =>
+                     End_Position := Base_Backups.End_LSN (Event);
+                     Saw_End := Base_Backups.Timeline (Event) = Start_Timeline;
+                  when Base_Backups.Notice |
+                       Base_Backups.Parameter_Status =>
+                     null;
+                  when Base_Backups.Error =>
+                     Saw_Cancel_Error :=
+                       Protocol.Diagnostic_SQL_State
+                         (Base_Backups.Diagnostic (Event)) = "57014";
+                  when Base_Backups.Complete =>
+                     exit;
+               end case;
+            end;
+         end loop;
+
+         if Scenario = "base_backup_cancel" then
+            Require
+              (Cancelled and then Saw_Cancel_Error
+               and then Client.Is_Ready (Session),
+               "native BASE_BACKUP cancellation did not recover cleanly");
+         else
+            Require
+              (Saw_Start and then Saw_Tablespace and then Saw_Archive
+               and then Saw_Data and then Saw_Manifest
+               and then Saw_Manifest_Data and then Saw_End
+               and then End_Position >= Start_Position
+               and then Client.Is_Ready (Session),
+               "native BASE_BACKUP stream was incomplete or inconsistent");
+
+            if Scenario = "base_backup_incremental" then
+               Require
+                 (Major >= 17
+                  and then Flyology.Bytes.To_Array (Prior_Manifest)'Length > 0,
+                  "incremental test did not retain the prior manifest");
+               Base_Backups.Begin_Manifest_Upload
+                 (Session, Major, Timeout => 10.0);
+               declare
+                  Contents : constant Protocol.Byte_Array :=
+                    Flyology.Bytes.To_Array (Prior_Manifest);
+                  Cursor : Protocol.Byte_Offset := Contents'First;
+                  Last   : Protocol.Byte_Offset;
+               begin
+                  while Cursor <= Contents'Last loop
+                     Last := Protocol.Byte_Offset'Min
+                       (Contents'Last, Cursor + 32 * 1_024 - 1);
+                     Base_Backups.Send_Manifest_Chunk
+                       (Session, Contents (Cursor .. Last), Timeout => 10.0);
+                     Cursor := Last + 1;
+                  end loop;
+               end;
+               Base_Backups.Finish_Manifest_Upload
+                 (Session, Timeout => 10.0);
+               while not Client.Is_Ready (Session) loop
+                  if Client.State (Session) in
+                    Client.Copy_In_Active | Client.Copy_Completion_Active
+                  then
+                     declare
+                        Response : constant Client.Copy_Event :=
+                          Client.Receive_Copy_Event (Session, Timeout => 10.0);
+                     begin
+                        Require
+                          (Protocol.Response_Kind (Response) /=
+                             Protocol.Error_Response,
+                           "server rejected the uploaded backup manifest");
+                     end;
+                  elsif Client.State (Session) =
+                    Client.Simple_Query_Active
+                  then
+                     declare
+                        Response : constant Client.Simple_Query_Event :=
+                          Client.Receive_Query_Event
+                            (Session, Timeout => 10.0);
+                     begin
+                        Require
+                          (Protocol.Response_Kind (Response) /=
+                             Protocol.Error_Response,
+                           "manifest upload failed before ReadyForQuery");
+                     end;
+                  else
+                     raise Program_Error with
+                       "manifest upload entered an unexpected client state";
+                  end if;
+               end loop;
+
+               declare
+                  Incremental_Settings : Base_Backups.Options :=
+                    Base_Backups.Defaults (Major);
+                  Incremental_Receiver :
+                    Base_Backups.Receiver (Session'Access);
+                  Incremental_Data     : Boolean := False;
+                  Incremental_Manifest : Boolean := False;
+                  Incremental_End      : Boolean := False;
+               begin
+                  Base_Backups.Set_Incremental (Incremental_Settings);
+                  Base_Backups.Set_Manifest
+                    (Incremental_Settings, Base_Backups.Include_Manifest);
+                  Base_Backups.Start
+                    (Incremental_Receiver, Incremental_Settings,
+                     Timeout => 10.0);
+                  loop
+                     declare
+                        Event : constant Base_Backups.Event :=
+                          Base_Backups.Receive
+                            (Incremental_Receiver, Timeout => 30.0);
+                     begin
+                        case Base_Backups.Kind (Event) is
+                           when Base_Backups.Archive_Data =>
+                              Incremental_Data := Incremental_Data or else
+                                Base_Backups.Data (Event)'Length > 0;
+                           when Base_Backups.Manifest_Data =>
+                              Incremental_Manifest :=
+                                Incremental_Manifest or else
+                                Base_Backups.Data (Event)'Length > 0;
+                           when Base_Backups.Backup_End =>
+                              Incremental_End := True;
+                           when Base_Backups.Error =>
+                              raise Program_Error with
+                                Protocol.Diagnostic_Message
+                                  (Base_Backups.Diagnostic (Event));
+                           when Base_Backups.Complete =>
+                              exit;
+                           when others =>
+                              null;
+                        end case;
+                     end;
+                  end loop;
+                  Require
+                    (Incremental_Data and then Incremental_Manifest
+                     and then Incremental_End
+                     and then Client.Is_Ready (Session),
+                     "incremental BASE_BACKUP did not complete its streams");
+               end;
+            end if;
+         end if;
+      end Test_Base_Backup;
 
       procedure Test_Logical_Resume is
          Slot : constant String :=
@@ -1312,7 +1546,9 @@ procedure Postgres_Test_Replication is
          Password    => "flyology-secret",
          Timeout     => 10.0,
          Replication_Mode =>
-           (if Scenario in "physical" | "physical_stall"
+           (if Scenario in
+             "physical" | "physical_stall" | "base_backup" |
+             "base_backup_incremental" | "base_backup_cancel"
             then Protocol.Physical_Replication_Connection
             else Protocol.Logical_Replication_Connection));
 
@@ -1320,6 +1556,10 @@ procedure Postgres_Test_Replication is
          Test_Physical;
       elsif Scenario = "physical_stall" then
          Test_Physical_Stall;
+      elsif Scenario in
+        "base_backup" | "base_backup_incremental" | "base_backup_cancel"
+      then
+         Test_Base_Backup;
       elsif Scenario in
         "logical_resume_first" | "logical_resume_reset" |
         "logical_resume_timeout" | "logical_resume_second"

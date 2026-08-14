@@ -1093,6 +1093,9 @@ for version in $versions; do
   #  to speak more often than this, and the physical one waits out
   #  wal_sender_timeout / 2 for its keepalive, so raising this buys nothing
   #  but idle time.
+  if [ "$major" -ge 17 ]; then
+    server_options="$server_options -c summarize_wal=on"
+  fi
   server_options="$server_options -c wal_sender_timeout=2000"
   server_options="$server_options -c ssl=on"
   server_options="$server_options -c ssl_cert_file=$server_cert"
@@ -1162,6 +1165,23 @@ select repeat(md5(g::text), 8) from generate_series(1, 32) as g;
 SQL
   run_client physical "$major" "" "" "$physical_lsn"
   run_physical_stall "$major"
+
+  if [ "$major" -eq 14 ] || [ "$major" -eq 18 ]; then
+    run_client base_backup "$major"
+  fi
+  if [ "$major" -ge 17 ]; then
+    run_client base_backup_incremental "$major"
+  fi
+  if [ "$major" -eq 18 ]; then
+    psql -q <<'SQL'
+create table flyology_backup_cancel_probe as
+select g, repeat(md5(g::text), 64) as payload
+from generate_series(1, 20000) as g;
+checkpoint;
+SQL
+    run_client base_backup_cancel "$major"
+    psql -qAtc 'drop table flyology_backup_cancel_probe' >/dev/null
+  fi
 
   psql -qAtc 'truncate flyology_replication' >/dev/null
   slot="flyology_v1_$major"
