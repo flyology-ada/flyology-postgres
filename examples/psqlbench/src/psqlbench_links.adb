@@ -162,12 +162,8 @@ package body Psqlbench_Links is
          end if;
          Append
            (Result,
-            (case Index is
-                when 1 => "id",
-                when 2 => "payload",
-                when 3 => "changed_at",
-                when others => "column_" & Compact (Index))
-            & "=" & Tuple_Value_Image (Logical.Column (Item, Index)));
+            "column_" & Compact (Index) & "="
+            & Tuple_Value_Image (Logical.Column (Item, Index)));
       end loop;
       Append (Result, "}");
       return To_String (Result);
@@ -821,11 +817,23 @@ package body Psqlbench_Links is
       end case;
    end Tuple_SQL;
 
+   Max_Relation_Columns : constant := 64;
+   type Relation_Column_Names is
+     array (Positive range 1 .. Max_Relation_Columns) of Unbounded_String;
+   type Relation_Key_Flags is
+     array (Positive range 1 .. Max_Relation_Columns) of Boolean;
+   type Relation_State is record
+      Oid : Logical.UInt32 := 0;
+      Count : Natural range 0 .. Max_Relation_Columns := 0;
+      Names : Relation_Column_Names;
+      Keys : Relation_Key_Flags := (others => False);
+   end record;
+
    procedure Apply_Message
      (Session : in out Client.Session;
       Item    : Psqlbench_Context.Link_Record;
       Message : Logical.Message;
-      Relation_Oid : in out Logical.UInt32;
+      Relation : in out Relation_State;
       In_Transaction : in out Boolean;
       Active_Stream : in out Replication.Transaction_Id;
       Applied : out Boolean)
@@ -837,11 +845,46 @@ package body Psqlbench_Links is
         (Tuple : Logical.Tuple_Data; Index : Positive) return String is
         (Tuple_SQL (Logical.Column (Tuple, Index)));
 
-      function Old_Id return String is
-         Old : constant Logical.Tuple_Data := Logical.Old_Tuple (Message);
+      function Key_Count return Natural is
+         Result : Natural := 0;
       begin
-         return Tuple_Value (Old, 1);
-      end Old_Id;
+         for Index in 1 .. Relation.Count loop
+            if Relation.Keys (Index) then
+               Result := Result + 1;
+            end if;
+         end loop;
+         return Result;
+      end Key_Count;
+
+      function Where_Clause
+        (Tuple : Logical.Tuple_Data; Key_Only : Boolean) return String
+      is
+         SQL : Unbounded_String;
+         Tuple_Index : Positive := 1;
+         Use_Keys : constant Boolean := Key_Count > 0;
+      begin
+         for Index in 1 .. Relation.Count loop
+            if (Use_Keys and then Relation.Keys (Index))
+              or else not Use_Keys
+            then
+               if Length (SQL) > 0 then
+                  Append (SQL, " AND ");
+               end if;
+               Append
+                 (SQL,
+                  Quote_Identifier (To_String (Relation.Names (Index)))
+                  & " IS NOT DISTINCT FROM "
+                  & Tuple_Value
+                    (Tuple, (if Key_Only then Tuple_Index else Index)));
+               Tuple_Index := Tuple_Index + 1;
+            end if;
+         end loop;
+         if Length (SQL) = 0 then
+            raise Program_Error with
+              "mapped relation has no usable replica identity";
+         end if;
+         return To_String (SQL);
+      end Where_Clause;
    begin
       Applied := False;
       case Logical.Kind (Message) is
@@ -853,78 +896,116 @@ package body Psqlbench_Links is
             if Logical.Namespace_Name (Message) = Source_Schema (Item)
               and then Logical.Object_Name (Message) = Source_Table (Item)
             then
-               if Logical.Relation_Column_Count (Message) /= 3
-                 or else Logical.Name
-                   (Logical.Relation_Column_At (Message, 1)) /= "id"
-                 or else Logical.Name
-                   (Logical.Relation_Column_At (Message, 2)) /= "payload"
-                 or else Logical.Name
-                   (Logical.Relation_Column_At (Message, 3)) /= "changed_at"
+               if Logical.Relation_Column_Count (Message) not in
+                 1 .. Max_Relation_Columns
                then
                   raise Program_Error with
-                    "managed demo table schema changed while linking";
+                    "mapped relations support 1 through 64 columns";
                end if;
-               Relation_Oid := Logical.Relation_Id (Message);
+               Relation := (others => <>);
+               Relation.Oid := Logical.Relation_Id (Message);
+               Relation.Count := Logical.Relation_Column_Count (Message);
+               for Index in 1 .. Relation.Count loop
+                  declare
+                     Column : constant Logical.Relation_Column :=
+                       Logical.Relation_Column_At (Message, Index);
+                  begin
+                     Relation.Names (Index) :=
+                       To_Unbounded_String (Logical.Name (Column));
+                     Relation.Keys (Index) := Logical.Is_Key (Column);
+                  end;
+               end loop;
             end if;
 
          when Logical.Insert_Message =>
-            if Logical.Relation_Id (Message) = Relation_Oid then
+            if Logical.Relation_Id (Message) = Relation.Oid then
                declare
                   New_Row : constant Logical.Tuple_Data :=
                     Logical.New_Tuple (Message);
+                  SQL : Unbounded_String :=
+                    To_Unbounded_String ("INSERT INTO " & Table & " (");
                begin
-                  Run_SQL
-                    (Session,
-                     "INSERT INTO " & Table
-                     & " (id, payload, changed_at) VALUES ("
-                     & Tuple_Value (New_Row, 1) & ","
-                     & Tuple_Value (New_Row, 2) & ","
-                     & Tuple_Value (New_Row, 3) & ") "
-                     & "ON CONFLICT (id) DO UPDATE SET payload=EXCLUDED.payload,"
-                     & " changed_at=EXCLUDED.changed_at");
-                  Applied := True;
-               end;
-            end if;
-
-         when Logical.Update_Message =>
-            if Logical.Relation_Id (Message) = Relation_Oid then
-               declare
-                  New_Row : constant Logical.Tuple_Data :=
-                    Logical.New_Tuple (Message);
-                  Payload : constant Logical.Tuple_Value :=
-                    Logical.Column (New_Row, 2);
-                  SQL : Unbounded_String := To_Unbounded_String
-                    ("UPDATE " & Table & " SET id="
-                     & Tuple_Value (New_Row, 1));
-               begin
-                  if Logical.Kind (Payload) /=
-                    Logical.Unchanged_Toast_Value
-                  then
-                     Append (SQL, ", payload=" & Tuple_SQL (Payload));
-                  end if;
-                  Append
-                    (SQL, ", changed_at=" & Tuple_Value (New_Row, 3)
-                     & " WHERE id IS NOT DISTINCT FROM "
-                     & (if Logical.Old_Kind (Message) =
-                          Logical.No_Old_Tuple
-                        then Tuple_Value (New_Row, 1)
-                        else Old_Id));
+                  for Index in 1 .. Relation.Count loop
+                     if Index > 1 then
+                        Append (SQL, ",");
+                     end if;
+                     Append
+                       (SQL, Quote_Identifier
+                          (To_String (Relation.Names (Index))));
+                  end loop;
+                  Append (SQL, ") VALUES (");
+                  for Index in 1 .. Relation.Count loop
+                     if Index > 1 then
+                        Append (SQL, ",");
+                     end if;
+                     Append (SQL, Tuple_Value (New_Row, Index));
+                  end loop;
+                  Append (SQL, ") ON CONFLICT DO NOTHING");
                   Run_SQL (Session, To_String (SQL));
                   Applied := True;
                end;
             end if;
 
+         when Logical.Update_Message =>
+            if Logical.Relation_Id (Message) = Relation.Oid then
+               declare
+                  New_Row : constant Logical.Tuple_Data :=
+                    Logical.New_Tuple (Message);
+                  SQL : Unbounded_String := To_Unbounded_String
+                    ("UPDATE " & Table & " SET ");
+                  Assignments : Natural := 0;
+               begin
+                  for Index in 1 .. Relation.Count loop
+                     if Logical.Kind (Logical.Column (New_Row, Index)) /=
+                       Logical.Unchanged_Toast_Value
+                     then
+                        if Assignments > 0 then
+                           Append (SQL, ",");
+                        end if;
+                        Append
+                          (SQL, Quote_Identifier
+                             (To_String (Relation.Names (Index)))
+                           & "=" & Tuple_Value (New_Row, Index));
+                        Assignments := Assignments + 1;
+                     end if;
+                  end loop;
+                  if Assignments > 0 then
+                     if Logical.Old_Kind (Message) =
+                       Logical.No_Old_Tuple
+                       and then Key_Count = 0
+                     then
+                        raise Program_Error with
+                          "UPDATE requires a replica identity key or FULL";
+                     end if;
+                     Append
+                       (SQL, " WHERE "
+                        & (if Logical.Old_Kind (Message) =
+                              Logical.No_Old_Tuple
+                           then Where_Clause (New_Row, False)
+                           else Where_Clause
+                             (Logical.Old_Tuple (Message),
+                              Logical.Old_Kind (Message) =
+                                Logical.Key_Old_Tuple)));
+                     Run_SQL (Session, To_String (SQL));
+                     Applied := True;
+                  end if;
+               end;
+            end if;
+
          when Logical.Delete_Message =>
-            if Logical.Relation_Id (Message) = Relation_Oid then
+            if Logical.Relation_Id (Message) = Relation.Oid then
                Run_SQL
                  (Session, "DELETE FROM " & Table
-                  & " WHERE id IS NOT DISTINCT FROM " & Old_Id);
+                  & " WHERE "
+                  & Where_Clause
+                    (Logical.Old_Tuple (Message),
+                     Logical.Old_Kind (Message) = Logical.Key_Old_Tuple));
                Applied := True;
             end if;
 
          when Logical.Truncate_Message =>
             for Index in 1 .. Logical.Truncated_Relation_Count (Message) loop
-               if Logical.Truncated_Relation (Message, Index) = Relation_Oid then
+               if Logical.Truncated_Relation (Message, Index) = Relation.Oid then
                   Run_SQL (Session, "TRUNCATE TABLE " & Table);
                   Applied := True;
                end if;
@@ -1136,17 +1217,15 @@ package body Psqlbench_Links is
            (Source,
             "SELECT count(*)::text FROM information_schema.columns "
             & "WHERE table_schema=" & Quote_Literal (Source_Schema (Item))
-            & " AND table_name=" & Quote_Literal (Source_Table (Item))
-            & " AND column_name IN ('id','payload','changed_at')") /= "3"
+            & " AND table_name=" & Quote_Literal (Source_Table (Item))) = "0"
            or else Scalar_SQL
              (Target,
               "SELECT count(*)::text FROM information_schema.columns "
               & "WHERE table_schema=" & Quote_Literal (Target_Schema (Item))
-              & " AND table_name=" & Quote_Literal (Target_Table (Item))
-              & " AND column_name IN ('id','payload','changed_at')") /= "3"
+              & " AND table_name=" & Quote_Literal (Target_Table (Item))) = "0"
          then
             raise Program_Error with
-              "mapped relations require id, payload, and changed_at columns";
+              "both mapped relations must exist";
          end if;
          Run_SQL
            (Target,
@@ -1224,6 +1303,9 @@ package body Psqlbench_Links is
                   Slot_Session : Client.Session (Slot_Channel'Access);
                   Snapshot_Name : Unbounded_String;
                   Consistent_Point : Unbounded_String;
+                  Snapshot_Columns : Relation_Column_Names;
+                  Snapshot_Column_Count : Natural range
+                    0 .. Max_Relation_Columns := 0;
                   Rows : Natural := 0;
                begin
                   Connect
@@ -1299,8 +1381,7 @@ package body Psqlbench_Links is
                        (Target, "TRUNCATE TABLE " & Target_Relation);
                      Client.Send_Query
                        (Source,
-                        "SELECT id::text,payload,changed_at::text FROM "
-                        & Source_Relation & " ORDER BY id",
+                        "SELECT * FROM " & Source_Relation,
                         Timeout => 20.0);
                      loop
                         declare
@@ -1310,31 +1391,75 @@ package body Psqlbench_Links is
                         begin
                            Raise_Server_Error (Event);
                            if Protocol.Response_Kind (Event) =
+                             Protocol.Row_Description_Response
+                           then
+                              declare
+                                 Description : constant Protocol.Row_Description :=
+                                   Protocol.Description (Event);
+                              begin
+                                 if Protocol.Field_Count (Description) not in
+                                   1 .. Max_Relation_Columns
+                                 then
+                                    raise Program_Error with
+                                      "snapshot supports 1 through 64 columns";
+                                 end if;
+                                 Snapshot_Column_Count :=
+                                   Protocol.Field_Count (Description);
+                                 for Index in 1 .. Snapshot_Column_Count loop
+                                    Snapshot_Columns (Index) :=
+                                      To_Unbounded_String
+                                        (Protocol.Field_Name
+                                           (Protocol.Field_At
+                                              (Description, Index)));
+                                 end loop;
+                              end;
+                           elsif Protocol.Response_Kind (Event) =
                              Protocol.Data_Row_Response
                            then
                               declare
                                  Row : constant Protocol.Data_Row :=
                                    Protocol.Row_Data (Event);
                               begin
-                                 if Protocol.Column_Count (Row) /= 3 then
+                                 if Snapshot_Column_Count = 0
+                                   or else Protocol.Column_Count (Row) /=
+                                     Snapshot_Column_Count
+                                 then
                                     raise Program_Error with
                                       "snapshot row shape changed";
                                  end if;
-                                 Run_SQL
-                                   (Target,
-                                    "INSERT INTO " & Target_Relation
-                                    & " (id,payload,changed_at) VALUES ("
-                                    & Protocol.Column_Text
-                                      (Protocol.Column_At (Row, 1)) & ","
-                                    & (if Protocol.Is_Null
-                                         (Protocol.Column_At (Row, 2))
-                                       then "NULL"
-                                       else Quote_Literal
-                                         (Protocol.Column_Text
-                                            (Protocol.Column_At (Row, 2))))
-                                    & "," & Quote_Literal
-                                      (Protocol.Column_Text
-                                         (Protocol.Column_At (Row, 3))) & ")");
+                                 declare
+                                    SQL : Unbounded_String :=
+                                      To_Unbounded_String
+                                        ("INSERT INTO " & Target_Relation
+                                         & " (");
+                                 begin
+                                    for Index in 1 .. Snapshot_Column_Count loop
+                                       if Index > 1 then
+                                          Append (SQL, ",");
+                                       end if;
+                                       Append
+                                         (SQL, Quote_Identifier
+                                            (To_String
+                                               (Snapshot_Columns (Index))));
+                                    end loop;
+                                    Append (SQL, ") VALUES (");
+                                    for Index in 1 .. Snapshot_Column_Count loop
+                                       if Index > 1 then
+                                          Append (SQL, ",");
+                                       end if;
+                                       Append
+                                         (SQL,
+                                          (if Protocol.Is_Null
+                                             (Protocol.Column_At (Row, Index))
+                                           then "NULL"
+                                           else Quote_Literal
+                                             (Protocol.Column_Text
+                                                (Protocol.Column_At
+                                                   (Row, Index)))));
+                                    end loop;
+                                    Append (SQL, ")");
+                                    Run_SQL (Target, To_String (SQL));
+                                 end;
                                  Rows := Rows + 1;
                               end;
                            elsif Protocol.Response_Kind (Event) =
@@ -1546,7 +1671,7 @@ package body Psqlbench_Links is
            (Target_Socket'Access);
          Target : Client.Session (Target_Channel'Access);
          Decoder : Logical.Decoder;
-         Relation_Oid : Logical.UInt32 := 0;
+         Relation : Relation_State;
          In_Transaction : Boolean := False;
          Active_Stream : Replication.Transaction_Id := 0;
          Ready_Deadline : constant Ada.Real_Time.Time :=
@@ -1605,7 +1730,7 @@ package body Psqlbench_Links is
                               Changed : Boolean;
                            begin
                               Apply_Message
-                                (Target, Item, Message, Relation_Oid,
+                                (Target, Item, Message, Relation,
                                  In_Transaction, Active_Stream, Changed);
                               Emit
                                 (Context, Item, "apply", "relay-to-target",

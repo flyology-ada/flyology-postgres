@@ -153,7 +153,7 @@
         </div>
         <div class="bridge-contract" id="logical-contract">
           <strong>Snapshot, then pgoutput</strong>
-          <span>Leave relation fields empty for managed demo tables, or map compatible <code>schema.table</code> relations. Existing rows cross at an exported snapshot/LSN boundary; future inserts, updates, deletes, truncates, and optional prepared transactions flow through our clients and relay.</span>
+          <span>Leave relation fields empty for managed demo tables, or map <code>schema.table</code> relations with same-named target columns. Existing rows cross at an exported snapshot/LSN boundary; future inserts, updates, deletes, truncates, and optional prepared transactions flow through our clients and relay.</span>
         </div>
         <div class="bridge-contract" id="physical-contract" hidden>
           <strong>Snapshot, then live WAL</strong>

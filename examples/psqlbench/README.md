@@ -64,10 +64,13 @@ The logical bridge exports a slot snapshot, copies existing rows through
 Flyology clients at the returned consistent LSN, records initialization on the
 target atomically, and then starts pgoutput at that same boundary. A completed
 marker makes restarts idempotent; an incomplete slot is recreated instead of
-resuming a partial copy. Relation mapping currently requires the demo column
-contract (`id`, `payload`, and `changed_at`); per-column transforms and type
-coercion are intentionally outside this slice. Physical bootstrap WAL
-is streamed with PostgreSQL's replication protocol by the Flyology client;
+resuming a partial copy. Relation mapping discovers up to 64 source columns
+from the snapshot and pgoutput relation metadata, applies replica-identity keys
+for updates and deletes, and addresses target columns by name. Source and target
+columns must currently have matching names; per-column renames, transforms,
+generated-column handling, and custom type coercions remain outside this slice.
+Physical bootstrap WAL is streamed with PostgreSQL's replication protocol by
+the Flyology client;
 Docker installs the received archive without invoking `pg_basebackup`. After
 recovery starts, all live WAL passes through the observable Flyology proxy.
 
