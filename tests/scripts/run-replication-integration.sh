@@ -1115,6 +1115,8 @@ for version in $versions; do
     --listen-port "$replication_client_port" \
     --upstream-port "$port" \
     --seed "$((major * 1009 + 1))" \
+    --buffer-size 1048576 \
+    --delay-microseconds 0 \
     >"$replication_proxy_log" 2>&1 &
   replication_proxy_pid=$!
   attempt=0
