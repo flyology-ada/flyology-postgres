@@ -13,8 +13,6 @@
   const toast = document.querySelector("#toast");
   const workspace = document.querySelector("#instance-workspace");
   const workspaceInstance = document.querySelector("#workspace-instance");
-  const queryTab = document.querySelector("#query-tab");
-  const logsTab = document.querySelector("#logs-tab");
   const queryPanel = document.querySelector("#query-panel");
   const logsPanel = document.querySelector("#logs-panel");
   const queryInput = document.querySelector("#query-input");
@@ -26,6 +24,7 @@
   const commandTag = document.querySelector("#command-tag");
   const logStreamState = document.querySelector("#log-stream-state");
   const logOutput = document.querySelector("#log-output");
+  const logsInstanceName = document.querySelector("#logs-instance-name");
   const followLogs = document.querySelector("#follow-logs");
   const clearLogs = document.querySelector("#clear-logs");
   const linkList = document.querySelector("#link-list");
@@ -57,6 +56,9 @@
   const confirmReset = document.querySelector("#confirm-reset");
   const supervisionTree = document.querySelector("#supervision-tree");
   const supervisionState = document.querySelector("#supervision-state");
+  const resetWindowLayout = document.querySelector("#reset-window-layout");
+  const labWindows = [...document.querySelectorAll(".lab-window")];
+  const windowToggles = [...document.querySelectorAll("[data-toggle-window]")];
 
   let toastTimer;
   let instances = [];
@@ -70,7 +72,6 @@
     "UPSTREAM_ACK"
   ]);
   let selectedName = "";
-  let activeTab = "query";
   let querySocket;
   let queryGeneration = 0;
   let queryRunning = false;
@@ -119,6 +120,242 @@
       ]
     }
   };
+
+  const windowLayoutKey = "psqlbench.window-layout.v1";
+  const defaultWindowLayout = {
+    instances: "left-top",
+    links: "left-bottom",
+    query: "main",
+    logs: "right-top",
+    wire: "bottom",
+    supervision: "right-bottom"
+  };
+  const dockSlots = [
+    ["left-top", "left / upper"],
+    ["left-bottom", "left / lower"],
+    ["main", "center / upper"],
+    ["right-top", "right / upper"],
+    ["bottom", "center / lower"],
+    ["right-bottom", "right / lower"],
+    ["float", "floating"]
+  ];
+  let windowZ = 80;
+  let windowLayoutTimer;
+
+  function windowNamed(name) {
+    return labWindows.find(panel => panel.dataset.window === name);
+  }
+
+  function windowIsVisible(name) {
+    const panel = windowNamed(name);
+    return Boolean(panel && panel.dataset.windowHidden !== "true");
+  }
+
+  function syncWindowControls(panel) {
+    const select = panel.querySelector(".window-slot");
+    if (select) select.value = panel.dataset.dock;
+    const toggle = windowToggles.find(button => button.dataset.toggleWindow === panel.dataset.window);
+    if (toggle) toggle.setAttribute("aria-pressed", String(panel.dataset.windowHidden !== "true"));
+  }
+
+  function activateWindow(panel) {
+    labWindows.forEach(candidate => { candidate.dataset.active = String(candidate === panel); });
+    if (panel.dataset.dock === "float") {
+      windowZ += 1;
+      panel.style.zIndex = String(windowZ);
+    }
+  }
+
+  function saveWindowLayout() {
+    const layout = {};
+    labWindows.forEach(panel => {
+      layout[panel.dataset.window] = {
+        dock: panel.dataset.dock,
+        hidden: panel.dataset.windowHidden === "true",
+        left: panel.style.left,
+        top: panel.style.top,
+        width: panel.style.width,
+        height: panel.style.height
+      };
+    });
+    try { localStorage.setItem(windowLayoutKey, JSON.stringify(layout)); }
+    catch (_error) { /* The workbench remains usable without persisted layout state. */ }
+  }
+
+  function scheduleWindowLayoutSave() {
+    clearTimeout(windowLayoutTimer);
+    windowLayoutTimer = setTimeout(saveWindowLayout, 180);
+  }
+
+  function setDock(panel, dock, swap = true) {
+    const previous = panel.dataset.dock;
+    if (swap && dock !== "float") {
+      const occupant = labWindows.find(candidate => candidate !== panel
+        && candidate.dataset.dock === dock
+        && candidate.dataset.windowHidden !== "true");
+      if (occupant) {
+        occupant.dataset.dock = previous === "float"
+          ? defaultWindowLayout[occupant.dataset.window]
+          : previous;
+        occupant.style.removeProperty("left");
+        occupant.style.removeProperty("top");
+        occupant.style.removeProperty("width");
+        occupant.style.removeProperty("height");
+        syncWindowControls(occupant);
+      }
+    }
+    panel.dataset.dock = dock;
+    panel.dataset.windowHidden = "false";
+    if (dock !== "float") {
+      panel.style.removeProperty("left");
+      panel.style.removeProperty("top");
+      panel.style.removeProperty("width");
+      panel.style.removeProperty("height");
+      panel.style.removeProperty("z-index");
+    }
+    syncWindowControls(panel);
+    activateWindow(panel);
+    saveWindowLayout();
+  }
+
+  function floatWindow(panel) {
+    const rect = panel.getBoundingClientRect();
+    setDock(panel, "float", false);
+    panel.style.left = `${Math.max(8, Math.min(rect.left, innerWidth - 380))}px`;
+    panel.style.top = `${Math.max(98, Math.min(rect.top, innerHeight - 260))}px`;
+    panel.style.width = `${Math.max(380, Math.min(rect.width, innerWidth - 24))}px`;
+    panel.style.height = `${Math.max(240, Math.min(rect.height, innerHeight - 120))}px`;
+    activateWindow(panel);
+    saveWindowLayout();
+  }
+
+  function showWindow(name) {
+    const panel = windowNamed(name);
+    if (!panel) return;
+    if (panel.dataset.dock !== "float") {
+      const occupant = labWindows.find(candidate => candidate !== panel
+        && candidate.dataset.dock === panel.dataset.dock
+        && candidate.dataset.windowHidden !== "true");
+      if (occupant) {
+        const available = dockSlots.find(([dock]) => dock !== "float"
+          && !labWindows.some(candidate => candidate !== panel
+            && candidate.dataset.dock === dock
+            && candidate.dataset.windowHidden !== "true"));
+        if (available) panel.dataset.dock = available[0];
+        else floatWindow(panel);
+      }
+    }
+    panel.dataset.windowHidden = "false";
+    syncWindowControls(panel);
+    activateWindow(panel);
+    if (name === "logs" && selectedName) connectLogs();
+    saveWindowLayout();
+  }
+
+  function hideWindow(panel) {
+    panel.dataset.windowHidden = "true";
+    if (panel.dataset.window === "logs") closeLogSocket();
+    syncWindowControls(panel);
+    saveWindowLayout();
+  }
+
+  function beginWindowDrag(event, panel) {
+    if (event.button !== 0 || event.target.closest("button, select, label, input")) return;
+    if (matchMedia("(max-width: 900px)").matches) return;
+    event.preventDefault();
+    if (panel.dataset.dock !== "float") floatWindow(panel);
+    activateWindow(panel);
+    const startLeft = Number.parseFloat(panel.style.left) || panel.getBoundingClientRect().left;
+    const startTop = Number.parseFloat(panel.style.top) || panel.getBoundingClientRect().top;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const move = moveEvent => {
+      const maxLeft = Math.max(8, innerWidth - panel.offsetWidth - 8);
+      const maxTop = Math.max(98, innerHeight - panel.offsetHeight - 28);
+      panel.style.left = `${Math.max(8, Math.min(maxLeft, startLeft + moveEvent.clientX - startX))}px`;
+      panel.style.top = `${Math.max(98, Math.min(maxTop, startTop + moveEvent.clientY - startY))}px`;
+    };
+    const finish = () => {
+      removeEventListener("pointermove", move);
+      removeEventListener("pointerup", finish);
+      removeEventListener("pointercancel", finish);
+      saveWindowLayout();
+    };
+    addEventListener("pointermove", move);
+    addEventListener("pointerup", finish, { once: true });
+    addEventListener("pointercancel", finish, { once: true });
+  }
+
+  function resetWorkbenchLayout() {
+    labWindows.forEach(panel => {
+      panel.dataset.dock = defaultWindowLayout[panel.dataset.window];
+      panel.dataset.windowHidden = "false";
+      panel.style.removeProperty("left");
+      panel.style.removeProperty("top");
+      panel.style.removeProperty("width");
+      panel.style.removeProperty("height");
+      panel.style.removeProperty("z-index");
+      syncWindowControls(panel);
+    });
+    activateWindow(windowNamed("query"));
+    saveWindowLayout();
+    if (selectedName) connectLogs();
+  }
+
+  function initializeWindowManager() {
+    scrollTo(0, 0);
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem(windowLayoutKey) || "{}"); }
+    catch (_error) { saved = {}; }
+    labWindows.forEach(panel => {
+      const name = panel.dataset.window;
+      const state = saved[name] || {};
+      panel.dataset.dock = dockSlots.some(([value]) => value === state.dock)
+        ? state.dock
+        : defaultWindowLayout[name];
+      panel.dataset.windowHidden = String(Boolean(state.hidden));
+      if (panel.dataset.dock === "float") {
+        panel.style.left = state.left || "22vw";
+        panel.style.top = state.top || "7.25rem";
+        panel.style.width = state.width || "48rem";
+        panel.style.height = state.height || "36rem";
+      }
+      const controls = panel.querySelector(".window-controls");
+      const select = document.createElement("select");
+      select.className = "window-slot";
+      select.setAttribute("aria-label", `Dock ${name} window`);
+      dockSlots.forEach(([value, label]) => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        select.append(option);
+      });
+      controls.prepend(select);
+      select.value = panel.dataset.dock;
+      select.addEventListener("change", () => {
+        if (select.value === "float") floatWindow(panel);
+        else setDock(panel, select.value);
+      });
+      controls.querySelector('[data-window-action="float"]').addEventListener("click", () => {
+        if (panel.dataset.dock === "float") setDock(panel, defaultWindowLayout[name]);
+        else floatWindow(panel);
+      });
+      controls.querySelector('[data-window-action="hide"]').addEventListener("click", () => hideWindow(panel));
+      panel.querySelector("[data-drag-handle]").addEventListener("pointerdown", event => beginWindowDrag(event, panel));
+      panel.addEventListener("pointerdown", () => activateWindow(panel));
+      new ResizeObserver(() => {
+        if (panel.dataset.dock === "float") scheduleWindowLayoutSave();
+      }).observe(panel);
+      syncWindowControls(panel);
+    });
+    windowToggles.forEach(button => button.addEventListener("click", () => {
+      const panel = windowNamed(button.dataset.toggleWindow);
+      if (panel.dataset.windowHidden === "true") showWindow(panel.dataset.window);
+      else hideWindow(panel);
+    }));
+    resetWindowLayout.addEventListener("click", resetWorkbenchLayout);
+    activateWindow(windowNamed("query"));
+  }
 
   function showError(message) {
     clearTimeout(toastTimer);
@@ -179,6 +416,8 @@
   function instanceNode(instance) {
     const details = detailsOf(instance);
     const article = el("article", `node ${details.running ? "running" : "stopped"}`);
+    article.dataset.instance = details.name;
+    article.dataset.selected = String(details.name === selectedName);
     const head = el("div", "node-head");
     const title = document.createElement("div");
     title.append(el("span", "node-version", `POSTGRES ${details.version}`));
@@ -196,12 +435,15 @@
     const actions = el("div", "node-actions");
     const inspect = el("button", "button primary", "Inspect");
     inspect.type = "button";
-    inspect.addEventListener("click", () => selectInstance(details.name));
+    inspect.addEventListener("click", () => {
+      selectInstance(details.name);
+      showWindow("query");
+    });
     const logs = el("button", "button secondary", "Postgres logs");
     logs.type = "button";
     logs.addEventListener("click", () => {
       selectInstance(details.name);
-      if (activeTab !== "logs") switchTab("logs");
+      showWindow("logs");
     });
     const stateAction = el("button", "button secondary", details.running ? "Stop" : "Start");
     stateAction.type = "button";
@@ -228,8 +470,19 @@
       closeQuerySocket();
       closeLogSocket();
       selectedName = "";
-      workspace.hidden = true;
+      queryState.textContent = "detached";
+      logsInstanceName.textContent = "no instance selected";
+    } else if (known.length) {
+      const initial = known.find(value => value.running) || known[0];
+      selectedName = initial.name;
+      workspaceInstance.value = initial.name;
+      logsInstanceName.textContent = initial.name;
+      connectQuery();
+      if (windowIsVisible("logs")) connectLogs();
     }
+    list.querySelectorAll(".node").forEach(node => {
+      node.dataset.selected = String(node.dataset.instance === selectedName);
+    });
 
     const running = known.filter(value => value.running);
     [linkSource, linkTarget].forEach((select, selectIndex) => {
@@ -487,7 +740,7 @@
       queryInput.value = physical
         ? `create table if not exists public.psqlbench_physical_probe (id bigserial primary key, payload text, changed_at timestamptz default clock_timestamp());\ninsert into public.psqlbench_physical_probe (payload) values ('WAL through ${link.name}') returning *;`
         : `insert into ${link.source_relation} (id, payload)\nvalues ((extract(epoch from clock_timestamp()) * 1000000)::bigint,\n        'sent through ${link.name}')\nreturning *;`;
-      switchTab("query");
+      showWindow("query");
       queryInput.focus();
     });
     const inspect = el("button", "button secondary", "Inspect target");
@@ -499,7 +752,7 @@
         : (managedRelation
           ? `select * from ${link.target_relation} order by id desc limit 20;`
           : `select * from ${link.target_relation} limit 20;`);
-      switchTab("query");
+      showWindow("query");
     });
     const pattern = el("button", "button secondary", twoPhase ? "Load prepared transaction" : (streamed ? "Load streamed transaction" : "Load message patterns"));
     pattern.type = "button";
@@ -512,7 +765,7 @@
         : (streamed
           ? `insert into ${link.source_relation} (id, payload)\nselect 1000000 + n, repeat('streamed-', 128) || n\nfrom generate_series(1, 300) as n;`
           : `select pg_logical_emit_message(false, 'psqlbench', 'non-transactional message');\nbegin;\nselect pg_logical_emit_message(true, 'psqlbench', 'transactional message');\ninsert into ${link.source_relation} (id, payload)\nvalues ((extract(epoch from clock_timestamp()) * 1000000)::bigint, 'same transaction');\ncommit;`);
-      switchTab("query");
+      showWindow("query");
       queryInput.focus();
     });
     const stateAction = el("button", "button secondary", link.desired_running ? "Stop" : "Resume");
@@ -952,7 +1205,7 @@
     events.querySelectorAll(".event").forEach(item => {
       item.hidden = Boolean(selected) && item.dataset.link !== selected;
     });
-    activityTitle.textContent = selected ? `${selected} activity stream` : "Live events";
+    activityTitle.textContent = selected ? `${selected}.wire` : "replication.wire";
   }
 
   function connectEvents() {
@@ -1118,7 +1371,7 @@
 
   function connectLogs() {
     closeLogSocket();
-    if (!selectedName || activeTab !== "logs") return;
+    if (!selectedName || !windowIsVisible("logs")) return;
     const generation = logGeneration;
     logStreamState.textContent = "Opening stream";
     logStreamState.classList.remove("live");
@@ -1144,21 +1397,10 @@
       if (generation !== logGeneration) return;
       logStreamState.textContent = "Reconnecting";
       logStreamState.classList.remove("live");
-      if (selectedName && activeTab === "logs") setTimeout(() => {
+      if (selectedName && windowIsVisible("logs")) setTimeout(() => {
         if (generation === logGeneration) connectLogs();
       }, 1250);
     });
-  }
-
-  function switchTab(tab) {
-    activeTab = tab;
-    const querySelected = tab === "query";
-    queryTab.setAttribute("aria-selected", String(querySelected));
-    logsTab.setAttribute("aria-selected", String(!querySelected));
-    queryPanel.hidden = !querySelected;
-    logsPanel.hidden = querySelected;
-    if (!querySelected) connectLogs();
-    else closeLogSocket();
   }
 
   function selectInstance(name) {
@@ -1168,12 +1410,16 @@
       closeLogSocket();
       connectQuery();
     }
-    workspace.hidden = false;
-    if (activeTab === "logs") connectLogs();
-    workspace.scrollIntoView({ behavior: "smooth", block: "start" });
+    logsInstanceName.textContent = name || "no instance selected";
+    list.querySelectorAll(".node").forEach(node => {
+      node.dataset.selected = String(node.dataset.instance === name);
+    });
+    if (windowIsVisible("logs")) connectLogs();
+    activateWindow(workspace);
   }
 
   openCreate.addEventListener("click", () => {
+    showWindow("instances");
     form.hidden = false;
     form.elements.name.focus();
   });
@@ -1201,6 +1447,7 @@
   });
 
   openLink.addEventListener("click", () => {
+    showWindow("links");
     linkForm.hidden = false;
     syncLinkMode();
     linkForm.elements.name.focus();
@@ -1235,7 +1482,8 @@
       closeQuerySocket();
       closeLogSocket();
       selectedName = "";
-      workspace.hidden = true;
+      queryState.textContent = "detached";
+      logsInstanceName.textContent = "no instance selected";
       resetPanel.hidden = true;
       await Promise.all([refreshInstances(), refreshLinks(), refreshStatus()]);
       openCreate.focus();
@@ -1296,8 +1544,6 @@
   });
 
   workspaceInstance.addEventListener("change", () => selectInstance(workspaceInstance.value));
-  queryTab.addEventListener("click", () => switchTab("query"));
-  logsTab.addEventListener("click", () => switchTab("logs"));
   runQuery.addEventListener("click", () => {
     if (!querySocket || querySocket.readyState !== WebSocket.OPEN) {
       showError("The query session is not attached yet");
@@ -1328,6 +1574,7 @@
   });
   activityFilter.addEventListener("change", applyActivityFilter);
 
+  initializeWindowManager();
   refreshStatus();
   refreshInstances();
   refreshLinks();

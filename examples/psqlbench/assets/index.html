@@ -15,40 +15,55 @@
       </svg>
       <span>flyology</span><b>/ psqlbench</b>
     </a>
+    <div class="workbench-identity" aria-label="Application">
+      <strong>Postgres replication workbench</strong>
+      <span>control plane / wire inspector</span>
+    </div>
     <div class="daemon" id="daemon-status" role="status">
       <span class="status-dot"></span>
       <span>Connecting to Docker</span>
     </div>
   </header>
 
-  <main>
-    <section class="intro" aria-labelledby="page-title">
-      <div>
-        <p class="eyebrow">Flyology Postgres example</p>
-        <h1 id="page-title">Postgres replication<br><em>workbench</em></h1>
-      </div>
-      <p class="intro-copy">Run versioned Postgres nodes in isolated containers. Attach a query session, inspect bounded results, and follow each server's retained log stream before connecting replication paths.</p>
-    </section>
+  <nav class="command-bar" aria-label="Workbench commands">
+    <div class="command-group" aria-label="Topology commands">
+      <button class="button primary" type="button" id="open-create">New instance</button>
+      <button class="button secondary" type="button" id="open-link" aria-label="New replication link">New link</button>
+      <span class="command-separator" aria-hidden="true"></span>
+      <label class="preset-control">
+        <span>Preset</span>
+        <select id="topology-preset" aria-label="Sample topology preset">
+          <option value="logical-stream">2 DBs · logical stream (17 → 18)</option>
+          <option value="physical-standby">Primary · physical standby + WAL</option>
+          <option value="mixed-lab">3 DBs · logical + physical</option>
+          <option value="transaction-lab">2 DBs · committed + streamed 2PC</option>
+        </select>
+      </label>
+      <button class="button secondary" type="button" id="launch-preset">Create topology</button>
+    </div>
+    <div class="panel-switcher" aria-label="Visible workbench windows">
+      <span>Panels</span>
+      <button type="button" data-toggle-window="instances" aria-pressed="true">Nodes</button>
+      <button type="button" data-toggle-window="links" aria-pressed="true">Links</button>
+      <button type="button" data-toggle-window="query" aria-pressed="true">SQL</button>
+      <button type="button" data-toggle-window="logs" aria-pressed="true">Logs</button>
+      <button type="button" data-toggle-window="wire" aria-pressed="true">Wire</button>
+      <button type="button" data-toggle-window="supervision" aria-pressed="true">Tasks</button>
+      <button class="layout-reset" type="button" id="reset-window-layout">Reset layout</button>
+    </div>
+  </nav>
 
-    <section class="workbench" aria-label="Postgres topology workbench">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">01 / Runtime topology</p>
-          <h2>Postgres instances</h2>
+  <main class="desktop" id="desktop" aria-label="Postgres replication workbench">
+    <section class="lab-window workbench" data-window="instances" data-dock="left-top" aria-labelledby="instances-title">
+      <div class="window-titlebar" data-drag-handle>
+        <div class="window-title">
+          <span>01</span>
+          <h2 id="instances-title">instances</h2>
+          <code>docker://psqlbench</code>
         </div>
-        <div class="topology-actions" aria-label="Topology creation actions">
-          <button class="button primary" type="button" id="open-create">New instance</button>
-          <label class="preset-control">
-            <span>Topology preset</span>
-            <select id="topology-preset" aria-label="Sample topology preset">
-              <option value="logical-stream">2 DBs · logical stream (17 → 18)</option>
-              <option value="physical-standby">Primary · physical standby + WAL</option>
-              <option value="mixed-lab">3 DBs · logical + physical</option>
-              <option value="transaction-lab">2 DBs · committed + streamed 2PC</option>
-            </select>
-          </label>
-          <button class="button secondary" type="button" id="launch-preset">Create topology</button>
-          <button class="button secondary" type="button" id="open-link" aria-label="New replication link">New link</button>
+        <div class="window-controls">
+          <button type="button" data-window-action="float" aria-label="Float instances window" title="Float window">↗</button>
+          <button type="button" data-window-action="hide" aria-label="Hide instances window" title="Hide window">×</button>
         </div>
       </div>
 
@@ -115,11 +130,16 @@
       </div>
     </section>
 
-    <section class="link-workbench" aria-labelledby="links-title">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">02 / Replication paths</p>
-          <h2 id="links-title">Replication links</h2>
+    <section class="lab-window link-workbench" data-window="links" data-dock="left-bottom" aria-labelledby="links-title">
+      <div class="window-titlebar" data-drag-handle>
+        <div class="window-title">
+          <span>02</span>
+          <h2 id="links-title">replication.links</h2>
+          <code>COPY BOTH / pgoutput / WAL</code>
+        </div>
+        <div class="window-controls">
+          <button type="button" data-window-action="float" aria-label="Float replication links window" title="Float window">↗</button>
+          <button type="button" data-window-action="hide" aria-label="Hide replication links window" title="Hide window">×</button>
         </div>
       </div>
 
@@ -209,23 +229,24 @@
       </div>
     </section>
 
-    <section class="instance-workspace" id="instance-workspace" aria-labelledby="workspace-title" hidden>
-      <div class="workspace-heading">
-        <div>
-          <p class="eyebrow">03 / Selected instance</p>
-          <h2 id="workspace-title">Session workspace</h2>
+    <section class="lab-window instance-workspace" id="instance-workspace" data-window="query" data-dock="main" aria-labelledby="workspace-title">
+      <div class="window-titlebar" data-drag-handle>
+        <div class="window-title">
+          <span>03</span>
+          <h2 id="workspace-title">sql.session</h2>
+          <code id="query-state" role="status">detached</code>
         </div>
         <label class="instance-selector">
           <span>Instance</span>
           <select id="workspace-instance" aria-label="Selected Postgres instance"></select>
         </label>
-      </div>
-      <div class="workspace-tabs" role="tablist" aria-label="Instance tools">
-        <button type="button" role="tab" aria-selected="true" aria-controls="query-panel" id="query-tab">Query</button>
-        <button type="button" role="tab" aria-selected="false" aria-controls="logs-panel" id="logs-tab">Postgres logs</button>
+        <div class="window-controls">
+          <button type="button" data-window-action="float" aria-label="Float SQL session window" title="Float window">↗</button>
+          <button type="button" data-window-action="hide" aria-label="Hide SQL session window" title="Hide window">×</button>
+        </div>
       </div>
 
-      <div class="workspace-panel query-panel" id="query-panel" role="tabpanel" aria-labelledby="query-tab">
+      <div class="workspace-panel query-panel" id="query-panel">
         <div class="query-compose">
           <label for="query-input">SQL</label>
           <textarea id="query-input" spellcheck="false">select version() as server_version,
@@ -233,7 +254,7 @@
        42 as answer,
        null as nullable;</textarea>
           <div class="query-actions">
-            <p id="query-state" role="status">Attach to run a query</p>
+            <p>Extended query protocol over WebSocket</p>
             <div>
               <button class="button secondary" type="button" id="cancel-query" disabled>Cancel</button>
               <button class="button primary" type="button" id="run-query">Run query</button>
@@ -252,8 +273,21 @@
           </div>
         </div>
       </div>
+    </section>
 
-      <div class="workspace-panel logs-panel" id="logs-panel" role="tabpanel" aria-labelledby="logs-tab" hidden>
+    <section class="lab-window logs-window" data-window="logs" data-dock="right-top" aria-labelledby="logs-title">
+      <div class="window-titlebar" data-drag-handle>
+        <div class="window-title">
+          <span>04</span>
+          <h2 id="logs-title">postgres.stderr</h2>
+          <code id="logs-instance-name">no instance selected</code>
+        </div>
+        <div class="window-controls">
+          <button type="button" data-window-action="float" aria-label="Float Postgres logs window" title="Float window">↗</button>
+          <button type="button" data-window-action="hide" aria-label="Hide Postgres logs window" title="Hide window">×</button>
+        </div>
+      </div>
+      <div class="workspace-panel logs-panel" id="logs-panel">
         <div class="log-toolbar">
           <div>
             <span class="stream-state" id="log-stream-state">Opening stream</span>
@@ -268,12 +302,12 @@
       </div>
     </section>
 
-    <section class="lower-grid">
-      <div class="activity-section">
-        <div class="section-heading compact">
-          <div>
-            <p class="eyebrow">04 / Supervised activity</p>
-            <h2 id="activity-title">Live events</h2>
+    <section class="lab-window activity-section" data-window="wire" data-dock="bottom" aria-labelledby="activity-title">
+        <div class="window-titlebar" data-drag-handle>
+          <div class="window-title">
+            <span>05</span>
+            <h2 id="activity-title">replication.wire</h2>
+            <code>bounded event stream</code>
           </div>
           <div class="activity-controls">
             <label class="activity-filter">
@@ -284,39 +318,42 @@
             </label>
             <span class="stream-state" id="stream-state">Opening stream</span>
           </div>
+          <div class="window-controls">
+            <button type="button" data-window-action="float" aria-label="Float replication wire window" title="Float window">↗</button>
+            <button type="button" data-window-action="hide" aria-label="Hide replication wire window" title="Hide window">×</button>
+          </div>
         </div>
         <ol class="event-list" id="event-list" aria-live="polite"></ol>
-      </div>
-
-      <aside class="next-section" aria-labelledby="next-title">
-        <p class="eyebrow">Flight plan</p>
-        <h2 id="next-title">Replication flight plan</h2>
-        <p>Every replication path stays observable through Flyology clients and servers: consistent logical snapshots, committed and streamed pgoutput, prepared transactions, and physical recovery WAL.</p>
-        <ol>
-          <li><span>01</span> Consistent snapshot and LSN boundary</li>
-          <li><span>02</span> Source-to-target relation mapping</li>
-          <li><span>03</span> Prepare, commit, and rollback observation</li>
-        </ol>
-      </aside>
     </section>
 
-    <section class="supervision-section" aria-labelledby="supervision-title">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">05 / Runtime hierarchy</p>
-          <h2 id="supervision-title">Supervision tree</h2>
+    <section class="lab-window supervision-section" data-window="supervision" data-dock="right-bottom" aria-labelledby="supervision-title">
+      <div class="window-titlebar" data-drag-handle>
+        <div class="window-title">
+          <span>06</span>
+          <h2 id="supervision-title">supervision.tree</h2>
+          <code>Flyology.Supervision.Current</code>
         </div>
         <span class="supervision-state" id="supervision-state" role="status">Reading runtime snapshots</span>
+        <div class="window-controls">
+          <button type="button" data-window-action="float" aria-label="Float supervision tree window" title="Float window">↗</button>
+          <button type="button" data-window-action="hide" aria-label="Hide supervision tree window" title="Hide window">×</button>
+        </div>
       </div>
       <div class="supervision-explainer">
-        <p>This is the running hierarchy reported by Flyology supervision snapshots. Static services show their current generation; the replication family expands as link children are admitted, stopped, or replaced.</p>
-        <code>Flyology.Supervision.Current</code>
+        <p>Runtime snapshot: static service generations and replication-family children, including recovery attempts and escalation state.</p>
       </div>
       <div class="supervision-tree" id="supervision-tree" aria-live="polite" aria-busy="true">
         <p class="supervision-empty">Waiting for the supervisor to publish its first snapshot.</p>
       </div>
     </section>
   </main>
+
+  <footer class="status-bar" aria-label="Workbench status">
+    <span><b>transport</b> HTTP/1.1 + WebSocket</span>
+    <span><b>docker</b> unix:///var/run/docker.sock</span>
+    <span><b>replication</b> pgoutput / COPY BOTH / WAL</span>
+    <span class="status-hint">Drag a title bar to float. Use its slot selector to dock.</span>
+  </footer>
 
   <div class="toast" id="toast" role="alert" hidden></div>
   <script src="/assets/app.js"></script>

@@ -23,7 +23,7 @@ over the daemon's Unix-domain socket; psqlbench does not invoke the Docker CLI.
 - continuously collects timestamped output for every owned container into a
   bounded 1,024-line ring, and replays the selected server's retained output
   before following it live;
-- serves a Flyology-themed topology workbench and live WebSocket activity;
+- serves a fixed, windowed topology workbench with live WebSocket activity;
 - creates supervised, cross-version logical links for a managed three-column
   demo table and applies future inserts, updates, deletes, and truncates;
 - configures committed pgoutput v1 or large-transaction streaming pgoutput v2
@@ -137,39 +137,32 @@ The workbench grows in four layers while keeping the browser API stable:
    stream WAL positions, lag, keepalives, relation metadata, tuple changes, and
    link failures to the activity ledger.
 
-The intended desktop layout is deliberately topology-first:
+The desktop UI keeps the lab in one fixed workbench instead of a scrolling
+document. Six independent windows expose instances, replication links, the SQL
+session, Postgres output, replication-wire events, and the live supervision
+tree:
 
 ```text
-+ flyology / psqlbench                         [Docker ready]
-+-------------------------------------------------------------------+
-| BUILD THE TOPOLOGY. WATCH THE WIRE.                [+ New instance]|
-+-------------------------------------------------------------------+
-|  primary-17            physical / WAL             standby-17      |
-|  PG 17.10  [healthy]  =========================>  PG 17.10 [live] |
-|  :55432                 0/3A7D2C10 · 18 ms         :55433          |
-|  [Inspect] [Stop]                         [Inspect] [Stop]         |
-|                                                                   |
-|  publisher-18          logical / orders            subscriber-18  |
-|  PG 18.4   [healthy]  --------------------------> PG 18.4 [live]  |
-+-------------------------------------------------------------------+
-| SELECTED INSTANCE: primary-17                    [Query] [Logs]   |
-| select version(), 42;           | server_version        | ?column?|
-| [Cancel] [Run query]             | PostgreSQL 17.10 ...  | 42      |
-+----------------------------------+--------------------------------+
-| LIVE EVENTS                          | LINK INSPECTOR              |
-| 12:10 relation public.orders         | slot    orders_demo         |
-| 12:10 insert  id=42                  | sent    0/3A7D2C10          |
-| 12:10 standby status update          | flush   0/3A7D2C10          |
-+--------------------------------------+----------------------------+
++ flyology / psqlbench      Postgres replication workbench   Docker ready
++ [New instance] [New link] [Preset                         ] [Panels...]
++----------------+---------------------------+------------------------+
+| 01 instances   | 03 sql.session            | 04 postgres.stderr     |
+| containers     | editor | bounded results  | retained + live output |
++----------------+---------------------------+------------------------+
+| 02 links       | 05 replication.wire       | 06 supervision.tree    |
+| lag + failures | pgoutput / WAL / feedback | generations + families |
++----------------+---------------------------+------------------------+
+| transport HTTP + WebSocket | docker Unix socket | COPY BOTH / WAL    |
 ```
 
-The current UI implements instance nodes, managed logical and physical-link
-creation and status, the selected-instance Query and Logs workspace, and a live
-protocol activity ledger. Logical relays bind loopback. A physical relay binds
-all host IPv4 interfaces so its Docker standby can reach it through
-`host.docker.internal`; it uses the demo password in cleartext and is suitable
-only for this local workbench. Live recovery never connects directly to the
-source.
+Every title bar has a dock-slot selector. Dragging a title bar converts that
+window to a movable, resizable floating window; docking into an occupied slot
+swaps the two windows. The Panels controls hide and restore tools, Reset layout
+returns to the six-slot arrangement, and the browser retains the layout locally.
+Logical relays bind loopback. A physical relay binds all host IPv4 interfaces
+so its Docker standby can reach it through `host.docker.internal`; it uses the
+demo password in cleartext and is suitable only for this local workbench. Live
+recovery never connects directly to the source.
 
 ## Build and run
 
