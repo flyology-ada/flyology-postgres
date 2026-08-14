@@ -56,6 +56,10 @@ client support is available and verified.
   activity row is hovered or keyboard-focused;
 - renders each replica's current and applied LSN, exact byte lag, and replayed
   share of the WAL span observed since that link started;
+- exposes a per-link failure lab that can hold relay delivery, add up to five
+  seconds of latency, cap relay throughput from 16 KiB/s upward, or deliberately
+  disconnect one supervised generation while the backlog and recovery remain
+  visible;
 - creates idempotent logical-stream, physical-standby, and mixed-version sample
   topologies from UI presets, reusing matching managed containers after an app
   restart;
@@ -90,6 +94,15 @@ Physical bootstrap WAL is streamed with PostgreSQL's replication protocol by
 the Flyology client;
 Docker installs the received archive without invoking `pg_basebackup`. After
 recovery starts, all live WAL passes through the observable Flyology proxy.
+
+Failure-lab controls execute inside that proxy for both logical and physical
+links. Pausing stops relay delivery without stopping the source client, so the
+bounded relay queue and PostgreSQL slot provide backpressure. Latency and
+bandwidth shaping delay only relay-to-consumer `XLogData`; protocol keepalives
+and feedback remain visible. “Disconnect now” requests a generation-qualified
+supervised replacement through Flyology. These controls and their counters are
+deliberately runtime-only: restarting psqlbench returns every restored link to
+an unshaped network.
 
 The desired topology is stored as bounded JSON Lines in
 `psqlbench-state.jsonl` (override with `PSQLBENCH_STATE_FILE`). On startup a

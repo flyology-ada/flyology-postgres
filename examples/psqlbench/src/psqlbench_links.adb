@@ -56,6 +56,7 @@ package body Psqlbench_Links is
    use type Replication.LSN;
    use type Replication.Stream_Message_Kind;
    use type Base_Backups.Event_Kind;
+   use type Flyology.Supervision.Generation_Observation_Status;
    use type Psqlbench_Context.Link_Command_Kind;
    use type Psqlbench_Context.Link_Mode;
 
@@ -63,6 +64,13 @@ package body Psqlbench_Links is
      (Value : String; Length : Natural) return String is
      (if Length = 0 then ""
       else Value (Value'First .. Value'First + Length - 1));
+
+   procedure Close (Socket : in out Sockets.Socket_Type) is
+   begin
+      Sockets.Close_Socket (Socket);
+   exception
+      when others => null;
+   end Close;
 
    function Link_Name (Item : Psqlbench_Context.Link_Record) return String is
      (Text (Item.Name, Item.Name_Length));
@@ -618,6 +626,17 @@ package body Psqlbench_Links is
       Command : Replication.Command;
       Last_Keepalive : Ada.Real_Time.Time := Ada.Real_Time.Clock;
       Streaming : Boolean := False;
+
+      procedure Shape_Delay (Seconds : Duration) is
+         Deadline : constant Ada.Real_Time.Time :=
+           Ada.Real_Time.Clock + Ada.Real_Time.To_Time_Span (Seconds);
+      begin
+         while not State.Relay.Stopped
+           and then Ada.Real_Time.Clock < Deadline
+         loop
+            delay 0.010;
+         end loop;
+      end Shape_Delay;
    begin
       if Protocol.Kind (Message) /= Protocol.Query then
          Server_Sessions.Send_Error
@@ -698,30 +717,55 @@ package body Psqlbench_Links is
          declare
             Frame : Relay_Frame;
             Available : Boolean;
+            Faults : constant Psqlbench_Context.Fault_Profile :=
+              State.Root.Links.Read_Faults (Link_Name (State.Link));
          begin
-            State.Relay.Try_Pop (Frame, Available);
+            if Faults.Paused then
+               Frame := (others => <>);
+               Available := False;
+            else
+               State.Relay.Try_Pop (Frame, Available);
+            end if;
             if Available then
                declare
                   Data : constant Replication.Byte_Array :=
                     Flyology.Bytes.To_Array (Frame.Data);
                begin
-                  Replication_Server.Send_XLog_Data
-                    (Client, Frame.WAL_Start, Frame.WAL_End, Frame.Sent_At,
-                     Data, Timeout => 10.0);
+                  if Faults.Latency_Milliseconds > 0 then
+                     Shape_Delay
+                       (Duration (Faults.Latency_Milliseconds) / 1_000.0);
+                  end if;
+                  if Faults.Bandwidth_Kib_Per_Second > 0
+                    and then Data'Length > 0
+                  then
+                     Shape_Delay
+                       (Duration
+                          (Long_Float (Data'Length) /
+                           Long_Float
+                             (Faults.Bandwidth_Kib_Per_Second * 1_024)));
+                  end if;
+                  if not State.Relay.Stopped then
+                     Replication_Server.Send_XLog_Data
+                       (Client, Frame.WAL_Start, Frame.WAL_End, Frame.Sent_At,
+                        Data, Timeout => 10.0);
+                  end if;
                end;
             elsif Ada.Real_Time.Clock - Last_Keepalive >=
               Ada.Real_Time.Seconds (1)
             then
                Replication_Server.Send_Primary_Keepalive
                  (Client,
-                  WAL_End => State.Relay.Current_WAL,
+                  WAL_End =>
+                    (if Faults.Paused then State.Relay.Acknowledged
+                     else State.Relay.Current_WAL),
                   Sent_At => 0,
                   Reply_Requested => True,
                   Timeout => 10.0);
                Emit
                  (State.Root.all, State.Link, "relay", "relay-to-downstream",
                   "PRIMARY_KEEPALIVE", State.Relay.Current_WAL,
-                  "reply requested");
+                  (if Faults.Paused then "delivery held"
+                   else "reply requested"));
                Last_Keepalive := Ada.Real_Time.Clock;
             else
                delay 0.010;
@@ -1820,9 +1864,11 @@ package body Psqlbench_Links is
                                       (Logical.Kind (Logical_Message)),
                                     Replication.WAL_End (Frame),
                                     Message_Detail (Logical_Message));
-                                 Relay.Push (Forward, Accepted);
                                  Relay.Observe_WAL
                                    (Replication.WAL_End (Frame));
+                                 Context.Links.Record_Observed
+                                   (Link, Replication.WAL_End (Frame));
+                                 Relay.Push (Forward, Accepted);
                                  exit when not Accepted;
                               end;
                            elsif Replication.Kind (Frame) =
@@ -1830,6 +1876,8 @@ package body Psqlbench_Links is
                            then
                               Relay.Observe_WAL
                                 (Replication.WAL_End (Frame));
+                              Context.Links.Record_Observed
+                                (Link, Replication.WAL_End (Frame));
                               Emit
                                 (Context, Item, "upstream",
                                  "source-to-relay", "PRIMARY_KEEPALIVE",
@@ -1863,11 +1911,17 @@ package body Psqlbench_Links is
                   Last_Feedback := Ada.Real_Time.Clock;
                end if;
             end loop;
+            Close (Socket);
          exception
+            when Flyology.Cancellation.Operation_Cancelled =>
+               Close (Socket);
             when Error : others =>
-               Relay.Fail
-                 ("upstream client: "
-                  & Ada.Exceptions.Exception_Message (Error));
+               Close (Socket);
+               if not Relay.Stopped then
+                  Relay.Fail
+                    ("upstream client: "
+                     & Ada.Exceptions.Exception_Message (Error));
+               end if;
          end Upstream_Task;
 
          Downstream_Socket : aliased Sockets.Socket_Type;
@@ -1980,7 +2034,9 @@ package body Psqlbench_Links is
                         then
                            declare
                               Ack : constant Replication.LSN :=
-                                Relay.Acknowledged;
+                                (if not In_Transaction and Active_Stream = 0
+                                 then Replication.WAL_End (Frame)
+                                 else Relay.Acknowledged);
                            begin
                               Client.Send_Command
                                 (Downstream,
@@ -1999,24 +2055,40 @@ package body Psqlbench_Links is
 
          Relay.Stop;
          Relay_Server.Request_Shutdown (Server);
+         Close (Downstream_Socket);
+         Close (Target_Socket);
+         Close (Listener);
          Context.Links.Set_Status
            (Link, Psqlbench_Context.Link_Stopped, "link stopped");
-         if Flyology.Supervision.Stopping (Control.all).Requested then
+         declare
+            Failed : Boolean;
+            Detail : String (1 .. 320);
+            Last : Natural;
+         begin
+            Relay.Read_Failure (Failed, Detail, Last);
+            if Failed then
+               raise Program_Error with
+                 (if Last = 0 then "replication relay failed"
+                  else Detail (1 .. Last));
+            end if;
             raise Flyology.Cancellation.Operation_Cancelled;
-         else
-            raise Program_Error with
-              "replication bridge stopped without a shutdown request";
-         end if;
+         end;
       exception
          when Flyology.Cancellation.Operation_Cancelled =>
             Relay.Stop;
             Relay_Server.Request_Shutdown (Server);
+            Close (Downstream_Socket);
+            Close (Target_Socket);
+            Close (Listener);
             Context.Links.Set_Status
               (Link, Psqlbench_Context.Link_Stopped, "link stopped");
             raise;
          when Error : others =>
             Relay.Stop;
             Relay_Server.Request_Shutdown (Server);
+            Close (Downstream_Socket);
+            Close (Target_Socket);
+            Close (Listener);
             declare
                Failed : Boolean;
                Detail : String (1 .. 320);
@@ -2407,10 +2479,12 @@ package body Psqlbench_Links is
                                       Flyology.Bytes.To_Unbounded_Bytes (Data));
                                  Accepted : Boolean;
                               begin
-                                 Relay.Push (Forward, Accepted);
-                                 exit when not Accepted;
                                  Relay.Observe_WAL
                                    (Replication.WAL_End (Frame));
+                                 Context.Links.Record_Observed
+                                   (Link, Replication.WAL_End (Frame));
+                                 Relay.Push (Forward, Accepted);
+                                 exit when not Accepted;
                                  Context.Links.Record_Change
                                    (Link, Replication.WAL_End (Frame));
                                  Emit
@@ -2424,6 +2498,8 @@ package body Psqlbench_Links is
                            then
                               Relay.Observe_WAL
                                 (Replication.WAL_End (Frame));
+                              Context.Links.Record_Observed
+                                (Link, Replication.WAL_End (Frame));
                               Emit
                                 (Context, Item, "upstream",
                                  "source-to-relay", "PRIMARY_KEEPALIVE",
@@ -2457,13 +2533,18 @@ package body Psqlbench_Links is
                   Last_Feedback := Ada.Real_Time.Clock;
                end if;
             end loop;
+            Close (Socket);
          exception
             when Flyology.Cancellation.Operation_Cancelled =>
+               Close (Socket);
                null;
             when Error : others =>
-               Relay.Fail
-                 ("physical upstream client: "
-                  & Ada.Exceptions.Exception_Message (Error));
+               Close (Socket);
+               if not Relay.Stopped then
+                  Relay.Fail
+                    ("physical upstream client: "
+                     & Ada.Exceptions.Exception_Message (Error));
+               end if;
          end Upstream_Task;
 
          Ready_Deadline : constant Ada.Real_Time.Time :=
@@ -2528,24 +2609,34 @@ package body Psqlbench_Links is
          end;
          Relay.Stop;
          Relay_Server.Request_Shutdown (Server);
+         Close (Listener);
          Context.Links.Set_Status
            (Link, Psqlbench_Context.Link_Stopped, "physical link stopped");
-         if Flyology.Supervision.Stopping (Control.all).Requested then
+         declare
+            Failed : Boolean;
+            Detail : String (1 .. 320);
+            Last : Natural;
+         begin
+            Relay.Read_Failure (Failed, Detail, Last);
+            if Failed then
+               raise Program_Error with
+                 (if Last = 0 then "physical replication relay failed"
+                  else Detail (1 .. Last));
+            end if;
             raise Flyology.Cancellation.Operation_Cancelled;
-         else
-            raise Program_Error with
-              "physical bridge stopped without a shutdown request";
-         end if;
+         end;
       exception
          when Flyology.Cancellation.Operation_Cancelled =>
             Relay.Stop;
             Relay_Server.Request_Shutdown (Server);
+            Close (Listener);
             Context.Links.Set_Status
               (Link, Psqlbench_Context.Link_Stopped, "physical link stopped");
             raise;
          when Error : others =>
             Relay.Stop;
             Relay_Server.Request_Shutdown (Server);
+            Close (Listener);
             declare
                Ignored : constant Psqlbench_Docker.Result :=
                  Psqlbench_Docker.Apply
@@ -2670,6 +2761,45 @@ package body Psqlbench_Links is
          raise Program_Error with "link handle directory is full";
       end Remember;
 
+      procedure Stop_Supervised_Link (Name : String) is
+      begin
+         for Item of Handles loop
+            if Matches (Item, Name) then
+               begin
+                  Link_Families.Stop (Family, Item.Handle);
+               exception
+                  when Link_Families.Stale_Handle => null;
+               end;
+               Item.Occupied := False;
+               return;
+            end if;
+         end loop;
+      end Stop_Supervised_Link;
+
+      procedure Start_Supervised_Link
+        (Name : String; Detail : String) is
+         Links : Psqlbench_Context.Link_Array;
+         Count : Natural;
+      begin
+         Context.Links.Snapshot (Links, Count);
+         for Index in 1 .. Count loop
+            if Link_Name (Links (Index)) = Name then
+               declare
+                  Handle : Flyology.Supervision.Child_Handle;
+               begin
+                  Link_Families.Start (Family, Links (Index), Handle);
+                  Remember (Name, Handle);
+                  Context.Links.Set_Status
+                    (Name, Psqlbench_Context.Link_Starting, Detail);
+               end;
+               return;
+            end if;
+         end loop;
+         Context.Links.Set_Status
+           (Name, Psqlbench_Context.Link_Failed,
+            "link request disappeared before admission");
+      end Start_Supervised_Link;
+
       task Runner is
          pragma Task_Info (Flyology.Native_Task);
       end Runner;
@@ -2706,48 +2836,75 @@ package body Psqlbench_Links is
                begin
                   case Command.Kind is
                      when Psqlbench_Context.Create_Link =>
-                        declare
-                           Links : Psqlbench_Context.Link_Array;
-                           Count : Natural;
-                           Found : Boolean := False;
-                        begin
-                           Context.Links.Snapshot (Links, Count);
-                           for Index in 1 .. Count loop
-                              if Link_Name (Links (Index)) = Name then
-                                 declare
-                                    Handle : Flyology.Supervision.Child_Handle;
-                                 begin
-                                    Link_Families.Start
-                                      (Family, Links (Index), Handle);
-                                    Remember (Name, Handle);
-                                    Context.Links.Set_Status
-                                      (Name, Psqlbench_Context.Link_Starting,
-                                       "supervised link child admitted");
-                                    Found := True;
-                                 end;
-                                 exit;
-                              end if;
-                           end loop;
-                           if not Found then
-                              Context.Links.Set_Status
-                                (Name, Psqlbench_Context.Link_Failed,
-                                 "link request disappeared before admission");
-                           end if;
-                        end;
+                        Start_Supervised_Link
+                          (Name, "supervised link child admitted");
 
-                     when Psqlbench_Context.Stop_Link |
-                          Psqlbench_Context.Remove_Link =>
+                     when Psqlbench_Context.Restart_Link =>
                         for Item of Handles loop
                            if Matches (Item, Name) then
+                              declare
+                                 Previous : constant
+                                   Flyology.Supervision.Child_Handle :=
+                                     Item.Handle;
+                                 Child : constant
+                                   Flyology.Supervision.Child_Id :=
+                                     Flyology.Supervision.Child (Previous);
                               begin
-                                 Link_Families.Stop (Family, Item.Handle);
+                                 Context.Links.Set_Status
+                                   (Name, Psqlbench_Context.Link_Stopping,
+                                    "restarting the supervised link generation");
+                                 Link_Families.Restart (Family, Previous);
+                                 declare
+                                    Observation : constant
+                                      Flyology.Supervision
+                                        .Generation_Observation :=
+                                          Link_Families.Wait_Termination
+                                            (Family, Previous,
+                                             Timeout => 30.0);
+                                 begin
+                                    if Observation.Status =
+                                      Flyology.Supervision.Observation_Timed_Out
+                                    then
+                                       raise Program_Error with
+                                         "supervised replacement stop timed out";
+                                    end if;
+                                 end;
+                                 declare
+                                    Deadline : constant Ada.Real_Time.Time :=
+                                      Ada.Real_Time.Clock
+                                      + Ada.Real_Time.Seconds (90);
+                                 begin
+                                    loop
+                                       exit when Link_Families.Current
+                                         (Family, Child).Ready
+                                         and then Link_Families.Current
+                                           (Family, Child).Generation /=
+                                             Flyology.Supervision
+                                               .Current_Generation (Previous);
+                                       if Ada.Real_Time.Clock >= Deadline then
+                                          raise Program_Error with
+                                            "supervised replacement readiness timed out";
+                                       end if;
+                                       delay 0.020;
+                                    end loop;
+                                 end;
+                                 Item.Handle :=
+                                   Link_Families.Latest (Family, Child);
                               exception
-                                 when Link_Families.Stale_Handle => null;
+                                 when Error : others =>
+                                    Context.Links.Set_Status
+                                      (Name, Psqlbench_Context.Link_Failed,
+                                       "supervised reconnect: "
+                                       & Ada.Exceptions.Exception_Message
+                                           (Error));
                               end;
-                              Item.Occupied := False;
                               exit;
                            end if;
                         end loop;
+
+                     when Psqlbench_Context.Stop_Link |
+                          Psqlbench_Context.Remove_Link =>
+                        Stop_Supervised_Link (Name);
                         if Command.Kind = Psqlbench_Context.Remove_Link then
                            Context.Links.Forget (Name);
                            Psqlbench_Persistence.Save (Context);

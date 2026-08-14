@@ -254,8 +254,25 @@
       link.name, link.source, link.target, link.target_version,
       link.target_port, link.table, link.source_relation,
       link.target_relation, link.status, link.mode,
-      link.relay_port, link.detail, link.desired_running, link.column_map
+      link.relay_port, link.detail, link.desired_running, link.column_map,
+      link.flow_paused, link.latency_ms, link.bandwidth_kib, link.disconnects
     ]);
+  }
+
+  function faultProfileLabel(link) {
+    const parts = [];
+    if (link.flow_paused) parts.push("paused");
+    if (Number(link.latency_ms)) parts.push(`${link.latency_ms} ms`);
+    if (Number(link.bandwidth_kib)) parts.push(`${link.bandwidth_kib} KiB/s`);
+    return parts.length ? parts.join(" · ") : "nominal";
+  }
+
+  function replayStateLabel(link) {
+    const lag = formatBytes(link.lag_bytes);
+    const shaped = link.flow_paused || Number(link.latency_ms) || Number(link.bandwidth_kib);
+    if (link.flow_paused) return `Paused · ${lag} queued`;
+    if (!link.caught_up) return `${shaped ? "Shaping" : "Catching up"} · ${lag} behind`;
+    return shaped ? "Shaped · caught up" : "Caught up";
   }
 
   function updateLinkMetrics(article, link) {
@@ -273,9 +290,9 @@
 
     const replay = article.querySelector(".replay-progress");
     replay.classList.toggle("caught-up", Boolean(link.caught_up));
-    replay.querySelector(".replay-state").textContent = link.caught_up
-      ? "Caught up"
-      : `${formatBytes(link.lag_bytes)} behind`;
+    replay.classList.toggle("paused", Boolean(link.flow_paused));
+    replay.classList.toggle("shaped", Boolean(Number(link.latency_ms) || Number(link.bandwidth_kib)));
+    replay.querySelector(".replay-state").textContent = replayStateLabel(link);
     replay.querySelector(".replay-lsns").textContent =
       `${link.applied_lsn || "waiting"} → ${link.last_lsn || "waiting"}`;
     const meter = replay.querySelector("meter");
@@ -322,10 +339,13 @@
         stats.append(row);
       });
 
-    const replay = el("div", `replay-progress${link.caught_up ? " caught-up" : ""}`);
+    const replay = el(
+      "div",
+      `replay-progress${link.caught_up ? " caught-up" : ""}${link.flow_paused ? " paused" : ""}${Number(link.latency_ms) || Number(link.bandwidth_kib) ? " shaped" : ""}`
+    );
     const replayHead = el("div", "replay-progress-head");
     replayHead.append(
-      el("strong", "replay-state", link.caught_up ? "Caught up" : `${formatBytes(link.lag_bytes)} behind`),
+      el("strong", "replay-state", replayStateLabel(link)),
       el("span", "replay-lsns", `${link.applied_lsn || "waiting"} → ${link.last_lsn || "waiting"}`)
     );
     const meter = document.createElement("meter");
@@ -335,6 +355,67 @@
     meter.value = link.caught_up ? spanBytes : Math.min(spanBytes, Number(link.replayed_bytes) || 0);
     meter.setAttribute("aria-label", `${link.name} replica replay progress`);
     replay.append(replayHead, meter, el("small", "replay-summary", `${formatBytes(link.replayed_bytes)} replayed across ${formatBytes(link.span_bytes)} observed`));
+
+    const failureLab = document.createElement("details");
+    failureLab.className = "failure-lab";
+    const failureSummary = document.createElement("summary");
+    failureSummary.append(
+      el("span", "failure-lab-title", "Failure lab"),
+      el("span", "failure-lab-profile", faultProfileLabel(link))
+    );
+    const failureBody = el("div", "failure-lab-body");
+    const faultControls = el("div", "fault-controls");
+    const pauseLabel = el("label", "fault-toggle");
+    const pause = document.createElement("input");
+    pause.type = "checkbox";
+    pause.checked = Boolean(link.flow_paused);
+    pauseLabel.append(pause, el("span", "", "Hold relay delivery"));
+
+    function profileSelect(labelText, values, selected) {
+      const label = document.createElement("label");
+      label.append(el("span", "", labelText));
+      const select = document.createElement("select");
+      values.forEach(([value, text]) => {
+        const option = document.createElement("option");
+        option.value = String(value);
+        option.textContent = text;
+        select.append(option);
+      });
+      select.value = String(selected || 0);
+      label.append(select);
+      return { label, select };
+    }
+
+    const latency = profileSelect("Added latency", [
+      [0, "None"], [50, "50 ms"], [250, "250 ms"],
+      [1000, "1 second"], [3000, "3 seconds"]
+    ], link.latency_ms);
+    const bandwidth = profileSelect("Relay ceiling", [
+      [0, "Unlimited"], [1024, "1 MiB/s"], [256, "256 KiB/s"],
+      [64, "64 KiB/s"], [16, "16 KiB/s"]
+    ], link.bandwidth_kib);
+    faultControls.append(pauseLabel, latency.label, bandwidth.label);
+
+    const faultNote = el(
+      "p", "failure-lab-note",
+      `Runtime-only controls. ${Number(link.disconnects) || 0} supervised reconnect${Number(link.disconnects) === 1 ? "" : "s"} injected.`
+    );
+    const faultActions = el("div", "failure-lab-actions");
+    const applyFaults = el("button", "button secondary", "Apply shaping");
+    applyFaults.type = "button";
+    applyFaults.disabled = link.status !== "running";
+    applyFaults.addEventListener("click", () => applyLinkFaults(link.name, {
+      paused: pause.checked,
+      latency_ms: Number(latency.select.value),
+      bandwidth_kib: Number(bandwidth.select.value)
+    }, applyFaults));
+    const disconnect = el("button", "button danger", "Disconnect now");
+    disconnect.type = "button";
+    disconnect.disabled = link.status !== "running" || !link.desired_running;
+    disconnect.addEventListener("click", () => applyLinkAction(link.name, "disconnect", disconnect));
+    faultActions.append(applyFaults, disconnect);
+    failureBody.append(faultControls, faultNote, faultActions);
+    failureLab.append(failureSummary, failureBody);
 
     const detail = el("p", "link-detail", link.detail || "Waiting for supervised link activity");
     const mapping = document.createElement("details");
@@ -416,7 +497,7 @@
     actions.append(insert, pattern, inspect, activity, stateAction);
     article.append(heading, route, stats);
     if (!physical) article.append(mapping);
-    article.append(replay, detail, live, actions);
+    article.append(replay, failureLab, detail, live, actions);
     return article;
   }
 
@@ -549,6 +630,22 @@
     button.disabled = true;
     try {
       await request(`/api/links/${encodeURIComponent(name)}/${action}`, { method: "POST" });
+      await refreshLinks();
+    } catch (error) {
+      showError(error.message);
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function applyLinkFaults(name, profile, button) {
+    button.disabled = true;
+    try {
+      await request(`/api/links/${encodeURIComponent(name)}/faults`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(profile)
+      });
       await refreshLinks();
     } catch (error) {
       showError(error.message);

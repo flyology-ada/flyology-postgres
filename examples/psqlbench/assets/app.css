@@ -11,6 +11,8 @@
   --surface-strong: oklch(92.5% 0.024 270);
   --line: oklch(86% 0.025 270);
   --danger: oklch(55% 0.18 25);
+  --warning: oklch(72% 0.13 78);
+  --warning-deep: oklch(46% 0.105 70);
   --mono: ui-monospace, SFMono-Regular, "Cascadia Code", "Roboto Mono", monospace;
   --sans: Geologica, "Avenir Next", "Segoe UI", sans-serif;
 }
@@ -244,9 +246,36 @@ code { font-family: var(--mono); }
 .replay-progress-head { align-items: baseline; display: flex; gap: .75rem; justify-content: space-between; }
 .replay-progress-head strong { color: var(--violet-deep); font-size: .72rem; }
 .replay-progress.caught-up .replay-progress-head strong { color: var(--teal-deep); }
+.replay-progress.shaped .replay-progress-head strong { color: var(--violet-deep); }
+.replay-progress.paused .replay-progress-head strong { color: var(--warning-deep); }
 .replay-progress-head span, .replay-progress small { color: var(--ink-soft); font-family: var(--mono); font-size: .58rem; }
 .replay-progress meter { accent-color: var(--violet); display: block; height: .65rem; margin: .45rem 0 .25rem; width: 100%; }
 .replay-progress.caught-up meter { accent-color: var(--teal-deep); }
+.replay-progress.paused meter { accent-color: var(--warning-deep); }
+.failure-lab { border-bottom: 1px solid var(--line); margin-bottom: 1rem; }
+.failure-lab > summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  font-family: var(--mono);
+  font-size: .64rem;
+  justify-content: space-between;
+  list-style-position: inside;
+  padding: .65rem 0;
+}
+.failure-lab > summary:focus-visible { outline: 3px solid color-mix(in oklch, var(--violet) 35%, transparent); outline-offset: 2px; }
+.failure-lab-title { color: var(--ink); font-weight: 650; text-transform: uppercase; }
+.failure-lab-profile { color: var(--warning-deep); }
+.failure-lab-body { background: color-mix(in oklch, var(--warning) 9%, var(--paper)); border-top: 1px solid var(--line); padding: .9rem; }
+.fault-controls { display: grid; gap: .75rem; grid-template-columns: 1.05fr 1fr 1fr; }
+.fault-controls label > span { color: var(--ink-soft); }
+.fault-controls select { background: var(--paper); min-height: 2.35rem; padding: .45rem .6rem; }
+.fault-toggle { align-items: center; display: flex; gap: .55rem; padding-top: 1.25rem; }
+.fault-toggle input { accent-color: var(--warning-deep); min-height: 0; width: auto; }
+.fault-toggle span { color: var(--ink) !important; margin: 0; }
+.failure-lab-note { color: var(--ink-soft); font-family: var(--mono); font-size: .58rem; line-height: 1.5; margin: .8rem 0; }
+.failure-lab-actions { display: flex; gap: .5rem; justify-content: flex-end; }
+.failure-lab-actions .button { font-size: .64rem; padding: .48rem .75rem; }
 .link-live { border-bottom: 1px solid var(--line); border-top: 1px solid var(--line); margin: 1rem 0; }
 .link-live-heading { align-items: center; background: var(--surface); display: flex; justify-content: space-between; padding: .55rem .75rem; }
 .link-live-heading strong, .link-live-heading span { font-family: var(--mono); font-size: .62rem; }
@@ -439,6 +468,9 @@ kbd { background: var(--surface); border: 1px solid var(--line); border-radius: 
   .link-route { grid-template-columns: 1fr; }
   .link-route strong:last-child { text-align: left; }
   .link-route span { padding-left: .7rem; }
+  .fault-controls { grid-template-columns: 1fr; }
+  .fault-toggle { padding-top: 0; }
+  .failure-lab-actions { align-items: stretch; flex-direction: column; }
   .node, .node:nth-child(2n), .node:nth-child(3n) { border-bottom: 1px solid var(--line); border-right: 0; }
   .event { gap: .45rem; grid-template-columns: 4.2rem 1fr; }
   .event-detail { grid-column: 1 / -1; }

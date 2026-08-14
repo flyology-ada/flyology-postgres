@@ -43,6 +43,18 @@ package Psqlbench_Context is
       Logical_Two_Phase, Logical_Two_Phase_Streaming,
       Physical_Streaming);
 
+   Max_Fault_Latency_Milliseconds : constant := 5_000;
+   Min_Fault_Bandwidth_Kib : constant := 16;
+   Max_Fault_Bandwidth_Kib : constant := 10_240;
+
+   type Fault_Profile is record
+      Paused : Boolean := False;
+      Latency_Milliseconds : Natural range
+        0 .. Max_Fault_Latency_Milliseconds := 0;
+      Bandwidth_Kib_Per_Second : Natural range
+        0 .. Max_Fault_Bandwidth_Kib := 0;
+   end record;
+
    type Link_Record is record
       Status        : Link_Status := Link_Empty;
       Mode          : Link_Mode := Logical_Committed;
@@ -72,6 +84,8 @@ package Psqlbench_Context is
       Start_LSN     : Interfaces.Unsigned_64 := 0;
       Last_LSN      : Interfaces.Unsigned_64 := 0;
       Applied_LSN   : Interfaces.Unsigned_64 := 0;
+      Faults         : Fault_Profile;
+      Disconnect_Count : Event_Sequence := 0;
       Desired_Running : Boolean := True;
       Detail_Length : Natural range 0 .. Max_Link_Detail_Bytes := 0;
       Detail        : String (1 .. Max_Link_Detail_Bytes) := (others => ' ');
@@ -79,7 +93,8 @@ package Psqlbench_Context is
 
    type Link_Array is array (Positive range 1 .. Max_Links) of Link_Record;
 
-   type Link_Command_Kind is (Create_Link, Stop_Link, Remove_Link);
+   type Link_Command_Kind is
+     (Create_Link, Stop_Link, Restart_Link, Remove_Link);
 
    type Link_Command is record
       Kind        : Link_Command_Kind := Create_Link;
@@ -186,6 +201,17 @@ package Psqlbench_Context is
         (Name : String; LSN : Interfaces.Unsigned_64);
       procedure Record_Applied
         (Name : String; LSN : Interfaces.Unsigned_64);
+      procedure Record_Observed
+        (Name : String; LSN : Interfaces.Unsigned_64);
+      procedure Configure_Faults
+        (Name : String;
+         Paused : Boolean;
+         Latency_Milliseconds : Natural;
+         Bandwidth_Kib_Per_Second : Natural;
+         Accepted : out Boolean);
+      procedure Trigger_Disconnect
+        (Name : String; Accepted : out Boolean);
+      function Read_Faults (Name : String) return Fault_Profile;
       function References_Instance (Name : String) return Boolean;
       procedure Snapshot (Value : out Link_Array; Count : out Natural);
    private

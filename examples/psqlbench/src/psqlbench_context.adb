@@ -491,6 +491,80 @@ package body Psqlbench_Context is
          end loop;
       end Record_Applied;
 
+      procedure Record_Observed
+        (Name : String; LSN : Interfaces.Unsigned_64) is
+      begin
+         for Index in Entries'Range loop
+            if Same_Name (Entries (Index), Name) then
+               if LSN > Entries (Index).Last_LSN then
+                  Entries (Index).Last_LSN := LSN;
+               end if;
+               return;
+            end if;
+         end loop;
+      end Record_Observed;
+
+      procedure Configure_Faults
+        (Name : String;
+         Paused : Boolean;
+         Latency_Milliseconds : Natural;
+         Bandwidth_Kib_Per_Second : Natural;
+         Accepted : out Boolean) is
+      begin
+         Accepted := False;
+         if Latency_Milliseconds > Max_Fault_Latency_Milliseconds
+           or else Bandwidth_Kib_Per_Second > Max_Fault_Bandwidth_Kib
+           or else Bandwidth_Kib_Per_Second in
+             1 .. Min_Fault_Bandwidth_Kib - 1
+         then
+            return;
+         end if;
+         for Index in Entries'Range loop
+            if Same_Name (Entries (Index), Name) then
+               Entries (Index).Faults.Paused := Paused;
+               Entries (Index).Faults.Latency_Milliseconds :=
+                 Latency_Milliseconds;
+               Entries (Index).Faults.Bandwidth_Kib_Per_Second :=
+                 Bandwidth_Kib_Per_Second;
+               Accepted := True;
+               return;
+            end if;
+         end loop;
+      end Configure_Faults;
+
+      procedure Trigger_Disconnect
+        (Name : String; Accepted : out Boolean) is
+      begin
+         Accepted := False;
+         if Command_Count = Link_Command_Capacity then
+            return;
+         end if;
+         for Index in Entries'Range loop
+            if Same_Name (Entries (Index), Name)
+              and then Entries (Index).Desired_Running
+              and then Entries (Index).Status not in
+                Link_Stopped | Link_Stopping
+            then
+               Entries (Index).Disconnect_Count :=
+                 Entries (Index).Disconnect_Count + 1;
+               Entries (Index).Status := Link_Stopping;
+               Enqueue (Restart_Link, Name);
+               Accepted := True;
+               return;
+            end if;
+         end loop;
+      end Trigger_Disconnect;
+
+      function Read_Faults (Name : String) return Fault_Profile is
+      begin
+         for Index in Entries'Range loop
+            if Same_Name (Entries (Index), Name) then
+               return Entries (Index).Faults;
+            end if;
+         end loop;
+         return (others => <>);
+      end Read_Faults;
+
       function References_Instance (Name : String) return Boolean is
       begin
          for Item of Entries loop

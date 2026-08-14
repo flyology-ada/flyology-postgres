@@ -295,6 +295,19 @@ package body Psqlbench_Server is
             Psqlbench_JSON.Integer_Value
               (Document, "changes",
                Long_Long_Integer (Value (Index).Change_Count));
+            Psqlbench_JSON.Boolean_Value
+              (Document, "flow_paused", Value (Index).Faults.Paused);
+            Psqlbench_JSON.Integer_Value
+              (Document, "latency_ms",
+               Long_Long_Integer
+                 (Value (Index).Faults.Latency_Milliseconds));
+            Psqlbench_JSON.Integer_Value
+              (Document, "bandwidth_kib",
+               Long_Long_Integer
+                 (Value (Index).Faults.Bandwidth_Kib_Per_Second));
+            Psqlbench_JSON.Integer_Value
+              (Document, "disconnects",
+               Long_Long_Integer (Value (Index).Disconnect_Count));
             if Value (Index).Last_LSN > 0 then
                Psqlbench_JSON.String_Value
                  (Document, "last_lsn",
@@ -741,7 +754,57 @@ package body Psqlbench_Server is
          Kind : Psqlbench_Context.Link_Command_Kind;
          Accepted : Boolean;
       begin
-         if Action = "start" then
+         if Action = "faults" then
+            declare
+               Paused : constant Boolean :=
+                 Psqlbench_JSON.Boolean_Field
+                   (X.Content, "paused", False);
+               Latency : constant Natural :=
+                 Psqlbench_JSON.Natural_Field
+                   (X.Content, "latency_ms", 0);
+               Bandwidth : constant Natural :=
+                 Psqlbench_JSON.Natural_Field
+                   (X.Content, "bandwidth_kib", 0);
+            begin
+               if Latency >
+                 Psqlbench_Context.Max_Fault_Latency_Milliseconds
+                 or else Bandwidth >
+                   Psqlbench_Context.Max_Fault_Bandwidth_Kib
+                 or else Bandwidth in
+                   1 .. Psqlbench_Context.Min_Fault_Bandwidth_Kib - 1
+               then
+                  X.Problem
+                    (400, "invalid-fault-profile",
+                     "Latency is limited to 5000 ms; bandwidth is unlimited "
+                     & "at zero or 16 through 10240 KiB/s");
+                  return;
+               end if;
+               State.Root.Links.Configure_Faults
+                 (Name, Paused, Latency, Bandwidth, Accepted);
+               if not Accepted then
+                  X.Problem (404, "link-not-found", "Link was not found");
+                  return;
+               end if;
+               State.Root.Events.Append
+                 (Link_Event_Document (Name, "FAULT_POLICY_CHANGED"));
+               X.JSON
+                 (200, Link_Document (Name, "", "", "faults-updated"));
+               return;
+            end;
+         elsif Action = "disconnect" then
+            State.Root.Links.Trigger_Disconnect (Name, Accepted);
+            if not Accepted then
+               X.Problem
+                 (409, "link-not-running",
+                  "Only an active desired link can be disconnected");
+               return;
+            end if;
+            State.Root.Events.Append
+              (Link_Event_Document (Name, "DISCONNECT_REQUESTED"));
+            X.JSON
+              (202, Link_Document (Name, "", "", "disconnect-requested"));
+            return;
+         elsif Action = "start" then
             Kind := Psqlbench_Context.Create_Link;
          elsif Action = "stop" then
             Kind := Psqlbench_Context.Stop_Link;
@@ -1272,6 +1335,8 @@ package body Psqlbench_Server is
          Name => "api.link.action",
          Policy =>
            (Routing.Default_Route_Policy with delta
+              Body_Handling => App.Buffer_Body,
+              Max_Body      => 4 * 1_024,
               Timeout => 30.0, Concurrency => 8));
       State.Routes.Post
         ("/api/instances", Create_Instance'Access, Name => "api.create",
