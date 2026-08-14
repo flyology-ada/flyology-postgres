@@ -286,6 +286,11 @@ procedure Postgres_Test_Replication_Server is
             raise Protocol.Protocol_Error with
               "test primary does not manage logical slots";
 
+         when Replication.Upload_Manifest_Command |
+              Replication.Base_Backup_Command =>
+            raise Protocol.Protocol_Error with
+              "test primary does not provide base backups";
+
          when Replication.Start_Physical_Command =>
             if Length (State.Expected_Slot) > 0
               and then Replication.Slot_Name (Command) /=

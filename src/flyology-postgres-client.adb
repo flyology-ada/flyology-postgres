@@ -1034,14 +1034,45 @@ package body Flyology.Postgres.Client is
             Item.Portal_Is_Suspended := False;
             Reset_Copy (Item);
 
+         when Protocol.Copy_Out_Response =>
+            if Item.Current_Copy_Origin /= Simple_Copy
+              or else Item.Current_State /= Copy_Completion_Active
+              or else Item.Copy_Send_Open
+              or else Item.Copy_Receive_Open
+            then
+               raise Protocol.Protocol_Error with
+                 "unexpected CopyOutResponse during COPY";
+            end if;
+            --  PostgreSQL 14 BASE_BACKUP returns one COPY OUT result per
+            --  tablespace (and optionally one for the manifest), with no
+            --  CommandComplete between those results.
+            Enter_Copy
+              (Item, Protocol.Copy_Out_Response, Origin => Simple_Copy);
+
+         when Protocol.Row_Description_Response =>
+            if Item.Current_Copy_Origin /= Simple_Copy
+              or else Item.Current_State /= Copy_Completion_Active
+              or else Item.Copy_Send_Open
+              or else Item.Copy_Receive_Open
+            then
+               raise Protocol.Protocol_Error with
+                 "unexpected RowDescription during COPY";
+            end if;
+            --  BASE_BACKUP follows its final COPY result directly with the
+            --  stop-LSN result set.  Preserve this already-read response for
+            --  the copy-event consumer while restoring simple-query state.
+            Item.Current_State := Simple_Query_Active;
+            Item.Described_Columns := Protocol.Field_Count
+              (Protocol.Description (Response));
+            Item.Has_Row_Description := True;
+            Reset_Copy (Item);
+
          when Protocol.Notice_Response |
               Protocol.Parameter_Status_Response =>
             null;
 
          when Protocol.Copy_In_Response |
-              Protocol.Copy_Out_Response |
               Protocol.Copy_Both_Response |
-              Protocol.Row_Description_Response |
               Protocol.Data_Row_Response |
               Protocol.Empty_Query_Response |
               Protocol.Parse_Complete_Response |

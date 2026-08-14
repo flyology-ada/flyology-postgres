@@ -3,6 +3,7 @@ with AUnit.Assertions; use AUnit.Assertions;
 with Flyology.Bytes;
 with Flyology.Postgres.Protocol;
 with Flyology.Postgres.Replication;
+with Flyology.Postgres.Replication.Base_Backups;
 with Flyology.Postgres.Replication.Logical;
 with Flyology.Postgres.Replication.Logical.Producer;
 with Flyology.Postgres.Replication.Persistence;
@@ -15,6 +16,8 @@ package body Replication_Tests is
 
    package Protocol renames Flyology.Postgres.Protocol;
    package Replication renames Flyology.Postgres.Replication;
+   package Base_Backups renames
+     Flyology.Postgres.Replication.Base_Backups;
    package Logical renames Flyology.Postgres.Replication.Logical;
    package Producer renames
      Flyology.Postgres.Replication.Logical.Producer;
@@ -76,6 +79,7 @@ package body Replication_Tests is
    use type Replication.LSN;
    use type Replication.Snapshot_Action;
    use type Replication.Stream_Message_Kind;
+   use type Base_Backups.Backup_Target;
    use type Persistence.Acquire_Result;
    use type Persistence.Create_Result;
    use type Persistence.Prepared_Phase;
@@ -392,6 +396,110 @@ package body Replication_Tests is
       Check_Startup (Protocol.Physical_Replication_Connection);
       Check_Startup (Protocol.Logical_Replication_Connection);
    end Test_Commands_And_LSN;
+
+   procedure Test_Base_Backup_Commands is
+      Legacy : Base_Backups.Options := Base_Backups.Defaults (14);
+      Modern : Base_Backups.Options := Base_Backups.Defaults (15);
+      Incremental : Base_Backups.Options := Base_Backups.Defaults (17);
+      Empty_Label : Base_Backups.Options := Base_Backups.Defaults (14);
+      Rejected : Boolean := False;
+   begin
+      Base_Backups.Set_Label (Empty_Label, "");
+      Assert
+        (Query_Text (Base_Backups.Command (Empty_Label)) =
+           "BASE_BACKUP LABEL ''",
+         "an explicitly empty backup label is preserved");
+
+      Base_Backups.Set_Label (Legacy, "night's backup");
+      Base_Backups.Set_Progress (Legacy);
+      Base_Backups.Set_Checkpoint
+        (Legacy, Base_Backups.Fast_Checkpoint);
+      Base_Backups.Include_WAL (Legacy);
+      Base_Backups.Wait_For_Archive (Legacy, False);
+      Base_Backups.Set_Maximum_Rate (Legacy, 32);
+      Base_Backups.Include_Tablespace_Map (Legacy);
+      Base_Backups.Verify_Checksums (Legacy, False);
+      Base_Backups.Set_Manifest
+        (Legacy, Base_Backups.Include_Manifest,
+         Base_Backups.SHA256_Checksum);
+      Assert
+        (Query_Text (Base_Backups.Command (Legacy)) =
+           "BASE_BACKUP LABEL 'night''s backup' PROGRESS FAST WAL NOWAIT"
+           & " MAX_RATE 32 TABLESPACE_MAP NOVERIFY_CHECKSUMS"
+           & " MANIFEST 'yes' MANIFEST_CHECKSUMS 'SHA256'",
+         "PostgreSQL 14 BASE_BACKUP uses the legacy option grammar");
+
+      Base_Backups.Set_Target
+        (Modern, Base_Backups.Server_Target, "/srv/backups/nightly");
+      Base_Backups.Set_Compression
+        (Modern, Base_Backups.Zstandard_Compression, "level=7,workers=2");
+      Base_Backups.Set_Progress (Modern);
+      Base_Backups.Set_Checkpoint
+        (Modern, Base_Backups.Fast_Checkpoint);
+      Base_Backups.Include_WAL (Modern);
+      Base_Backups.Wait_For_Archive (Modern, False);
+      Base_Backups.Include_Tablespace_Map (Modern);
+      Base_Backups.Verify_Checksums (Modern, False);
+      Base_Backups.Set_Manifest
+        (Modern, Base_Backups.Force_Encode_Manifest,
+         Base_Backups.No_Checksum);
+      Assert
+        (Query_Text (Base_Backups.Command (Modern)) =
+           "BASE_BACKUP (TARGET 'server', TARGET_DETAIL"
+           & " '/srv/backups/nightly', PROGRESS true, CHECKPOINT 'fast',"
+           & " WAL true, WAIT false, COMPRESSION 'zstd',"
+           & " COMPRESSION_DETAIL 'level=7,workers=2',"
+           & " TABLESPACE_MAP true, VERIFY_CHECKSUMS false,"
+           & " MANIFEST 'force-encode', MANIFEST_CHECKSUMS 'NONE')",
+         "PostgreSQL 15 BASE_BACKUP uses typed parenthesized options");
+
+      Base_Backups.Set_Incremental (Incremental);
+      Assert
+        (Query_Text (Base_Backups.Command (Incremental)) =
+           "BASE_BACKUP (INCREMENTAL)"
+         and then Query_Text
+           (Base_Backups.Upload_Manifest_Command (17)) = "UPLOAD_MANIFEST",
+         "PostgreSQL 17 exposes incremental backup and manifest upload");
+
+      Assert
+        (Replication.Kind
+           (Replication.Decode_Command (Base_Backups.Command (Legacy))) =
+           Replication.Base_Backup_Command
+         and then Replication.Kind
+           (Replication.Decode_Command
+              (Base_Backups.Upload_Manifest_Command (18))) =
+           Replication.Upload_Manifest_Command,
+         "primary command decoding classifies backup protocol commands");
+
+      begin
+         Base_Backups.Set_Incremental (Legacy);
+      exception
+         when Protocol.Protocol_Error =>
+            Rejected := True;
+      end;
+      Assert
+        (Rejected,
+         "incremental backup is rejected before PostgreSQL 17");
+      Rejected := False;
+      begin
+         Base_Backups.Set_Compression
+           (Legacy, Base_Backups.Gzip_Compression);
+      exception
+         when Protocol.Protocol_Error =>
+            Rejected := True;
+      end;
+      Assert
+        (Rejected,
+         "server compression is rejected for PostgreSQL 14");
+      Rejected := False;
+      begin
+         Base_Backups.Set_Maximum_Rate (Legacy, 31);
+      exception
+         when Protocol.Protocol_Error =>
+            Rejected := True;
+      end;
+      Assert (Rejected, "invalid backup throttling is rejected locally");
+   end Test_Base_Backup_Commands;
 
    procedure Test_Physical_Messages is
       Bytes : constant Protocol.Byte_Array (1 .. 4) :=
@@ -1312,6 +1420,7 @@ package body Replication_Tests is
    procedure Run is
    begin
       Test_Commands_And_LSN;
+      Test_Base_Backup_Commands;
       Test_Physical_Messages;
       Test_Logical_Transaction_Messages;
       Test_Logical_Row_Messages;

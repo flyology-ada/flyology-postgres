@@ -389,6 +389,10 @@ package body Flyology.Postgres.Replication.Managed_Primary is
                  (Client, Timeout => Item.Operation_Timeout);
                Apply_Retention (Item);
             end;
+         when Upload_Manifest_Command | Base_Backup_Command =>
+            raise Protocol.Protocol_Error with
+              "managed primary does not provide base-backup storage";
+
          when Start_Physical_Command =>
             Stream_Physical (Item, Client, Command);
          when Start_Logical_Command =>

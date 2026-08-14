@@ -1,12 +1,15 @@
 with Ada.Streams;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Text_IO;
+with Interfaces;
 with AUnit.Assertions; use AUnit.Assertions;
 with Flyology.Bytes;
 with Flyology.IO.TLS;
 with Flyology.IO.TLS.OpenSSL;
 with Flyology.Postgres.Client;
 with Flyology.Postgres.Protocol;
+with Flyology.Postgres.Replication.Base_Backups;
+with Flyology.Postgres.Replication.Base_Backups.Server_Sessions;
 with Flyology.Postgres.SCRAM;
 with Flyology.Postgres.SCRAM_Core;
 with Flyology.Postgres.Server_Sessions;
@@ -19,6 +22,10 @@ procedure Tests is
    package Protocol renames Flyology.Postgres.Protocol;
    package SCRAM_Core renames Flyology.Postgres.SCRAM_Core;
    package Client renames Flyology.Postgres.Client;
+   package Base_Backups renames
+     Flyology.Postgres.Replication.Base_Backups;
+   package Backup_Sessions renames
+     Flyology.Postgres.Replication.Base_Backups.Server_Sessions;
    package Server_Sessions renames Flyology.Postgres.Server_Sessions;
    package Transports renames Flyology.Postgres.Transports;
 
@@ -35,6 +42,8 @@ procedure Tests is
    use type Protocol.UInt16;
    use type Protocol.UInt32;
    use type Client.Operation_State;
+   use type Base_Backups.Event_Kind;
+   use type Interfaces.Unsigned_64;
    use type Ada.Streams.Stream_Element_Array;
 
    type Memory_Transport is
@@ -271,7 +280,6 @@ procedure Tests is
       package Wire renames Flyology.Postgres.Wire;
       use type Wire.Byte_View;
       use type Wire.Int64;
-      use type Wire.UInt64;
       Data     : Protocol.Byte_Array (-3 .. 0) := (others => 0);
       Data64   : Protocol.Byte_Array (-7 .. 0) := (others => 0);
       Found    : Boolean;
@@ -1223,6 +1231,140 @@ procedure Tests is
       end;
    end Test_Copy_Client_State;
 
+   procedure Test_Base_Backup_Client_State is
+      Channel : aliased Memory_Transport;
+      Session : aliased Client.Session (Channel'Access);
+      Receiver : Base_Backups.Receiver (Session'Access);
+      Server_Channel : aliased Memory_Transport;
+      Server_Session : Server_Sessions.Session (Server_Channel'Access);
+      Authentication : Flyology.Bytes.Unbounded_Bytes;
+      Ready_Payload : constant Protocol.Byte_Array (1 .. 1) :=
+        (1 => Protocol.Byte (Character'Pos ('I')));
+      Chunk : constant Protocol.Byte_Array (1 .. 4) :=
+        (16#75#, 16#73#, 16#74#, 16#61#);
+      Manifest_Chunk : constant Protocol.Byte_Array (1 .. 2) :=
+        (16#7B#, 16#7D#);
+      Settings : Base_Backups.Options := Base_Backups.Defaults (15);
+      Step : Natural := 0;
+   begin
+      Protocol.Append_U32 (Authentication, 0);
+      Queue
+        (Channel,
+         Protocol.Make_Message
+           ('R', Flyology.Bytes.To_Array (Authentication)));
+      Queue (Channel, Protocol.Make_Message ('Z', Ready_Payload));
+      Client.Startup (Session, User => "backup-test", Timeout => 1.0);
+
+      Backup_Sessions.Send_Start_Position
+        (Server_Session, 16#100#, 1, 1.0);
+      Backup_Sessions.Begin_Tablespaces (Server_Session, 1.0);
+      Backup_Sessions.Send_Tablespace
+        (Server_Session,
+         Oid_Present      => False,
+         Location_Present => False,
+         Size_Present     => True,
+         Size_KiB         => 42,
+         Timeout          => 1.0);
+      Backup_Sessions.Complete_Tablespaces (Server_Session, 1.0);
+      Backup_Sessions.Begin_Stream (Server_Session, 1.0);
+      Backup_Sessions.Send_Archive_Start
+        (Server_Session, "base.tar", "", 1.0);
+      Backup_Sessions.Send_Data
+        (Server_Session, 15, Chunk, 1.0);
+      declare
+         Rejected : Boolean := False;
+      begin
+         begin
+            Backup_Sessions.Send_Progress
+              (Server_Session, Interfaces.Unsigned_64'Last, 1.0);
+         exception
+            when Protocol.Protocol_Error =>
+               Rejected := True;
+         end;
+         Assert
+           (Rejected,
+            "base backup progress rejects negative PostgreSQL int64 values");
+      end;
+      Backup_Sessions.Send_Progress (Server_Session, 4, 1.0);
+      Backup_Sessions.Send_Manifest_Start (Server_Session, 1.0);
+      Backup_Sessions.Send_Data
+        (Server_Session, 15, Manifest_Chunk, 1.0);
+      Backup_Sessions.Finish_Stream (Server_Session, 1.0);
+      Backup_Sessions.Send_End_Position
+        (Server_Session, 16#200#, 1, 1.0);
+      Flyology.Bytes.Append
+        (Channel.Input, Flyology.Bytes.To_Array (Server_Channel.Output));
+
+      Base_Backups.Set_Progress (Settings);
+      Base_Backups.Set_Manifest
+        (Settings, Base_Backups.Include_Manifest);
+      Base_Backups.Start (Receiver, Settings, 1.0);
+
+      loop
+         declare
+            Event : constant Base_Backups.Event :=
+              Base_Backups.Receive (Receiver, 1.0);
+         begin
+            Step := Step + 1;
+            case Step is
+               when 1 =>
+                  Assert
+                    (Base_Backups.Kind (Event) = Base_Backups.Backup_Start
+                     and then Base_Backups.Start_LSN (Event) = 16#100#
+                     and then Base_Backups.Timeline (Event) = 1,
+                     "base backup exposes its consistent start position");
+               when 2 =>
+                  Assert
+                    (Base_Backups.Kind (Event) = Base_Backups.Tablespace
+                     and then not Base_Backups.Has_Tablespace_Oid (Event)
+                     and then not
+                       Base_Backups.Has_Tablespace_Location (Event)
+                     and then Base_Backups.Tablespace_Size_KiB (Event) = 42,
+                     "base backup preserves nullable tablespace metadata");
+               when 3 =>
+                  Assert
+                    (Base_Backups.Kind (Event) = Base_Backups.Archive_Start
+                     and then Base_Backups.Archive_Name (Event) = "base.tar"
+                     and then Base_Backups.Archive_Location (Event) = "",
+                     "multiplexed backup names each archive");
+               when 4 =>
+                  Assert
+                    (Base_Backups.Kind (Event) = Base_Backups.Archive_Data
+                     and then Base_Backups.Data (Event) = Chunk,
+                     "archive data is returned one bounded frame at a time");
+               when 5 =>
+                  Assert
+                    (Base_Backups.Kind (Event) = Base_Backups.Progress
+                     and then Base_Backups.Bytes_Completed (Event) = 4,
+                     "backup progress preserves its int64 byte count");
+               when 6 =>
+                  Assert
+                    (Base_Backups.Kind (Event) = Base_Backups.Manifest_Start,
+                     "backup manifest start is explicit");
+               when 7 =>
+                  Assert
+                    (Base_Backups.Kind (Event) = Base_Backups.Manifest_Data
+                     and then Base_Backups.Data (Event) = Manifest_Chunk,
+                     "manifest bytes share the bounded stream API");
+               when 8 =>
+                  Assert
+                    (Base_Backups.Kind (Event) = Base_Backups.Backup_End
+                     and then Base_Backups.End_LSN (Event) = 16#200#
+                     and then Base_Backups.Timeline (Event) = 1,
+                     "base backup validates and exposes its end position");
+               when 9 =>
+                  Assert
+                    (Base_Backups.Kind (Event) = Base_Backups.Complete
+                     and then Client.Is_Ready (Session),
+                     "base backup completion consumes ReadyForQuery");
+                  exit;
+               when others =>
+                  Assert (False, "base backup emitted an unexpected event");
+            end case;
+         end;
+      end loop;
+   end Test_Base_Backup_Client_State;
+
    procedure Test_Extended_Client_State is
       Channel : aliased Memory_Transport;
       Session : Client.Session (Channel'Access);
@@ -1668,6 +1810,7 @@ begin
    Test_Extended_Backend_Messages;
    Test_Copy_Protocol;
    Test_Copy_Client_State;
+   Test_Base_Backup_Client_State;
    Test_Extended_Client_State;
    Test_Malformed_Backend_Messages;
    Test_RFC_7677_SCRAM_SHA_256;

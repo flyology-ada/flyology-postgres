@@ -136,6 +136,8 @@ package Flyology.Postgres.Replication is
       Timeline_History_Command,
       Create_Logical_Slot_Command,
       Drop_Replication_Slot_Command,
+      Upload_Manifest_Command,
+      Base_Backup_Command,
       Start_Physical_Command,
       Start_Logical_Command);
    --  Replication-mode simple-query command classification.
@@ -144,6 +146,8 @@ package Flyology.Postgres.Replication is
    --  @enum Timeline_History_Command TIMELINE_HISTORY timeline.
    --  @enum Create_Logical_Slot_Command CREATE_REPLICATION_SLOT LOGICAL.
    --  @enum Drop_Replication_Slot_Command DROP_REPLICATION_SLOT.
+   --  @enum Upload_Manifest_Command PostgreSQL 17+ UPLOAD_MANIFEST.
+   --  @enum Base_Backup_Command BASE_BACKUP.
    --  @enum Start_Physical_Command Physical START_REPLICATION.
    --  @enum Start_Logical_Command Logical START_REPLICATION SLOT.
 

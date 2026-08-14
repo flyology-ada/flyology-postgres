@@ -571,6 +571,19 @@ package body Flyology.Postgres.Replication is
             Result.Wait_Value := True;
          end if;
          Expect_End (Text, Cursor);
+      elsif Is_Keyword (First, "UPLOAD_MANIFEST") then
+         Result.Message_Kind := Upload_Manifest_Command;
+         Expect_End (Text, Cursor);
+      elsif Is_Keyword (First, "BASE_BACKUP") then
+         Result.Message_Kind := Base_Backup_Command;
+         --  BASE_BACKUP has two versioned option grammars.  The dedicated
+         --  Base_Backups package validates and exposes those options; the
+         --  common replication dispatcher deliberately retains the original
+         --  owned Query message so a server can route or proxy it.
+         if More then
+            Result.Options_Data := Flyology.Bytes.From_Byte_String
+              (Text (Cursor .. Text'Last));
+         end if;
       elsif Is_Keyword (First, "START_REPLICATION") then
          declare
             Token : Ada.Strings.Unbounded.Unbounded_String :=

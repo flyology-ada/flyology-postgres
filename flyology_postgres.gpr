@@ -27,6 +27,8 @@ project Flyology_Postgres is
             "flyology-postgres-client_sockets.ads",
             "flyology-postgres-protocol.ads",
             "flyology-postgres-replication.ads",
+            "flyology-postgres-replication-base_backups.ads",
+            "flyology-postgres-replication-base_backups-server_sessions.ads",
             "flyology-postgres-replication-logical.ads",
             "flyology-postgres-replication-logical-producer.ads",
             "flyology-postgres-replication-managed_primary.ads",
