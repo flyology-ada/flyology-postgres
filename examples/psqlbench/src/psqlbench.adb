@@ -86,7 +86,7 @@ procedure Psqlbench is
       Psqlbench_JSON.Initialize (Document);
       Psqlbench_JSON.Start_Object (Document);
       Psqlbench_JSON.String_Value (Document, "type", "docker.ready");
-      Psqlbench_JSON.String_Value (Document, "transport", "cli");
+      Psqlbench_JSON.String_Value (Document, "transport", "unix-http");
       Psqlbench_JSON.End_Object (Document);
       return Psqlbench_JSON.Finish (Document);
    end Docker_Ready_Document;
@@ -121,7 +121,8 @@ procedure Psqlbench is
          end if;
       end;
 
-      Context.Docker.Set (True, "Docker daemon connected through CLI");
+      Context.Docker.Set
+        (True, "Docker daemon connected over Flyology HTTP Unix transport");
       Context.Events.Append (Docker_Ready_Document);
       Flyology.Supervision.Mark_Ready (Control.all);
       loop

@@ -4,11 +4,9 @@
 Alire executable crate built with Flyology supervision, flyology-http, and
 flyology-postgres.
 
-The current vertical slice keeps PostgreSQL inside Docker containers and runs the
-control plane as a native Ada process. Docker access intentionally goes through
-a small, typed CLI transport for now. The transport boundary is isolated so it
-can switch to flyology-http over the Docker daemon's Unix socket when that
-client support is available and verified.
+The current vertical slice keeps PostgreSQL inside Docker containers and runs
+the control plane as a native Ada process. Docker access uses Flyology HTTP/1.1
+over the daemon's Unix-domain socket; psqlbench does not invoke the Docker CLI.
 
 ## Current slice
 
@@ -187,16 +185,21 @@ name.
 ## Docker transport boundary
 
 `Psqlbench_Docker` exposes typed operations, not arbitrary command execution.
-Its private implementation currently spawns `docker` with an argument vector,
-captures bounded output, enforces a deadline, and never evaluates a shell
-string. HTTP handlers run those operations through a single-worker native
-executor so cooperative event-loop threads are not blocked.
+Its private implementation configures an origin-bound Flyology HTTP client with
+`Unix_Socket`, retains a bounded connection pool, and maps each operation to a
+Docker Engine endpoint. Request deadlines and cancellation flow through the
+same client for container, image, network, volume, log, and exec operations.
+Physical bootstrap streams the native `BASE_BACKUP` tar directly into the
+standby's mounted volume through Docker's archive endpoint.
+
+The default socket is `/var/run/docker.sock`. Set
+`PSQLBENCH_DOCKER_SOCKET` for Docker installations exposing a different local
+pathname. The HTTP authority remains `http://localhost`; it is not used for a
+TCP connection.
 
 JSON request parsing and response/event serialization use the Apache-2.0
 `utilada` crate from the Alire community index. The psqlbench code supplies a
 small domain wrapper but does not implement JSON escaping, tokenization, or
 number encoding itself.
 
-Once flyology-http can configure HTTP/1.1 and HTTP/2 clients over Unix-domain
-sockets, this package can replace its private transport without changing the
-handlers or browser API.
+The handlers and browser API remain independent of this transport boundary.

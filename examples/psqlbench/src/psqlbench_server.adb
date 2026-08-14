@@ -75,7 +75,8 @@ package body Psqlbench_Server is
          Psqlbench_JSON.Initialize (Document);
          Psqlbench_JSON.Start_Object (Document);
          Psqlbench_JSON.Boolean_Value (Document, "docker_ready", Ready);
-         Psqlbench_JSON.String_Value (Document, "docker_transport", "cli");
+         Psqlbench_JSON.String_Value
+           (Document, "docker_transport", "unix-http");
          Psqlbench_JSON.String_Value (Document, "detail", Detail);
          Psqlbench_JSON.String_Value
            (Document, "state_file", Psqlbench_Persistence.State_Path);
