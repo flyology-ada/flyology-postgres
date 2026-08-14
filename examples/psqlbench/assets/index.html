@@ -36,7 +36,20 @@
           <p class="eyebrow">01 / Runtime topology</p>
           <h2>Postgres instances</h2>
         </div>
-        <button class="button primary" type="button" id="open-create">New instance</button>
+        <div class="topology-actions" aria-label="Topology creation actions">
+          <button class="button primary" type="button" id="open-create">New instance</button>
+          <label class="preset-control">
+            <span>Topology preset</span>
+            <select id="topology-preset" aria-label="Sample topology preset">
+              <option value="logical-stream">2 DBs · logical stream (17 → 18)</option>
+              <option value="physical-standby">Primary · physical standby + WAL</option>
+              <option value="mixed-lab">3 DBs · logical + physical</option>
+              <option value="transaction-lab">2 DBs · committed + streamed 2PC</option>
+            </select>
+          </label>
+          <button class="button secondary" type="button" id="launch-preset">Create topology</button>
+          <button class="button secondary" type="button" id="open-link" aria-label="New replication link">New link</button>
+        </div>
       </div>
 
       <div class="topology-state" id="topology-state" role="status">
@@ -92,19 +105,6 @@
         <div>
           <p class="eyebrow">02 / Replication paths</p>
           <h2 id="links-title">Replication links</h2>
-        </div>
-        <div class="topology-actions">
-          <label class="preset-control">
-            <span>Full topology preset</span>
-            <select id="topology-preset" aria-label="Sample topology preset">
-              <option value="logical-stream">2 DBs + cross-version logical stream</option>
-              <option value="physical-standby">Primary + physical standby + WAL link</option>
-              <option value="mixed-lab">3 DBs + logical and physical links</option>
-              <option value="transaction-lab">2 DBs + committed and streamed 2PC links</option>
-            </select>
-          </label>
-          <button class="button secondary" type="button" id="launch-preset">Create topology</button>
-          <button class="button primary" type="button" id="open-link">New replication link</button>
         </div>
       </div>
 

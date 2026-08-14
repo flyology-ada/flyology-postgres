@@ -142,7 +142,7 @@ h2 { font-size: clamp(1.3rem, 2vw, 1.8rem); font-weight: 590; letter-spacing: -.
 h3 { font-size: 1.05rem; font-weight: 590; margin-bottom: 0; }
 .topology-actions { align-items: end; display: flex; flex-wrap: wrap; gap: .55rem; justify-content: end; }
 .preset-control span { color: var(--ink-soft); font-family: var(--mono); font-size: .58rem; margin-bottom: .25rem; text-transform: uppercase; }
-.preset-control select { min-height: 2.55rem; min-width: 15.5rem; padding-block: .45rem; }
+.preset-control select { min-height: 2.55rem; width: 16rem; padding-block: .45rem; }
 
 .button {
   border: 1px solid var(--ink);
@@ -456,7 +456,11 @@ kbd { background: var(--surface); border: 1px solid var(--line); border-radius: 
   .daemon span:last-child { display: none; }
   main { padding-inline: 1rem; }
   h1 { font-size: clamp(3rem, 16vw, 5rem); }
-  .section-heading { align-items: start; gap: 1rem; padding: 1.2rem; }
+  .section-heading { align-items: start; flex-direction: column; gap: 1rem; padding: 1.2rem; }
+  .topology-actions { align-items: stretch; width: 100%; }
+  .preset-control { flex: 1 1 100%; }
+  .preset-control select { min-width: 0; width: 100%; }
+  .topology-actions .button { flex: 1 1 auto; }
   .create-panel { padding: 1.2rem; }
   .fields { grid-template-columns: 1fr; }
   .link-fields { grid-template-columns: 1fr; }
