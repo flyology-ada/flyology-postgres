@@ -349,6 +349,27 @@ package body Psqlbench_Links is
       return Port;
    end Instance_Port;
 
+   function Instance_Major (Name : String) return Positive is
+      Value : constant Psqlbench_Docker.Result :=
+        Psqlbench_Docker.Instance_Version (Name);
+      Version : constant String :=
+        (if Value.Success
+         then Ada.Strings.Fixed.Trim
+           (Psqlbench_Docker.Text (Value), Ada.Strings.Both)
+         else "");
+      Dot : constant Natural := Ada.Strings.Fixed.Index (Version, ".");
+   begin
+      if not Value.Success or else Version'Length = 0 then
+         raise Program_Error with
+           "cannot resolve " & Name & " version: "
+           & Psqlbench_Docker.Text (Value);
+      end if;
+      return Positive'Value
+        (Version
+           (Version'First ..
+              (if Dot = 0 then Version'Last else Dot - 1)));
+   end Instance_Major;
+
    type Relay_Frame is record
       WAL_Start : Replication.LSN := 0;
       WAL_End   : Replication.LSN := 0;
@@ -928,6 +949,8 @@ package body Psqlbench_Links is
          Target : Client.Session (Target_Channel'Access);
          Existing : Unbounded_String;
          Has_Row : Boolean;
+         Source_Major : constant Positive :=
+           Instance_Major (Source_Name (Item));
          Schema_SQL : constant String :=
            "CREATE TABLE IF NOT EXISTS public.""" & Table & """ ("
            & "id bigint PRIMARY KEY, payload text NOT NULL, "
@@ -941,6 +964,12 @@ package body Psqlbench_Links is
             "psqlbench/link-setup/target/" & Link);
          Run_SQL (Source, Schema_SQL);
          Run_SQL (Target, Schema_SQL);
+         Run_SQL
+           (Target,
+            "CREATE TABLE IF NOT EXISTS public.psqlbench_link_state ("
+            & "link_name text PRIMARY KEY, slot_name text NOT NULL, "
+            & "snapshot_lsn pg_lsn NOT NULL, copied_rows bigint NOT NULL, "
+            & "initialized_at timestamptz NOT NULL DEFAULT clock_timestamp())");
          if Item.Mode = Psqlbench_Context.Logical_Streaming then
             Run_SQL
               (Source,
@@ -962,15 +991,185 @@ package body Psqlbench_Links is
               (Source,
                "SELECT COALESCE(confirmed_flush_lsn,restart_lsn)::text "
                & "FROM pg_replication_slots WHERE slot_name="
-               & Quote_Literal (Slot));
-            Created : constant String :=
-              (if Position'Length > 0 then Position
-               else Scalar_SQL
-                 (Source,
-                  "SELECT lsn::text FROM pg_create_logical_replication_slot("
-                  & Quote_Literal (Slot) & ",'pgoutput')"));
+               & Quote_Literal (Slot) & " AND slot_type='logical'");
+            Initialized : constant String := Scalar_SQL
+              (Target,
+               "SELECT snapshot_lsn::text FROM public.psqlbench_link_state "
+               & "WHERE link_name=" & Quote_Literal (Link)
+               & " AND slot_name=" & Quote_Literal (Slot));
          begin
-            Start_LSN := Replication.Value (Created);
+            if Position'Length > 0 and then Initialized'Length > 0 then
+               Start_LSN := Replication.Value (Position);
+               Emit
+                 (Context, Item, "snapshot", "source-to-target",
+                  "SNAPSHOT_REUSED", Start_LSN,
+                  "completed initialization boundary retained");
+            else
+               if Position'Length > 0 then
+                  Run_SQL
+                    (Source, "SELECT pg_drop_replication_slot("
+                     & Quote_Literal (Slot) & ")");
+               end if;
+               declare
+                  Slot_Socket : aliased Sockets.Socket_Type;
+                  Slot_Channel : aliased Transports.Socket_Transport
+                    (Slot_Socket'Access);
+                  Slot_Session : Client.Session (Slot_Channel'Access);
+                  Snapshot_Name : Unbounded_String;
+                  Consistent_Point : Unbounded_String;
+                  Rows : Natural := 0;
+               begin
+                  Connect
+                    (Slot_Socket, Slot_Session, Source_Port,
+                     "psqlbench/snapshot-slot/" & Link,
+                     Protocol.Logical_Replication_Connection);
+                  Client.Send_Command
+                    (Slot_Session,
+                     Replication.Create_Logical_Slot
+                       (Slot, Snapshot => Replication.Export_Snapshot,
+                        Server_Major => Source_Major),
+                     Timeout => 20.0);
+                  loop
+                     declare
+                        Event : constant Client.Simple_Query_Event :=
+                          Client.Receive_Query_Event
+                            (Slot_Session, Timeout => 20.0);
+                     begin
+                        Raise_Server_Error (Event);
+                        if Protocol.Response_Kind (Event) =
+                          Protocol.Data_Row_Response
+                        then
+                           declare
+                              Row : constant Protocol.Data_Row :=
+                                Protocol.Row_Data (Event);
+                           begin
+                              if Protocol.Column_Count (Row) < 3
+                                or else Protocol.Is_Null
+                                  (Protocol.Column_At (Row, 2))
+                                or else Protocol.Is_Null
+                                  (Protocol.Column_At (Row, 3))
+                              then
+                                 raise Program_Error with
+                                   "logical slot did not export a snapshot";
+                              end if;
+                              Consistent_Point := To_Unbounded_String
+                                (Protocol.Column_Text
+                                   (Protocol.Column_At (Row, 2)));
+                              Snapshot_Name := To_Unbounded_String
+                                (Protocol.Column_Text
+                                   (Protocol.Column_At (Row, 3)));
+                           end;
+                        elsif Protocol.Response_Kind (Event) =
+                          Protocol.Ready_For_Query_Response
+                        then
+                           exit;
+                        end if;
+                     end;
+                  end loop;
+                  if Length (Consistent_Point) = 0
+                    or else Length (Snapshot_Name) = 0
+                  then
+                     raise Program_Error with
+                       "logical slot creation returned no snapshot boundary";
+                  end if;
+                  Start_LSN := Replication.Value
+                    (To_String (Consistent_Point));
+                  Emit
+                    (Context, Item, "snapshot", "source-to-target",
+                     "SNAPSHOT_EXPORTED", Start_LSN,
+                     To_String (Snapshot_Name));
+
+                  Run_SQL
+                    (Source,
+                     "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+                  Run_SQL
+                    (Source, "SET TRANSACTION SNAPSHOT "
+                     & Quote_Literal (To_String (Snapshot_Name)));
+                  Run_SQL (Target, "BEGIN");
+                  begin
+                     Run_SQL
+                       (Target, "TRUNCATE TABLE public.""" & Table & """");
+                     Client.Send_Query
+                       (Source,
+                        "SELECT id::text,payload,changed_at::text FROM "
+                        & "public.""" & Table & """ ORDER BY id",
+                        Timeout => 20.0);
+                     loop
+                        declare
+                           Event : constant Client.Simple_Query_Event :=
+                             Client.Receive_Query_Event
+                               (Source, Timeout => 20.0);
+                        begin
+                           Raise_Server_Error (Event);
+                           if Protocol.Response_Kind (Event) =
+                             Protocol.Data_Row_Response
+                           then
+                              declare
+                                 Row : constant Protocol.Data_Row :=
+                                   Protocol.Row_Data (Event);
+                              begin
+                                 if Protocol.Column_Count (Row) /= 3 then
+                                    raise Program_Error with
+                                      "snapshot row shape changed";
+                                 end if;
+                                 Run_SQL
+                                   (Target,
+                                    "INSERT INTO public.""" & Table
+                                    & """ (id,payload,changed_at) VALUES ("
+                                    & Protocol.Column_Text
+                                      (Protocol.Column_At (Row, 1)) & ","
+                                    & (if Protocol.Is_Null
+                                         (Protocol.Column_At (Row, 2))
+                                       then "NULL"
+                                       else Quote_Literal
+                                         (Protocol.Column_Text
+                                            (Protocol.Column_At (Row, 2))))
+                                    & "," & Quote_Literal
+                                      (Protocol.Column_Text
+                                         (Protocol.Column_At (Row, 3))) & ")");
+                                 Rows := Rows + 1;
+                              end;
+                           elsif Protocol.Response_Kind (Event) =
+                             Protocol.Ready_For_Query_Response
+                           then
+                              exit;
+                           end if;
+                        end;
+                     end loop;
+                     Run_SQL
+                       (Target,
+                        "INSERT INTO public.psqlbench_link_state "
+                        & "(link_name,slot_name,snapshot_lsn,copied_rows) "
+                        & "VALUES (" & Quote_Literal (Link) & ","
+                        & Quote_Literal (Slot) & ","
+                        & Quote_Literal (Replication.Image (Start_LSN)) & ","
+                        & Compact (Rows) & ") ON CONFLICT (link_name) "
+                        & "DO UPDATE SET slot_name=EXCLUDED.slot_name, "
+                        & "snapshot_lsn=EXCLUDED.snapshot_lsn, "
+                        & "copied_rows=EXCLUDED.copied_rows, "
+                        & "initialized_at=clock_timestamp()");
+                     Run_SQL (Target, "COMMIT");
+                     Run_SQL (Source, "COMMIT");
+                  exception
+                     when others =>
+                        begin
+                           Run_SQL (Target, "ROLLBACK");
+                        exception
+                           when others => null;
+                        end;
+                        begin
+                           Run_SQL (Source, "ROLLBACK");
+                        exception
+                           when others => null;
+                        end;
+                        raise;
+                  end;
+                  Emit
+                    (Context, Item, "snapshot", "source-to-target",
+                     "SNAPSHOT_COPIED", Start_LSN,
+                     Compact (Rows) & " rows at a consistent boundary");
+               end;
+            end if;
          end;
          Emit
            (Context, Item, "setup", "source", "slot-ready",

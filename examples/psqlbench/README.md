@@ -55,9 +55,12 @@ client support is available and verified.
 - supervises Docker readiness, log collection, the dynamic link family, and the
   HTTP service as a dependency-ordered topology.
 
-The logical bridge deliberately begins with future changes on an empty managed
-table. Logical initial snapshots, arbitrary relation mapping, and two-phase
-logical transactions are the next replication slices. Physical bootstrap WAL
+The logical bridge exports a slot snapshot, copies existing rows through
+Flyology clients at the returned consistent LSN, records initialization on the
+target atomically, and then starts pgoutput at that same boundary. A completed
+marker makes restarts idempotent; an incomplete slot is recreated instead of
+resuming a partial copy. Arbitrary relation mapping and two-phase logical
+transactions are the next replication slices. Physical bootstrap WAL
 is streamed with PostgreSQL's replication protocol by the Flyology client;
 Docker installs the received archive without invoking `pg_basebackup`. After
 recovery starts, all live WAL passes through the observable Flyology proxy.

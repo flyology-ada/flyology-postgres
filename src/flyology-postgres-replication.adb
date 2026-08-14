@@ -197,7 +197,9 @@ package body Flyology.Postgres.Replication is
    function Create_Logical_Slot
      (Slot_Name : String;
       Plugin    : String := "pgoutput";
-      Snapshot  : Snapshot_Action := Export_Snapshot) return Protocol.Message
+      Snapshot  : Snapshot_Action := Export_Snapshot;
+      Server_Major : Positive := 18;
+      Two_Phase : Boolean := False) return Protocol.Message
    is
       Snapshot_Text : constant String :=
         (case Snapshot is
@@ -207,9 +209,23 @@ package body Flyology.Postgres.Replication is
    begin
       Require (Is_Slot_Name (Slot_Name), "invalid replication slot name");
       Require (Is_Option_Name (Plugin), "invalid logical output plugin name");
+      Require (Server_Major >= 14, "unsupported PostgreSQL major version");
+      Require
+        (not Two_Phase or else Server_Major >= 15,
+         "two-phase logical slots require PostgreSQL 15 or newer");
+      if Server_Major = 14 then
+         return Query
+           ("CREATE_REPLICATION_SLOT " & Slot_Name & " LOGICAL " & Plugin
+            & " "
+            & (case Snapshot is
+                  when Export_Snapshot => "EXPORT_SNAPSHOT",
+                  when No_Snapshot     => "NOEXPORT_SNAPSHOT",
+                  when Use_Snapshot    => "USE_SNAPSHOT"));
+      end if;
       return Query
         ("CREATE_REPLICATION_SLOT " & Slot_Name & " LOGICAL " & Plugin
-         & " (SNAPSHOT " & SQL_Literal (Snapshot_Text) & ")");
+         & " (SNAPSHOT " & SQL_Literal (Snapshot_Text)
+         & (if Two_Phase then ", TWO_PHASE 'true'" else "") & ")");
    end Create_Logical_Slot;
 
    function Drop_Replication_Slot
@@ -518,11 +534,28 @@ package body Flyology.Postgres.Replication is
             Result.Plugin_Data :=
               Flyology.Bytes.From_Byte_String (Output_Plugin);
          end;
-         if More then
+         if More and then Text (Cursor) /= '(' then
+            declare
+               Legacy : constant String := Next_Token (Text, Cursor);
+            begin
+               if Is_Keyword (Legacy, "EXPORT_SNAPSHOT") then
+                  Result.Snapshot_Value := Export_Snapshot;
+               elsif Is_Keyword (Legacy, "NOEXPORT_SNAPSHOT") then
+                  Result.Snapshot_Value := No_Snapshot;
+               elsif Is_Keyword (Legacy, "USE_SNAPSHOT") then
+                  Result.Snapshot_Value := Use_Snapshot;
+               else
+                  raise Protocol.Protocol_Error with
+                    "invalid legacy replication slot snapshot action";
+               end if;
+               Expect_End (Text, Cursor);
+            end;
+         elsif More then
             declare
                Values : constant Logical_Option_Array :=
                  Parse_Options (Text (Cursor .. Text'Last));
                Snapshot_Seen : Boolean := False;
+               Two_Phase_Seen : Boolean := False;
             begin
                for Item of Values loop
                   if Ada.Characters.Handling.To_Lower
@@ -549,6 +582,30 @@ package body Flyology.Postgres.Replication is
                         else
                            raise Protocol.Protocol_Error with
                              "invalid replication slot snapshot action";
+                        end if;
+                     end;
+                  elsif Ada.Characters.Handling.To_Lower
+                    (Option_Name (Item)) = "two_phase"
+                  then
+                     Require
+                       (not Two_Phase_Seen,
+                        "duplicate replication slot TWO_PHASE option");
+                     Two_Phase_Seen := True;
+                     Require
+                       (Option_Has_Value (Item),
+                        "TWO_PHASE requires a value");
+                     declare
+                        Choice : constant String :=
+                          Ada.Characters.Handling.To_Lower
+                            (Option_Value (Item));
+                     begin
+                        if Choice in "true" | "on" | "1" then
+                           Result.Two_Phase_Value := True;
+                        elsif Choice in "false" | "off" | "0" then
+                           Result.Two_Phase_Value := False;
+                        else
+                           raise Protocol.Protocol_Error with
+                             "invalid replication slot two-phase value";
                         end if;
                      end;
                   else
@@ -689,6 +746,14 @@ package body Flyology.Postgres.Replication is
          "replication command does not contain a snapshot action");
       return Item.Snapshot_Value;
    end Snapshot;
+
+   function Two_Phase (Item : Command) return Boolean is
+   begin
+      Require
+        (Item.Message_Kind = Create_Logical_Slot_Command,
+         "replication command does not contain a two-phase option");
+      return Item.Two_Phase_Value;
+   end Two_Phase;
 
    function Wait (Item : Command) return Boolean is
    begin

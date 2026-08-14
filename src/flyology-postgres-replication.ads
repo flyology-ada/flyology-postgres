@@ -91,11 +91,15 @@ package Flyology.Postgres.Replication is
    function Create_Logical_Slot
      (Slot_Name : String;
       Plugin    : String := "pgoutput";
-      Snapshot  : Snapshot_Action := Export_Snapshot) return Protocol.Message;
-   --  Construct PostgreSQL 15-or-newer logical slot creation syntax.
+      Snapshot  : Snapshot_Action := Export_Snapshot;
+      Server_Major : Positive := 18;
+      Two_Phase : Boolean := False) return Protocol.Message;
+   --  Construct version-appropriate logical slot creation syntax.
    --  @param Slot_Name Valid lowercase replication slot identifier.
    --  @param Plugin Logical output plugin name.
    --  @param Snapshot Snapshot policy for slot consistency.
+   --  @param Server_Major PostgreSQL major version, 14 or newer.
+   --  @param Two_Phase Decode prepared transactions on PostgreSQL 15 or newer.
    --  @return Simple Query message containing CREATE_REPLICATION_SLOT.
    --  @exception Protocol_Error A name is invalid.
 
@@ -190,6 +194,11 @@ package Flyology.Postgres.Replication is
    --  Return the snapshot policy named by CREATE_REPLICATION_SLOT.
    --  @param Item CREATE_REPLICATION_SLOT command.
    --  @return Requested snapshot policy.
+   --  @exception Protocol.Protocol_Error Item is another command kind.
+   function Two_Phase (Item : Command) return Boolean;
+   --  Test whether CREATE_REPLICATION_SLOT enabled two-phase decoding.
+   --  @param Item CREATE_REPLICATION_SLOT command.
+   --  @return True when prepared transactions are decoded by the slot.
    --  @exception Protocol.Protocol_Error Item is another command kind.
    function Wait (Item : Command) return Boolean;
    --  Test whether DROP_REPLICATION_SLOT included WAIT.
@@ -401,6 +410,7 @@ private
       Timeline_Value   : UInt32 := 0;
       Timeline_Present : Boolean := False;
       Snapshot_Value   : Snapshot_Action := Export_Snapshot;
+      Two_Phase_Value  : Boolean := False;
       Wait_Value       : Boolean := False;
       Options_Data     : Flyology.Bytes.Unbounded_Bytes;
    end record;

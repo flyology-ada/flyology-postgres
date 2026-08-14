@@ -229,6 +229,20 @@ package body Replication_Tests is
            & " (SNAPSHOT 'use')",
          "logical slot creation command is typed");
       Assert
+        (Query_Text
+           (Replication.Create_Logical_Slot
+              ("legacy_slot", Server_Major => 14)) =
+           "CREATE_REPLICATION_SLOT legacy_slot LOGICAL pgoutput"
+           & " EXPORT_SNAPSHOT",
+         "PostgreSQL 14 logical slot creation uses legacy syntax");
+      Assert
+        (Query_Text
+           (Replication.Create_Logical_Slot
+              ("prepared_slot", Two_Phase => True)) =
+           "CREATE_REPLICATION_SLOT prepared_slot LOGICAL pgoutput"
+           & " (SNAPSHOT 'export', TWO_PHASE 'true')",
+         "logical slot creation can enable two-phase decoding");
+      Assert
         (Query_Text (Replication.Drop_Replication_Slot ("sync_slot", True)) =
            "DROP_REPLICATION_SLOT sync_slot WAIT",
          "replication slot drop command is typed");
@@ -264,6 +278,29 @@ package body Replication_Tests is
             and then Replication.Snapshot (Item) =
               Replication.Use_Snapshot,
             "primary-side decoding exposes logical slot creation");
+      end;
+
+      declare
+         Item : constant Replication.Command := Replication.Decode_Command
+           (Replication.Create_Logical_Slot
+              ("prepared_slot", Snapshot => Replication.No_Snapshot,
+               Two_Phase => True));
+      begin
+         Assert
+           (Replication.Snapshot (Item) = Replication.No_Snapshot
+            and then Replication.Two_Phase (Item),
+            "primary-side decoding exposes two-phase slot creation");
+      end;
+
+      declare
+         Item : constant Replication.Command := Replication.Decode_Command
+           (Replication.Create_Logical_Slot
+              ("legacy_slot", Server_Major => 14));
+      begin
+         Assert
+           (Replication.Snapshot (Item) = Replication.Export_Snapshot
+            and then not Replication.Two_Phase (Item),
+            "primary-side decoding accepts PostgreSQL 14 slot syntax");
       end;
 
       declare
