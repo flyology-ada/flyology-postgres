@@ -680,9 +680,6 @@ main.desktop {
   background-size: 1rem 1rem;
   display: grid;
   gap: .4rem;
-  grid-template-areas:
-    "left-top main right-top"
-    "left-bottom bottom right-bottom";
   grid-template-columns: 15rem minmax(26rem, 1.4fr) minmax(19rem, .9fr);
   grid-template-rows: minmax(17rem, 1.2fr) minmax(14rem, .8fr);
   margin: 0;
@@ -709,12 +706,6 @@ main.desktop {
 .lab-window[data-active="true"] > .window-titlebar { background: color-mix(in oklch, var(--violet) 7%, var(--surface)); }
 .lab-window[data-active="true"] > .window-titlebar .window-title h2 { color: var(--violet-deep); }
 .lab-window[data-window-hidden="true"] { display: none; }
-.lab-window[data-dock="left-top"] { grid-area: left-top; }
-.lab-window[data-dock="left-bottom"] { grid-area: left-bottom; }
-.lab-window[data-dock="main"] { grid-area: main; }
-.lab-window[data-dock="right-top"] { grid-area: right-top; }
-.lab-window[data-dock="bottom"] { grid-area: bottom; }
-.lab-window[data-dock="right-bottom"] { grid-area: right-bottom; }
 .lab-window[data-dock="float"] {
   box-shadow: 0 1.2rem 3rem color-mix(in oklch, var(--ink) 22%, transparent);
   height: min(36rem, calc(100vh - 8rem));

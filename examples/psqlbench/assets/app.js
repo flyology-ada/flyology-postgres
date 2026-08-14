@@ -59,6 +59,7 @@
   const supervisionTree = document.querySelector("#supervision-tree");
   const supervisionState = document.querySelector("#supervision-state");
   const resetWindowLayout = document.querySelector("#reset-window-layout");
+  const desktop = document.querySelector("#desktop");
   const labWindows = [...document.querySelectorAll(".lab-window")];
   const windowToggles = [...document.querySelectorAll("[data-toggle-window]")];
 
@@ -151,6 +152,20 @@
     ["right-bottom", "right / lower"],
     ["float", "floating"]
   ];
+  const dockGeometry = {
+    "left-top": { column: "left", row: 1 },
+    "left-bottom": { column: "left", row: 2 },
+    main: { column: "center", row: 1 },
+    bottom: { column: "center", row: 2 },
+    "right-top": { column: "right", row: 1 },
+    "right-bottom": { column: "right", row: 2 }
+  };
+  const dockColumnTracks = {
+    left: "minmax(15rem, .65fr)",
+    center: "minmax(26rem, 1.4fr)",
+    right: "minmax(19rem, .9fr)"
+  };
+  const dockColumnOrder = { left: 0, center: 1, right: 2 };
   let windowZ = 80;
   let windowLayoutTimer;
 
@@ -199,6 +214,51 @@
     windowLayoutTimer = setTimeout(saveWindowLayout, 180);
   }
 
+  function updateDockLayout() {
+    if (matchMedia("(max-width: 900px)").matches) {
+      desktop.style.removeProperty("grid-template-columns");
+      labWindows.forEach(panel => {
+        panel.style.removeProperty("grid-column");
+        panel.style.removeProperty("grid-row");
+      });
+      return;
+    }
+
+    const docked = labWindows.filter(panel =>
+      panel.dataset.windowHidden !== "true" && panel.dataset.dock !== "float");
+    const columns = ["left", "center", "right"].filter(column =>
+      docked.some(panel => dockGeometry[panel.dataset.dock]?.column === column));
+    desktop.style.gridTemplateColumns = columns.length
+      ? columns.map(column => columns.length === 1
+        ? "minmax(0, 1fr)"
+        : dockColumnTracks[column]).join(" ")
+      : "minmax(0, 1fr)";
+    desktop.dataset.layoutColumns = columns.join(" ");
+
+    labWindows.forEach(panel => {
+      const geometry = dockGeometry[panel.dataset.dock];
+      if (!geometry || panel.dataset.windowHidden === "true") {
+        panel.style.removeProperty("grid-column");
+        panel.style.removeProperty("grid-row");
+        return;
+      }
+      const columnPanels = docked.filter(candidate =>
+        dockGeometry[candidate.dataset.dock]?.column === geometry.column);
+      panel.style.gridColumn = String(columns.indexOf(geometry.column) + 1);
+      panel.style.gridRow = columnPanels.length === 1
+        ? "1 / 3"
+        : String(geometry.row);
+    });
+  }
+
+  function dockDistance(from, to) {
+    const source = dockGeometry[from];
+    const target = dockGeometry[to];
+    if (!source || !target) return Number.MAX_SAFE_INTEGER;
+    return Math.abs(dockColumnOrder[source.column] - dockColumnOrder[target.column]) * 2
+      + Math.abs(source.row - target.row);
+  }
+
   function setDock(panel, dock, swap = true) {
     const previous = panel.dataset.dock;
     if (swap && dock !== "float") {
@@ -227,6 +287,7 @@
     }
     syncWindowControls(panel);
     activateWindow(panel);
+    updateDockLayout();
     saveWindowLayout();
   }
 
@@ -250,10 +311,12 @@
         && candidate.dataset.dock === panel.dataset.dock
         && candidate.dataset.windowHidden !== "true");
       if (occupant) {
-        const available = dockSlots.find(([dock]) => dock !== "float"
+        const available = dockSlots.filter(([dock]) => dock !== "float"
           && !labWindows.some(candidate => candidate !== panel
             && candidate.dataset.dock === dock
-            && candidate.dataset.windowHidden !== "true"));
+            && candidate.dataset.windowHidden !== "true"))
+          .sort((left, right) => dockDistance(panel.dataset.dock, left[0])
+            - dockDistance(panel.dataset.dock, right[0]))[0];
         if (available) panel.dataset.dock = available[0];
         else floatWindow(panel);
       }
@@ -264,6 +327,7 @@
     if (name === "logs" && selectedLogName && (wasHidden || !logSocket)) {
       connectLogs();
     }
+    updateDockLayout();
     saveWindowLayout();
   }
 
@@ -271,6 +335,7 @@
     panel.dataset.windowHidden = "true";
     if (panel.dataset.window === "logs") closeLogSocket();
     syncWindowControls(panel);
+    updateDockLayout();
     saveWindowLayout();
   }
 
@@ -313,6 +378,7 @@
       syncWindowControls(panel);
     });
     activateWindow(windowNamed("query"));
+    updateDockLayout();
     saveWindowLayout();
     if (selectedLogName) connectLogs();
   }
@@ -369,6 +435,8 @@
       else hideWindow(panel);
     }));
     resetWindowLayout.addEventListener("click", resetWorkbenchLayout);
+    addEventListener("resize", updateDockLayout);
+    updateDockLayout();
     activateWindow(windowNamed("query"));
   }
 

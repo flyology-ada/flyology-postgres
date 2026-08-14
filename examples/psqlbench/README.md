@@ -27,7 +27,8 @@ over the daemon's Unix-domain socket; psqlbench does not invoke the Docker CLI.
   bounded 1,024-line ring, and replays the selected server's retained output
   before following it live, with an independent node selector in the logs
   window;
-- serves a fixed, windowed topology workbench with live WebSocket activity;
+- serves an adjacency-aware, windowed topology workbench whose visible dock
+  columns and rows compact as panels are hidden, with live WebSocket activity;
 - creates supervised, cross-version logical links for a managed three-column
   demo table and applies future inserts, updates, deletes, and truncates;
 - configures committed pgoutput v1 or large-transaction streaming pgoutput v2
