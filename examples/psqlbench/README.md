@@ -35,10 +35,11 @@ client support is available and verified.
   stateful pgoutput decoder/encoder, Flyology Postgres replication server, and
   a second Flyology Postgres replication client before applying it to the
   target; source slot acknowledgement advances only after target commit;
-- provisions a new same-version physical standby with `pg_basebackup`, then
-  routes its live recovery stream through a Flyology physical replication
-  client and Flyology replication server before PostgreSQL's walreceiver
-  applies it; standby feedback is proxied back to the source slot;
+- provisions a new same-version physical standby with the native Flyology
+  `BASE_BACKUP` receiver, then routes its live recovery stream through a
+  Flyology physical replication client and Flyology replication server before
+  PostgreSQL's walreceiver applies it; standby feedback is proxied back to the
+  source slot;
 - exposes a selectable per-link activity stream for logical pgoutput messages
   and physical `XLogData`, primary keepalives, standby write/flush/apply
   feedback, hot-standby feedback, and upstream acknowledgements, both inline
@@ -57,8 +58,9 @@ client support is available and verified.
 The logical bridge deliberately begins with future changes on an empty managed
 table. Logical initial snapshots, arbitrary relation mapping, and two-phase
 logical transactions are the next replication slices. Physical bootstrap WAL
-is fetched by `pg_basebackup`; after recovery starts, all live WAL passes
-through the observable Flyology proxy.
+is streamed with PostgreSQL's replication protocol by the Flyology client;
+Docker installs the received archive without invoking `pg_basebackup`. After
+recovery starts, all live WAL passes through the observable Flyology proxy.
 
 ## Functional outline
 

@@ -75,11 +75,11 @@ package Psqlbench_Docker is
 
    function Bootstrap_Physical_Standby
      (Name       : String;
-      Source     : String;
       Version    : String;
       Port       : Positive;
       Slot       : String;
       Relay_Port : Positive;
+      Archive_Path : String;
       Token      : access Flyology.Cancellation.Token := null;
       Deadline   : Ada.Real_Time.Time := Ada.Real_Time.Time_Last)
       return Result;

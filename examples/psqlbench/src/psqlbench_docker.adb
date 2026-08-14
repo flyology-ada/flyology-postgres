@@ -512,23 +512,38 @@ package body Psqlbench_Docker is
 
    function Bootstrap_Physical_Standby
      (Name       : String;
-      Source     : String;
       Version    : String;
       Port       : Positive;
       Slot       : String;
       Relay_Port : Positive;
+      Archive_Path : String;
       Token      : access Flyology.Cancellation.Token := null;
       Deadline   : Ada.Real_Time.Time := Ada.Real_Time.Time_Last)
       return Result
    is
       Volume_Name : constant String := Container_Name (Name) & "-data";
+      Helper_Name : constant String := Container_Name (Name) & "-bootstrap";
       Image : constant String := "postgres:" & Version & "-bookworm";
       Volume : Command;
       Prepare : Command;
-      Backup : Command;
+      Copy_Archive : Command;
+      Extract : Command;
       Create : Command;
       Value : Result;
+
+      procedure Remove_Helper is
+         Remove : Command;
+         Ignored : Result;
+         pragma Unreferenced (Ignored);
+      begin
+         Add (Remove, "container");
+         Add (Remove, "rm");
+         Add (Remove, "--force");
+         Add (Remove, Helper_Name);
+         Ignored := Run (Remove, Token, Deadline);
+      end Remove_Helper;
    begin
+      Remove_Helper;
       declare
          Remove_Stale : Command;
          Ignored : Result;
@@ -551,8 +566,9 @@ package body Psqlbench_Docker is
       end if;
 
       Add (Prepare, "container");
-      Add (Prepare, "run");
-      Add (Prepare, "--rm");
+      Add (Prepare, "create");
+      Add (Prepare, "--name");
+      Add (Prepare, Helper_Name);
       Add (Prepare, "--env");
       Add (Prepare, "PGDATA=/var/lib/postgresql/data");
       Add (Prepare, "--mount");
@@ -565,43 +581,31 @@ package body Psqlbench_Docker is
       Add (Prepare, "-c");
       Add
         (Prepare,
-         "chown -R postgres:postgres /var/lib/postgresql/data");
+         "tar -xf /tmp/base.tar -C ""$PGDATA"""
+         & " && touch ""$PGDATA/standby.signal"""
+         & " && chown -R postgres:postgres ""$PGDATA""");
       Value := Run (Prepare, Token, Deadline);
       if not Value.Success then
+         Remove_Helper;
          return Value;
       end if;
 
-      Add (Backup, "container");
-      Add (Backup, "run");
-      Add (Backup, "--rm");
-      Add (Backup, "--network");
-      Add (Backup, "psqlbench");
-      Add (Backup, "--env");
-      Add (Backup, "PGPASSWORD=psqlbench");
-      Add (Backup, "--env");
-      Add (Backup, "PGDATA=/var/lib/postgresql/data");
-      Add (Backup, "--user");
-      Add (Backup, "postgres");
-      Add (Backup, "--mount");
-      Add
-        (Backup,
-         "type=volume,source=" & Volume_Name
-         & ",target=/var/lib/postgresql/data");
-      Add (Backup, Image);
-      Add (Backup, "pg_basebackup");
-      Add (Backup, "--host");
-      Add (Backup, Container_Name (Source));
-      Add (Backup, "--username");
-      Add (Backup, "psqlbench");
-      Add (Backup, "--pgdata");
-      Add (Backup, "/var/lib/postgresql/data");
-      Add (Backup, "--format=plain");
-      Add (Backup, "--wal-method=stream");
-      Add (Backup, "--checkpoint=fast");
-      Add (Backup, "--slot");
-      Add (Backup, Slot);
-      Add (Backup, "--write-recovery-conf");
-      Value := Run (Backup, Token, Deadline);
+      Add (Copy_Archive, "container");
+      Add (Copy_Archive, "cp");
+      Add (Copy_Archive, Archive_Path);
+      Add (Copy_Archive, Helper_Name & ":/tmp/base.tar");
+      Value := Run (Copy_Archive, Token, Deadline);
+      if not Value.Success then
+         Remove_Helper;
+         return Value;
+      end if;
+
+      Add (Extract, "container");
+      Add (Extract, "start");
+      Add (Extract, "--attach");
+      Add (Extract, Helper_Name);
+      Value := Run (Extract, Token, Deadline);
+      Remove_Helper;
       if not Value.Success then
          return Value;
       end if;

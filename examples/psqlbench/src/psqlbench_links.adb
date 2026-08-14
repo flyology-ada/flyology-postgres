@@ -1,7 +1,10 @@
 with Ada.Exceptions;
+with Ada.Directories;
 with Ada.Real_Time;
+with Ada.Streams.Stream_IO;
 with Ada.Strings.Fixed;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
+with Ada.Text_IO;
 with Flyology;
 with Flyology.Bytes;
 with Flyology.Cancellation;
@@ -11,6 +14,7 @@ with Flyology.Postgres;
 with Flyology.Postgres.Client;
 with Flyology.Postgres.Protocol;
 with Flyology.Postgres.Replication;
+with Flyology.Postgres.Replication.Base_Backups;
 with Flyology.Postgres.Replication.Logical;
 with Flyology.Postgres.Replication.Server_Sessions;
 with Flyology.Postgres.Server;
@@ -28,6 +32,8 @@ package body Psqlbench_Links is
    package Logical renames Flyology.Postgres.Replication.Logical;
    package Protocol renames Flyology.Postgres.Protocol;
    package Replication renames Flyology.Postgres.Replication;
+   package Base_Backups renames
+     Flyology.Postgres.Replication.Base_Backups;
    package Replication_Server renames
      Flyology.Postgres.Replication.Server_Sessions;
    package Server_Sessions renames Flyology.Postgres.Server_Sessions;
@@ -47,6 +53,7 @@ package body Psqlbench_Links is
    use type Replication.Command_Kind;
    use type Replication.LSN;
    use type Replication.Stream_Message_Kind;
+   use type Base_Backups.Event_Kind;
    use type Psqlbench_Context.Link_Command_Kind;
    use type Psqlbench_Context.Link_Mode;
 
@@ -1315,6 +1322,145 @@ package body Psqlbench_Links is
          raise;
    end Run_Logical_Link;
 
+   procedure Receive_Native_Base_Backup
+     (Context : in out Psqlbench_Context.Context;
+      Item    : Psqlbench_Context.Link_Record;
+      Source_Port : Positive;
+      Major   : Base_Backups.Server_Major;
+      Path    : String;
+      Control : not null access Flyology.Supervision.Generation_Control)
+   is
+      Socket : aliased Sockets.Socket_Type;
+      Channel : aliased Transports.Socket_Transport (Socket'Access);
+      Session : aliased Client.Session (Channel'Access);
+      Receiver : Base_Backups.Receiver (Session'Access);
+      Settings : Base_Backups.Options := Base_Backups.Defaults (Major);
+      Archive : Ada.Streams.Stream_IO.File_Type;
+      Archive_Open : Boolean := False;
+      Archive_Count : Natural := 0;
+      Bytes : Replication.UInt64 := 0;
+      Last_Reported : Replication.UInt64 := 0;
+
+      procedure Close_Archive is
+      begin
+         if Archive_Open then
+            Ada.Streams.Stream_IO.Close (Archive);
+            Archive_Open := False;
+         end if;
+      end Close_Archive;
+   begin
+      if Ada.Directories.Exists (Path) then
+         Ada.Directories.Delete_File (Path);
+      end if;
+      Connect
+        (Socket, Session, Source_Port,
+         "psqlbench/native-base-backup/" & Link_Name (Item),
+         Protocol.Physical_Replication_Connection);
+      Base_Backups.Set_Label
+        (Settings, "psqlbench native standby " & Target_Name (Item));
+      Base_Backups.Set_Progress (Settings);
+      Base_Backups.Set_Checkpoint
+        (Settings, Base_Backups.Fast_Checkpoint);
+      Base_Backups.Include_WAL (Settings);
+      Base_Backups.Wait_For_Archive (Settings, False);
+      Base_Backups.Start (Receiver, Settings, Timeout => 20.0);
+
+      loop
+         if Flyology.Supervision.Stopping (Control.all).Requested then
+            raise Flyology.Cancellation.Operation_Cancelled;
+         end if;
+         begin
+            declare
+               Event : constant Base_Backups.Event :=
+                 Base_Backups.Receive (Receiver, Timeout => 1.0);
+            begin
+               case Base_Backups.Kind (Event) is
+                  when Base_Backups.Backup_Start =>
+                     Emit
+                       (Context, Item, "bootstrap", "source-to-workbench",
+                        "BASE_BACKUP_START",
+                        Base_Backups.Start_LSN (Event),
+                        "native protocol receiver");
+                  when Base_Backups.Tablespace =>
+                     if Base_Backups.Has_Tablespace_Location (Event) then
+                        raise Program_Error with
+                          "psqlbench native bootstrap does not yet map "
+                          & "external tablespaces";
+                     end if;
+                  when Base_Backups.Archive_Start =>
+                     Archive_Count := Archive_Count + 1;
+                     if Archive_Count /= 1 then
+                        raise Program_Error with
+                          "psqlbench native bootstrap expected one base archive";
+                     end if;
+                     Ada.Streams.Stream_IO.Create
+                       (Archive, Ada.Streams.Stream_IO.Out_File, Path);
+                     Archive_Open := True;
+                     Emit
+                       (Context, Item, "bootstrap", "source-to-workbench",
+                        "BASE_BACKUP_ARCHIVE",
+                        Detail =>
+                          (if Base_Backups.Archive_Name (Event)'Length = 0
+                           then "base.tar"
+                           else Base_Backups.Archive_Name (Event)));
+                  when Base_Backups.Archive_Data =>
+                     if not Archive_Open then
+                        raise Program_Error with
+                          "native base backup data preceded its archive";
+                     end if;
+                     declare
+                        Data : constant Replication.Byte_Array :=
+                          Base_Backups.Data (Event);
+                     begin
+                        Ada.Streams.Stream_IO.Write (Archive, Data);
+                        Bytes := Bytes + Replication.UInt64 (Data'Length);
+                     end;
+                     if Bytes - Last_Reported >= 16 * 1_024 * 1_024 then
+                        Emit
+                          (Context, Item, "bootstrap",
+                           "source-to-workbench", "BASE_BACKUP_PROGRESS",
+                           Detail => Ada.Strings.Fixed.Trim
+                             (Replication.UInt64'Image (Bytes),
+                              Ada.Strings.Both) & " bytes");
+                        Last_Reported := Bytes;
+                     end if;
+                  when Base_Backups.Backup_End =>
+                     Close_Archive;
+                     Emit
+                       (Context, Item, "bootstrap", "source-to-workbench",
+                        "BASE_BACKUP_END", Base_Backups.End_LSN (Event),
+                        Ada.Strings.Fixed.Trim
+                          (Replication.UInt64'Image (Bytes), Ada.Strings.Both)
+                        & " bytes received");
+                  when Base_Backups.Error =>
+                     raise Program_Error with
+                       "native base backup: "
+                       & Protocol.Diagnostic_Message
+                         (Base_Backups.Diagnostic (Event));
+                  when Base_Backups.Complete =>
+                     exit;
+                  when Base_Backups.Manifest_Start |
+                       Base_Backups.Manifest_Data |
+                       Base_Backups.Progress |
+                       Base_Backups.Notice |
+                       Base_Backups.Parameter_Status =>
+                     null;
+               end case;
+            end;
+         exception
+            when Flyology.IO.Timeout_Error => null;
+         end;
+      end loop;
+      Close_Archive;
+      if Archive_Count /= 1 or else Bytes = 0 then
+         raise Program_Error with "native base backup returned no base archive";
+      end if;
+   exception
+      when others =>
+         Close_Archive;
+         raise;
+   end Receive_Native_Base_Backup;
+
    procedure Run_Physical_Link
      (Context : in out Psqlbench_Context.Context;
       Item    : Psqlbench_Context.Link_Record;
@@ -1334,6 +1480,26 @@ package body Psqlbench_Links is
          others => <>);
       Bootstrap_Deadline : constant Ada.Real_Time.Time :=
         Ada.Real_Time.Clock + Ada.Real_Time.Seconds (180);
+      Version_Text : constant String := Target_Version (Item);
+      Version_Dot : constant Natural :=
+        Ada.Strings.Fixed.Index (Version_Text, ".");
+      Major : constant Base_Backups.Server_Major :=
+        Base_Backups.Server_Major'Value
+          (Version_Text
+             (Version_Text'First ..
+                (if Version_Dot = 0
+                 then Version_Text'Last else Version_Dot - 1)));
+      Archive_Path : constant String :=
+        "/tmp/psqlbench-" & Target & "-base.tar";
+
+      procedure Delete_Archive is
+      begin
+         if Ada.Directories.Exists (Archive_Path) then
+            Ada.Directories.Delete_File (Archive_Path);
+         end if;
+      exception
+         when others => null;
+      end Delete_Archive;
 
       procedure Setup is
          Source_Socket : aliased Sockets.Socket_Type;
@@ -1386,26 +1552,36 @@ package body Psqlbench_Links is
             end;
             Context.Links.Set_Status
               (Link, Psqlbench_Context.Link_Starting,
-               "taking a direct base backup before the proxied WAL path starts");
-            declare
-               Result : constant Psqlbench_Docker.Result :=
-                 Psqlbench_Docker.Bootstrap_Physical_Standby
-                   (Name       => Target,
-                    Source     => Source_Name (Item),
-                    Version    => Target_Version (Item),
-                    Port       => Positive (Item.Target_Port),
-                    Slot       => Slot,
-                    Relay_Port => Positive (Item.Relay_Port),
-                    Deadline   => Bootstrap_Deadline);
+               "streaming a native BASE_BACKUP before live WAL starts");
             begin
-               if not Result.Success then
-                  raise Program_Error with
-                    "standby bootstrap: " & Psqlbench_Docker.Text (Result);
-               end if;
+               Receive_Native_Base_Backup
+                 (Context, Item, Source_Port, Major, Archive_Path, Control);
+               declare
+                  Result : constant Psqlbench_Docker.Result :=
+                    Psqlbench_Docker.Bootstrap_Physical_Standby
+                      (Name         => Target,
+                       Version      => Target_Version (Item),
+                       Port         => Positive (Item.Target_Port),
+                       Slot         => Slot,
+                       Relay_Port   => Positive (Item.Relay_Port),
+                       Archive_Path => Archive_Path,
+                       Deadline     => Bootstrap_Deadline);
+               begin
+                  if not Result.Success then
+                     raise Program_Error with
+                       "standby bootstrap: " & Psqlbench_Docker.Text (Result);
+                  end if;
+               end;
+               Delete_Archive;
+            exception
+               when others =>
+                  Delete_Archive;
+                  raise;
             end;
             Emit
               (Context, Item, "bootstrap", "source-to-target",
-               "base-backup-complete", Detail => "direct bootstrap only");
+               "base-backup-complete",
+               Detail => "native Flyology BASE_BACKUP receiver");
          else
             Emit
               (Context, Item, "bootstrap", "target", "standby-reused");
@@ -1674,6 +1850,10 @@ package body Psqlbench_Links is
       when Flyology.Cancellation.Operation_Cancelled =>
          raise;
       when Error : others =>
+         Ada.Text_IO.Put_Line
+           (Ada.Text_IO.Standard_Error,
+            "physical link " & Link & " failed: "
+            & Ada.Exceptions.Exception_Information (Error));
          Context.Links.Set_Status
            (Link, Psqlbench_Context.Link_Failed,
             Ada.Exceptions.Exception_Message (Error));
