@@ -18,6 +18,7 @@ with Interfaces;
 with Psqlbench_Assets;
 with Psqlbench_Docker;
 with Psqlbench_JSON;
+with Psqlbench_Mappings;
 with Psqlbench_Persistence;
 with Psqlbench_Query;
 
@@ -278,6 +279,11 @@ package body Psqlbench_Server is
                & Value (Index).Target_Table
                  (1 .. Value (Index).Target_Table_Length));
             Psqlbench_JSON.String_Value
+              (Document, "column_map",
+               (if Value (Index).Column_Map_Length = 0 then ""
+                else Value (Index).Column_Map
+                  (1 .. Value (Index).Column_Map_Length)));
+            Psqlbench_JSON.String_Value
               (Document, "status", Link_Status_Image (Value (Index).Status));
             Psqlbench_JSON.Boolean_Value
               (Document, "desired_running", Value (Index).Desired_Running);
@@ -535,6 +541,8 @@ package body Psqlbench_Server is
            Psqlbench_JSON.String_Field (X.Content, "target_schema");
          Target_Table : constant String :=
            Psqlbench_JSON.String_Field (X.Content, "target_table");
+         Column_Map : constant String :=
+           Psqlbench_JSON.String_Field (X.Content, "column_map");
          Target_Port : constant Natural :=
            Psqlbench_JSON.Natural_Field (X.Content, "target_port", 55_433);
          Mode : Psqlbench_Context.Link_Mode;
@@ -605,6 +613,33 @@ package body Psqlbench_Server is
               (400, "invalid-standby-port",
                "Choose an unprivileged TCP port from 1024 through 65535");
             return;
+         elsif Column_Map'Length > Psqlbench_Context.Max_Column_Map_Bytes then
+            X.Problem
+              (400, "column-map-too-large",
+               "Column mapping is limited to 2048 bytes");
+            return;
+         elsif Mode = Psqlbench_Context.Physical_Streaming
+           and then Column_Map'Length > 0
+         then
+            X.Problem
+              (400, "physical-column-map",
+               "Column mappings apply only to logical links");
+            return;
+         end if;
+
+         if Column_Map'Length > 0 then
+            declare
+               Rules : Psqlbench_Mappings.Mapping_Array;
+               Count : Natural;
+            begin
+               Psqlbench_Mappings.Parse (Column_Map, Rules, Count);
+            exception
+               when Error : Constraint_Error =>
+                  X.Problem
+                    (400, "invalid-column-map",
+                     Ada.Exceptions.Exception_Message (Error));
+                  return;
+            end;
          end if;
 
          if Mode = Psqlbench_Context.Physical_Streaming then
@@ -670,14 +705,14 @@ package body Psqlbench_Server is
                State.Root.Links.Create
                  (Name, Source, Target, Mode, "", "", "", "",
                   Version, Target_Port,
-                  Accepted, Detail, Last);
+                  Accepted, Detail, Last, Column_Map => "");
             end;
          else
             State.Root.Links.Create
               (Name, Source, Target, Mode,
                Source_Schema, Source_Table, Target_Schema, Target_Table,
                "", 0,
-               Accepted, Detail, Last);
+               Accepted, Detail, Last, Column_Map => Column_Map);
          end if;
          if not Accepted then
             X.Problem

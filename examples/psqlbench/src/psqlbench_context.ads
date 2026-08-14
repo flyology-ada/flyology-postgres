@@ -11,6 +11,7 @@ package Psqlbench_Context is
    Link_Command_Capacity : constant := 16;
    Max_Link_Name_Bytes : constant := 24;
    Max_Link_Detail_Bytes : constant := 192;
+   Max_Column_Map_Bytes : constant := 2_048;
    Max_Instances : constant := 32;
 
    subtype Event_Sequence is Interfaces.Unsigned_64;
@@ -64,6 +65,8 @@ package Psqlbench_Context is
       Target_Schema : String (1 .. 63) := (others => ' ');
       Target_Table_Length : Natural range 0 .. 63 := 0;
       Target_Table : String (1 .. 63) := (others => ' ');
+      Column_Map_Length : Natural range 0 .. Max_Column_Map_Bytes := 0;
+      Column_Map : String (1 .. Max_Column_Map_Bytes) := (others => ' ');
       Relay_Port    : Natural range 0 .. 65_535 := 0;
       Change_Count  : Event_Sequence := 0;
       Start_LSN     : Interfaces.Unsigned_64 := 0;
@@ -166,7 +169,8 @@ package Psqlbench_Context is
          Detail   : out String;
          Last     : out Natural;
          Desired_Running : Boolean := True;
-         Restoring : Boolean := False);
+         Restoring : Boolean := False;
+         Column_Map : String := "");
       procedure Request
         (Name     : String;
          Action   : Link_Command_Kind;

@@ -25,6 +25,7 @@ with Flyology.Supervision.Input_Children;
 with Interfaces;
 with Psqlbench_Docker;
 with Psqlbench_JSON;
+with Psqlbench_Mappings;
 with Psqlbench_Persistence;
 
 package body Psqlbench_Links is
@@ -90,6 +91,9 @@ package body Psqlbench_Links is
 
    function Target_Table (Item : Psqlbench_Context.Link_Record) return String is
      (Text (Item.Target_Table, Item.Target_Table_Length));
+
+   function Column_Map (Item : Psqlbench_Context.Link_Record) return String is
+     (Text (Item.Column_Map, Item.Column_Map_Length));
 
    function Slot_Name (Item : Psqlbench_Context.Link_Record) return String is
      (Table_Name (Item));
@@ -823,12 +827,155 @@ package body Psqlbench_Links is
      array (Positive range 1 .. Max_Relation_Columns) of Unbounded_String;
    type Relation_Key_Flags is
      array (Positive range 1 .. Max_Relation_Columns) of Boolean;
+   type Relation_Selection is
+     array (Positive range 1 .. Max_Relation_Columns) of Boolean;
    type Relation_State is record
       Oid : Logical.UInt32 := 0;
       Count : Natural range 0 .. Max_Relation_Columns := 0;
       Names : Relation_Column_Names;
+      Target_Names : Relation_Column_Names;
+      Target_Types : Relation_Column_Names;
       Keys : Relation_Key_Flags := (others => False);
+      Included : Relation_Selection := (others => False);
+      Mapped_Count : Natural range 0 .. Max_Relation_Columns := 0;
    end record;
+
+   procedure Configure_Mapping
+     (Session : in out Client.Session;
+      Item : Psqlbench_Context.Link_Record;
+      Relation : in out Relation_State;
+      Require_Replica_Keys : Boolean)
+   is
+      Rules : Psqlbench_Mappings.Mapping_Array;
+      Rule_Count : Natural;
+      Explicit : constant Boolean := Column_Map (Item)'Length > 0;
+
+      procedure Include
+        (Source_Index : Positive; Target, Type_Name : String) is
+      begin
+         Relation.Included (Source_Index) := True;
+         Relation.Target_Names (Source_Index) := To_Unbounded_String (Target);
+         Relation.Target_Types (Source_Index) :=
+           To_Unbounded_String (Type_Name);
+         Relation.Mapped_Count := Relation.Mapped_Count + 1;
+      end Include;
+
+      function Target_Column_Valid (Name : String) return Boolean is
+        (Scalar_SQL
+           (Session,
+            "SELECT count(*)::text FROM information_schema.columns "
+            & "WHERE table_schema=" & Quote_Literal (Target_Schema (Item))
+            & " AND table_name=" & Quote_Literal (Target_Table (Item))
+            & " AND column_name=" & Quote_Literal (Name)
+            & " AND is_generated='NEVER' AND (is_identity='NO' "
+            & "OR identity_generation='BY DEFAULT')") = "1");
+   begin
+      Relation.Included := (others => False);
+      Relation.Target_Names := (others => Null_Unbounded_String);
+      Relation.Target_Types := (others => Null_Unbounded_String);
+      Relation.Mapped_Count := 0;
+      Psqlbench_Mappings.Parse (Column_Map (Item), Rules, Rule_Count);
+      if Explicit then
+         for Rule_Index in 1 .. Rule_Count loop
+            declare
+               Source : constant String :=
+                 Psqlbench_Mappings.Source_Name (Rules (Rule_Index));
+               Found : Boolean := False;
+            begin
+               for Index in 1 .. Relation.Count loop
+                  if To_String (Relation.Names (Index)) = Source then
+                     Include
+                       (Index,
+                        Psqlbench_Mappings.Target_Name (Rules (Rule_Index)),
+                        Psqlbench_Mappings.Target_Type (Rules (Rule_Index)));
+                     Found := True;
+                     exit;
+                  end if;
+               end loop;
+               if not Found then
+                  raise Program_Error with
+                    "mapped source column is absent: " & Source;
+               end if;
+            end;
+         end loop;
+      else
+         for Index in 1 .. Relation.Count loop
+            Include (Index, To_String (Relation.Names (Index)), "");
+         end loop;
+      end if;
+
+      for Index in 1 .. Relation.Count loop
+         if Relation.Included (Index) then
+            declare
+               Target : constant String :=
+                 To_String (Relation.Target_Names (Index));
+               Type_Name : constant String :=
+                 To_String (Relation.Target_Types (Index));
+            begin
+               if not Target_Column_Valid (Target) then
+                  raise Program_Error with
+                    "mapped target column is absent or generated: " & Target;
+               end if;
+               if Type_Name'Length > 0 then
+                  declare
+                     Ignored : constant String :=
+                       Scalar_SQL (Session, "SELECT NULL::" & Type_Name);
+                     pragma Unreferenced (Ignored);
+                  begin
+                     null;
+                  end;
+               end if;
+            end;
+         end if;
+      end loop;
+
+      if Require_Replica_Keys then
+         for Index in 1 .. Relation.Count loop
+            if Relation.Keys (Index) and then not Relation.Included (Index) then
+               raise Program_Error with
+                 "replica identity column must be mapped: "
+                 & To_String (Relation.Names (Index));
+            end if;
+         end loop;
+      end if;
+   end Configure_Mapping;
+
+   procedure Validate_Snapshot_Target
+     (Session : in out Client.Session;
+      Item : Psqlbench_Context.Link_Record;
+      Relation : Relation_State)
+   is
+      SQL : Unbounded_String := To_Unbounded_String
+        ("SELECT COALESCE(string_agg(column_name,',' ORDER BY "
+         & "ordinal_position),'') FROM information_schema.columns "
+         & "WHERE table_schema=" & Quote_Literal (Target_Schema (Item))
+         & " AND table_name=" & Quote_Literal (Target_Table (Item))
+         & " AND is_nullable='NO' AND column_default IS NULL "
+         & "AND is_identity='NO' AND is_generated='NEVER' "
+         & "AND column_name NOT IN (");
+      Added : Natural := 0;
+   begin
+      for Index in 1 .. Relation.Count loop
+         if Relation.Included (Index) then
+            if Added > 0 then
+               Append (SQL, ",");
+            end if;
+            Append
+              (SQL, Quote_Literal
+                 (To_String (Relation.Target_Names (Index))));
+            Added := Added + 1;
+         end if;
+      end loop;
+      Append (SQL, ")");
+      declare
+         Missing : constant String := Scalar_SQL (Session, To_String (SQL));
+      begin
+         if Missing'Length > 0 then
+            raise Program_Error with
+              "unmapped target columns require values: " & Missing;
+         end if;
+      end;
+   end Validate_Snapshot_Target;
 
    procedure Apply_Message
      (Session : in out Client.Session;
@@ -843,8 +990,18 @@ package body Psqlbench_Links is
         Qualified (Target_Schema (Item), Target_Table (Item));
 
       function Tuple_Value
-        (Tuple : Logical.Tuple_Data; Index : Positive) return String is
-        (Tuple_SQL (Logical.Column (Tuple, Index)));
+        (Tuple : Logical.Tuple_Data;
+         Value_Index, Source_Index : Positive) return String
+      is
+         Value : constant String :=
+           Tuple_SQL (Logical.Column (Tuple, Value_Index));
+         Type_Name : constant String :=
+           To_String (Relation.Target_Types (Source_Index));
+      begin
+         return
+           (if Type_Name'Length = 0 then Value
+            else "CAST(" & Value & " AS " & Type_Name & ")");
+      end Tuple_Value;
 
       function Key_Count return Natural is
          Result : Natural := 0;
@@ -864,19 +1021,27 @@ package body Psqlbench_Links is
          Tuple_Index : Positive := 1;
          Use_Keys : constant Boolean := Key_Count > 0;
       begin
+         if not Use_Keys and then Relation.Mapped_Count < Relation.Count then
+            raise Program_Error with
+              "selected column mappings need a replica identity for "
+              & "updates and deletes";
+         end if;
          for Index in 1 .. Relation.Count loop
-            if (Use_Keys and then Relation.Keys (Index))
-              or else not Use_Keys
+            if Relation.Included (Index)
+              and then
+                ((Use_Keys and then Relation.Keys (Index))
+                 or else not Use_Keys)
             then
                if Length (SQL) > 0 then
                   Append (SQL, " AND ");
                end if;
                Append
                  (SQL,
-                  Quote_Identifier (To_String (Relation.Names (Index)))
+                  Quote_Identifier
+                    (To_String (Relation.Target_Names (Index)))
                   & " IS NOT DISTINCT FROM "
                   & Tuple_Value
-                    (Tuple, (if Key_Only then Tuple_Index else Index)));
+                    (Tuple, (if Key_Only then Tuple_Index else Index), Index));
                Tuple_Index := Tuple_Index + 1;
             end if;
          end loop;
@@ -916,6 +1081,8 @@ package body Psqlbench_Links is
                      Relation.Keys (Index) := Logical.Is_Key (Column);
                   end;
                end loop;
+               Configure_Mapping
+                 (Session, Item, Relation, Require_Replica_Keys => True);
             end if;
 
          when Logical.Insert_Message =>
@@ -925,21 +1092,29 @@ package body Psqlbench_Links is
                     Logical.New_Tuple (Message);
                   SQL : Unbounded_String :=
                     To_Unbounded_String ("INSERT INTO " & Table & " (");
+                  Added : Natural := 0;
                begin
                   for Index in 1 .. Relation.Count loop
-                     if Index > 1 then
-                        Append (SQL, ",");
+                     if Relation.Included (Index) then
+                        if Added > 0 then
+                           Append (SQL, ",");
+                        end if;
+                        Append
+                          (SQL, Quote_Identifier
+                             (To_String (Relation.Target_Names (Index))));
+                        Added := Added + 1;
                      end if;
-                     Append
-                       (SQL, Quote_Identifier
-                          (To_String (Relation.Names (Index))));
                   end loop;
                   Append (SQL, ") VALUES (");
+                  Added := 0;
                   for Index in 1 .. Relation.Count loop
-                     if Index > 1 then
-                        Append (SQL, ",");
+                     if Relation.Included (Index) then
+                        if Added > 0 then
+                           Append (SQL, ",");
+                        end if;
+                        Append (SQL, Tuple_Value (New_Row, Index, Index));
+                        Added := Added + 1;
                      end if;
-                     Append (SQL, Tuple_Value (New_Row, Index));
                   end loop;
                   Append (SQL, ") ON CONFLICT DO NOTHING");
                   Run_SQL (Session, To_String (SQL));
@@ -957,16 +1132,18 @@ package body Psqlbench_Links is
                   Assignments : Natural := 0;
                begin
                   for Index in 1 .. Relation.Count loop
-                     if Logical.Kind (Logical.Column (New_Row, Index)) /=
-                       Logical.Unchanged_Toast_Value
+                     if Relation.Included (Index)
+                       and then Logical.Kind
+                         (Logical.Column (New_Row, Index)) /=
+                           Logical.Unchanged_Toast_Value
                      then
                         if Assignments > 0 then
                            Append (SQL, ",");
                         end if;
                         Append
                           (SQL, Quote_Identifier
-                             (To_String (Relation.Names (Index)))
-                           & "=" & Tuple_Value (New_Row, Index));
+                             (To_String (Relation.Target_Names (Index)))
+                           & "=" & Tuple_Value (New_Row, Index, Index));
                         Assignments := Assignments + 1;
                      end if;
                   end loop;
@@ -1233,13 +1410,15 @@ package body Psqlbench_Links is
             "CREATE TABLE IF NOT EXISTS public.psqlbench_link_state ("
             & "link_name text PRIMARY KEY, slot_name text NOT NULL, "
             & "source_relation text, target_relation text, "
+            & "column_map text NOT NULL DEFAULT '', "
             & "snapshot_lsn pg_lsn NOT NULL, copied_rows bigint NOT NULL, "
             & "initialized_at timestamptz NOT NULL DEFAULT clock_timestamp())");
          Run_SQL
            (Target,
             "ALTER TABLE public.psqlbench_link_state "
             & "ADD COLUMN IF NOT EXISTS source_relation text, "
-            & "ADD COLUMN IF NOT EXISTS target_relation text");
+            & "ADD COLUMN IF NOT EXISTS target_relation text, "
+            & "ADD COLUMN IF NOT EXISTS column_map text NOT NULL DEFAULT ''");
          if Is_Streaming (Item) then
             Run_SQL
               (Source,
@@ -1283,7 +1462,8 @@ package body Psqlbench_Links is
                  (Source_Schema (Item) & "." & Source_Table (Item))
                & " AND target_relation="
                & Quote_Literal
-                 (Target_Schema (Item) & "." & Target_Table (Item)));
+                 (Target_Schema (Item) & "." & Target_Table (Item))
+               & " AND column_map=" & Quote_Literal (Column_Map (Item)));
          begin
             if Position'Length > 0 and then Initialized'Length > 0 then
                Start_LSN := Replication.Value (Position);
@@ -1304,9 +1484,7 @@ package body Psqlbench_Links is
                   Slot_Session : Client.Session (Slot_Channel'Access);
                   Snapshot_Name : Unbounded_String;
                   Consistent_Point : Unbounded_String;
-                  Snapshot_Columns : Relation_Column_Names;
-                  Snapshot_Column_Count : Natural range
-                    0 .. Max_Relation_Columns := 0;
+                  Snapshot_Relation : Relation_State;
                   Rows : Natural := 0;
                begin
                   Connect
@@ -1404,15 +1582,20 @@ package body Psqlbench_Links is
                                     raise Program_Error with
                                       "snapshot supports 1 through 64 columns";
                                  end if;
-                                 Snapshot_Column_Count :=
+                                 Snapshot_Relation.Count :=
                                    Protocol.Field_Count (Description);
-                                 for Index in 1 .. Snapshot_Column_Count loop
-                                    Snapshot_Columns (Index) :=
+                                 for Index in 1 .. Snapshot_Relation.Count loop
+                                    Snapshot_Relation.Names (Index) :=
                                       To_Unbounded_String
                                         (Protocol.Field_Name
                                            (Protocol.Field_At
                                               (Description, Index)));
                                  end loop;
+                                 Configure_Mapping
+                                   (Target, Item, Snapshot_Relation,
+                                    Require_Replica_Keys => False);
+                                 Validate_Snapshot_Target
+                                   (Target, Item, Snapshot_Relation);
                               end;
                            elsif Protocol.Response_Kind (Event) =
                              Protocol.Data_Row_Response
@@ -1421,9 +1604,9 @@ package body Psqlbench_Links is
                                  Row : constant Protocol.Data_Row :=
                                    Protocol.Row_Data (Event);
                               begin
-                                 if Snapshot_Column_Count = 0
+                                 if Snapshot_Relation.Count = 0
                                    or else Protocol.Column_Count (Row) /=
-                                     Snapshot_Column_Count
+                                     Snapshot_Relation.Count
                                  then
                                     raise Program_Error with
                                       "snapshot row shape changed";
@@ -1433,30 +1616,52 @@ package body Psqlbench_Links is
                                       To_Unbounded_String
                                         ("INSERT INTO " & Target_Relation
                                          & " (");
+                                    Added : Natural := 0;
                                  begin
-                                    for Index in 1 .. Snapshot_Column_Count loop
-                                       if Index > 1 then
-                                          Append (SQL, ",");
+                                    for Index in 1 .. Snapshot_Relation.Count loop
+                                       if Snapshot_Relation.Included (Index) then
+                                          if Added > 0 then
+                                             Append (SQL, ",");
+                                          end if;
+                                          Append
+                                            (SQL, Quote_Identifier
+                                               (To_String
+                                                  (Snapshot_Relation
+                                                     .Target_Names (Index))));
+                                          Added := Added + 1;
                                        end if;
-                                       Append
-                                         (SQL, Quote_Identifier
-                                            (To_String
-                                               (Snapshot_Columns (Index))));
                                     end loop;
                                     Append (SQL, ") VALUES (");
-                                    for Index in 1 .. Snapshot_Column_Count loop
-                                       if Index > 1 then
-                                          Append (SQL, ",");
+                                    Added := 0;
+                                    for Index in 1 .. Snapshot_Relation.Count loop
+                                       if Snapshot_Relation.Included (Index) then
+                                          if Added > 0 then
+                                             Append (SQL, ",");
+                                          end if;
+                                          declare
+                                             Raw : constant String :=
+                                               (if Protocol.Is_Null
+                                                  (Protocol.Column_At
+                                                     (Row, Index))
+                                                then "NULL"
+                                                else Quote_Literal
+                                                  (Protocol.Column_Text
+                                                     (Protocol.Column_At
+                                                        (Row, Index))));
+                                             Type_Name : constant String :=
+                                               To_String
+                                                 (Snapshot_Relation
+                                                    .Target_Types (Index));
+                                          begin
+                                             Append
+                                               (SQL,
+                                                (if Type_Name'Length = 0
+                                                 then Raw
+                                                 else "CAST(" & Raw & " AS "
+                                                   & Type_Name & ")"));
+                                          end;
+                                          Added := Added + 1;
                                        end if;
-                                       Append
-                                         (SQL,
-                                          (if Protocol.Is_Null
-                                             (Protocol.Column_At (Row, Index))
-                                           then "NULL"
-                                           else Quote_Literal
-                                             (Protocol.Column_Text
-                                                (Protocol.Column_At
-                                                   (Row, Index)))));
                                     end loop;
                                     Append (SQL, ")");
                                     Run_SQL (Target, To_String (SQL));
@@ -1474,19 +1679,21 @@ package body Psqlbench_Links is
                        (Target,
                         "INSERT INTO public.psqlbench_link_state "
                         & "(link_name,slot_name,source_relation,"
-                        & "target_relation,snapshot_lsn,copied_rows) "
+                        & "target_relation,column_map,snapshot_lsn,"
+                        & "copied_rows) "
                         & "VALUES (" & Quote_Literal (Link) & ","
                         & Quote_Literal (Slot) & ","
                         & Quote_Literal
                           (Source_Schema (Item) & "." & Source_Table (Item))
                         & "," & Quote_Literal
                           (Target_Schema (Item) & "." & Target_Table (Item))
-                        & ","
+                        & "," & Quote_Literal (Column_Map (Item)) & ","
                         & Quote_Literal (Replication.Image (Start_LSN)) & ","
                         & Compact (Rows) & ") ON CONFLICT (link_name) "
                         & "DO UPDATE SET slot_name=EXCLUDED.slot_name, "
                         & "source_relation=EXCLUDED.source_relation, "
                         & "target_relation=EXCLUDED.target_relation, "
+                        & "column_map=EXCLUDED.column_map, "
                         & "snapshot_lsn=EXCLUDED.snapshot_lsn, "
                         & "copied_rows=EXCLUDED.copied_rows, "
                         & "initialized_at=clock_timestamp()");

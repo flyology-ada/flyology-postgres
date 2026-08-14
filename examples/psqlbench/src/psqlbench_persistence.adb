@@ -120,6 +120,9 @@ package body Psqlbench_Persistence is
         (Document, "target_table",
          Text (Item.Target_Table, Item.Target_Table_Length));
       Psqlbench_JSON.String_Value
+        (Document, "column_map",
+         Text (Item.Column_Map, Item.Column_Map_Length));
+      Psqlbench_JSON.String_Value
         (Document, "target_version",
          Text (Item.Target_Version, Item.Target_Version_Length));
       Psqlbench_JSON.Integer_Value
@@ -287,6 +290,8 @@ package body Psqlbench_Persistence is
         Psqlbench_JSON.String_Field (Document, "target_schema");
       Target_Table : constant String :=
         Psqlbench_JSON.String_Field (Document, "target_table");
+      Column_Map : constant String :=
+        Psqlbench_JSON.String_Field (Document, "column_map");
       Target_Version : constant String :=
         Psqlbench_JSON.String_Field (Document, "target_version");
       Target_Port : constant Natural :=
@@ -308,7 +313,8 @@ package body Psqlbench_Persistence is
         (Name, Source, Target, Mode,
          Source_Schema, Source_Table, Target_Schema, Target_Table,
          Target_Version, Target_Port, Accepted, Detail, Last,
-         Desired_Running => Running, Restoring => True);
+         Desired_Running => Running, Restoring => True,
+         Column_Map => Column_Map);
       if not Accepted then
          raise Program_Error with
            "cannot restore link " & Name & ": "

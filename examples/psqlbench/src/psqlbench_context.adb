@@ -283,7 +283,8 @@ package body Psqlbench_Context is
          Detail   : out String;
          Last     : out Natural;
          Desired_Running : Boolean := True;
-         Restoring : Boolean := False)
+         Restoring : Boolean := False;
+         Column_Map : String := "")
       is
          Free : Natural := 0;
       begin
@@ -365,6 +366,10 @@ package body Psqlbench_Context is
               (Entries (Free).Target_Table,
                Entries (Free).Target_Table_Length,
                Effective_Target_Table);
+            Store
+              (Entries (Free).Column_Map,
+               Entries (Free).Column_Map_Length,
+               Column_Map);
          end;
          Entries (Free).Relay_Port := 58_000 + Free;
          if Desired_Running then

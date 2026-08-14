@@ -254,7 +254,7 @@
       link.name, link.source, link.target, link.target_version,
       link.target_port, link.table, link.source_relation,
       link.target_relation, link.status, link.mode,
-      link.relay_port, link.detail, link.desired_running
+      link.relay_port, link.detail, link.desired_running, link.column_map
     ]);
   }
 
@@ -337,6 +337,17 @@
     replay.append(replayHead, meter, el("small", "replay-summary", `${formatBytes(link.replayed_bytes)} replayed across ${formatBytes(link.span_bytes)} observed`));
 
     const detail = el("p", "link-detail", link.detail || "Waiting for supervised link activity");
+    const mapping = document.createElement("details");
+    mapping.className = "link-mapping";
+    const mappingRules = String(link.column_map || "").split("\n")
+      .map(value => value.trim())
+      .filter(value => value && !value.startsWith("#"));
+    const mappingSummary = document.createElement("summary");
+    mappingSummary.textContent = mappingRules.length
+      ? `Column projection · ${mappingRules.length} ${mappingRules.length === 1 ? "rule" : "rules"}`
+      : "Column projection · identity";
+    mapping.append(mappingSummary);
+    if (mappingRules.length) mapping.append(el("pre", "", mappingRules.join("\n")));
     const live = el("section", "link-live");
     live.setAttribute("aria-label", `${link.name} live replication activity`);
     const liveHeading = el("div", "link-live-heading");
@@ -353,6 +364,8 @@
     const actions = el("div", "node-actions");
     const insert = el("button", "button primary", "Insert demo row");
     insert.type = "button";
+    const managedRelation = link.source_relation === `public.${link.table}`;
+    insert.hidden = !physical && !managedRelation;
     insert.disabled = link.status !== "running";
     insert.addEventListener("click", () => {
       selectInstance(link.source);
@@ -368,7 +381,9 @@
       selectInstance(link.target);
       queryInput.value = physical
         ? "select pg_is_in_recovery() as in_recovery, pg_last_wal_replay_lsn() as replay_lsn;\nselect * from public.psqlbench_physical_probe order by id desc limit 20;"
-        : `select * from ${link.target_relation} order by id desc limit 20;`;
+        : (managedRelation
+          ? `select * from ${link.target_relation} order by id desc limit 20;`
+          : `select * from ${link.target_relation} limit 20;`);
       switchTab("query");
     });
     const pattern = el("button", "button secondary", twoPhase ? "Load prepared transaction" : (streamed ? "Load streamed transaction" : "Load message patterns"));
@@ -399,7 +414,9 @@
       events.scrollIntoView({ behavior: "smooth", block: "start" });
     });
     actions.append(insert, pattern, inspect, activity, stateAction);
-    article.append(heading, route, stats, replay, detail, live, actions);
+    article.append(heading, route, stats);
+    if (!physical) article.append(mapping);
+    article.append(replay, detail, live, actions);
     return article;
   }
 
@@ -975,7 +992,7 @@
       await request("/api/links", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: data.get("name"), source: data.get("source"), target: physical ? data.get("standby") : data.get("target"), target_port: physical ? Number(data.get("target_port")) : 0, mode: data.get("mode"), source_schema: sourceRelation.length === 2 ? sourceRelation[0] : "", source_table: sourceRelation.length === 2 ? sourceRelation[1] : "", target_schema: targetRelation.length === 2 ? targetRelation[0] : "", target_table: targetRelation.length === 2 ? targetRelation[1] : "" })
+        body: JSON.stringify({ name: data.get("name"), source: data.get("source"), target: physical ? data.get("standby") : data.get("target"), target_port: physical ? Number(data.get("target_port")) : 0, mode: data.get("mode"), source_schema: sourceRelation.length === 2 ? sourceRelation[0] : "", source_table: sourceRelation.length === 2 ? sourceRelation[1] : "", target_schema: targetRelation.length === 2 ? targetRelation[0] : "", target_table: targetRelation.length === 2 ? targetRelation[1] : "", column_map: physical ? "" : String(data.get("column_map") || "").trim() })
       });
       linkForm.reset();
       linkTargetPort.value = "55434";

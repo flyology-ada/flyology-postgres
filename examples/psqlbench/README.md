@@ -36,6 +36,9 @@ client support is available and verified.
   through the downstream Flyology client, with link-scoped target GIDs;
 - maps a source `schema.table` to a differently named compatible target
   relation while retaining snapshot initialization and live change activity;
+- projects selected logical columns onto renamed target columns, with optional
+  target-side casts, and revalidates the plan when pgoutput announces a changed
+  source relation;
 - routes every logical message through a Flyology Postgres replication client,
   stateful pgoutput decoder/encoder, Flyology Postgres replication server, and
   a second Flyology Postgres replication client before applying it to the
@@ -66,9 +69,23 @@ target atomically, and then starts pgoutput at that same boundary. A completed
 marker makes restarts idempotent; an incomplete slot is recreated instead of
 resuming a partial copy. Relation mapping discovers up to 64 source columns
 from the snapshot and pgoutput relation metadata, applies replica-identity keys
-for updates and deletes, and addresses target columns by name. Source and target
-columns must currently have matching names; per-column renames, transforms,
-generated-column handling, and custom type coercions remain outside this slice.
+for updates and deletes, and addresses target columns by name. An optional
+column projection uses one rule per line:
+
+```text
+sku -> product_code
+quantity_text -> units :: integer
+price_cents -> price :: numeric(12,2)
+```
+
+A projection selects only those source columns, permits renames and safe
+target-side SQL casts, and leaves unmapped target columns to their defaults.
+Replica-identity columns must remain mapped so updates and deletes are
+unambiguous. Before snapshot or apply, psqlbench verifies source columns,
+target columns, cast types, generated/identity restrictions, and required
+target values. New unmapped source columns are ignored; removing a mapped
+column or changing the target incompatibly stops the link with a visible
+diagnostic before more changes are applied.
 Physical bootstrap WAL is streamed with PostgreSQL's replication protocol by
 the Flyology client;
 Docker installs the received archive without invoking `pg_basebackup`. After

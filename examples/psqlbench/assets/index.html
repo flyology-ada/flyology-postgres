@@ -155,10 +155,15 @@
             <span>Target relation</span>
             <input name="target_relation" placeholder="public.orders_replica" pattern="[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*" autocomplete="off">
           </label>
+          <label class="logical-relation-field column-map-field">
+            <span>Column projection (optional)</span>
+            <textarea name="column_map" maxlength="2048" spellcheck="false" placeholder="sku -> product_code&#10;quantity -> units :: integer&#10;active -> enabled :: boolean"></textarea>
+            <small>One rule per line. Rules select and rename columns; an optional safe SQL target type makes coercion explicit.</small>
+          </label>
         </div>
         <div class="bridge-contract" id="logical-contract">
           <strong>Snapshot, then pgoutput</strong>
-          <span>Leave relation fields empty for managed demo tables, or map <code>schema.table</code> relations with same-named target columns. Existing rows cross at an exported snapshot/LSN boundary; future inserts, updates, deletes, truncates, and optional prepared transactions flow through our clients and relay.</span>
+          <span>Leave relation and projection fields empty for managed demo tables. A projection can select, rename, and cast columns while preserving every replica-identity key. Existing rows cross at an exported snapshot/LSN boundary; relation refreshes revalidate the mapping before more changes apply.</span>
         </div>
         <div class="bridge-contract" id="physical-contract" hidden>
           <strong>Snapshot, then live WAL</strong>
