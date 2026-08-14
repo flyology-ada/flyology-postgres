@@ -222,7 +222,7 @@
       </div>
       <div class="workspace-tabs" role="tablist" aria-label="Instance tools">
         <button type="button" role="tab" aria-selected="true" aria-controls="query-panel" id="query-tab">Query</button>
-        <button type="button" role="tab" aria-selected="false" aria-controls="logs-panel" id="logs-tab">Logs</button>
+        <button type="button" role="tab" aria-selected="false" aria-controls="logs-panel" id="logs-tab">Postgres logs</button>
       </div>
 
       <div class="workspace-panel query-panel" id="query-panel" role="tabpanel" aria-labelledby="query-tab">
@@ -257,7 +257,7 @@
         <div class="log-toolbar">
           <div>
             <span class="stream-state" id="log-stream-state">Opening stream</span>
-            <span class="retention-note">latest 1,024 lines across the workbench</span>
+            <span class="retention-note">retained history plus live Postgres stdout + stderr for this instance</span>
           </div>
           <div class="log-controls">
             <label><input type="checkbox" id="follow-logs" checked> Follow</label>

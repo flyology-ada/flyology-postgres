@@ -194,13 +194,19 @@
     const inspect = el("button", "button primary", "Inspect");
     inspect.type = "button";
     inspect.addEventListener("click", () => selectInstance(details.name));
+    const logs = el("button", "button secondary", "Postgres logs");
+    logs.type = "button";
+    logs.addEventListener("click", () => {
+      selectInstance(details.name);
+      if (activeTab !== "logs") switchTab("logs");
+    });
     const stateAction = el("button", "button secondary", details.running ? "Stop" : "Start");
     stateAction.type = "button";
     stateAction.addEventListener("click", () => applyAction(details.name, details.running ? "stop" : "start", stateAction));
     const remove = el("button", "button danger", "Remove");
     remove.type = "button";
     remove.addEventListener("click", () => applyAction(details.name, "remove", remove));
-    actions.append(inspect, stateAction, remove);
+    actions.append(inspect, logs, stateAction, remove);
     article.append(head, meta, actions);
     return article;
   }
@@ -434,7 +440,15 @@
       ? `Column projection · ${mappingRules.length} ${mappingRules.length === 1 ? "rule" : "rules"}`
       : "Column projection · identity";
     mapping.append(mappingSummary);
-    if (mappingRules.length) mapping.append(el("pre", "", mappingRules.join("\n")));
+    if (mappingRules.length) {
+      mapping.append(el("pre", "", mappingRules.join("\n")));
+    } else {
+      mapping.append(el(
+        "p",
+        "link-mapping-note",
+        "All source columns map to same-named target columns; none are renamed, cast, or omitted."
+      ));
+    }
     const live = el("section", "link-live");
     live.setAttribute("aria-label", `${link.name} live replication activity`);
     const liveHeading = el("div", "link-live-heading");
