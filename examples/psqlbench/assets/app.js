@@ -608,7 +608,7 @@
     linkList.querySelector(".link-empty")?.remove();
     const existing = new Map(Array.from(linkList.querySelectorAll(".link-card"))
       .map(card => [card.dataset.link, card]));
-    values.forEach(value => {
+    values.forEach((value, index) => {
       let card = existing.get(value.name);
       const snapshot = linkStructure(value);
       if (!card || card.dataset.snapshot !== snapshot) {
@@ -618,7 +618,10 @@
       } else {
         updateLinkMetrics(card, value);
       }
-      linkList.append(card);
+      const cardAtIndex = linkList.children[index];
+      if (card !== cardAtIndex) {
+        linkList.insertBefore(card, cardAtIndex || null);
+      }
       existing.delete(value.name);
     });
     existing.forEach(card => card.remove());
