@@ -67,6 +67,7 @@ mkdir -p docs/api/fonts
 cp "$website_kit/assets/fonts/geologica-latin-variable.woff2" docs/api/fonts/
 cp assets/brand/flyology-mark-transparent.svg docs/api/flyology-mark.svg
 cp "$website_kit/assets/scripts/ada-highlight.js" docs/api/ada-highlight.js
+node scripts/fix-gnatdoc-index-links.mjs docs/api/index.html
 node "$website_kit/scripts/build-api-search-index.mjs" docs/api
 
 test -f docs/api/index.html
@@ -99,6 +100,7 @@ mkdir -p docs/sql-api/fonts
 cp "$website_kit/assets/fonts/geologica-latin-variable.woff2" docs/sql-api/fonts/
 cp assets/brand/flyology-mark-transparent.svg docs/sql-api/flyology-mark.svg
 cp "$website_kit/assets/scripts/ada-highlight.js" docs/sql-api/ada-highlight.js
+node scripts/fix-gnatdoc-index-links.mjs docs/sql-api/index.html
 node "$website_kit/scripts/build-api-search-index.mjs" docs/sql-api
 
 test -f docs/sql-api/index.html
