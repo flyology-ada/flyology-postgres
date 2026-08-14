@@ -226,19 +226,52 @@ code { font-family: var(--mono); }
 .bridge-contract strong { color: var(--violet-deep); font-family: var(--mono); font-size: .68rem; text-transform: uppercase; }
 .bridge-contract span { color: var(--ink-soft); }
 
-.bridge-map {
-  align-items: center;
-  background: var(--ink);
-  color: var(--paper);
-  display: grid;
-  gap: .65rem;
-  grid-template-columns: repeat(4, minmax(1rem, max-content) minmax(7rem, 1fr)) minmax(1rem, max-content) minmax(7rem, 1fr);
-  padding: 1.25rem 1.5rem;
+.bridge-help-panel {
+  background: var(--paper);
+  border: 1px solid color-mix(in oklch, var(--ink) 28%, var(--line));
+  border-radius: .3rem;
+  box-shadow: 0 1rem 2.5rem color-mix(in oklch, var(--ink) 20%, transparent);
+  color: var(--ink);
+  inset: auto;
+  margin: 0;
+  max-height: calc(100vh - 1rem);
+  overflow: auto;
+  padding: 0;
+  position: fixed;
+  width: min(22rem, calc(100vw - 1rem));
 }
-.bridge-map div { display: grid; gap: .15rem; }
-.bridge-map span, .bridge-map small { color: color-mix(in oklch, var(--paper) 62%, var(--ink)); font-family: var(--mono); font-size: .58rem; }
-.bridge-map strong { font-size: .72rem; font-weight: 570; }
-.bridge-map i { color: var(--teal); font-style: normal; text-align: center; }
+.bridge-help-panel::backdrop { background: transparent; }
+.bridge-help-heading {
+  align-items: center;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  padding: .7rem .8rem;
+}
+.bridge-help-heading span { color: var(--violet-deep); font-family: var(--mono); font-size: .52rem; font-weight: 700; letter-spacing: .08em; }
+.bridge-help-heading h3 { font-family: var(--mono); font-size: .76rem; margin: .12rem 0 0; }
+.bridge-help-heading button {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: .15rem;
+  color: var(--ink-soft);
+  cursor: pointer;
+  display: inline-flex;
+  height: 1.5rem;
+  justify-content: center;
+  padding: 0;
+  width: 1.5rem;
+}
+.bridge-help-heading button:hover { background: var(--paper); border-color: var(--line); color: var(--danger); }
+.bridge-help-panel > p { color: var(--ink-soft); font-size: .66rem; line-height: 1.55; margin: 0; padding: .75rem .8rem; }
+.bridge-help-flow { border-top: 1px solid var(--line); display: grid; padding: .25rem .8rem .7rem; }
+.bridge-help-flow div { align-items: baseline; display: grid; gap: .15rem .55rem; grid-template-columns: 1.4rem minmax(0, 1fr); padding: .4rem 0; }
+.bridge-help-flow span { color: var(--violet-deep); font-family: var(--mono); font-size: .52rem; grid-row: 1 / span 2; }
+.bridge-help-flow strong { font-family: var(--mono); font-size: .64rem; font-weight: 650; }
+.bridge-help-flow small { color: var(--ink-soft); font-family: var(--mono); font-size: .55rem; }
+.bridge-help-flow i { color: var(--teal-deep); font-family: var(--mono); font-size: .6rem; font-style: normal; line-height: .5; margin-left: .43rem; }
 
 .link-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .link-empty { color: var(--ink-soft); font-size: .82rem; grid-column: 1 / -1; min-height: 8rem; padding: 2rem 1.5rem; }
@@ -556,8 +589,6 @@ kbd { background: var(--surface); border: 1px solid var(--line); border-radius: 
   .topology-actions { justify-content: start; }
   .activity-section .section-heading { align-items: start; }
   .activity-controls { align-items: end; flex-direction: column; }
-  .bridge-map { grid-template-columns: 1fr; }
-  .bridge-map i { transform: rotate(90deg); }
   .query-panel { grid-template-columns: 1fr; }
   .query-compose { border-bottom: 1px solid var(--line); border-right: 0; }
   .supervision-explainer { align-items: start; flex-direction: column; gap: .5rem; }
@@ -815,9 +846,6 @@ main.desktop {
 .link-card h3 { font-family: var(--mono); font-size: .82rem; }
 .link-stats { grid-template-columns: 1fr; margin: .65rem 0; }
 .link-stats div:nth-child(odd) { margin-right: 0; }
-.bridge-map { display: flex; flex: 0 0 auto; gap: .55rem; overflow-x: auto; padding: .7rem; }
-.bridge-map div { min-width: 8.5rem; }
-.bridge-map i { align-self: center; }
 
 .instance-workspace { margin: 0; }
 .instance-selector { align-items: center; flex: 0 1 14rem; gap: .35rem; min-width: 8rem; }

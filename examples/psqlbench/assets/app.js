@@ -47,6 +47,8 @@
   const logicalContract = document.querySelector("#logical-contract");
   const physicalContract = document.querySelector("#physical-contract");
   const linkFormNote = document.querySelector("#link-form-note");
+  const bridgeHelp = document.querySelector("#bridge-help");
+  const bridgeHelpToggle = document.querySelector("#bridge-help-toggle");
   const topologyPreset = document.querySelector("#topology-preset");
   const launchPreset = document.querySelector("#launch-preset");
   const topologyState = document.querySelector("#topology-state");
@@ -333,6 +335,9 @@
   }
 
   function hideWindow(panel) {
+    if (panel.dataset.window === "links" && bridgeHelp.matches(":popover-open")) {
+      bridgeHelp.hidePopover();
+    }
     panel.dataset.windowHidden = "true";
     if (panel.dataset.window === "logs") closeLogSocket();
     syncWindowControls(panel);
@@ -355,6 +360,7 @@
       const maxTop = Math.max(98, innerHeight - panel.offsetHeight - 28);
       panel.style.left = `${Math.max(8, Math.min(maxLeft, startLeft + moveEvent.clientX - startX))}px`;
       panel.style.top = `${Math.max(98, Math.min(maxTop, startTop + moveEvent.clientY - startY))}px`;
+      if (panel.dataset.window === "links") positionBridgeHelp();
     };
     const finish = () => {
       removeEventListener("pointermove", move);
@@ -440,6 +446,29 @@
     updateDockLayout();
     activateWindow(windowNamed("query"));
   }
+
+  function positionBridgeHelp() {
+    if (!bridgeHelp.matches(":popover-open")) return;
+    const trigger = bridgeHelpToggle.getBoundingClientRect();
+    const gap = 6;
+    const edge = 8;
+    const width = Math.min(352, innerWidth - edge * 2);
+    bridgeHelp.style.width = `${width}px`;
+    const height = bridgeHelp.offsetHeight;
+    const left = Math.max(edge, Math.min(innerWidth - width - edge, trigger.right - width));
+    const below = trigger.bottom + gap;
+    const top = below + height <= innerHeight - edge
+      ? below
+      : Math.max(edge, trigger.top - height - gap);
+    bridgeHelp.style.left = `${left}px`;
+    bridgeHelp.style.top = `${top}px`;
+  }
+
+  bridgeHelp.addEventListener("toggle", () => {
+    if (bridgeHelp.matches(":popover-open")) requestAnimationFrame(positionBridgeHelp);
+  });
+  addEventListener("resize", positionBridgeHelp);
+  addEventListener("scroll", positionBridgeHelp, true);
 
   function showError(message) {
     clearTimeout(toastTimer);

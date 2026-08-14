@@ -138,10 +138,33 @@
           <code>COPY BOTH / pgoutput / WAL</code>
         </div>
         <div class="window-controls">
+          <button type="button" id="bridge-help-toggle" popovertarget="bridge-help" aria-label="Explain the Flyology replication path" title="Replication path help">?</button>
           <button type="button" data-window-action="float" aria-label="Float replication links window" title="Float window">↗</button>
           <button type="button" data-window-action="hide" aria-label="Hide replication links window" title="Hide window">×</button>
         </div>
       </div>
+
+      <aside class="bridge-help-panel" id="bridge-help" popover aria-labelledby="bridge-help-title">
+        <div class="bridge-help-heading">
+          <div>
+            <span>REPLICATION PATH</span>
+            <h3 id="bridge-help-title">Traffic through Flyology</h3>
+          </div>
+          <button type="button" popovertarget="bridge-help" popovertargetaction="hide" aria-label="Close replication path help">×</button>
+        </div>
+        <p>Every link crosses our client and server primitives, which lets the workbench decode, relay, apply, and observe the stream.</p>
+        <div class="bridge-help-flow" role="list" aria-label="Flyology replication bridge stages">
+          <div role="listitem"><span>01</span><strong>Source Postgres</strong><small>logical slot or WAL</small></div>
+          <i aria-hidden="true">↓</i>
+          <div role="listitem"><span>02</span><strong>Flyology client</strong><small>decode or proxy + log</small></div>
+          <i aria-hidden="true">↓</i>
+          <div role="listitem"><span>03</span><strong>Flyology server</strong><small><code>COPY BOTH</code> relay</small></div>
+          <i aria-hidden="true">↓</i>
+          <div role="listitem"><span>04</span><strong>Downstream consumer</strong><small>client or walreceiver</small></div>
+          <i aria-hidden="true">↓</i>
+          <div role="listitem"><span>05</span><strong>Target Postgres</strong><small>rows or recovery WAL</small></div>
+        </div>
+      </aside>
 
       <form class="create-panel" id="link-form" hidden>
         <div class="form-heading">
@@ -209,18 +232,6 @@
           <button class="button primary" type="submit">Start bridge</button>
         </div>
       </form>
-
-      <div class="bridge-map" aria-label="Flyology replication bridge stages">
-        <div><span>01</span><strong>Source Postgres</strong><small>logical slot or WAL</small></div>
-        <i aria-hidden="true">→</i>
-        <div><span>02</span><strong>Flyology client</strong><small>decode or proxy + log</small></div>
-        <i aria-hidden="true">→</i>
-        <div><span>03</span><strong>Flyology server</strong><small>COPY BOTH relay</small></div>
-        <i aria-hidden="true">→</i>
-        <div><span>04</span><strong>Downstream consumer</strong><small>client or walreceiver</small></div>
-        <i aria-hidden="true">→</i>
-        <div><span>05</span><strong>Target Postgres</strong><small>rows or recovery WAL</small></div>
-      </div>
 
       <div class="link-list" id="link-list" aria-live="polite">
         <div class="link-empty">
