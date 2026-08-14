@@ -31,6 +31,7 @@ package Psqlbench_JSON is
       Default  : Natural) return Natural;
 
    function Valid_Name (Value : String) return Boolean;
+   function Valid_SQL_Identifier (Value : String) return Boolean;
    function Valid_Version (Value : String) return Boolean;
 
 private

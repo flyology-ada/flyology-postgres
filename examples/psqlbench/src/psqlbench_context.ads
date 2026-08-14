@@ -37,7 +37,9 @@ package Psqlbench_Context is
       Link_Stopping, Link_Stopped, Link_Failed);
 
    type Link_Mode is
-     (Logical_Committed, Logical_Streaming, Physical_Streaming);
+     (Logical_Committed, Logical_Streaming,
+      Logical_Two_Phase, Logical_Two_Phase_Streaming,
+      Physical_Streaming);
 
    type Link_Record is record
       Status        : Link_Status := Link_Empty;
@@ -53,6 +55,14 @@ package Psqlbench_Context is
       Target_Port   : Natural range 0 .. 65_535 := 0;
       Table_Length  : Natural range 0 .. 63 := 0;
       Table_Name    : String (1 .. 63) := (others => ' ');
+      Source_Schema_Length : Natural range 0 .. 63 := 0;
+      Source_Schema : String (1 .. 63) := (others => ' ');
+      Source_Table_Length : Natural range 0 .. 63 := 0;
+      Source_Table : String (1 .. 63) := (others => ' ');
+      Target_Schema_Length : Natural range 0 .. 63 := 0;
+      Target_Schema : String (1 .. 63) := (others => ' ');
+      Target_Table_Length : Natural range 0 .. 63 := 0;
+      Target_Table : String (1 .. 63) := (others => ' ');
       Relay_Port    : Natural range 0 .. 65_535 := 0;
       Change_Count  : Event_Sequence := 0;
       Start_LSN     : Interfaces.Unsigned_64 := 0;
@@ -118,6 +128,8 @@ package Psqlbench_Context is
       procedure Create
         (Name, Source, Target : String;
          Mode     : Link_Mode;
+         Source_Schema, Source_Table : String;
+         Target_Schema, Target_Table : String;
          Target_Version : String;
          Target_Port : Natural;
          Accepted : out Boolean;

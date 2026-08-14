@@ -502,6 +502,8 @@ package body Psqlbench_Docker is
       Add (Item, "-c");
       Add (Item, "max_replication_slots=20");
       Add (Item, "-c");
+      Add (Item, "max_prepared_transactions=20");
+      Add (Item, "-c");
       Add (Item, "hot_standby=on");
       Value := Run (Item, Token, Deadline);
       if not Value.Success then
@@ -666,6 +668,8 @@ package body Psqlbench_Docker is
       Add (Create, "max_wal_senders=20");
       Add (Create, "-c");
       Add (Create, "max_replication_slots=20");
+      Add (Create, "-c");
+      Add (Create, "max_prepared_transactions=20");
       return Run (Create, Token, Deadline);
    end Bootstrap_Physical_Standby;
 

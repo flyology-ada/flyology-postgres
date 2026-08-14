@@ -95,6 +95,7 @@
               <option value="logical-stream">2 DBs + cross-version logical stream</option>
               <option value="physical-standby">Primary + physical standby + WAL link</option>
               <option value="mixed-lab">3 DBs + logical and physical links</option>
+              <option value="transaction-lab">2 DBs + committed and streamed 2PC links</option>
             </select>
           </label>
           <button class="button secondary" type="button" id="launch-preset">Create topology</button>
@@ -136,17 +137,27 @@
             <select name="mode" id="link-mode" required>
               <option value="logical-committed">Logical · committed transactions · protocol v1</option>
               <option value="logical-streaming">Logical · streamed transactions · protocol v2</option>
+              <option value="logical-two-phase">Logical · prepared transactions · protocol v3</option>
+              <option value="logical-two-phase-streaming">Logical · streamed + prepared · protocol v4</option>
               <option value="physical-streaming">Physical · WAL streaming · same major</option>
             </select>
           </label>
+          <label class="logical-relation-field">
+            <span>Source relation</span>
+            <input name="source_relation" placeholder="public.orders" pattern="[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*" autocomplete="off">
+          </label>
+          <label class="logical-relation-field">
+            <span>Target relation</span>
+            <input name="target_relation" placeholder="public.orders_replica" pattern="[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*" autocomplete="off">
+          </label>
         </div>
         <div class="bridge-contract" id="logical-contract">
-          <strong>Future changes only</strong>
-          <span>Creates the same empty <code>public.psqlbench_&lt;link&gt;</code> demo table on both nodes. Inserts, updates, deletes, and truncates flow through our pgoutput decoder, encoder, replication server, and downstream client.</span>
+          <strong>Snapshot, then pgoutput</strong>
+          <span>Leave relation fields empty for managed demo tables, or map compatible <code>schema.table</code> relations. Existing rows cross at an exported snapshot/LSN boundary; future inserts, updates, deletes, truncates, and optional prepared transactions flow through our clients and relay.</span>
         </div>
         <div class="bridge-contract" id="physical-contract" hidden>
           <strong>Snapshot, then live WAL</strong>
-          <span>Creates a new same-version standby from <code>pg_basebackup</code>, or reconnects a matching managed standby. Recovery connects only to the Flyology relay; our physical client proxies WAL and the server relays standby feedback.</span>
+          <span>Creates a new same-version standby with our native <code>BASE_BACKUP</code> receiver, or reconnects a matching managed standby. Recovery connects only to the Flyology relay; our physical client proxies WAL and the server relays standby feedback.</span>
         </div>
         <div class="form-actions">
           <p id="link-form-note">Source slot acknowledgements advance only after the target transaction commits.</p>
@@ -255,11 +266,11 @@
       <aside class="next-section" aria-labelledby="next-title">
         <p class="eyebrow">Flight plan</p>
         <h2 id="next-title">Replication flight plan</h2>
-        <p>Logical demo-table links and real physical standby WAL now pass through Flyology replication clients and servers. Next: snapshot-aware logical initialization and two-phase decoding.</p>
+        <p>Every replication path stays observable through Flyology clients and servers: consistent logical snapshots, committed and streamed pgoutput, prepared transactions, and physical recovery WAL.</p>
         <ol>
-          <li><span>01</span> Snapshot-aware initialization</li>
-          <li><span>02</span> Arbitrary relation mapping</li>
-          <li><span>03</span> Two-phase transactions</li>
+          <li><span>01</span> Consistent snapshot and LSN boundary</li>
+          <li><span>02</span> Source-to-target relation mapping</li>
+          <li><span>03</span> Prepare, commit, and rollback observation</li>
         </ol>
       </aside>
     </section>

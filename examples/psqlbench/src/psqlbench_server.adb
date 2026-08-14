@@ -215,6 +215,9 @@ package body Psqlbench_Server is
         (case Value is
             when Psqlbench_Context.Logical_Committed => "logical-committed",
             when Psqlbench_Context.Logical_Streaming => "logical-streaming",
+            when Psqlbench_Context.Logical_Two_Phase => "logical-two-phase",
+            when Psqlbench_Context.Logical_Two_Phase_Streaming =>
+              "logical-two-phase-streaming",
             when Psqlbench_Context.Physical_Streaming => "physical-streaming");
 
       function Links_Document
@@ -250,6 +253,18 @@ package body Psqlbench_Server is
             Psqlbench_JSON.String_Value
               (Document, "table",
                Value (Index).Table_Name (1 .. Value (Index).Table_Length));
+            Psqlbench_JSON.String_Value
+              (Document, "source_relation",
+               Value (Index).Source_Schema
+                 (1 .. Value (Index).Source_Schema_Length) & "."
+               & Value (Index).Source_Table
+                 (1 .. Value (Index).Source_Table_Length));
+            Psqlbench_JSON.String_Value
+              (Document, "target_relation",
+               Value (Index).Target_Schema
+                 (1 .. Value (Index).Target_Schema_Length) & "."
+               & Value (Index).Target_Table
+                 (1 .. Value (Index).Target_Table_Length));
             Psqlbench_JSON.String_Value
               (Document, "status", Link_Status_Image (Value (Index).Status));
             Psqlbench_JSON.String_Value
@@ -429,6 +444,14 @@ package body Psqlbench_Server is
            Psqlbench_JSON.String_Field (X.Content, "target");
          Mode_Text : constant String :=
            Psqlbench_JSON.String_Field (X.Content, "mode");
+         Source_Schema : constant String :=
+           Psqlbench_JSON.String_Field (X.Content, "source_schema");
+         Source_Table : constant String :=
+           Psqlbench_JSON.String_Field (X.Content, "source_table");
+         Target_Schema : constant String :=
+           Psqlbench_JSON.String_Field (X.Content, "target_schema");
+         Target_Table : constant String :=
+           Psqlbench_JSON.String_Field (X.Content, "target_table");
          Target_Port : constant Natural :=
            Psqlbench_JSON.Natural_Field (X.Content, "target_port", 55_433);
          Mode : Psqlbench_Context.Link_Mode;
@@ -440,12 +463,16 @@ package body Psqlbench_Server is
             Mode := Psqlbench_Context.Logical_Committed;
          elsif Mode_Text = "logical-streaming" then
             Mode := Psqlbench_Context.Logical_Streaming;
+         elsif Mode_Text = "logical-two-phase" then
+            Mode := Psqlbench_Context.Logical_Two_Phase;
+         elsif Mode_Text = "logical-two-phase-streaming" then
+            Mode := Psqlbench_Context.Logical_Two_Phase_Streaming;
          elsif Mode_Text = "physical-streaming" then
             Mode := Psqlbench_Context.Physical_Streaming;
          else
             X.Problem
               (400, "invalid-link-mode",
-               "Choose logical-committed, logical-streaming, "
+               "Choose a logical committed, streaming, two-phase mode, "
                & "or physical-streaming");
             return;
          end if;
@@ -465,6 +492,28 @@ package body Psqlbench_Server is
             X.Problem
               (400, "identical-link-endpoints",
                "Choose different source and target instances");
+            return;
+         elsif Mode /= Psqlbench_Context.Physical_Streaming
+           and then
+             ((Source_Schema'Length > 0
+               and then not Psqlbench_JSON.Valid_SQL_Identifier
+                 (Source_Schema))
+              or else
+                (Source_Table'Length > 0
+                 and then not Psqlbench_JSON.Valid_SQL_Identifier
+                   (Source_Table))
+              or else
+                (Target_Schema'Length > 0
+                 and then not Psqlbench_JSON.Valid_SQL_Identifier
+                   (Target_Schema))
+              or else
+                (Target_Table'Length > 0
+                 and then not Psqlbench_JSON.Valid_SQL_Identifier
+                   (Target_Table)))
+         then
+            X.Problem
+              (400, "invalid-relation-mapping",
+               "Schema and table names use lowercase SQL identifiers");
             return;
          elsif Mode = Psqlbench_Context.Physical_Streaming
            and then Target_Port not in 1_024 .. 65_535
@@ -536,12 +585,15 @@ package body Psqlbench_Server is
                end if;
 
                State.Root.Links.Create
-                 (Name, Source, Target, Mode, Version, Target_Port,
+                 (Name, Source, Target, Mode, "", "", "", "",
+                  Version, Target_Port,
                   Accepted, Detail, Last);
             end;
          else
             State.Root.Links.Create
-              (Name, Source, Target, Mode, "", 0,
+              (Name, Source, Target, Mode,
+               Source_Schema, Source_Table, Target_Schema, Target_Table,
+               "", 0,
                Accepted, Detail, Last);
          end if;
          if not Accepted then

@@ -125,6 +125,21 @@ package body Psqlbench_JSON is
       return Value (Value'Last) /= '-';
    end Valid_Name;
 
+   function Valid_SQL_Identifier (Value : String) return Boolean is
+   begin
+      if Value'Length not in 1 .. 63
+        or else Value (Value'First) not in 'a' .. 'z' | '_'
+      then
+         return False;
+      end if;
+      for Item of Value loop
+         if Item not in 'a' .. 'z' | '0' .. '9' | '_' then
+            return False;
+         end if;
+      end loop;
+      return True;
+   end Valid_SQL_Identifier;
+
    function Valid_Version (Value : String) return Boolean is
      (Value in "14.23" | "15.18" | "16.14" | "17.10" | "18.4");
 

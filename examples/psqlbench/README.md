@@ -31,6 +31,11 @@ client support is available and verified.
 - configures committed pgoutput v1 or large-transaction streaming pgoutput v2
   links, with UI query patterns for stream segments and transactional versus
   non-transactional logical messages;
+- configures pgoutput v3 prepared-transaction and v4 streamed/prepared links;
+  applies `PREPARE TRANSACTION`, `COMMIT PREPARED`, and `ROLLBACK PREPARED`
+  through the downstream Flyology client, with link-scoped target GIDs;
+- maps a source `schema.table` to a differently named compatible target
+  relation while retaining snapshot initialization and live change activity;
 - routes every logical message through a Flyology Postgres replication client,
   stateful pgoutput decoder/encoder, Flyology Postgres replication server, and
   a second Flyology Postgres replication client before applying it to the
@@ -59,8 +64,9 @@ The logical bridge exports a slot snapshot, copies existing rows through
 Flyology clients at the returned consistent LSN, records initialization on the
 target atomically, and then starts pgoutput at that same boundary. A completed
 marker makes restarts idempotent; an incomplete slot is recreated instead of
-resuming a partial copy. Arbitrary relation mapping and two-phase logical
-transactions are the next replication slices. Physical bootstrap WAL
+resuming a partial copy. Relation mapping currently requires the demo column
+contract (`id`, `payload`, and `changed_at`); per-column transforms and type
+coercion are intentionally outside this slice. Physical bootstrap WAL
 is streamed with PostgreSQL's replication protocol by the Flyology client;
 Docker installs the received archive without invoking `pg_basebackup`. After
 recovery starts, all live WAL passes through the observable Flyology proxy.

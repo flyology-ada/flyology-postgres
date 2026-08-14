@@ -78,6 +78,18 @@ package body Psqlbench_Links is
    function Table_Name (Item : Psqlbench_Context.Link_Record) return String is
      (Text (Item.Table_Name, Item.Table_Length));
 
+   function Source_Schema (Item : Psqlbench_Context.Link_Record) return String is
+     (Text (Item.Source_Schema, Item.Source_Schema_Length));
+
+   function Source_Table (Item : Psqlbench_Context.Link_Record) return String is
+     (Text (Item.Source_Table, Item.Source_Table_Length));
+
+   function Target_Schema (Item : Psqlbench_Context.Link_Record) return String is
+     (Text (Item.Target_Schema, Item.Target_Schema_Length));
+
+   function Target_Table (Item : Psqlbench_Context.Link_Record) return String is
+     (Text (Item.Target_Table, Item.Target_Table_Length));
+
    function Slot_Name (Item : Psqlbench_Context.Link_Record) return String is
      (Table_Name (Item));
 
@@ -88,18 +100,32 @@ package body Psqlbench_Links is
    function Protocol_Version
      (Item : Psqlbench_Context.Link_Record)
       return Logical.Protocol_Version is
-     (if Item.Mode = Psqlbench_Context.Logical_Streaming then 2 else 1);
+     (if Item.Mode = Psqlbench_Context.Logical_Two_Phase_Streaming then 4
+      elsif Item.Mode = Psqlbench_Context.Logical_Two_Phase then 3
+      elsif Item.Mode = Psqlbench_Context.Logical_Streaming then 2 else 1);
 
    function Streaming_Mode
      (Item : Psqlbench_Context.Link_Record)
       return Logical.Streaming_Mode is
-     (if Item.Mode = Psqlbench_Context.Logical_Streaming
+     (if Item.Mode in Psqlbench_Context.Logical_Streaming |
+          Psqlbench_Context.Logical_Two_Phase_Streaming
       then Logical.In_Progress else Logical.Disabled);
+
+   function Is_Streaming (Item : Psqlbench_Context.Link_Record) return Boolean is
+     (Item.Mode in Psqlbench_Context.Logical_Streaming |
+        Psqlbench_Context.Logical_Two_Phase_Streaming);
+
+   function Is_Two_Phase (Item : Psqlbench_Context.Link_Record) return Boolean is
+     (Item.Mode in Psqlbench_Context.Logical_Two_Phase |
+        Psqlbench_Context.Logical_Two_Phase_Streaming);
 
    function Mode_Image (Item : Psqlbench_Context.Link_Record) return String is
      (case Item.Mode is
          when Psqlbench_Context.Logical_Committed => "logical committed",
          when Psqlbench_Context.Logical_Streaming => "logical streaming",
+         when Psqlbench_Context.Logical_Two_Phase => "logical two-phase",
+         when Psqlbench_Context.Logical_Two_Phase_Streaming =>
+           "logical two-phase streaming",
          when Psqlbench_Context.Physical_Streaming => "physical streaming");
 
    function Compact (Value : Natural) return String is
@@ -189,6 +215,12 @@ package body Psqlbench_Links is
               (if Logical.Is_First_Stream_Segment (Item)
                then "first transaction segment"
                else "continued transaction segment");
+         when Logical.Begin_Prepare_Message |
+              Logical.Prepare_Message |
+              Logical.Commit_Prepared_Message |
+              Logical.Rollback_Prepared_Message |
+              Logical.Stream_Prepare_Message =>
+            return "gid=" & Logical.GID (Item);
          when others =>
             return "";
       end case;
@@ -207,6 +239,36 @@ package body Psqlbench_Links is
       Append (Result, "'");
       return To_String (Result);
    end Quote_Literal;
+
+   function Quote_Identifier (Value : String) return String is
+      Result : Unbounded_String := To_Unbounded_String ("""");
+   begin
+      for Character of Value loop
+         if Character = '"' then
+            Append (Result, """""");
+         else
+            Append (Result, Character);
+         end if;
+      end loop;
+      Append (Result, '"');
+      return To_String (Result);
+   end Quote_Identifier;
+
+   function Qualified (Schema, Relation : String) return String is
+     (Quote_Identifier (Schema) & "." & Quote_Identifier (Relation));
+
+   function Target_GID
+     (Item : Psqlbench_Context.Link_Record;
+      Message : Logical.Message) return String
+   is
+      Prefix : constant String := Link_Name (Item) & ":";
+      Source : constant String := Logical.GID (Message);
+      Available : constant Natural := 200 - Prefix'Length;
+   begin
+      return Prefix
+        & (if Source'Length <= Available then Source
+           else Source (Source'First .. Source'First + Available - 1));
+   end Target_GID;
 
    function Activity_Document
      (Name, Stage, Direction, Kind, Detail : String;
@@ -768,7 +830,8 @@ package body Psqlbench_Links is
       Active_Stream : in out Replication.Transaction_Id;
       Applied : out Boolean)
    is
-      Table : constant String := "public.""" & Table_Name (Item) & """";
+      Table : constant String :=
+        Qualified (Target_Schema (Item), Target_Table (Item));
 
       function Tuple_Value
         (Tuple : Logical.Tuple_Data; Index : Positive) return String is
@@ -787,8 +850,8 @@ package body Psqlbench_Links is
             In_Transaction := True;
 
          when Logical.Relation_Message =>
-            if Logical.Namespace_Name (Message) = "public"
-              and then Logical.Object_Name (Message) = Table_Name (Item)
+            if Logical.Namespace_Name (Message) = Source_Schema (Item)
+              and then Logical.Object_Name (Message) = Source_Table (Item)
             then
                if Logical.Relation_Column_Count (Message) /= 3
                  or else Logical.Name
@@ -912,10 +975,93 @@ package body Psqlbench_Links is
             end if;
             Active_Stream := 0;
 
+         when Logical.Begin_Prepare_Message =>
+            Run_SQL (Session, "BEGIN");
+            In_Transaction := True;
+
+         when Logical.Prepare_Message =>
+            if not In_Transaction then
+               raise Program_Error with
+                 "prepare arrived without an active target transaction";
+            end if;
+            Run_SQL
+              (Session, "PREPARE TRANSACTION "
+               & Quote_Literal (Target_GID (Item, Message)));
+            In_Transaction := False;
+
+         when Logical.Commit_Prepared_Message =>
+            Run_SQL
+              (Session, "COMMIT PREPARED "
+               & Quote_Literal (Target_GID (Item, Message)));
+
+         when Logical.Rollback_Prepared_Message =>
+            Run_SQL
+              (Session, "ROLLBACK PREPARED "
+               & Quote_Literal (Target_GID (Item, Message)));
+
+         when Logical.Stream_Prepare_Message =>
+            if Active_Stream /= Logical.Transaction (Message)
+              or else not In_Transaction
+            then
+               raise Program_Error with
+                 "stream prepare does not match the active transaction";
+            end if;
+            Run_SQL
+              (Session, "PREPARE TRANSACTION "
+               & Quote_Literal (Target_GID (Item, Message)));
+            In_Transaction := False;
+            Active_Stream := 0;
+
          when others =>
             null;
       end case;
    end Apply_Message;
+
+   procedure Start_Logical_Copy
+     (Session : in out Client.Session;
+      Item : Psqlbench_Context.Link_Record;
+      Slot : String;
+      Position : Replication.LSN;
+      Publication : String) is
+   begin
+      if Is_Two_Phase (Item) and then Is_Streaming (Item) then
+         Start_Copy
+           (Session,
+            Replication.Start_Logical
+              (Slot, Position,
+               (Replication.Option ("proto_version", "4"),
+                Replication.Option ("publication_names", Publication),
+                Replication.Option ("streaming", "on"),
+                Replication.Option ("two_phase", "on"),
+                Replication.Option ("messages", "true"))));
+      elsif Is_Two_Phase (Item) then
+         Start_Copy
+           (Session,
+            Replication.Start_Logical
+              (Slot, Position,
+               (Replication.Option ("proto_version", "3"),
+                Replication.Option ("publication_names", Publication),
+                Replication.Option ("two_phase", "on"),
+                Replication.Option ("messages", "true"))));
+      elsif Is_Streaming (Item) then
+         Start_Copy
+           (Session,
+            Replication.Start_Logical
+              (Slot, Position,
+               (Replication.Option ("proto_version", "2"),
+                Replication.Option ("publication_names", Publication),
+                Replication.Option ("streaming", "on"),
+                Replication.Option ("messages", "true"))));
+      else
+         Start_Copy
+           (Session,
+            Replication.Start_Logical
+              (Slot, Position,
+               (Replication.Option ("proto_version", "1"),
+                Replication.Option ("publication_names", Publication),
+                Replication.Option ("messages", "true"))));
+      end if;
+   end Start_Logical_Copy;
 
    procedure Run_Logical_Link
      (Context : in out Psqlbench_Context.Context;
@@ -926,6 +1072,10 @@ package body Psqlbench_Links is
       Target_Port : constant Positive := Instance_Port (Target_Name (Item));
       Link : constant String := Link_Name (Item);
       Table : constant String := Table_Name (Item);
+      Source_Relation : constant String :=
+        Qualified (Source_Schema (Item), Source_Table (Item));
+      Target_Relation : constant String :=
+        Qualified (Target_Schema (Item), Target_Table (Item));
       Publication : constant String := Publication_Name (Item);
       Slot : constant String := Slot_Name (Item);
       Start_LSN : Replication.LSN := 0;
@@ -951,26 +1101,66 @@ package body Psqlbench_Links is
          Has_Row : Boolean;
          Source_Major : constant Positive :=
            Instance_Major (Source_Name (Item));
-         Schema_SQL : constant String :=
-           "CREATE TABLE IF NOT EXISTS public.""" & Table & """ ("
+         Source_Schema_SQL : constant String :=
+           "CREATE TABLE IF NOT EXISTS " & Source_Relation & " ("
            & "id bigint PRIMARY KEY, payload text NOT NULL, "
            & "changed_at timestamptz NOT NULL DEFAULT clock_timestamp())";
+         Target_Schema_SQL : constant String :=
+           "CREATE TABLE IF NOT EXISTS " & Target_Relation & " ("
+           & "id bigint PRIMARY KEY, payload text NOT NULL, "
+           & "changed_at timestamptz NOT NULL DEFAULT clock_timestamp())";
+         Managed_Source : constant Boolean :=
+           Source_Schema (Item) = "public"
+           and then Source_Table (Item) = Table;
+         Managed_Target : constant Boolean :=
+           Target_Schema (Item) = "public"
+           and then Target_Table (Item) = Table;
       begin
+         if Is_Two_Phase (Item) and then Source_Major < 15 then
+            raise Program_Error with
+              "two-phase logical replication requires PostgreSQL 15 or newer";
+         end if;
          Connect
            (Source_Socket, Source, Source_Port,
             "psqlbench/link-setup/source/" & Link);
          Connect
            (Target_Socket, Target, Target_Port,
             "psqlbench/link-setup/target/" & Link);
-         Run_SQL (Source, Schema_SQL);
-         Run_SQL (Target, Schema_SQL);
+         if Managed_Source then
+            Run_SQL (Source, Source_Schema_SQL);
+         end if;
+         if Managed_Target then
+            Run_SQL (Target, Target_Schema_SQL);
+         end if;
+         if Scalar_SQL
+           (Source,
+            "SELECT count(*)::text FROM information_schema.columns "
+            & "WHERE table_schema=" & Quote_Literal (Source_Schema (Item))
+            & " AND table_name=" & Quote_Literal (Source_Table (Item))
+            & " AND column_name IN ('id','payload','changed_at')") /= "3"
+           or else Scalar_SQL
+             (Target,
+              "SELECT count(*)::text FROM information_schema.columns "
+              & "WHERE table_schema=" & Quote_Literal (Target_Schema (Item))
+              & " AND table_name=" & Quote_Literal (Target_Table (Item))
+              & " AND column_name IN ('id','payload','changed_at')") /= "3"
+         then
+            raise Program_Error with
+              "mapped relations require id, payload, and changed_at columns";
+         end if;
          Run_SQL
            (Target,
             "CREATE TABLE IF NOT EXISTS public.psqlbench_link_state ("
             & "link_name text PRIMARY KEY, slot_name text NOT NULL, "
+            & "source_relation text, target_relation text, "
             & "snapshot_lsn pg_lsn NOT NULL, copied_rows bigint NOT NULL, "
             & "initialized_at timestamptz NOT NULL DEFAULT clock_timestamp())");
-         if Item.Mode = Psqlbench_Context.Logical_Streaming then
+         Run_SQL
+           (Target,
+            "ALTER TABLE public.psqlbench_link_state "
+            & "ADD COLUMN IF NOT EXISTS source_relation text, "
+            & "ADD COLUMN IF NOT EXISTS target_relation text");
+         if Is_Streaming (Item) then
             Run_SQL
               (Source,
                "ALTER ROLE psqlbench IN DATABASE postgres SET "
@@ -978,13 +1168,24 @@ package body Psqlbench_Links is
          end if;
          Client.Send_Query
            (Source,
-            "SELECT 1 FROM pg_publication WHERE pubname="
-            & Quote_Literal (Publication), Timeout => 20.0);
+            "SELECT 1 FROM pg_publication_tables WHERE pubname="
+            & Quote_Literal (Publication)
+            & " AND schemaname=" & Quote_Literal (Source_Schema (Item))
+            & " AND tablename=" & Quote_Literal (Source_Table (Item)),
+            Timeout => 20.0);
          Consume_Query (Source, Existing, Has_Row);
          if not Has_Row then
-            Run_SQL
-              (Source, "CREATE PUBLICATION """ & Publication
-               & """ FOR TABLE public.""" & Table & """");
+            if Scalar_SQL
+              (Source, "SELECT 1 FROM pg_publication WHERE pubname="
+               & Quote_Literal (Publication))'Length > 0
+            then
+               raise Program_Error with
+                 "existing publication belongs to another source relation";
+            else
+               Run_SQL
+                 (Source, "CREATE PUBLICATION """ & Publication
+                  & """ FOR TABLE " & Source_Relation);
+            end if;
          end if;
          declare
             Position : constant String := Scalar_SQL
@@ -996,7 +1197,13 @@ package body Psqlbench_Links is
               (Target,
                "SELECT snapshot_lsn::text FROM public.psqlbench_link_state "
                & "WHERE link_name=" & Quote_Literal (Link)
-               & " AND slot_name=" & Quote_Literal (Slot));
+               & " AND slot_name=" & Quote_Literal (Slot)
+               & " AND source_relation="
+               & Quote_Literal
+                 (Source_Schema (Item) & "." & Source_Table (Item))
+               & " AND target_relation="
+               & Quote_Literal
+                 (Target_Schema (Item) & "." & Target_Table (Item)));
          begin
             if Position'Length > 0 and then Initialized'Length > 0 then
                Start_LSN := Replication.Value (Position);
@@ -1027,7 +1234,8 @@ package body Psqlbench_Links is
                     (Slot_Session,
                      Replication.Create_Logical_Slot
                        (Slot, Snapshot => Replication.Export_Snapshot,
-                        Server_Major => Source_Major),
+                        Server_Major => Source_Major,
+                        Two_Phase => Is_Two_Phase (Item)),
                      Timeout => 20.0);
                   loop
                      declare
@@ -1088,11 +1296,11 @@ package body Psqlbench_Links is
                   Run_SQL (Target, "BEGIN");
                   begin
                      Run_SQL
-                       (Target, "TRUNCATE TABLE public.""" & Table & """");
+                       (Target, "TRUNCATE TABLE " & Target_Relation);
                      Client.Send_Query
                        (Source,
                         "SELECT id::text,payload,changed_at::text FROM "
-                        & "public.""" & Table & """ ORDER BY id",
+                        & Source_Relation & " ORDER BY id",
                         Timeout => 20.0);
                      loop
                         declare
@@ -1114,8 +1322,8 @@ package body Psqlbench_Links is
                                  end if;
                                  Run_SQL
                                    (Target,
-                                    "INSERT INTO public.""" & Table
-                                    & """ (id,payload,changed_at) VALUES ("
+                                    "INSERT INTO " & Target_Relation
+                                    & " (id,payload,changed_at) VALUES ("
                                     & Protocol.Column_Text
                                       (Protocol.Column_At (Row, 1)) & ","
                                     & (if Protocol.Is_Null
@@ -1139,12 +1347,20 @@ package body Psqlbench_Links is
                      Run_SQL
                        (Target,
                         "INSERT INTO public.psqlbench_link_state "
-                        & "(link_name,slot_name,snapshot_lsn,copied_rows) "
+                        & "(link_name,slot_name,source_relation,"
+                        & "target_relation,snapshot_lsn,copied_rows) "
                         & "VALUES (" & Quote_Literal (Link) & ","
                         & Quote_Literal (Slot) & ","
+                        & Quote_Literal
+                          (Source_Schema (Item) & "." & Source_Table (Item))
+                        & "," & Quote_Literal
+                          (Target_Schema (Item) & "." & Target_Table (Item))
+                        & ","
                         & Quote_Literal (Replication.Image (Start_LSN)) & ","
                         & Compact (Rows) & ") ON CONFLICT (link_name) "
                         & "DO UPDATE SET slot_name=EXCLUDED.slot_name, "
+                        & "source_relation=EXCLUDED.source_relation, "
+                        & "target_relation=EXCLUDED.target_relation, "
                         & "snapshot_lsn=EXCLUDED.snapshot_lsn, "
                         & "copied_rows=EXCLUDED.copied_rows, "
                         & "initialized_at=clock_timestamp()");
@@ -1224,26 +1440,8 @@ package body Psqlbench_Links is
                Protocol.Logical_Replication_Connection);
             Logical.Configure
               (Decoder, Protocol_Version (Item), Streaming_Mode (Item));
-            if Item.Mode = Psqlbench_Context.Logical_Streaming then
-               Start_Copy
-                 (Session,
-                  Replication.Start_Logical
-                    (Slot, Start_LSN,
-                     (Replication.Option ("proto_version", "2"),
-                      Replication.Option
-                        ("publication_names", Publication),
-                      Replication.Option ("streaming", "on"),
-                      Replication.Option ("messages", "true"))));
-            else
-               Start_Copy
-                 (Session,
-                  Replication.Start_Logical
-                    (Slot, Start_LSN,
-                     (Replication.Option ("proto_version", "1"),
-                      Replication.Option
-                        ("publication_names", Publication),
-                      Replication.Option ("messages", "true"))));
-            end if;
+            Start_Logical_Copy
+              (Session, Item, Slot, Start_LSN, Publication);
             Relay.Set_Upstream_Ready;
             Emit
               (Context, Item, "upstream", "source-to-relay", "copy-both",
@@ -1370,24 +1568,8 @@ package body Psqlbench_Links is
             Protocol.Logical_Replication_Connection);
          Logical.Configure
            (Decoder, Protocol_Version (Item), Streaming_Mode (Item));
-         if Item.Mode = Psqlbench_Context.Logical_Streaming then
-            Start_Copy
-              (Downstream,
-               Replication.Start_Logical
-                 (Slot, Start_LSN,
-                  (Replication.Option ("proto_version", "2"),
-                   Replication.Option ("publication_names", Publication),
-                   Replication.Option ("streaming", "on"),
-                   Replication.Option ("messages", "true"))));
-         else
-            Start_Copy
-              (Downstream,
-               Replication.Start_Logical
-                 (Slot, Start_LSN,
-                  (Replication.Option ("proto_version", "1"),
-                   Replication.Option ("publication_names", Publication),
-                   Replication.Option ("messages", "true"))));
-         end if;
+         Start_Logical_Copy
+           (Downstream, Item, Slot, Start_LSN, Publication);
          Context.Links.Set_Status
            (Link, Psqlbench_Context.Link_Running,
             "Flyology " & Mode_Image (Item)
@@ -1441,7 +1623,11 @@ package body Psqlbench_Links is
                               end if;
                               if Logical.Kind (Message) in
                                 Logical.Commit_Message |
-                                Logical.Stream_Commit_Message
+                                Logical.Stream_Commit_Message |
+                                Logical.Prepare_Message |
+                                Logical.Commit_Prepared_Message |
+                                Logical.Rollback_Prepared_Message |
+                                Logical.Stream_Prepare_Message
                               then
                                  declare
                                     Commit : constant Replication.LSN :=

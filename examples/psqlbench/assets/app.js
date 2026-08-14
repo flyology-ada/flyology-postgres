@@ -38,6 +38,7 @@
   const logicalTargetField = document.querySelector("#logical-target-field");
   const physicalTargetField = document.querySelector("#physical-target-field");
   const physicalPortField = document.querySelector("#physical-port-field");
+  const logicalRelationFields = document.querySelectorAll(".logical-relation-field");
   const linkStandby = document.querySelector("#link-standby");
   const linkTargetPort = document.querySelector("#link-target-port");
   const linkFormTitle = document.querySelector("#link-form-title");
@@ -94,6 +95,16 @@
       links: [
         { name: "lab-committed", source: "lab-primary-14", target: "lab-logical-18", mode: "logical-committed" },
         { name: "lab-physical", source: "lab-primary-14", target: "lab-standby-14", target_port: 55516, mode: "physical-streaming" }
+      ]
+    },
+    "transaction-lab": {
+      instances: [
+        { name: "tx-primary-18", version: "18.4", port: 55517 },
+        { name: "tx-replica-18", version: "18.4", port: 55518 }
+      ],
+      links: [
+        { name: "tx-committed", source: "tx-primary-18", target: "tx-replica-18", mode: "logical-two-phase" },
+        { name: "tx-streamed", source: "tx-primary-18", target: "tx-replica-18", mode: "logical-two-phase-streaming" }
       ]
     }
   };
@@ -218,6 +229,7 @@
     logicalTargetField.hidden = physical;
     physicalTargetField.hidden = !physical;
     physicalPortField.hidden = !physical;
+    logicalRelationFields.forEach(field => { field.hidden = physical; });
     logicalContract.hidden = physical;
     physicalContract.hidden = !physical;
     linkTarget.required = !physical;
@@ -233,7 +245,8 @@
   function linkStructure(link) {
     return JSON.stringify([
       link.name, link.source, link.target, link.target_version,
-      link.target_port, link.table, link.status, link.mode,
+      link.target_port, link.table, link.source_relation,
+      link.target_relation, link.status, link.mode,
       link.relay_port, link.detail
     ]);
   }
@@ -241,7 +254,7 @@
   function updateLinkMetrics(article, link) {
     const physical = link.mode === "physical-streaming";
     const values = {
-      endpoint: physical ? `127.0.0.1:${link.target_port}` : `public.${link.table}`,
+      endpoint: physical ? `127.0.0.1:${link.target_port}` : link.target_relation,
       changes: String(link.changes || 0),
       "last-lsn": link.last_lsn || "waiting",
       relay: physical ? `0.0.0.0:${link.relay_port}` : `127.0.0.1:${link.relay_port}`
@@ -274,9 +287,14 @@
     article.dataset.snapshot = linkStructure(link);
     const heading = el("div", "link-card-heading");
     const title = document.createElement("div");
-    const streamed = link.mode === "logical-streaming";
+    const streamed = ["logical-streaming", "logical-two-phase-streaming"].includes(link.mode);
+    const twoPhase = ["logical-two-phase", "logical-two-phase-streaming"].includes(link.mode);
     const physical = link.mode === "physical-streaming";
-    const modeLabel = physical ? `PHYSICAL · WAL STREAMING · POSTGRES ${link.target_version}` : (streamed ? "LOGICAL · STREAMING · PGOUTPUT V2" : "LOGICAL · COMMITTED · PGOUTPUT V1");
+    const modeLabel = physical
+      ? `PHYSICAL · WAL STREAMING · POSTGRES ${link.target_version}`
+      : (twoPhase
+        ? `LOGICAL · ${streamed ? "STREAMED + " : ""}2PC · PGOUTPUT V${streamed ? 4 : 3}`
+        : (streamed ? "LOGICAL · STREAMING · PGOUTPUT V2" : "LOGICAL · COMMITTED · PGOUTPUT V1"));
     title.append(el("span", "node-version", modeLabel), el("h3", "node-name", link.name));
     heading.append(title, el("span", "node-status", link.status));
 
@@ -288,7 +306,7 @@
     );
 
     const stats = el("dl", "link-stats");
-    [["endpoint", physical ? "standby port" : "table", physical ? `127.0.0.1:${link.target_port}` : `public.${link.table}`], ["changes", physical ? "wal frames" : "changes", String(link.changes || 0)], ["last-lsn", "last lsn", link.last_lsn || "waiting"], ["relay", "relay", physical ? `0.0.0.0:${link.relay_port}` : `127.0.0.1:${link.relay_port}`]]
+    [["endpoint", physical ? "standby port" : "target", physical ? `127.0.0.1:${link.target_port}` : link.target_relation], ["changes", physical ? "wal frames" : "changes", String(link.changes || 0)], ["last-lsn", "last lsn", link.last_lsn || "waiting"], ["relay", "relay", physical ? `0.0.0.0:${link.relay_port}` : `127.0.0.1:${link.relay_port}`]]
       .forEach(([name, key, value]) => {
         const row = document.createElement("div");
         const output = el("dd", "", value);
@@ -333,7 +351,7 @@
       selectInstance(link.source);
       queryInput.value = physical
         ? `create table if not exists public.psqlbench_physical_probe (id bigserial primary key, payload text, changed_at timestamptz default clock_timestamp());\ninsert into public.psqlbench_physical_probe (payload) values ('WAL through ${link.name}') returning *;`
-        : `insert into public."${link.table}" (id, payload)\nvalues ((extract(epoch from clock_timestamp()) * 1000000)::bigint,\n        'sent through ${link.name}')\nreturning *;`;
+        : `insert into ${link.source_relation} (id, payload)\nvalues ((extract(epoch from clock_timestamp()) * 1000000)::bigint,\n        'sent through ${link.name}')\nreturning *;`;
       switchTab("query");
       queryInput.focus();
     });
@@ -343,18 +361,20 @@
       selectInstance(link.target);
       queryInput.value = physical
         ? "select pg_is_in_recovery() as in_recovery, pg_last_wal_replay_lsn() as replay_lsn;\nselect * from public.psqlbench_physical_probe order by id desc limit 20;"
-        : `select * from public."${link.table}" order by id desc limit 20;`;
+        : `select * from ${link.target_relation} order by id desc limit 20;`;
       switchTab("query");
     });
-    const pattern = el("button", "button secondary", streamed ? "Load streamed transaction" : "Load message patterns");
+    const pattern = el("button", "button secondary", twoPhase ? "Load prepared transaction" : (streamed ? "Load streamed transaction" : "Load message patterns"));
     pattern.type = "button";
     pattern.disabled = physical || link.status !== "running";
     if (physical) pattern.hidden = true;
     pattern.addEventListener("click", () => {
       selectInstance(link.source);
-      queryInput.value = streamed
-        ? `insert into public."${link.table}" (id, payload)\nselect 1000000 + n, repeat('streamed-', 128) || n\nfrom generate_series(1, 300) as n;`
-        : `select pg_logical_emit_message(false, 'psqlbench', 'non-transactional message');\nbegin;\nselect pg_logical_emit_message(true, 'psqlbench', 'transactional message');\ninsert into public."${link.table}" (id, payload)\nvalues ((extract(epoch from clock_timestamp()) * 1000000)::bigint, 'same transaction');\ncommit;`;
+      queryInput.value = twoPhase
+        ? `begin;\ninsert into ${link.source_relation} (id, payload)\nvalues ((extract(epoch from clock_timestamp()) * 1000000)::bigint, '${streamed ? "streamed + " : ""}prepared through ${link.name}');\nprepare transaction '${link.name}-demo';\n-- Run COMMIT PREPARED '${link.name}-demo'; or ROLLBACK PREPARED '${link.name}-demo'; next.`
+        : (streamed
+          ? `insert into ${link.source_relation} (id, payload)\nselect 1000000 + n, repeat('streamed-', 128) || n\nfrom generate_series(1, 300) as n;`
+          : `select pg_logical_emit_message(false, 'psqlbench', 'non-transactional message');\nbegin;\nselect pg_logical_emit_message(true, 'psqlbench', 'transactional message');\ninsert into ${link.source_relation} (id, payload)\nvalues ((extract(epoch from clock_timestamp()) * 1000000)::bigint, 'same transaction');\ncommit;`);
       switchTab("query");
       queryInput.focus();
     });
@@ -928,10 +948,12 @@
     try {
       const data = new FormData(linkForm);
       const physical = data.get("mode") === "physical-streaming";
+      const sourceRelation = String(data.get("source_relation") || "").split(".");
+      const targetRelation = String(data.get("target_relation") || "").split(".");
       await request("/api/links", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: data.get("name"), source: data.get("source"), target: physical ? data.get("standby") : data.get("target"), target_port: physical ? Number(data.get("target_port")) : 0, mode: data.get("mode") })
+        body: JSON.stringify({ name: data.get("name"), source: data.get("source"), target: physical ? data.get("standby") : data.get("target"), target_port: physical ? Number(data.get("target_port")) : 0, mode: data.get("mode"), source_schema: sourceRelation.length === 2 ? sourceRelation[0] : "", source_table: sourceRelation.length === 2 ? sourceRelation[1] : "", target_schema: targetRelation.length === 2 ? targetRelation[0] : "", target_table: targetRelation.length === 2 ? targetRelation[1] : "" })
       });
       linkForm.reset();
       linkTargetPort.value = "55434";

@@ -2,6 +2,17 @@ with Psqlbench_JSON;
 
 package body Psqlbench_Context is
 
+   function Managed_Table_Name (Name : String) return String is
+      Result : String := "psqlbench_" & Name;
+   begin
+      for Index in Result'Range loop
+         if Result (Index) = '-' then
+            Result (Index) := '_';
+         end if;
+      end loop;
+      return Result;
+   end Managed_Table_Name;
+
    use type Event_Sequence;
 
    function Event_Too_Large return String is
@@ -178,6 +189,8 @@ package body Psqlbench_Context is
       procedure Create
         (Name, Source, Target : String;
          Mode     : Link_Mode;
+         Source_Schema, Source_Table : String;
+         Target_Schema, Target_Table : String;
          Target_Version : String;
          Target_Port : Natural;
          Accepted : out Boolean;
@@ -228,13 +241,37 @@ package body Psqlbench_Context is
             Target_Version);
          Entries (Free).Target_Port := Target_Port;
          declare
-            Table_Name : constant String := "psqlbench_" & Name;
+            Table_Name : constant String := Managed_Table_Name (Name);
+            Effective_Source_Schema : constant String :=
+              (if Source_Schema'Length = 0 then "public" else Source_Schema);
+            Effective_Source_Table : constant String :=
+              (if Source_Table'Length = 0 then Table_Name else Source_Table);
+            Effective_Target_Schema : constant String :=
+              (if Target_Schema'Length = 0 then "public" else Target_Schema);
+            Effective_Target_Table : constant String :=
+              (if Target_Table'Length = 0 then Table_Name else Target_Table);
          begin
             for Index in Table_Name'Range loop
                Entries (Free).Table_Name (Index - Table_Name'First + 1) :=
-                 (if Table_Name (Index) = '-' then '_' else Table_Name (Index));
+                 Table_Name (Index);
             end loop;
             Entries (Free).Table_Length := Table_Name'Length;
+            Store
+              (Entries (Free).Source_Schema,
+               Entries (Free).Source_Schema_Length,
+               Effective_Source_Schema);
+            Store
+              (Entries (Free).Source_Table,
+               Entries (Free).Source_Table_Length,
+               Effective_Source_Table);
+            Store
+              (Entries (Free).Target_Schema,
+               Entries (Free).Target_Schema_Length,
+               Effective_Target_Schema);
+            Store
+              (Entries (Free).Target_Table,
+               Entries (Free).Target_Table_Length,
+               Effective_Target_Table);
          end;
          Entries (Free).Relay_Port := 58_000 + Free;
          Enqueue (Create_Link, Name);
