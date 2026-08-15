@@ -33,7 +33,7 @@ alr index --add=git+https://github.com/flyology-ada/alire-index.git \
 alr build
 ```
 
-The checked-in manifest declares `flyology ~0.1.0-dev` as a regular dependency;
+The checked-in manifest declares `flyology ~0.1.1-dev` as a regular dependency;
 Alire resolves it from that index. See the
 [Flyology guide](https://flyology.org/guide/) for runtime setup details.
 

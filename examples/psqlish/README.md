@@ -98,7 +98,7 @@ catalog-query contract for the companion `pgish` server.
 Example session:
 
 ```text
-psqlish 0.1.0-dev (TLS verify-full; COPY is not implemented; \? for help)
+psqlish 0.1.1-dev (TLS verify-full; COPY is not implemented; \? for help)
 flyology=> select 7 as n, null::text as missing, ''::text as empty;
 +---+---------+-------+
 | n | missing | empty |

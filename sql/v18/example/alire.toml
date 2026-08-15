@@ -1,6 +1,6 @@
 name = "flyology_postgres_sql_v18_example"
 description = "Selective-build smoke test for the PostgreSQL 18 owned AST"
-version = "0.1.0-dev"
+version = "0.1.1-dev"
 
 authors = ["Yurii Rashkovskii"]
 maintainers = ["Yurii Rashkovskii <yrashk@gmail.com>"]

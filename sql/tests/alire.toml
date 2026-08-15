@@ -1,6 +1,6 @@
 name = "flyology_postgres_sql_tests"
 description = "Conformance tests for the versioned PostgreSQL SQL parser"
-version = "0.1.0-dev"
+version = "0.1.1-dev"
 
 authors = ["Yurii Rashkovskii"]
 maintainers = ["Yurii Rashkovskii <yrashk@gmail.com>"]

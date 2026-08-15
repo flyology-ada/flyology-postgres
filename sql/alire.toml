@@ -1,6 +1,6 @@
 name = "flyology_postgres_sql"
 description = "Versioned PostgreSQL raw SQL parser and Ada syntax tree"
-version = "0.1.0"
+version = "0.1.1-dev"
 
 authors = ["Yurii Rashkovskii"]
 maintainers = ["Yurii Rashkovskii <yrashk@gmail.com>"]
@@ -12,8 +12,15 @@ tags = ["ada", "postgres", "sql", "parser", "ast"]
 project-files = ["sql.gpr"]
 
 [[depends-on]]
-flyology_postgres_sql_v14 = "~0.1.0"
-flyology_postgres_sql_v15 = "~0.1.0"
-flyology_postgres_sql_v16 = "~0.1.0"
-flyology_postgres_sql_v17 = "~0.1.0"
-flyology_postgres_sql_v18 = "~0.1.0"
+flyology_postgres_sql_v14 = "*"
+flyology_postgres_sql_v15 = "*"
+flyology_postgres_sql_v16 = "*"
+flyology_postgres_sql_v17 = "*"
+flyology_postgres_sql_v18 = "*"
+
+[[pins]]
+flyology_postgres_sql_v14 = { path = "v14" }
+flyology_postgres_sql_v15 = { path = "v15" }
+flyology_postgres_sql_v16 = { path = "v16" }
+flyology_postgres_sql_v17 = { path = "v17" }
+flyology_postgres_sql_v18 = { path = "v18" }

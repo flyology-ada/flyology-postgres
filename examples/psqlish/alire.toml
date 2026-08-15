@@ -1,6 +1,6 @@
 name = "psqlish"
 description = "A small, bounded psql-like client built on Flyology Postgres"
-version = "0.1.0-dev"
+version = "0.1.1-dev"
 
 authors = ["Yurii Rashkovskii"]
 maintainers = ["Yurii Rashkovskii <yrashk@gmail.com>"]
@@ -13,7 +13,7 @@ executables = ["psqlish"]
 
 [[depends-on]]
 flyology_postgres = "*"
-flyology = "~0.1.0-dev"
+flyology = "~0.1.1-dev"
 linenoise_ada = "^1.1.2"
 
 [[pins]]

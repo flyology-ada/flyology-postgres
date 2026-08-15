@@ -1,6 +1,6 @@
 name = "flyology_postgres_sql_multi_example"
 description = "Selective-build smoke test for coexisting PostgreSQL parsers"
-version = "0.1.0-dev"
+version = "0.1.1-dev"
 
 authors = ["Yurii Rashkovskii"]
 maintainers = ["Yurii Rashkovskii <yrashk@gmail.com>"]

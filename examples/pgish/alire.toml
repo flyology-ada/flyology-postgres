@@ -1,6 +1,6 @@
 name = "flyology_pgish"
 description = "A small read-only Postgres-like server built on Flyology"
-version = "0.1.0-dev"
+version = "0.1.1-dev"
 
 authors = ["Yurii Rashkovskii"]
 maintainers = ["Yurii Rashkovskii <yrashk@gmail.com>"]
