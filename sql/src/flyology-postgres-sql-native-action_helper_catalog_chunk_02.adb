@@ -24,6 +24,47 @@ package body Flyology.Postgres.SQL.Native.Action_Helper_Catalog_Chunk_02 is
       end Version_Invoke;
    begin
       case Helper is
+         when 16#415F270E2DA7DA0B# =>
+            declare
+               Locals : Builders.Semantic_Array (1 .. 5) :=
+                 (others => Builders.No_Value);
+            begin
+               Locals (1) := Arguments (Arguments'First + 0);
+               Locals (2) := Arguments (Arguments'First + 1);
+               declare
+                  Loop_List : constant Builders.Dynamic_Value := Locals (1);
+               begin
+                  for Loop_Index in 1 .. Build.Length (Loop_List) loop
+                     Locals (3) := Build.Cell (Loop_List, Loop_Index);
+                     Locals (5) := Build.Cell_Element (Locals (3));
+                     if Semantics.Truth (Semantics.Binary ("&&", Semantics.Binary ("&&", Semantics.Binary ("!=",
+                        Build.Field (Locals (5), "mode"), Builders.Number (100)), Semantics.Binary ("!=", Build.Field
+                        (Locals (5), "mode"), Builders.Number (105))), Semantics.Binary ("!=", Build.Field (Locals
+                        (5), "mode"), Builders.Number (118)))) then
+                        raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
+                           ("OUT and INOUT arguments aren't allowed in TABLE functions"));
+                     end if;
+                     <<Continue_Loop_H415F270E2DA7DA0B_1>>
+                     null;
+                  end loop;
+               end;
+               return Version_Invoke (Build, "list_concat", (1 => Locals (1), 2 => Locals (2)));
+               return Builders.No_Value;
+            end;
+         when 16#4651436B16F8BBC7# =>
+            declare
+               Locals : Builders.Semantic_Array (1 .. 3) :=
+                 (others => Builders.No_Value);
+            begin
+               Locals (1) := Arguments (Arguments'First + 0);
+               Locals (2) := Arguments (Arguments'First + 1);
+               Locals (3) := Build.New_Object ("A_Const");
+               Build.Set_Field (Locals (3), "val.ival.type", Builders.Number (460));
+               Build.Set_Field (Locals (3), "val.ival.ival", Locals (1));
+               Build.Set_Field (Locals (3), "location", Locals (2));
+               return Locals (3);
+               return Builders.No_Value;
+            end;
          when 16#47E561975569CE8C# =>
             declare
                Locals : Builders.Semantic_Array (1 .. 1) :=
@@ -112,6 +153,82 @@ package body Flyology.Postgres.SQL.Native.Action_Helper_Catalog_Chunk_02 is
                   ("-", Builders.Number (1))));
                return Builders.No_Value;
             end;
+         when 16#57C3CF5C19420845# =>
+            declare
+               Locals : Builders.Semantic_Array (1 .. 7) :=
+                 (others => Builders.No_Value);
+            begin
+               Locals (1) := Arguments (Arguments'First + 0);
+               Locals (2) := Arguments (Arguments'First + 1);
+               Locals (5) := Builders.Number (3);
+               if Semantics.Truth (Semantics.Unary ("!", Locals (1))) then
+                  return Builders.No_Value;
+               end if;
+               Locals (4) := Build.Cell_Element (Version_Invoke (Build, "list_nth_cell", (1 => Locals (1), 2 =>
+                  Builders.Number (0))));
+               if Semantics.Truth (Semantics.Binary ("==", Build.Field (Locals (4), "pubobjtype"), Builders.Number
+                  (3))) then
+                  raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
+                     ("invalid publication object list"));
+               end if;
+               declare
+                  Loop_List : constant Builders.Dynamic_Value := Locals (1);
+               begin
+                  for Loop_Index in 1 .. Build.Length (Loop_List) loop
+                     Locals (3) := Build.Cell (Loop_List, Loop_Index);
+                     Locals (4) := Build.Cell_Element (Locals (3));
+                     if Semantics.Truth (Semantics.Binary ("==", Build.Field (Locals (4), "pubobjtype"),
+                        Builders.Number (3))) then
+                        Build.Set_Field (Locals (4), "pubobjtype", Locals (5));
+                     end if;
+                     if Semantics.Truth (Semantics.Binary ("==", Build.Field (Locals (4), "pubobjtype"),
+                        Builders.Number (0))) then
+                        if Semantics.Truth (Semantics.Binary ("&&", Semantics.Unary ("!", Build.Field (Locals (4),
+                           "name")), Semantics.Unary ("!", Build.Field (Locals (4), "pubtable")))) then
+                           raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text ("invalid table name"));
+                        end if;
+                        if Semantics.Truth (Build.Field (Locals (4), "name")) then
+                           Locals (7) := Build.New_Object ("PublicationTable");
+                           Build.Set_Field (Locals (7), "relation", Version_Invoke (Build, "makeRangeVar", (1 =>
+                              Builders.No_Value, 2 => Build.Field (Locals (4), "name"), 3 => Build.Field (Locals (4),
+                              "location"))));
+                           Build.Set_Field (Locals (4), "pubtable", Locals (7));
+                           Build.Set_Field (Locals (4), "name", Builders.No_Value);
+                        end if;
+                     else
+                        if Semantics.Truth (Semantics.Binary ("||", Semantics.Binary ("==", Build.Field (Locals (4),
+                           "pubobjtype"), Builders.Number (1)), Semantics.Binary ("==", Build.Field (Locals (4),
+                           "pubobjtype"), Builders.Number (2)))) then
+                           if Semantics.Truth (Semantics.Binary ("&&", Build.Field (Locals (4), "pubtable"),
+                              Build.Field (Build.Field (Locals (4), "pubtable"), "whereClause"))) then
+                              raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
+                                 ("WHERE clause not allowed for schema"));
+                           end if;
+                           if Semantics.Truth (Semantics.Binary ("&&", Build.Field (Locals (4), "pubtable"),
+                              Build.Field (Build.Field (Locals (4), "pubtable"), "columns"))) then
+                              raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
+                                 ("column specification not allowed for schema"));
+                           end if;
+                           if Semantics.Truth (Build.Field (Locals (4), "name")) then
+                              Build.Set_Field (Locals (4), "pubobjtype", Builders.Number (1));
+                           else
+                              if Semantics.Truth (Semantics.Binary ("&&", Semantics.Unary ("!", Build.Field (Locals
+                                 (4), "name")), Semantics.Unary ("!", Build.Field (Locals (4), "pubtable")))) then
+                                 Build.Set_Field (Locals (4), "pubobjtype", Builders.Number (2));
+                              else
+                                 raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
+                                    ("invalid schema name"));
+                              end if;
+                           end if;
+                        end if;
+                     end if;
+                     Locals (5) := Build.Field (Locals (4), "pubobjtype");
+                     <<Continue_Loop_H57C3CF5C19420845_1>>
+                     null;
+                  end loop;
+               end;
+               return Builders.No_Value;
+            end;
          when 16#58F534FEC49E6611# =>
             declare
                Locals : Builders.Semantic_Array (1 .. 3) :=
@@ -197,24 +314,6 @@ package body Flyology.Postgres.SQL.Native.Action_Helper_Catalog_Chunk_02 is
                return Locals (3);
                return Builders.No_Value;
             end;
-         when 16#6498977C93DCF600# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 2) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Arguments (Arguments'First + 0);
-               Locals (2) := Build.Field (Locals (1), "val.str");
-               if Semantics.Truth (Semantics.Binary ("==", Build.Dereference (Locals (2)), Builders.Number (43))) then
-                  Locals (2) := Semantics.Binary ("+", Locals (2), Builders.Number (1));
-               end if;
-               if Semantics.Truth (Semantics.Binary ("==", Build.Dereference (Locals (2)), Builders.Number (45))) then
-                  Build.Set_Field (Locals (1), "val.str", Semantics.Binary ("+", Locals (2), Builders.Number (1)));
-               else
-                  Build.Set_Field (Locals (1), "val.str", Version_Invoke (Build, "psprintf", (1 => Builders.Text
-                     ("-%s"), 2 => Locals (2))));
-               end if;
-               return Builders.No_Value;
-            end;
          when 16#64F996DCDC8969A3# =>
             declare
                Locals : Builders.Semantic_Array (1 .. 6) :=
@@ -251,33 +350,6 @@ package body Flyology.Postgres.SQL.Native.Action_Helper_Catalog_Chunk_02 is
                return Locals (5);
                return Builders.No_Value;
             end;
-         when 16#6AC4A5D8AE3AE521# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 5) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Arguments (Arguments'First + 0);
-               Locals (2) := Arguments (Arguments'First + 1);
-               declare
-                  Loop_List : constant Builders.Dynamic_Value := Locals (1);
-               begin
-                  for Loop_Index in 1 .. Build.Length (Loop_List) loop
-                     Locals (3) := Build.Cell (Loop_List, Loop_Index);
-                     Locals (5) := Build.Cell_Element (Locals (3));
-                     if Semantics.Truth (Semantics.Binary ("&&", Semantics.Binary ("&&", Semantics.Binary ("!=",
-                        Build.Field (Locals (5), "mode"), Builders.Number (5)), Semantics.Binary ("!=", Build.Field
-                        (Locals (5), "mode"), Builders.Number (0))), Semantics.Binary ("!=", Build.Field (Locals (5),
-                        "mode"), Builders.Number (3)))) then
-                        raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                           ("OUT and INOUT arguments aren't allowed in TABLE functions"));
-                     end if;
-                     <<Continue_Loop_H6AC4A5D8AE3AE521_1>>
-                     null;
-                  end loop;
-               end;
-               return Version_Invoke (Build, "list_concat", (1 => Locals (1), 2 => Locals (2)));
-               return Builders.No_Value;
-            end;
          when 16#6BBB31B226558CCB# =>
             declare
                Locals : Builders.Semantic_Array (1 .. 6) :=
@@ -297,6 +369,32 @@ package body Flyology.Postgres.SQL.Native.Action_Helper_Catalog_Chunk_02 is
                Build.Set_Field (Locals (6), "type", Builders.Number (0));
                Build.Set_Field (Locals (6), "location", Locals (5));
                return Locals (6);
+               return Builders.No_Value;
+            end;
+         when 16#6C898ACAEB92FE01# =>
+            declare
+               Locals : Builders.Semantic_Array (1 .. 5) :=
+                 (others => Builders.No_Value);
+            begin
+               Locals (1) := Arguments (Arguments'First + 0);
+               Locals (2) := Builders.No_Value;
+               declare
+                  Loop_List : constant Builders.Dynamic_Value := Locals (1);
+               begin
+                  for Loop_Index in 1 .. Build.Length (Loop_List) loop
+                     Locals (3) := Build.Cell (Loop_List, Loop_Index);
+                     Locals (5) := Build.Cell_Element (Locals (3));
+                     if Semantics.Truth (Semantics.Binary ("&&", Semantics.Binary ("!=", Build.Field (Locals (5),
+                        "mode"), Builders.Number (111)), Semantics.Binary ("!=", Build.Field (Locals (5), "mode"),
+                        Builders.Number (116)))) then
+                        Locals (2) := Version_Invoke (Build, "lappend", (1 => Locals (2), 2 => Build.Field (Locals
+                           (5), "argType")));
+                     end if;
+                     <<Continue_Loop_H6C898ACAEB92FE01_1>>
+                     null;
+                  end loop;
+               end;
+               return Locals (2);
                return Builders.No_Value;
             end;
          when 16#6E85272A53714CE9# =>
@@ -374,82 +472,6 @@ package body Flyology.Postgres.SQL.Native.Action_Helper_Catalog_Chunk_02 is
                end if;
                return Builders.No_Value;
             end;
-         when 16#6EA33DD02DC2DAA3# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 7) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Arguments (Arguments'First + 0);
-               Locals (2) := Arguments (Arguments'First + 1);
-               Locals (5) := Builders.Number (3);
-               if Semantics.Truth (Semantics.Unary ("!", Locals (1))) then
-                  return Builders.No_Value;
-               end if;
-               Locals (4) := Build.Cell_Element (Version_Invoke (Build, "list_nth_cell", (1 => Locals (1), 2 =>
-                  Builders.Number (0))));
-               if Semantics.Truth (Semantics.Binary ("==", Build.Field (Locals (4), "pubobjtype"), Builders.Number
-                  (3))) then
-                  raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                     ("invalid publication object list"));
-               end if;
-               declare
-                  Loop_List : constant Builders.Dynamic_Value := Locals (1);
-               begin
-                  for Loop_Index in 1 .. Build.Length (Loop_List) loop
-                     Locals (3) := Build.Cell (Loop_List, Loop_Index);
-                     Locals (4) := Build.Cell_Element (Locals (3));
-                     if Semantics.Truth (Semantics.Binary ("==", Build.Field (Locals (4), "pubobjtype"),
-                        Builders.Number (3))) then
-                        Build.Set_Field (Locals (4), "pubobjtype", Locals (5));
-                     end if;
-                     if Semantics.Truth (Semantics.Binary ("==", Build.Field (Locals (4), "pubobjtype"),
-                        Builders.Number (0))) then
-                        if Semantics.Truth (Semantics.Binary ("&&", Semantics.Unary ("!", Build.Field (Locals (4),
-                           "name")), Semantics.Unary ("!", Build.Field (Locals (4), "pubtable")))) then
-                           raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text ("invalid table name"));
-                        end if;
-                        if Semantics.Truth (Build.Field (Locals (4), "name")) then
-                           Locals (7) := Build.New_Object ("PublicationTable");
-                           Build.Set_Field (Locals (7), "relation", Version_Invoke (Build, "makeRangeVar", (1 =>
-                              Builders.No_Value, 2 => Build.Field (Locals (4), "name"), 3 => Build.Field (Locals (4),
-                              "location"))));
-                           Build.Set_Field (Locals (4), "pubtable", Locals (7));
-                           Build.Set_Field (Locals (4), "name", Builders.No_Value);
-                        end if;
-                     else
-                        if Semantics.Truth (Semantics.Binary ("||", Semantics.Binary ("==", Build.Field (Locals (4),
-                           "pubobjtype"), Builders.Number (1)), Semantics.Binary ("==", Build.Field (Locals (4),
-                           "pubobjtype"), Builders.Number (2)))) then
-                           if Semantics.Truth (Semantics.Binary ("&&", Build.Field (Locals (4), "pubtable"),
-                              Build.Field (Locals (4), "pubtable.whereClause"))) then
-                              raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                                 ("WHERE clause not allowed for schema"));
-                           end if;
-                           if Semantics.Truth (Semantics.Binary ("&&", Build.Field (Locals (4), "pubtable"),
-                              Build.Field (Locals (4), "pubtable.columns"))) then
-                              raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                                 ("column specification not allowed for schema"));
-                           end if;
-                           if Semantics.Truth (Build.Field (Locals (4), "name")) then
-                              Build.Set_Field (Locals (4), "pubobjtype", Builders.Number (1));
-                           else
-                              if Semantics.Truth (Semantics.Binary ("&&", Semantics.Unary ("!", Build.Field (Locals
-                                 (4), "name")), Semantics.Unary ("!", Build.Field (Locals (4), "pubtable")))) then
-                                 Build.Set_Field (Locals (4), "pubobjtype", Builders.Number (2));
-                              else
-                                 raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                                    ("invalid schema name"));
-                              end if;
-                           end if;
-                        end if;
-                     end if;
-                     Locals (5) := Build.Field (Locals (4), "pubobjtype");
-                     <<Continue_Loop_H6EA33DD02DC2DAA3_1>>
-                     null;
-                  end loop;
-               end;
-               return Builders.No_Value;
-            end;
          when 16#6EFBF44A6B76D80F# =>
             declare
                Locals : Builders.Semantic_Array (1 .. 2) :=
@@ -492,6 +514,35 @@ package body Flyology.Postgres.SQL.Native.Action_Helper_Catalog_Chunk_02 is
                return Locals (4);
                return Builders.No_Value;
             end;
+         when 16#748E4BE641F63D90# =>
+            declare
+               Locals : Builders.Semantic_Array (1 .. 6) :=
+                 (others => Builders.No_Value);
+            begin
+               Locals (1) := Arguments (Arguments'First + 0);
+               Locals (2) := Arguments (Arguments'First + 1);
+               Locals (3) := Arguments (Arguments'First + 2);
+               Locals (4) := Build.Cell_Element (Version_Invoke (Build, "list_last_cell", (1 => Locals (1))));
+               if Semantics.Truth (Semantics.Binary ("==", Build.Field (Locals (4), "mode"), Builders.Number (118)))
+                  then
+                  Locals (6) := Build.Cell_Element (Version_Invoke (Build, "list_nth_cell", (1 => Locals (2), 2 =>
+                     Builders.Number (0))));
+                  if Semantics.Truth (Semantics.Binary ("||", Semantics.Binary ("||", Semantics.Binary ("!=",
+                     Version_Invoke (Build, "list_length", (1 => Locals (2))), Builders.Number (1)), Semantics.Binary
+                     ("!=", Build.Field (Locals (6), "mode"), Builders.Number (118))), Semantics.Unary ("!",
+                     Version_Invoke (Build, "equal", (1 => Build.Field (Locals (4), "argType"), 2 => Build.Field
+                     (Locals (6), "argType")))))) then
+                     raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
+                        ("an ordered-set aggregate with a VARIADIC direct argument must have one VARIADIC aggregated argument of the same data type"));
+                  end if;
+                  Locals (2) := Builders.No_Value;
+               end if;
+               Locals (5) := Version_Invoke (Build, "makeInteger", (1 => Version_Invoke (Build, "list_length", (1 =>
+                  Locals (1)))));
+               return Version_Invoke (Build, "list_make2_impl", (1 => Builders.Number (1), 2 => Version_Invoke (Build,
+                  "list_concat", (1 => Locals (1), 2 => Locals (2))), 3 => Locals (5)));
+               return Builders.No_Value;
+            end;
          when 16#76FFB1E886160A45# =>
             declare
                Locals : Builders.Semantic_Array (1 .. 3) :=
@@ -506,35 +557,6 @@ package body Flyology.Postgres.SQL.Native.Action_Helper_Catalog_Chunk_02 is
                Build.Set_Field (Locals (3), "location", Locals (2));
                return Version_Invoke (Build, "makeTypeCast", (1 => Locals (3), 2 => Version_Invoke (Build,
                   "SystemTypeName", (1 => Builders.Text ("bool"))), 3 => Semantics.Unary ("-", Builders.Number (1))));
-               return Builders.No_Value;
-            end;
-         when 16#79DED7F4C637AF63# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 6) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Arguments (Arguments'First + 0);
-               Locals (2) := Arguments (Arguments'First + 1);
-               Locals (3) := Arguments (Arguments'First + 2);
-               Locals (4) := Build.Cell_Element (Version_Invoke (Build, "list_last_cell", (1 => Locals (1))));
-               if Semantics.Truth (Semantics.Binary ("==", Build.Field (Locals (4), "mode"), Builders.Number (3)))
-                  then
-                  Locals (6) := Build.Cell_Element (Version_Invoke (Build, "list_nth_cell", (1 => Locals (2), 2 =>
-                     Builders.Number (0))));
-                  if Semantics.Truth (Semantics.Binary ("||", Semantics.Binary ("||", Semantics.Binary ("!=",
-                     Version_Invoke (Build, "list_length", (1 => Locals (2))), Builders.Number (1)), Semantics.Binary
-                     ("!=", Build.Field (Locals (6), "mode"), Builders.Number (3))), Semantics.Unary ("!",
-                     Version_Invoke (Build, "equal", (1 => Build.Field (Locals (4), "argType"), 2 => Build.Field
-                     (Locals (6), "argType")))))) then
-                     raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                        ("an ordered-set aggregate with a VARIADIC direct argument must have one VARIADIC aggregated argument of the same data type"));
-                  end if;
-                  Locals (2) := Builders.No_Value;
-               end if;
-               Locals (5) := Version_Invoke (Build, "makeInteger", (1 => Version_Invoke (Build, "list_length", (1 =>
-                  Locals (1)))));
-               return Version_Invoke (Build, "list_make2_impl", (1 => Builders.Number (1), 2 => Version_Invoke (Build,
-                  "list_concat", (1 => Locals (1), 2 => Locals (2))), 3 => Locals (5)));
                return Builders.No_Value;
             end;
          when 16#7C4DA5D8FE600188# =>
@@ -616,24 +638,6 @@ package body Flyology.Postgres.SQL.Native.Action_Helper_Catalog_Chunk_02 is
                return Locals (3);
                return Builders.No_Value;
             end;
-         when 16#819C27FD533E9CD9# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 2) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Arguments (Arguments'First + 0);
-               Locals (2) := Build.Field (Locals (1), "fval");
-               if Semantics.Truth (Semantics.Binary ("==", Build.Dereference (Locals (2)), Builders.Number (43))) then
-                  Locals (2) := Semantics.Binary ("+", Locals (2), Builders.Number (1));
-               end if;
-               if Semantics.Truth (Semantics.Binary ("==", Build.Dereference (Locals (2)), Builders.Number (45))) then
-                  Build.Set_Field (Locals (1), "fval", Semantics.Binary ("+", Locals (2), Builders.Number (1)));
-               else
-                  Build.Set_Field (Locals (1), "fval", Version_Invoke (Build, "psprintf", (1 => Builders.Text ("-%s"),
-                     2 => Locals (2))));
-               end if;
-               return Builders.No_Value;
-            end;
          when 16#83234F5BCC69DC30# =>
             declare
                Locals : Builders.Semantic_Array (1 .. 3) :=
@@ -646,83 +650,6 @@ package body Flyology.Postgres.SQL.Native.Action_Helper_Catalog_Chunk_02 is
                Build.Set_Field (Locals (3), "val.sval.sval", Locals (1));
                Build.Set_Field (Locals (3), "location", Locals (2));
                return Locals (3);
-               return Builders.No_Value;
-            end;
-         when 16#83CACCD6FFEF0538# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 7) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Arguments (Arguments'First + 0);
-               Locals (2) := Arguments (Arguments'First + 1);
-               Locals (5) := Builders.Number (3);
-               if Semantics.Truth (Semantics.Unary ("!", Locals (1))) then
-                  return Builders.No_Value;
-               end if;
-               Locals (4) := Build.Cell_Element (Version_Invoke (Build, "list_nth_cell", (1 => Locals (1), 2 =>
-                  Builders.Number (0))));
-               if Semantics.Truth (Semantics.Binary ("==", Build.Field (Locals (4), "pubobjtype"), Builders.Number
-                  (3))) then
-                  raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                     ("invalid publication object list"));
-               end if;
-               declare
-                  Loop_List : constant Builders.Dynamic_Value := Locals (1);
-               begin
-                  for Loop_Index in 1 .. Build.Length (Loop_List) loop
-                     Locals (3) := Build.Cell (Loop_List, Loop_Index);
-                     Locals (4) := Build.Cell_Element (Locals (3));
-                     if Semantics.Truth (Semantics.Binary ("==", Build.Field (Locals (4), "pubobjtype"),
-                        Builders.Number (3))) then
-                        Build.Set_Field (Locals (4), "pubobjtype", Locals (5));
-                     end if;
-                     if Semantics.Truth (Semantics.Binary ("==", Build.Field (Locals (4), "pubobjtype"),
-                        Builders.Number (0))) then
-                        if Semantics.Truth (Semantics.Binary ("&&", Semantics.Unary ("!", Build.Field (Locals (4),
-                           "name")), Semantics.Unary ("!", Build.Field (Locals (4), "pubtable")))) then
-                           raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                              ("invalid table name at or near"));
-                        end if;
-                        if Semantics.Truth (Build.Field (Locals (4), "name")) then
-                           Locals (7) := Build.New_Object ("PublicationTable");
-                           Build.Set_Field (Locals (7), "relation", Version_Invoke (Build, "makeRangeVar", (1 =>
-                              Builders.No_Value, 2 => Build.Field (Locals (4), "name"), 3 => Build.Field (Locals (4),
-                              "location"))));
-                           Build.Set_Field (Locals (4), "pubtable", Locals (7));
-                           Build.Set_Field (Locals (4), "name", Builders.No_Value);
-                        end if;
-                     else
-                        if Semantics.Truth (Semantics.Binary ("||", Semantics.Binary ("==", Build.Field (Locals (4),
-                           "pubobjtype"), Builders.Number (1)), Semantics.Binary ("==", Build.Field (Locals (4),
-                           "pubobjtype"), Builders.Number (2)))) then
-                           if Semantics.Truth (Semantics.Binary ("&&", Build.Field (Locals (4), "pubtable"),
-                              Build.Field (Locals (4), "pubtable.whereClause"))) then
-                              raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                                 ("WHERE clause not allowed for schema"));
-                           end if;
-                           if Semantics.Truth (Semantics.Binary ("&&", Build.Field (Locals (4), "pubtable"),
-                              Build.Field (Locals (4), "pubtable.columns"))) then
-                              raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                                 ("column specification not allowed for schema"));
-                           end if;
-                           if Semantics.Truth (Build.Field (Locals (4), "name")) then
-                              Build.Set_Field (Locals (4), "pubobjtype", Builders.Number (1));
-                           else
-                              if Semantics.Truth (Semantics.Binary ("&&", Semantics.Unary ("!", Build.Field (Locals
-                                 (4), "name")), Semantics.Unary ("!", Build.Field (Locals (4), "pubtable")))) then
-                                 Build.Set_Field (Locals (4), "pubobjtype", Builders.Number (2));
-                              else
-                                 raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                                    ("invalid schema name at or near"));
-                              end if;
-                           end if;
-                        end if;
-                     end if;
-                     Locals (5) := Build.Field (Locals (4), "pubobjtype");
-                     <<Continue_Loop_H83CACCD6FFEF0538_1>>
-                     null;
-                  end loop;
-               end;
                return Builders.No_Value;
             end;
          when 16#845E078B17764406# =>
@@ -781,6 +708,35 @@ package body Flyology.Postgres.SQL.Native.Action_Helper_Catalog_Chunk_02 is
                Build.Set_Field (Locals (5), "fields", Version_Invoke (Build, "lcons", (1 => Version_Invoke (Build,
                   "makeString", (1 => Locals (1))), 2 => Locals (2))));
                return Locals (5);
+               return Builders.No_Value;
+            end;
+         when 16#877A6343C40C4C58# =>
+            declare
+               Locals : Builders.Semantic_Array (1 .. 6) :=
+                 (others => Builders.No_Value);
+            begin
+               Locals (1) := Arguments (Arguments'First + 0);
+               Locals (2) := Arguments (Arguments'First + 1);
+               Locals (3) := Arguments (Arguments'First + 2);
+               Locals (4) := Build.Cell_Element (Version_Invoke (Build, "list_last_cell", (1 => Locals (1))));
+               if Semantics.Truth (Semantics.Binary ("==", Build.Field (Locals (4), "mode"), Builders.Number (118)))
+                  then
+                  Locals (6) := Build.Cell_Element (Version_Invoke (Build, "list_nth_cell", (1 => Locals (2), 2 =>
+                     Builders.Number (0))));
+                  if Semantics.Truth (Semantics.Binary ("||", Semantics.Binary ("||", Semantics.Binary ("!=",
+                     Version_Invoke (Build, "list_length", (1 => Locals (2))), Builders.Number (1)), Semantics.Binary
+                     ("!=", Build.Field (Locals (6), "mode"), Builders.Number (118))), Semantics.Unary ("!",
+                     Version_Invoke (Build, "equal", (1 => Build.Field (Locals (4), "argType"), 2 => Build.Field
+                     (Locals (6), "argType")))))) then
+                     raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
+                        ("an ordered-set aggregate with a VARIADIC direct argument must have one VARIADIC aggregated argument of the same data type"));
+                  end if;
+                  Locals (2) := Builders.No_Value;
+               end if;
+               Locals (5) := Version_Invoke (Build, "makeInteger", (1 => Version_Invoke (Build, "list_length", (1 =>
+                  Locals (1)))));
+               return Version_Invoke (Build, "list_make2_impl", (1 => Builders.Number (231), 2 => Version_Invoke
+                  (Build, "list_concat", (1 => Locals (1), 2 => Locals (2))), 3 => Locals (5)));
                return Builders.No_Value;
             end;
          when 16#8910C65420BCA6C5# =>

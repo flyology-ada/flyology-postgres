@@ -7,5 +7,6 @@
 /docs/sql-api/
 /docs/gnatdoc/html/
 /tests/.cache/
+/sql/tests/.cache/
 /tests/tmp/
 /proof-status.md

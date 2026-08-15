@@ -36,6 +36,24 @@ package body Flyology.Postgres.SQL.Native.Builders is
    begin
       if Item.Kind = Cell_Value and then Name = "l" then
          return;
+      elsif Item.Kind = Cell_Value
+        and then Name in "ptr_value" | "int_value" | "oid_value"
+      then
+         declare
+            Cursor : Natural :=
+              Self.Lists.Element (Item.Cell_List).First_Element;
+         begin
+            for Index in 2 .. Item.Cell_Index loop
+               Cursor := Self.Elements.Element (Cursor).Next;
+            end loop;
+            declare
+               Element : Element_Entry := Self.Elements.Element (Cursor);
+            begin
+               Element.Value := Value;
+               Self.Elements.Replace_Element (Cursor, Element);
+            end;
+         end;
+         return;
       end if;
       if Item.Kind /= Object_Value or else Item.Object_Data = 0 then
          raise Constraint_Error with
@@ -106,6 +124,21 @@ package body Flyology.Postgres.SQL.Native.Builders is
             Cursor := Member.Next;
          end;
       end loop;
+      --  PostgreSQL 14's Value node stores Integer in the anonymous
+      --  `val.ival` union member, while the versioned protobuf shape exposes
+      --  the same scalar directly as `ival`.  Handwritten constructors use
+      --  the protobuf-facing name; generated grammar actions still use the C
+      --  member path (notably intVal(linitial(...))).
+      if Self.Object_Type (Item) = "Integer" and then Name = "val.ival" then
+         return Self.Field (Item, "ival");
+      elsif Self.Object_Type (Item) = "String" and then Name = "val.str" then
+         return Self.Field (Item, "sval");
+      elsif Self.Object_Type (Item) = "A_Const" and then Name = "val.node" then
+         --  In PostgreSQL this anonymous union member aliases the NodeTag of
+         --  the active scalar node.  Preserve the containing value so
+         --  Semantics.Node_Is can inspect the normalized protobuf field.
+         return Item;
+      end if;
       return No_Value;
    end Field;
 
@@ -362,7 +395,20 @@ package body Flyology.Postgres.SQL.Native.Builders is
                Right_Cursor : Natural :=
                  Self.Objects.Element (Right.Object_Data).First_Member;
             begin
-               while Left_Cursor /= 0 and then Right_Cursor /= 0 loop
+               loop
+                  while Left_Cursor /= 0
+                    and then To_String
+                      (Self.Members.Element (Left_Cursor).Name) = "location"
+                  loop
+                     Left_Cursor := Self.Members.Element (Left_Cursor).Next;
+                  end loop;
+                  while Right_Cursor /= 0
+                    and then To_String
+                      (Self.Members.Element (Right_Cursor).Name) = "location"
+                  loop
+                     Right_Cursor := Self.Members.Element (Right_Cursor).Next;
+                  end loop;
+                  exit when Left_Cursor = 0 or else Right_Cursor = 0;
                   declare
                      L : constant Member_Entry := Self.Members.Element (Left_Cursor);
                      R : constant Member_Entry := Self.Members.Element (Right_Cursor);

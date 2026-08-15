@@ -30,18 +30,12 @@ package body Flyology.Postgres.SQL.Native.Actions_V15_Support is
       elsif Name = "check_qualified_name" then
          return Action_Helper_Catalog.Execute
            (16#D0BC376FAB9E3137#, Build, Arguments, Invoke'Access);
-      elsif Name = "doNegate" then
-         return Action_Helper_Catalog.Execute
-           (16#9EFD862A933C15D4#, Build, Arguments, Invoke'Access);
-      elsif Name = "doNegateFloat" then
-         return Action_Helper_Catalog.Execute
-           (16#819C27FD533E9CD9#, Build, Arguments, Invoke'Access);
       elsif Name = "extractAggrArgTypes" then
          return Action_Helper_Catalog.Execute
            (16#9C3D6FE7C8960AAB#, Build, Arguments, Invoke'Access);
       elsif Name = "extractArgTypes" then
          return Action_Helper_Catalog.Execute
-           (16#D5ACD743C5D21A8D#, Build, Arguments, Invoke'Access);
+           (16#6C898ACAEB92FE01#, Build, Arguments, Invoke'Access);
       elsif Name = "insertSelectOptions" then
          return Action_Helper_Catalog.Execute
            (16#6E85272A53714CE9#, Build, Arguments, Invoke'Access);
@@ -80,7 +74,7 @@ package body Flyology.Postgres.SQL.Native.Actions_V15_Support is
            (16#03429938439D9BB7#, Build, Arguments, Invoke'Access);
       elsif Name = "makeOrderedSetArgs" then
          return Action_Helper_Catalog.Execute
-           (16#9FFFAD55B3C22A82#, Build, Arguments, Invoke'Access);
+           (16#877A6343C40C4C58#, Build, Arguments, Invoke'Access);
       elsif Name = "makeParamRef" then
          return Action_Helper_Catalog.Execute
            (16#811171889542DB23#, Build, Arguments, Invoke'Access);
@@ -122,10 +116,10 @@ package body Flyology.Postgres.SQL.Native.Actions_V15_Support is
            (16#6BBB31B226558CCB#, Build, Arguments, Invoke'Access);
       elsif Name = "mergeTableFuncParameters" then
          return Action_Helper_Catalog.Execute
-           (16#6AC4A5D8AE3AE521#, Build, Arguments, Invoke'Access);
+           (16#415F270E2DA7DA0B#, Build, Arguments, Invoke'Access);
       elsif Name = "preprocess_pubobj_list" then
          return Action_Helper_Catalog.Execute
-           (16#83CACCD6FFEF0538#, Build, Arguments, Invoke'Access);
+           (16#B3D035B51CF24790#, Build, Arguments, Invoke'Access);
       elsif Name = "processCASbits" then
          return Action_Helper_Catalog.Execute
            (16#893F607ED338F875#, Build, Arguments, Invoke'Access);

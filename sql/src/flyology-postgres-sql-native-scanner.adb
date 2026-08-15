@@ -159,7 +159,18 @@ package body Flyology.Postgres.SQL.Native.Scanner is
       end if;
       for Index in First .. Text'Last loop
          if Text (Index) /= '_' then
-            Digit := Hex_Value (Text (Index));
+            begin
+               Digit := Hex_Value (Text (Index));
+            exception
+               when Constraint_Error =>
+                  --  PostgreSQL's process_integer_literal also receives the
+                  --  truncated decimal prefix of a failed exponent match.
+                  --  A decimal point therefore means FCONST, not a scanner
+                  --  error (for example, "0.0e" is lexed as "0.0", "e").
+                  Token := Token_Fconst;
+                  Value := Builders.Text (Text);
+                  return;
+            end;
             if Digit >= Base
               or else Number >
                 (Interfaces.Integer_64'Last - Interfaces.Integer_64 (Digit)) /

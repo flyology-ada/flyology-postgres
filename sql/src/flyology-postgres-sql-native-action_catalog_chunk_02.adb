@@ -30,6 +30,11 @@ package body Flyology.Postgres.SQL.Native.Action_Catalog_Chunk_02 is
       end Version_Invoke;
    begin
       case Action is
+         when 16#133C67FED8FB330A# =>
+               Result := Builders.Number (5);
+         when 16#13A767152458273B# =>
+               Result := Version_Invoke (Build_Access, "list_make3_impl", (1 => Builders.Number (1), 2 => Values (1),
+                  3 => Values (3), 4 => Values (5)));
          when 16#13DC2565F959E868# =>
             declare
                Locals : Builders.Semantic_Array (1 .. 1) :=
@@ -67,25 +72,6 @@ package body Flyology.Postgres.SQL.Native.Action_Catalog_Chunk_02 is
                Build_Access.Set_Field (Locals (1), "sequence", Values (3));
                Build_Access.Set_Field (Locals (1), "options", Values (4));
                Build_Access.Set_Field (Locals (1), "missing_ok", Builders.Number (0));
-               Result := Locals (1);
-            end;
-         when 16#146C108454F00BD3# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 1) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Build_Access.New_Object ("CreateFunctionStmt");
-               Build_Access.Set_Field (Locals (1), "is_procedure", Builders.Number (0));
-               Build_Access.Set_Field (Locals (1), "replace", Values (2));
-               Build_Access.Set_Field (Locals (1), "funcname", Values (4));
-               Build_Access.Set_Field (Locals (1), "parameters", Version_Invoke (Build_Access,
-                  "mergeTableFuncParameters", (1 => Values (5), 2 => Values (9), 3 => Builders.No_Value)));
-               Build_Access.Set_Field (Locals (1), "returnType", Version_Invoke (Build_Access, "TableFuncTypeName", (1
-                  => Values (9))));
-               Build_Access.Set_Field (Locals (1), "returnType.location", Builders.Number (Interfaces.Integer_64
-                  (Locations (7))));
-               Build_Access.Set_Field (Locals (1), "options", Values (11));
-               Build_Access.Set_Field (Locals (1), "sql_body", Values (12));
                Result := Locals (1);
             end;
          when 16#14D12D8F5D5F534E# =>
@@ -623,21 +609,6 @@ package body Flyology.Postgres.SQL.Native.Action_Catalog_Chunk_02 is
          when 16#1BCDBDF44A0C199C# =>
                Result := Version_Invoke (Build_Access, "makeVacuumRelation", (1 => Values (1), 2 => Builders.Number
                   (0), 3 => Values (2)));
-         when 16#1BDC49E72B66DF8C# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 1) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Build_Access.New_Object ("CreateTableAsStmt");
-               Build_Access.Set_Field (Locals (1), "query", Values (6));
-               Build_Access.Set_Field (Locals (1), "into", Values (4));
-               Build_Access.Set_Field (Locals (1), "objtype", Builders.Number (39));
-               Build_Access.Set_Field (Locals (1), "is_select_into", Builders.Number (0));
-               Build_Access.Set_Field (Locals (1), "if_not_exists", Builders.Number (0));
-               Build_Access.Set_Field (Values (4), "rel.relpersistence", Values (2));
-               Build_Access.Set_Field (Values (4), "skipData", Semantics.Unary ("!", Values (7)));
-               Result := Locals (1);
-            end;
          when 16#1BEEAC979FD4B8C8# =>
             declare
                Locals : Builders.Semantic_Array (1 .. 1) :=
@@ -883,6 +854,21 @@ package body Flyology.Postgres.SQL.Native.Action_Catalog_Chunk_02 is
                Result := Version_Invoke (Build_Access, "makeDefElem", (1 => Values (1), 2 => Version_Invoke
                   (Build_Access, "makeInteger", (1 => Values (2))), 3 => Builders.Number (Interfaces.Integer_64
                   (Locations (1)))));
+         when 16#1D89850076DC8B82# =>
+            declare
+               Locals : Builders.Semantic_Array (1 .. 1) :=
+                 (others => Builders.No_Value);
+            begin
+               Locals (1) := Build_Access.New_Object ("JsonArrayAgg");
+               Build_Access.Set_Field (Locals (1), "arg", Values (3));
+               Build_Access.Set_Field (Locals (1), "absent_on_null", Values (5));
+               Build_Access.Set_Field (Locals (1), "constructor", Build_Access.New_Object ("JsonAggConstructor"));
+               Build_Access.Set_Field (Build_Access.Field (Locals (1), "constructor"), "agg_order", Values (4));
+               Build_Access.Set_Field (Build_Access.Field (Locals (1), "constructor"), "output", Values (6));
+               Build_Access.Set_Field (Build_Access.Field (Locals (1), "constructor"), "location", Builders.Number
+                  (Interfaces.Integer_64 (Locations (1))));
+               Result := Locals (1);
+            end;
          when 16#1D8F4B7FF4AD57D9# =>
                Result := Builders.Text ("+");
          when 16#1DF1A5FBA2E885AE# =>
@@ -890,30 +876,6 @@ package body Flyology.Postgres.SQL.Native.Action_Catalog_Chunk_02 is
                   Builders.Number (Interfaces.Integer_64 (Locations (2)))));
          when 16#1DF2D4FB29125128# =>
                Result := Builders.Number (49);
-         when 16#1E41A9B6C55ABAC5# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 4) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Values (1);
-               Locals (2) := Values (3);
-               Locals (3) := Build_Access.Cell_Element (Version_Invoke (Build_Access, "list_nth_cell", (1 => Values
-                  (1), 2 => Builders.Number (1))));
-               Locals (4) := Build_Access.Cell_Element (Version_Invoke (Build_Access, "list_nth_cell", (1 => Values
-                  (3), 2 => Builders.Number (1))));
-               if Semantics.Truth (Semantics.Binary ("&", Locals (1), Locals (2))) then
-                  declare
-                     Ignored : constant Builders.Dynamic_Value :=
-                       Version_Invoke (Build_Access, "scanner_yyerror", (1 => Builders.Text
-                          ("duplicate trigger events specified"), 2 => Builders.No_Value));
-                  begin
-                     null;
-                  end;
-               end if;
-               Result := Version_Invoke (Build_Access, "list_make2_impl", (1 => Builders.Number (231), 2 =>
-                  Version_Invoke (Build_Access, "makeInteger", (1 => Semantics.Binary ("|", Locals (1), Locals (2)))),
-                  3 => Version_Invoke (Build_Access, "list_concat", (1 => Locals (3), 2 => Locals (4)))));
-            end;
          when 16#1E838A31AF3BCE42# =>
             declare
                Locals : Builders.Semantic_Array (1 .. 1) :=
@@ -1230,6 +1192,21 @@ package body Flyology.Postgres.SQL.Native.Action_Catalog_Chunk_02 is
                Build_Access.Set_Field (Locals (1), "missing_ok", Builders.Number (0));
                Result := Locals (1);
             end;
+         when 16#22A5509AA1818F0D# =>
+            declare
+               Locals : Builders.Semantic_Array (1 .. 1) :=
+                 (others => Builders.No_Value);
+            begin
+               Locals (1) := Build_Access.New_Object ("CreateTableAsStmt");
+               Build_Access.Set_Field (Locals (1), "query", Values (9));
+               Build_Access.Set_Field (Locals (1), "into", Values (7));
+               Build_Access.Set_Field (Locals (1), "objtype", Builders.Number (39));
+               Build_Access.Set_Field (Locals (1), "is_select_into", Builders.Number (0));
+               Build_Access.Set_Field (Locals (1), "if_not_exists", Builders.Number (1));
+               Build_Access.Set_Field (Build_Access.Field (Values (7), "rel"), "relpersistence", Values (2));
+               Build_Access.Set_Field (Values (7), "skipData", Semantics.Unary ("!", Values (10)));
+               Result := Locals (1);
+            end;
          when 16#22CD564C16EE1484# =>
             declare
                Locals : Builders.Semantic_Array (1 .. 1) :=
@@ -1355,6 +1332,44 @@ package body Flyology.Postgres.SQL.Native.Action_Catalog_Chunk_02 is
                   (5))));
                Result := Locals (1);
             end;
+         when 16#23CBFD4F64157CA9# =>
+            declare
+               Locals : Builders.Semantic_Array (1 .. 1) :=
+                 (others => Builders.No_Value);
+            begin
+               Locals (1) := Build_Access.New_Object ("CreateTrigStmt");
+               Build_Access.Set_Field (Locals (1), "replace", Values (2));
+               if Semantics.Truth (Build_Access.Field (Locals (1), "replace")) then
+                  raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
+                     ("CREATE OR REPLACE CONSTRAINT TRIGGER is not supported"));
+               end if;
+               Build_Access.Set_Field (Locals (1), "isconstraint", Builders.Number (1));
+               Build_Access.Set_Field (Locals (1), "trigname", Values (5));
+               Build_Access.Set_Field (Locals (1), "relation", Values (9));
+               Build_Access.Set_Field (Locals (1), "funcname", Values (18));
+               Build_Access.Set_Field (Locals (1), "args", Values (20));
+               Build_Access.Set_Field (Locals (1), "row", Builders.Number (1));
+               Build_Access.Set_Field (Locals (1), "timing", Builders.Number (0));
+               Build_Access.Set_Field (Locals (1), "events", Build_Access.Field (Build_Access.Cell_Element
+                  (Version_Invoke (Build_Access, "list_nth_cell", (1 => Values (7), 2 => Builders.Number (0)))),
+                  "ival"));
+               Build_Access.Set_Field (Locals (1), "columns", Build_Access.Cell_Element (Version_Invoke (Build_Access,
+                  "list_nth_cell", (1 => Values (7), 2 => Builders.Number (1)))));
+               Build_Access.Set_Field (Locals (1), "whenClause", Values (15));
+               Build_Access.Set_Field (Locals (1), "transitionRels", Builders.No_Value);
+               declare
+                  Ignored : constant Builders.Dynamic_Value :=
+                    Version_Invoke (Build_Access, "processCASbits", (1 => Values (11), 2 => Builders.Number
+                       (Interfaces.Integer_64 (Locations (11))), 3 => Builders.Text ("TRIGGER"), 4 =>
+                       Builders.Field_Reference (Locals (1), "deferrable"), 5 => Builders.Field_Reference (Locals (1),
+                       "initdeferred"), 6 => Builders.No_Value, 7 => Builders.No_Value, 8 => Builders.No_Value, 9 =>
+                       Builders.No_Value));
+               begin
+                  null;
+               end;
+               Build_Access.Set_Field (Locals (1), "constrrel", Values (10));
+               Result := Locals (1);
+            end;
          when 16#23D86BEE367E33C1# =>
             declare
                Locals : Builders.Semantic_Array (1 .. 1) :=
@@ -1368,23 +1383,6 @@ package body Flyology.Postgres.SQL.Native.Action_Catalog_Chunk_02 is
                Build_Access.Set_Field (Locals (1), "grantor", Values (5));
                Result := Locals (1);
             end;
-         when 16#23E90AEEE5EBE0DF# =>
-               Result := Version_Invoke (Build_Access, "makeGroupingSet", (1 => Builders.Number (2), 2 => Values (3),
-                  3 => Builders.Number (Interfaces.Integer_64 (Locations (1)))));
-         when 16#23EEB6AC65B529F4# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 1) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Build_Access.New_Object ("CommentStmt");
-               Build_Access.Set_Field (Locals (1), "objtype", Values (3));
-               Build_Access.Set_Field (Locals (1), "object", Values (4));
-               Build_Access.Set_Field (Locals (1), "comment", Values (6));
-               Result := Locals (1);
-            end;
-         when 16#23EF34A9F35961F5# =>
-               Result := Version_Invoke (Build_Access, "lappend", (1 => Values (1), 2 => Version_Invoke (Build_Access,
-                  "makeInteger", (1 => Semantics.Unary ("-", Builders.Number (1))))));
          when others => null;
       end case;
    end Reduce;

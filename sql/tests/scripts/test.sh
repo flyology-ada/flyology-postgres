@@ -292,4 +292,5 @@ for version in 14 15 16 17 18; do
   fi
 done
 
-./bin/sql_tests
+regression_corpus=$(python3 scripts/prepare_regression_corpus.py)
+FLYOLOGY_POSTGRES_REGRESSION_CORPUS=$regression_corpus ./bin/sql_tests

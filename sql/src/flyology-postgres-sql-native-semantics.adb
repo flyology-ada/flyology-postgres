@@ -1,10 +1,17 @@
 with Ada.Characters.Handling;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
+with Ada.Unchecked_Conversion;
 package body Flyology.Postgres.SQL.Native.Semantics is
 
    use type Interfaces.Integer_64;
    use type Interfaces.Unsigned_64;
+   use type Builders.Dynamic_Value;
    use type Builders.Value_Kind;
+
+   function To_Unsigned is new Ada.Unchecked_Conversion
+     (Source => Interfaces.Integer_64, Target => Interfaces.Unsigned_64);
+   function To_Integer is new Ada.Unchecked_Conversion
+     (Source => Interfaces.Unsigned_64, Target => Interfaces.Integer_64);
 
    function Truth (Value : Builders.Dynamic_Value) return Boolean is
      (case Value.Kind is
@@ -87,12 +94,18 @@ package body Flyology.Postgres.SQL.Native.Semantics is
          return Builders.Flag (L >= R);
       elsif Operator = "&" then
          return Builders.Number
-           (Interfaces.Integer_64
-              (Interfaces.Unsigned_64 (L) and Interfaces.Unsigned_64 (R)));
+           (To_Integer (To_Unsigned (L) and To_Unsigned (R)));
       elsif Operator = "|" then
          return Builders.Number
-           (Interfaces.Integer_64
-              (Interfaces.Unsigned_64 (L) or Interfaces.Unsigned_64 (R)));
+           (To_Integer (To_Unsigned (L) or To_Unsigned (R)));
+      elsif Operator = "<<" then
+         return Builders.Number
+           (To_Integer
+              (Interfaces.Shift_Left (To_Unsigned (L), Natural (R))));
+      elsif Operator = ">>" then
+         return Builders.Number
+           (To_Integer
+              (Interfaces.Shift_Right (To_Unsigned (L), Natural (R))));
       else
          raise Program_Error with "unsupported generated binary operator " & Operator;
       end if;
@@ -108,6 +121,15 @@ package body Flyology.Postgres.SQL.Native.Semantics is
          return Builders.Number (-Integer_Of (Value));
       elsif Operator = "+" then
          return Builders.Number (Integer_Of (Value));
+      elsif Operator = "--" then
+         return Builders.Number (Integer_Of (Value) - 1);
+      elsif Operator = "++" then
+         return Builders.Number (Integer_Of (Value) + 1);
+      elsif Operator = "~" then
+         --  Avoid a range check when a modular all-ones result is converted
+         --  back to Integer_64.  This is the two's-complement identity used
+         --  by PostgreSQL's signed flag values.
+         return Builders.Number (-Integer_Of (Value) - 1);
       else
          raise Program_Error with "unsupported generated unary operator " & Operator;
       end if;
@@ -118,8 +140,17 @@ package body Flyology.Postgres.SQL.Native.Semantics is
       Type_Name : String) return Builders.Dynamic_Value is
    begin
       return Builders.Flag
-        (Value.Kind = Builders.Object_Value
-         and then Build.Object_Type (Value) = Type_Name);
+        ((Value.Kind = Builders.Object_Value
+          and then Build.Object_Type (Value) = Type_Name)
+         or else
+           (Value.Kind = Builders.Object_Value
+            and then Build.Object_Type (Value) = "A_Const"
+            and then Type_Name = "String"
+            and then
+              (Build.Field (Value, "val.sval.sval") /= Builders.No_Value
+               or else Build.Field (Value, "val.val.str") /= Builders.No_Value))
+         or else
+           (Value.Kind = Builders.List_Value and then Type_Name = "List"));
    end Node_Is;
 
    function Set_Field
@@ -137,6 +168,21 @@ package body Flyology.Postgres.SQL.Native.Semantics is
    is
       function Argument (Index : Positive) return Builders.Dynamic_Value is
         (Arguments (Arguments'First + Index - 1));
+
+      function Negated (Value : Builders.Dynamic_Value)
+         return Builders.Dynamic_Value
+      is
+         Text : constant String := Text_Of (Value);
+      begin
+         if Text'Length > 0 and then Text (Text'First) = '+' then
+            return Builders.Text ("-" & Text (Text'First + 1 .. Text'Last));
+         elsif Text'Length > 0 and then Text (Text'First) = '-' then
+            return Builders.Text (Text (Text'First + 1 .. Text'Last));
+         else
+            return Builders.Text ("-" & Text);
+         end if;
+      end Negated;
+
       Result : Builders.Dynamic_Value;
    begin
       if Name in "pstrdup" | "castNode" then
@@ -170,6 +216,19 @@ package body Flyology.Postgres.SQL.Native.Semantics is
            (Argument (1), Positive (Integer_Of (Argument (2)) + 1));
       elsif Name = "list_truncate" then
          return Build.Truncate (Argument (1), Natural (Integer_Of (Argument (2))));
+      elsif Name = "list_copy_tail" then
+         declare
+            Source : constant Builders.Dynamic_Value := Argument (1);
+            Skip   : constant Natural := Natural (Integer_Of (Argument (2)));
+            Copy   : Builders.Dynamic_Value := Build.New_List;
+         begin
+            if Skip < Build.Length (Source) then
+               for Index in Skip + 1 .. Build.Length (Source) loop
+                  Copy := Build.Append (Copy, Build.Element (Source, Index));
+               end loop;
+            end if;
+            return Copy;
+         end;
       elsif Name = "lnext" then
          return Build.Next_Cell (Argument (1), Argument (2));
       elsif Name = "list_nth_cell" then
@@ -226,6 +285,16 @@ package body Flyology.Postgres.SQL.Native.Semantics is
                                       Image'First + 1
                                    else Image'First) .. Image'Last));
                end;
+            elsif Format = "%d" then
+               declare
+                  Image : constant String :=
+                    Interfaces.Integer_64'Image (Integer_Of (Argument (2)));
+               begin
+                  return Builders.Text
+                    (Image ((if Image (Image'First) = ' ' then
+                               Image'First + 1
+                            else Image'First) .. Image'Last));
+               end;
             end if;
             raise Program_Error with "unsupported generated psprintf format " & Format;
          end;
@@ -258,6 +327,68 @@ package body Flyology.Postgres.SQL.Native.Semantics is
          Build.Set_Field (Result, "stmt_location", Argument (2));
          Build.Set_Field (Result, "stmt_len", Builders.Number (0));
          return Result;
+      elsif Name = "doNegate" then
+         declare
+            Item     : constant Builders.Dynamic_Value := Argument (1);
+            Integer_14 : constant Builders.Dynamic_Value :=
+              Build.Field (Item, "val.val.ival");
+            Integer_15 : constant Builders.Dynamic_Value :=
+              Build.Field (Item, "val.ival.ival");
+            Float_14 : constant Builders.Dynamic_Value :=
+              Build.Field (Item, "val.val.str");
+            Float_15 : constant Builders.Dynamic_Value :=
+              Build.Field (Item, "val.fval.fval");
+         begin
+            if Item.Kind = Builders.Object_Value
+              and then Build.Object_Type (Item) = "A_Const"
+            then
+               Build.Set_Field (Item, "location", Argument (2));
+               if Integer_14.Kind = Builders.Integer_Value then
+                  Build.Set_Field
+                    (Item, "val.val.ival", Unary ("-", Integer_14));
+                  return Item;
+               elsif Integer_15.Kind = Builders.Integer_Value then
+                  Build.Set_Field
+                    (Item, "val.ival.ival", Unary ("-", Integer_15));
+                  return Item;
+               elsif Float_14.Kind = Builders.Text_Value then
+                  Build.Set_Field (Item, "val.val.str", Negated (Float_14));
+                  return Item;
+               elsif Float_15.Kind = Builders.Text_Value then
+                  Build.Set_Field (Item, "val.fval.fval", Negated (Float_15));
+                  return Item;
+               end if;
+            end if;
+
+            Result := Build.New_Object ("A_Expr");
+            Build.Set_Field (Result, "kind", Builders.Number (0));
+            declare
+               Operator : constant Builders.Dynamic_Value :=
+                 Build.New_Object ("String");
+            begin
+               Build.Set_Field (Operator, "sval", Builders.Text ("-"));
+               Build.Set_Field (Result, "name", Build.List_Of (Operator));
+            end;
+            Build.Set_Field (Result, "lexpr", Builders.No_Value);
+            Build.Set_Field (Result, "rexpr", Item);
+            Build.Set_Field (Result, "location", Argument (2));
+            return Result;
+         end;
+      elsif Name = "doNegateFloat" then
+         declare
+            Item : constant Builders.Dynamic_Value := Argument (1);
+            Fval : constant Builders.Dynamic_Value := Build.Field (Item, "fval");
+            Str  : constant Builders.Dynamic_Value := Build.Field (Item, "str");
+         begin
+            if Fval.Kind = Builders.Text_Value then
+               Build.Set_Field (Item, "fval", Negated (Fval));
+            elsif Str.Kind = Builders.Text_Value then
+               Build.Set_Field (Item, "str", Negated (Str));
+            else
+               raise Constraint_Error with "floating value required for negation";
+            end if;
+            return Builders.No_Value;
+         end;
       elsif Name in "SystemFuncName" | "SystemTypeName" then
          declare
             String_Node : constant Builders.Dynamic_Value :=

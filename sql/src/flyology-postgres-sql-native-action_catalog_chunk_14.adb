@@ -275,6 +275,19 @@ package body Flyology.Postgres.SQL.Native.Action_Catalog_Chunk_14 is
                Result := Version_Invoke (Build_Access, "makeDefElem", (1 => Builders.Text ("inherit"), 2 =>
                   Version_Invoke (Build_Access, "makeInteger", (1 => Builders.Number (1))), 3 => Builders.Number
                   (Interfaces.Integer_64 (Locations (1)))));
+         when 16#F2A549EE5E91DB76# =>
+            declare
+               Locals : Builders.Semantic_Array (1 .. 1) :=
+                 (others => Builders.No_Value);
+            begin
+               Locals (1) := Build_Access.New_Object ("__KeyActions");
+               Build_Access.Set_Field (Locals (1), "updateAction", Build_Access.New_Object ("__KeyAction"));
+               Build_Access.Set_Field (Build_Access.Field (Locals (1), "updateAction"), "action", Builders.Number
+                  (97));
+               Build_Access.Set_Field (Build_Access.Field (Locals (1), "updateAction"), "cols", Builders.No_Value);
+               Build_Access.Set_Field (Locals (1), "deleteAction", Values (1));
+               Result := Locals (1);
+            end;
          when 16#F2DEC91C98029A49# =>
             declare
                Locals : Builders.Semantic_Array (1 .. 2) :=
@@ -404,19 +417,6 @@ package body Flyology.Postgres.SQL.Native.Action_Catalog_Chunk_14 is
                Build_Access.Set_Field (Locals (1), "deferrable", Builders.Number (0));
                Build_Access.Set_Field (Locals (1), "initdeferred", Builders.Number (0));
                Build_Access.Set_Field (Locals (1), "constrrel", Builders.No_Value);
-               Result := Locals (1);
-            end;
-         when 16#F4CB77B804CBD76C# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 1) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Build_Access.New_Object ("PartitionBoundSpec");
-               Build_Access.Set_Field (Locals (1), "strategy", Builders.Number (0));
-               Build_Access.Set_Field (Locals (1), "is_default", Builders.Number (0));
-               Build_Access.Set_Field (Locals (1), "listdatums", Values (5));
-               Build_Access.Set_Field (Locals (1), "location", Builders.Number (Interfaces.Integer_64 (Locations
-                  (3))));
                Result := Locals (1);
             end;
          when 16#F4EDA21E78E65288# =>
@@ -827,6 +827,13 @@ package body Flyology.Postgres.SQL.Native.Action_Catalog_Chunk_14 is
                   Builders.Text ("~"), 3 => Values (1), 4 => Locals (1), 5 => Builders.Number (Interfaces.Integer_64
                   (Locations (2)))));
             end;
+         when 16#FA2806D8C3777216# =>
+               Result := Build_Access.New_Object ("PublicationObjSpec");
+               Build_Access.Set_Field (Result, "pubobjtype", Builders.Number (3));
+               Build_Access.Set_Field (Result, "pubtable", Build_Access.New_Object ("PublicationTable"));
+               Build_Access.Set_Field (Build_Access.Field (Result, "pubtable"), "relation", Values (1));
+               Build_Access.Set_Field (Build_Access.Field (Result, "pubtable"), "columns", Values (2));
+               Build_Access.Set_Field (Build_Access.Field (Result, "pubtable"), "whereClause", Values (3));
          when 16#FA3D6C5991E20CE6# =>
                Result := Version_Invoke (Build_Access, "makeDefElem", (1 => Builders.Text ("delimiter"), 2 =>
                   Version_Invoke (Build_Access, "makeString", (1 => Values (3))), 3 => Builders.Number

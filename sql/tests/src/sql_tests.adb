@@ -8,6 +8,7 @@ with Flyology.Postgres.SQL.Views;
 with Flyology.Postgres.SQL.Decoder_Testing;
 with Flyology.Postgres.SQL.Differential_Testing;
 with Flyology.Postgres.SQL.Native_Testing;
+with Flyology.Postgres.SQL.Regression_Corpus_Testing;
 with Flyology.Postgres.SQL.Views.V14;
 with Flyology.Postgres.SQL.Views.V15;
 with Flyology.Postgres.SQL.Views.V16;
@@ -352,6 +353,7 @@ begin
    Flyology.Postgres.SQL.Decoder_Testing.Run;
    Ada.Text_IO.Put_Line ("Test_Native_C_Differential");
    Flyology.Postgres.SQL.Differential_Testing.Run;
+   Flyology.Postgres.SQL.Regression_Corpus_Testing.Run;
    Ada.Text_IO.Put_Line ("Test_Common_Syntax");
    Test_Common_Syntax;
    Ada.Text_IO.Put_Line ("Test_Protobuf_Corpus");

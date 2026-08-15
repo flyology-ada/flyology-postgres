@@ -194,33 +194,6 @@ package body Flyology.Postgres.SQL.Native.Action_Helper_Catalog_Chunk_01 is
                return Locals (3);
                return Builders.No_Value;
             end;
-         when 16#106768B6D4BBF02B# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 3) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Arguments (Arguments'First + 0);
-               Locals (2) := Arguments (Arguments'First + 1);
-               Locals (3) := Arguments (Arguments'First + 2);
-               if Semantics.Truth (Semantics.Binary ("==", Version_Invoke (Build, "pg_strcasecmp", (1 => Locals (1), 2
-                  => Builders.Text ("list"))), Builders.Number (0))) then
-                  return Builders.Number (0);
-               else
-                  if Semantics.Truth (Semantics.Binary ("==", Version_Invoke (Build, "pg_strcasecmp", (1 => Locals
-                     (1), 2 => Builders.Text ("range"))), Builders.Number (0))) then
-                     return Builders.Number (1);
-                  else
-                     if Semantics.Truth (Semantics.Binary ("==", Version_Invoke (Build, "pg_strcasecmp", (1 => Locals
-                        (1), 2 => Builders.Text ("hash"))), Builders.Number (0))) then
-                        return Builders.Number (2);
-                     end if;
-                  end if;
-               end if;
-               raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                  ("unrecognized partitioning strategy ""%s"""));
-               return Builders.Number (0);
-               return Builders.No_Value;
-            end;
          when 16#12AF8FD8B2429342# =>
             declare
                Locals : Builders.Semantic_Array (1 .. 9) :=
@@ -293,6 +266,33 @@ package body Flyology.Postgres.SQL.Native.Action_Helper_Catalog_Chunk_01 is
                   end if;
                   Build.Set_Field (Locals (1), "withClause", Locals (5));
                end if;
+               return Builders.No_Value;
+            end;
+         when 16#1465613F7E7C33A9# =>
+            declare
+               Locals : Builders.Semantic_Array (1 .. 3) :=
+                 (others => Builders.No_Value);
+            begin
+               Locals (1) := Arguments (Arguments'First + 0);
+               Locals (2) := Arguments (Arguments'First + 1);
+               Locals (3) := Arguments (Arguments'First + 2);
+               if Semantics.Truth (Semantics.Binary ("==", Version_Invoke (Build, "pg_strcasecmp", (1 => Locals (1), 2
+                  => Builders.Text ("list"))), Builders.Number (0))) then
+                  return Builders.Number (108);
+               else
+                  if Semantics.Truth (Semantics.Binary ("==", Version_Invoke (Build, "pg_strcasecmp", (1 => Locals
+                     (1), 2 => Builders.Text ("range"))), Builders.Number (0))) then
+                     return Builders.Number (114);
+                  else
+                     if Semantics.Truth (Semantics.Binary ("==", Version_Invoke (Build, "pg_strcasecmp", (1 => Locals
+                        (1), 2 => Builders.Text ("hash"))), Builders.Number (0))) then
+                        return Builders.Number (104);
+                     end if;
+                  end if;
+               end if;
+               raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
+                  ("unrecognized partitioning strategy ""%s"""));
+               return Builders.Number (108);
                return Builders.No_Value;
             end;
          when 16#184B2C2B80265EDF# =>
@@ -530,36 +530,6 @@ package body Flyology.Postgres.SQL.Native.Action_Helper_Catalog_Chunk_01 is
                return Locals (3);
                return Builders.No_Value;
             end;
-         when 16#33F853A88756A537# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 3) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Arguments (Arguments'First + 0);
-               Locals (2) := Arguments (Arguments'First + 1);
-               if Semantics.Truth (Semantics.Node_Is (Build, Locals (1), "A_Const")) then
-                  Locals (3) := Locals (1);
-                  Build.Set_Field (Locals (3), "location", Locals (2));
-                  if Semantics.Truth (Semantics.Node_Is (Build, Build.Field (Locals (3), "val"), "Integer")) then
-                     Build.Set_Field (Locals (3), "val.val.ival", Semantics.Unary ("-", Build.Field (Locals (3),
-                        "val.val.ival")));
-                     return Locals (1);
-                  end if;
-                  if Semantics.Truth (Semantics.Node_Is (Build, Build.Field (Locals (3), "val"), "Float")) then
-                     declare
-                        Ignored : constant Builders.Dynamic_Value :=
-                          Version_Invoke (Build, "doNegateFloat", (1 => Builders.Field_Reference (Locals (3),
-                             "val")));
-                     begin
-                        null;
-                     end;
-                     return Locals (1);
-                  end if;
-               end if;
-               return Version_Invoke (Build, "makeSimpleA_Expr", (1 => Builders.Number (0), 2 => Builders.Text ("-"),
-                  3 => Builders.No_Value, 4 => Locals (1), 5 => Locals (2)));
-               return Builders.No_Value;
-            end;
          when 16#34915482E5F5E1D0# =>
             declare
                Locals : Builders.Semantic_Array (1 .. 8) :=
@@ -702,6 +672,31 @@ package body Flyology.Postgres.SQL.Native.Action_Helper_Catalog_Chunk_01 is
                return Locals (3);
                return Builders.No_Value;
             end;
+         when 16#3C4189025405F9E9# =>
+            declare
+               Locals : Builders.Semantic_Array (1 .. 1) :=
+                 (others => Builders.No_Value);
+            begin
+               Locals (1) := Arguments (Arguments'First + 0);
+               if Semantics.Truth (Semantics.Binary ("==", Version_Invoke (Build, "pg_strcasecmp", (1 => Locals (1), 2
+                  => Builders.Text ("list"))), Builders.Number (0))) then
+                  return Builders.Number (108);
+               else
+                  if Semantics.Truth (Semantics.Binary ("==", Version_Invoke (Build, "pg_strcasecmp", (1 => Locals
+                     (1), 2 => Builders.Text ("range"))), Builders.Number (0))) then
+                     return Builders.Number (114);
+                  else
+                     if Semantics.Truth (Semantics.Binary ("==", Version_Invoke (Build, "pg_strcasecmp", (1 => Locals
+                        (1), 2 => Builders.Text ("hash"))), Builders.Number (0))) then
+                        return Builders.Number (104);
+                     end if;
+                  end if;
+               end if;
+               raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
+                  ("unrecognized partitioning strategy ""%s"""));
+               return Builders.Number (108);
+               return Builders.No_Value;
+            end;
          when 16#3EBBC8785C838600# =>
             declare
                Locals : Builders.Semantic_Array (1 .. 9) :=
@@ -780,45 +775,6 @@ package body Flyology.Postgres.SQL.Native.Action_Helper_Catalog_Chunk_01 is
                         ("%s constraints cannot be marked ENFORCED"));
                   end if;
                end if;
-               return Builders.No_Value;
-            end;
-         when 16#3F7C8BCD66B2D0D5# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 1) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Arguments (Arguments'First + 0);
-               if Semantics.Truth (Semantics.Binary ("==", Version_Invoke (Build, "pg_strcasecmp", (1 => Locals (1), 2
-                  => Builders.Text ("list"))), Builders.Number (0))) then
-                  return Builders.Number (0);
-               else
-                  if Semantics.Truth (Semantics.Binary ("==", Version_Invoke (Build, "pg_strcasecmp", (1 => Locals
-                     (1), 2 => Builders.Text ("range"))), Builders.Number (0))) then
-                     return Builders.Number (1);
-                  else
-                     if Semantics.Truth (Semantics.Binary ("==", Version_Invoke (Build, "pg_strcasecmp", (1 => Locals
-                        (1), 2 => Builders.Text ("hash"))), Builders.Number (0))) then
-                        return Builders.Number (2);
-                     end if;
-                  end if;
-               end if;
-               raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                  ("unrecognized partitioning strategy ""%s"""));
-               return Builders.Number (0);
-               return Builders.No_Value;
-            end;
-         when 16#4651436B16F8BBC7# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 3) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Arguments (Arguments'First + 0);
-               Locals (2) := Arguments (Arguments'First + 1);
-               Locals (3) := Build.New_Object ("A_Const");
-               Build.Set_Field (Locals (3), "val.ival.type", Builders.Number (460));
-               Build.Set_Field (Locals (3), "val.ival.ival", Locals (1));
-               Build.Set_Field (Locals (3), "location", Locals (2));
-               return Locals (3);
                return Builders.No_Value;
             end;
          when others => return Builders.No_Value;

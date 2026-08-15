@@ -46,7 +46,8 @@ def native_enum_is_default(name: str) -> str:
 def source_expression(message: Message, field: Field) -> str:
     if message.name == "List":
         return "Item"
-    expression = f'Build.Field (Item, "{field.json_name}")'
+    prefix = 'Source_Prefix & ' if message.name == "CreateStmt" else ""
+    expression = f'Build.Field (Item, {prefix}"{field.json_name}")'
     if field.name == "str" and message.name in {"String", "Float", "BitString"}:
         fallback = {"String": "sval", "Float": "fval", "BitString": "bsval"}[message.name]
         return (
@@ -301,16 +302,20 @@ def generate_body(
     ])
     for message in concrete:
         target = message_name(message.name)
+        prefix_parameter = (
+            '; Source_Prefix : String := ""'
+            if message.name == "CreateStmt" else ""
+        )
         lines.extend([
             f"   function {native_record(message.name)}",
             "     (Build : Builders.Builder; Item : Builders.Dynamic_Value;",
-            f"      Depth : Natural) return {target};",
+            f"      Depth : Natural{prefix_parameter}) return {target};",
         ])
         if message.name in access_targets:
             lines.extend([
                 f"   function {native_access(message.name)}",
                 "     (Build : Builders.Builder; Item : Builders.Dynamic_Value;",
-                f"      Depth : Natural) return {target}_Access;",
+                f"      Depth : Natural{prefix_parameter}) return {target}_Access;",
             ])
     lines.append("")
 
@@ -458,10 +463,14 @@ def generate_body(
 
     for message in concrete:
         target = message_name(message.name)
+        prefix_parameter = (
+            '; Source_Prefix : String := ""'
+            if message.name == "CreateStmt" else ""
+        )
         lines.extend([
             f"   function {native_record(message.name)}",
             "     (Build : Builders.Builder; Item : Builders.Dynamic_Value;",
-            f"      Depth : Natural) return {target}",
+            f"      Depth : Natural{prefix_parameter}) return {target}",
             "   is",
             f"      Value : {target};",
             "   begin",
@@ -470,9 +479,14 @@ def generate_body(
             "      end if;",
         ])
         if message.name != "List":
+            condition = (
+                "Source_Prefix'Length = 0 and then "
+                if message.name == "CreateStmt" else ""
+            )
             lines.extend([
-                "      if Item.Kind /= Builders.Object_Value",
+                f"      if {condition}(Item.Kind /= Builders.Object_Value",
                 f"        or else Build.Object_Type (Item) /= \"{message.name}\"",
+                "        )",
                 "      then",
                 f"         raise Constraint_Error with \"native {message.name} object required\";",
                 "      end if;",
@@ -480,6 +494,17 @@ def generate_body(
         for field in message.fields:
             component = accessor_name(field)
             source = source_expression(message, field)
+            if (
+                message.name == "CreateForeignTableStmt"
+                and field.type_name == "CreateStmt"
+            ):
+                lines.extend([
+                    f"      Value.{component} :=",
+                    "        (Present => True,",
+                    "         Value => Convert_Native_Create_Stmt_Access",
+                    "           (Build, Item, Depth + 1, \"base.\"));",
+                ])
+                continue
             if message.name == "A_Const" and not field.repeated and field.type_name in message_map:
                 if field.type_name == "Node":
                     lines.extend([
@@ -539,9 +564,10 @@ def generate_body(
             lines.extend([
                 f"   function {native_access(message.name)}",
                 "     (Build : Builders.Builder; Item : Builders.Dynamic_Value;",
-                f"      Depth : Natural) return {target}_Access",
+                f"      Depth : Natural{prefix_parameter}) return {target}_Access",
                 "   is",
-                f"      Value : {target} := {native_record(message.name)} (Build, Item, Depth);",
+                f"      Value : {target} := {native_record(message.name)}",
+                f"        (Build, Item, Depth{', Source_Prefix' if message.name == 'CreateStmt' else ''});",
                 "   begin",
                 f"      return new {target}'(Value);",
                 "   exception",
