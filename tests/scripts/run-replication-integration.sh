@@ -22,6 +22,7 @@ data_dir=
 postgres_log=
 postgres_started=false
 replication_client_pid=
+abort_seed_pid=
 replication_server_pid=
 replication_proxy_pid=
 primary_proxy_pid=
@@ -62,6 +63,10 @@ cleanup () {
   if [ -n "$managed_primary_pid" ]; then
     kill "$managed_primary_pid" >/dev/null 2>&1 || true
     wait "$managed_primary_pid" >/dev/null 2>&1 || true
+  fi
+  if [ -n "$abort_seed_pid" ]; then
+    kill "$abort_seed_pid" >/dev/null 2>&1 || true
+    wait "$abort_seed_pid" >/dev/null 2>&1 || true
   fi
   if [ -n "$replication_client_pid" ]; then
     kill "$replication_client_pid" >/dev/null 2>&1 || true
@@ -238,6 +243,11 @@ run_parallel_abort () {
   major=$1
   slot=$2
   client_log="$version_root/logical_v4-client.log"
+  seed_log="$version_root/logical_v4-seed.log"
+
+  psql -qAtc \
+    'create table flyology_abort_gate (released boolean not null); insert into flyology_abort_gate values (false)' \
+    >/dev/null
 
   POSTGRES_REPLICATION_PORT=$replication_client_port \
   POSTGRES_TLS_CA_FILE=$ca_cert \
@@ -264,7 +274,58 @@ run_parallel_abort () {
     sleep 0.05
   done
 
-  seed_large_abort 500000
+  seed_large_abort 500000 >"$seed_log" 2>&1 &
+  abort_seed_pid=$!
+
+  #  An aborted transaction is visible to pgoutput only if decoding streams
+  #  it while it is still in progress.  A fixed sleep here made this oracle
+  #  depend on runner scheduling: if PostgreSQL reached the rollback before a
+  #  loaded walsender decoded the inserts, there was correctly no StreamAbort
+  #  to send and the live client waited on keepalives forever.  Keep the
+  #  transaction open until the client says it has decoded a streamed row.
+  attempt=0
+  until grep -q '^logical_v4 streamed transaction observed$' "$client_log"; do
+    attempt=$((attempt + 1))
+    if ! kill -0 "$replication_client_pid" >/dev/null 2>&1; then
+      cat "$client_log" >&2
+      printf '%s\n' "logical_v4 client exited before streaming began" >&2
+      return 1
+    fi
+    if ! kill -0 "$abort_seed_pid" >/dev/null 2>&1; then
+      cat "$seed_log" >&2
+      printf '%s\n' "logical_v4 seed exited before streaming began" >&2
+      return 1
+    fi
+    if [ "$attempt" -ge 200 ]; then
+      cat "$client_log" >&2
+      cat "$seed_log" >&2
+      printf '%s\n' \
+        "logical_v4 client did not observe the in-progress transaction" >&2
+      return 1
+    fi
+    sleep 0.05
+  done
+
+  psql -qAtc 'update flyology_abort_gate set released = true' >/dev/null
+  if ! wait "$abort_seed_pid"; then
+    abort_seed_pid=
+    cat "$seed_log" >&2
+    printf '%s\n' "logical_v4 seed did not roll back cleanly" >&2
+    return 1
+  fi
+  abort_seed_pid=
+
+  attempt=0
+  while kill -0 "$replication_client_pid" >/dev/null 2>&1; do
+    attempt=$((attempt + 1))
+    if [ "$attempt" -ge 200 ]; then
+      cat "$client_log" >&2
+      printf '%s\n' \
+        "logical_v4 client did not finish after the rollback" >&2
+      return 1
+    fi
+    sleep 0.05
+  done
   if ! wait "$replication_client_pid"; then
     replication_client_pid=
     cat "$client_log" >&2
@@ -494,12 +555,19 @@ SQL
 
 seed_large_abort () {
   offset=$1
-  psql -q <<SQL
+  psql -q -v abort_offset="$offset" <<'SQL'
 begin;
 insert into flyology_replication (id, payload, marker, mood)
-select $offset + g, repeat(g::text || ':', 32), g, 'happy'
+select :abort_offset + g, repeat(g::text || ':', 32), g, 'happy'
 from generate_series(1, 1000) as g;
-select pg_sleep(3);
+do $wait_for_decoder$
+begin
+  loop
+    exit when (select released from flyology_abort_gate);
+    perform pg_sleep(0.05);
+  end loop;
+end
+$wait_for_decoder$;
 rollback;
 SQL
 }

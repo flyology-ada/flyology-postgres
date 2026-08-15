@@ -826,6 +826,7 @@ procedure Postgres_Test_Replication is
          Saw_Binary         : Boolean := False;
          Saw_Origin         : Boolean := False;
          Saw_Unchanged_Toast : Boolean := False;
+         Abort_Ready_Signaled : Boolean := False;
          Last_WAL_End       : Replication.LSN := 0;
          Reporter : aliased Feedback.Standby_Reporter (Channel'Access);
          --  This scenario reads a stream to its end rather than resuming
@@ -1281,6 +1282,14 @@ procedure Postgres_Test_Replication is
                         "logical streamed insert names the wrong XID");
                   end if;
                   Apply_New (Logical.New_Tuple (Item), False);
+                  if Scenario = "logical_v4"
+                    and then not Abort_Ready_Signaled
+                  then
+                     Ada.Text_IO.Put_Line
+                       ("logical_v4 streamed transaction observed");
+                     Ada.Text_IO.Flush;
+                     Abort_Ready_Signaled := True;
+                  end if;
                when Logical.Update_Message =>
                   Saw_Update := True;
                   Require
