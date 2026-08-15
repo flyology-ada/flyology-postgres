@@ -1,6 +1,6 @@
 name = "flyology_postgres_sql_v14"
 description = "Native PostgreSQL 14 parser and owned Ada AST"
-version = "0.1.0-dev"
+version = "0.1.0"
 
 authors = ["Yurii Rashkovskii"]
 maintainers = ["Yurii Rashkovskii <yrashk@gmail.com>"]
@@ -12,7 +12,4 @@ tags = ["ada", "postgres", "sql", "parser", "ast"]
 project-files = ["sql_v14.gpr"]
 
 [[depends-on]]
-flyology_postgres_sql_core = "*"
-
-[[pins]]
-flyology_postgres_sql_core = { path = "../core" }
+flyology_postgres_sql_core = "~0.1.0"
