@@ -1,6 +1,6 @@
 name = "flyology_postgres_sql_core"
 description = "Shared native runtime for versioned Flyology PostgreSQL parsers"
-version = "0.1.0-dev"
+version = "0.1.0"
 
 authors = ["Yurii Rashkovskii"]
 maintainers = ["Yurii Rashkovskii <yrashk@gmail.com>"]
@@ -12,7 +12,4 @@ tags = ["ada", "postgres", "sql", "parser"]
 project-files = ["sql_core.gpr"]
 
 [[depends-on]]
-flyology_postgres = "*"
-
-[[pins]]
-flyology_postgres = { path = "../.." }
+flyology_postgres = "~0.1.0"
