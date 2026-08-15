@@ -25,7 +25,8 @@ package body Flyology.Postgres.SQL.Native.Converters is
       Result         : out Value_Id)
    is
       function Convert_Message
-        (Message : Positive; Item : Builders.Dynamic_Value; Depth : Natural)
+        (Message : Positive; Item : Builders.Dynamic_Value; Depth : Natural;
+         Source_Prefix : String := "")
          return Value_Id;
 
       function Convert_Scalar
@@ -38,13 +39,15 @@ package body Flyology.Postgres.SQL.Native.Converters is
 
       function Source_Field
         (Message : Schema.Message_Descriptor; Item : Builders.Dynamic_Value;
-         Field : Schema.Field_Descriptor) return Builders.Dynamic_Value
+         Field : Schema.Field_Descriptor; Source_Prefix : String := "")
+         return Builders.Dynamic_Value
       is
          Result : Builders.Dynamic_Value :=
-           Build.Field (Item, To_String (Field.Source_Name));
+           Build.Field (Item, Source_Prefix & To_String (Field.Source_Name));
          Name : constant String := To_String (Message.Name);
       begin
          if Result.Kind = Builders.Null_Value
+           and then Source_Prefix'Length = 0
            and then To_String (Field.Source_Name) = "str"
          then
             if Name = "String" then
@@ -283,7 +286,8 @@ package body Flyology.Postgres.SQL.Native.Converters is
       end Is_Default;
 
       function Convert_Message
-        (Message : Positive; Item : Builders.Dynamic_Value; Depth : Natural)
+        (Message : Positive; Item : Builders.Dynamic_Value; Depth : Natural;
+         Source_Prefix : String := "")
          return Value_Id
       is
          Descriptor : constant Schema.Message_Descriptor := Messages (Message);
@@ -294,6 +298,7 @@ package body Flyology.Postgres.SQL.Native.Converters is
             raise Converter_Error with "excessive native AST recursion";
          end if;
          if Message /= List_Message
+           and then Source_Prefix'Length = 0
            and then
              (Item.Kind /= Builders.Object_Value
               or else Build.Object_Type (Item) /= To_String (Descriptor.Name))
@@ -310,9 +315,11 @@ package body Flyology.Postgres.SQL.Native.Converters is
                   Field : constant Schema.Field_Descriptor := Fields (Index);
                   Stored_Source : constant Builders.Dynamic_Value :=
                     (if Message = List_Message
-                       and then Item.Kind = Builders.List_Value
+                     and then Item.Kind = Builders.List_Value
                      then Item
-                     else Source_Field (Descriptor, Item, Field));
+                     else
+                       Source_Field
+                         (Descriptor, Item, Field, Source_Prefix));
                   Source : constant Builders.Dynamic_Value :=
                     (if not Field.Repeated
                        and then Field.Kind = Schema.Enum_Value
@@ -320,7 +327,21 @@ package body Flyology.Postgres.SQL.Native.Converters is
                      then Builders.Number (0)
                      else Stored_Source);
                begin
-                  if To_String (Descriptor.Name) = "A_Const"
+                  if To_String (Descriptor.Name) = "CreateForeignTableStmt"
+                    and then To_String (Field.Source_Name) = "base"
+                    and then Stored_Source.Kind = Builders.Null_Value
+                  then
+                     --  PostgreSQL embeds CreateStmt directly in this C node,
+                     --  while pg_query.proto exposes it as a nested `base`
+                     --  message.  Generated actions preserve the flattened C
+                     --  member paths, so materialize the protobuf message from
+                     --  those prefixed fields.
+                     Set_Member
+                       (Members, To_String (Field.Output_Name),
+                        Convert_Message
+                          (Field.Target, Item, Depth + 1,
+                           Source_Prefix & "base."));
+                  elsif To_String (Descriptor.Name) = "A_Const"
                     and then not Field.Repeated
                     and then Field.Kind = Schema.Message_Value
                     and then Stored_Source.Kind = Builders.Null_Value

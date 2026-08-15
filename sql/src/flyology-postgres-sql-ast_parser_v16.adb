@@ -263,9 +263,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       Value : constant Interfaces.Integer_64 := Native_Integer (Item);
    begin
       case Value is
-         when 0 => return Partition_Strategy_List;
-         when 1 => return Partition_Strategy_Range;
-         when 2 => return Partition_Strategy_Hash;
+         when 108 => return Partition_Strategy_List;
+         when 114 => return Partition_Strategy_Range;
+         when 104 => return Partition_Strategy_Hash;
          when others =>
             raise Constraint_Error with "unknown native enum value";
       end case;
@@ -285,8 +285,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       Value : constant Interfaces.Integer_64 := Native_Integer (Item);
    begin
       case Value is
-         when 1 => return Partition_Range_Datum_Kind_Partition_Range_Datum_Minvalue;
+         when -1 => return Partition_Range_Datum_Kind_Partition_Range_Datum_Minvalue;
          when 0 => return Partition_Range_Datum_Kind_Partition_Range_Datum_Value;
+         when 1 => return Partition_Range_Datum_Kind_Partition_Range_Datum_Maxvalue;
          when others =>
             raise Constraint_Error with "unknown native enum value";
       end case;
@@ -752,12 +753,12 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       Value : constant Interfaces.Integer_64 := Native_Integer (Item);
    begin
       case Value is
-         when 0 => return Function_Parameter_Mode_Func_Param_In;
-         when 1 => return Function_Parameter_Mode_Func_Param_Out;
-         when 2 => return Function_Parameter_Mode_Func_Param_Inout;
-         when 3 => return Function_Parameter_Mode_Func_Param_Variadic;
-         when 4 => return Function_Parameter_Mode_Func_Param_Table;
-         when 5 => return Function_Parameter_Mode_Func_Param_Default;
+         when 105 => return Function_Parameter_Mode_Func_Param_In;
+         when 111 => return Function_Parameter_Mode_Func_Param_Out;
+         when 98 => return Function_Parameter_Mode_Func_Param_Inout;
+         when 118 => return Function_Parameter_Mode_Func_Param_Variadic;
+         when 116 => return Function_Parameter_Mode_Func_Param_Table;
+         when 100 => return Function_Parameter_Mode_Func_Param_Default;
          when others =>
             raise Constraint_Error with "unknown native enum value";
       end case;
@@ -1433,8 +1434,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
    begin
       case Value is
          when 0 => return Agg_Split_Aggsplit_Simple;
-         when 2 => return Agg_Split_Aggsplit_Initial_Serial;
-         when 1 => return Agg_Split_Aggsplit_Final_Deserial;
+         when 6 => return Agg_Split_Aggsplit_Initial_Serial;
+         when 9 => return Agg_Split_Aggsplit_Final_Deserial;
          when others =>
             raise Constraint_Error with "unknown native enum value";
       end case;
@@ -2081,10 +2082,10 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       Depth : Natural) return Variable_Show_Stmt;
    function Convert_Native_Create_Stmt
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
-      Depth : Natural) return Create_Stmt;
+      Depth : Natural; Source_Prefix : String := "") return Create_Stmt;
    function Convert_Native_Create_Stmt_Access
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
-      Depth : Natural) return Create_Stmt_Access;
+      Depth : Natural; Source_Prefix : String := "") return Create_Stmt_Access;
    function Convert_Native_Constraint
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Constraint;
@@ -2527,8 +2528,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "Integer"
+        )
       then
          raise Constraint_Error with "native Integer object required";
       end if;
@@ -2555,8 +2557,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "Float"
+        )
       then
          raise Constraint_Error with "native Float object required";
       end if;
@@ -2583,8 +2586,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "Boolean"
+        )
       then
          raise Constraint_Error with "native Boolean object required";
       end if;
@@ -2611,8 +2615,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "String"
+        )
       then
          raise Constraint_Error with "native String object required";
       end if;
@@ -2634,7 +2639,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return String_Value_Access
    is
-      Value : String_Value := Convert_Native_String_Value (Build, Item, Depth);
+      Value : String_Value := Convert_Native_String_Value
+        (Build, Item, Depth);
    begin
       return new String_Value'(Value);
    exception
@@ -2652,8 +2658,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "BitString"
+        )
       then
          raise Constraint_Error with "native BitString object required";
       end if;
@@ -2697,8 +2704,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "OidList"
+        )
       then
          raise Constraint_Error with "native OidList object required";
       end if;
@@ -2719,8 +2727,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "IntList"
+        )
       then
          raise Constraint_Error with "native IntList object required";
       end if;
@@ -2741,8 +2750,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "A_Const"
+        )
       then
          raise Constraint_Error with "native A_Const object required";
       end if;
@@ -2806,8 +2816,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "Alias"
+        )
       then
          raise Constraint_Error with "native Alias object required";
       end if;
@@ -2830,7 +2841,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Alias_Access
    is
-      Value : Alias := Convert_Native_Alias (Build, Item, Depth);
+      Value : Alias := Convert_Native_Alias
+        (Build, Item, Depth);
    begin
       return new Alias'(Value);
    exception
@@ -2848,8 +2860,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "RangeVar"
+        )
       then
          raise Constraint_Error with "native RangeVar object required";
       end if;
@@ -2913,7 +2926,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Range_Var_Access
    is
-      Value : Range_Var := Convert_Native_Range_Var (Build, Item, Depth);
+      Value : Range_Var := Convert_Native_Range_Var
+        (Build, Item, Depth);
    begin
       return new Range_Var'(Value);
    exception
@@ -2931,8 +2945,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "TableFunc"
+        )
       then
          raise Constraint_Error with "native TableFunc object required";
       end if;
@@ -2984,7 +2999,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Table_Func_Access
    is
-      Value : Table_Func := Convert_Native_Table_Func (Build, Item, Depth);
+      Value : Table_Func := Convert_Native_Table_Func
+        (Build, Item, Depth);
    begin
       return new Table_Func'(Value);
    exception
@@ -3002,8 +3018,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "IntoClause"
+        )
       then
          raise Constraint_Error with "native IntoClause object required";
       end if;
@@ -3062,7 +3079,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Into_Clause_Access
    is
-      Value : Into_Clause := Convert_Native_Into_Clause (Build, Item, Depth);
+      Value : Into_Clause := Convert_Native_Into_Clause
+        (Build, Item, Depth);
    begin
       return new Into_Clause'(Value);
    exception
@@ -3080,8 +3098,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "Var"
+        )
       then
          raise Constraint_Error with "native Var object required";
       end if;
@@ -3158,8 +3177,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "Param"
+        )
       then
          raise Constraint_Error with "native Param object required";
       end if;
@@ -3228,8 +3248,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "Aggref"
+        )
       then
          raise Constraint_Error with "native Aggref object required";
       end if;
@@ -3352,8 +3373,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "GroupingFunc"
+        )
       then
          raise Constraint_Error with "native GroupingFunc object required";
       end if;
@@ -3396,8 +3418,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "WindowFunc"
+        )
       then
          raise Constraint_Error with "native WindowFunc object required";
       end if;
@@ -3488,8 +3511,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "SubscriptingRef"
+        )
       then
          raise Constraint_Error with "native SubscriptingRef object required";
       end if;
@@ -3567,8 +3591,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "FuncExpr"
+        )
       then
          raise Constraint_Error with "native FuncExpr object required";
       end if;
@@ -3647,7 +3672,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Func_Expr_Access
    is
-      Value : Func_Expr := Convert_Native_Func_Expr (Build, Item, Depth);
+      Value : Func_Expr := Convert_Native_Func_Expr
+        (Build, Item, Depth);
    begin
       return new Func_Expr'(Value);
    exception
@@ -3665,8 +3691,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "NamedArgExpr"
+        )
       then
          raise Constraint_Error with "native NamedArgExpr object required";
       end if;
@@ -3721,8 +3748,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "OpExpr"
+        )
       then
          raise Constraint_Error with "native OpExpr object required";
       end if;
@@ -3792,8 +3820,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "DistinctExpr"
+        )
       then
          raise Constraint_Error with "native DistinctExpr object required";
       end if;
@@ -3863,8 +3892,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "NullIfExpr"
+        )
       then
          raise Constraint_Error with "native NullIfExpr object required";
       end if;
@@ -3934,8 +3964,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "ScalarArrayOpExpr"
+        )
       then
          raise Constraint_Error with "native ScalarArrayOpExpr object required";
       end if;
@@ -3991,8 +4022,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "BoolExpr"
+        )
       then
          raise Constraint_Error with "native BoolExpr object required";
       end if;
@@ -4034,8 +4066,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "SubLink"
+        )
       then
          raise Constraint_Error with "native SubLink object required";
       end if;
@@ -4098,8 +4131,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "SubPlan"
+        )
       then
          raise Constraint_Error with "native SubPlan object required";
       end if;
@@ -4214,8 +4248,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlternativeSubPlan"
+        )
       then
          raise Constraint_Error with "native AlternativeSubPlan object required";
       end if;
@@ -4243,8 +4278,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "FieldSelect"
+        )
       then
          raise Constraint_Error with "native FieldSelect object required";
       end if;
@@ -4306,8 +4342,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "FieldStore"
+        )
       then
          raise Constraint_Error with "native FieldStore object required";
       end if;
@@ -4350,8 +4387,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "RelabelType"
+        )
       then
          raise Constraint_Error with "native RelabelType object required";
       end if;
@@ -4420,8 +4458,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CoerceViaIO"
+        )
       then
          raise Constraint_Error with "native CoerceViaIO object required";
       end if;
@@ -4483,8 +4522,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "ArrayCoerceExpr"
+        )
       then
          raise Constraint_Error with "native ArrayCoerceExpr object required";
       end if;
@@ -4560,8 +4600,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "ConvertRowtypeExpr"
+        )
       then
          raise Constraint_Error with "native ConvertRowtypeExpr object required";
       end if;
@@ -4616,8 +4657,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CollateExpr"
+        )
       then
          raise Constraint_Error with "native CollateExpr object required";
       end if;
@@ -4665,8 +4707,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CaseExpr"
+        )
       then
          raise Constraint_Error with "native CaseExpr object required";
       end if;
@@ -4729,8 +4772,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CaseWhen"
+        )
       then
          raise Constraint_Error with "native CaseWhen object required";
       end if;
@@ -4778,8 +4822,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CaseTestExpr"
+        )
       then
          raise Constraint_Error with "native CaseTestExpr object required";
       end if;
@@ -4827,8 +4872,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "ArrayExpr"
+        )
       then
          raise Constraint_Error with "native ArrayExpr object required";
       end if;
@@ -4891,8 +4937,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "RowExpr"
+        )
       then
          raise Constraint_Error with "native RowExpr object required";
       end if;
@@ -4942,8 +4989,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "RowCompareExpr"
+        )
       then
          raise Constraint_Error with "native RowCompareExpr object required";
       end if;
@@ -4982,8 +5030,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CoalesceExpr"
+        )
       then
          raise Constraint_Error with "native CoalesceExpr object required";
       end if;
@@ -5032,8 +5081,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "MinMaxExpr"
+        )
       then
          raise Constraint_Error with "native MinMaxExpr object required";
       end if;
@@ -5096,8 +5146,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "SQLValueFunction"
+        )
       then
          raise Constraint_Error with "native SQLValueFunction object required";
       end if;
@@ -5152,8 +5203,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "XmlExpr"
+        )
       then
          raise Constraint_Error with "native XmlExpr object required";
       end if;
@@ -5232,8 +5284,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "JsonFormat"
+        )
       then
          raise Constraint_Error with "native JsonFormat object required";
       end if;
@@ -5269,7 +5322,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Json_Format_Access
    is
-      Value : Json_Format := Convert_Native_Json_Format (Build, Item, Depth);
+      Value : Json_Format := Convert_Native_Json_Format
+        (Build, Item, Depth);
    begin
       return new Json_Format'(Value);
    exception
@@ -5287,8 +5341,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "JsonReturning"
+        )
       then
          raise Constraint_Error with "native JsonReturning object required";
       end if;
@@ -5324,7 +5379,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Json_Returning_Access
    is
-      Value : Json_Returning := Convert_Native_Json_Returning (Build, Item, Depth);
+      Value : Json_Returning := Convert_Native_Json_Returning
+        (Build, Item, Depth);
    begin
       return new Json_Returning'(Value);
    exception
@@ -5342,8 +5398,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "JsonValueExpr"
+        )
       then
          raise Constraint_Error with "native JsonValueExpr object required";
       end if;
@@ -5379,7 +5436,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Json_Value_Expr_Access
    is
-      Value : Json_Value_Expr := Convert_Native_Json_Value_Expr (Build, Item, Depth);
+      Value : Json_Value_Expr := Convert_Native_Json_Value_Expr
+        (Build, Item, Depth);
    begin
       return new Json_Value_Expr'(Value);
    exception
@@ -5397,8 +5455,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "JsonConstructorExpr"
+        )
       then
          raise Constraint_Error with "native JsonConstructorExpr object required";
       end if;
@@ -5475,8 +5534,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "JsonIsPredicate"
+        )
       then
          raise Constraint_Error with "native JsonIsPredicate object required";
       end if;
@@ -5531,8 +5591,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "NullTest"
+        )
       then
          raise Constraint_Error with "native NullTest object required";
       end if;
@@ -5587,8 +5648,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "BooleanTest"
+        )
       then
          raise Constraint_Error with "native BooleanTest object required";
       end if;
@@ -5636,8 +5698,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CoerceToDomain"
+        )
       then
          raise Constraint_Error with "native CoerceToDomain object required";
       end if;
@@ -5706,8 +5769,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CoerceToDomainValue"
+        )
       then
          raise Constraint_Error with "native CoerceToDomainValue object required";
       end if;
@@ -5762,8 +5826,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "SetToDefault"
+        )
       then
          raise Constraint_Error with "native SetToDefault object required";
       end if;
@@ -5818,8 +5883,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CurrentOfExpr"
+        )
       then
          raise Constraint_Error with "native CurrentOfExpr object required";
       end if;
@@ -5867,8 +5933,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "NextValueExpr"
+        )
       then
          raise Constraint_Error with "native NextValueExpr object required";
       end if;
@@ -5909,8 +5976,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "InferenceElem"
+        )
       then
          raise Constraint_Error with "native InferenceElem object required";
       end if;
@@ -5958,8 +6026,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "TargetEntry"
+        )
       then
          raise Constraint_Error with "native TargetEntry object required";
       end if;
@@ -6035,8 +6104,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "RangeTblRef"
+        )
       then
          raise Constraint_Error with "native RangeTblRef object required";
       end if;
@@ -6063,8 +6133,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "JoinExpr"
+        )
       then
          raise Constraint_Error with "native JoinExpr object required";
       end if;
@@ -6141,8 +6212,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "FromExpr"
+        )
       then
          raise Constraint_Error with "native FromExpr object required";
       end if;
@@ -6165,7 +6237,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return From_Expr_Access
    is
-      Value : From_Expr := Convert_Native_From_Expr (Build, Item, Depth);
+      Value : From_Expr := Convert_Native_From_Expr
+        (Build, Item, Depth);
    begin
       return new From_Expr'(Value);
    exception
@@ -6183,8 +6256,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "OnConflictExpr"
+        )
       then
          raise Constraint_Error with "native OnConflictExpr object required";
       end if;
@@ -6237,7 +6311,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return On_Conflict_Expr_Access
    is
-      Value : On_Conflict_Expr := Convert_Native_On_Conflict_Expr (Build, Item, Depth);
+      Value : On_Conflict_Expr := Convert_Native_On_Conflict_Expr
+        (Build, Item, Depth);
    begin
       return new On_Conflict_Expr'(Value);
    exception
@@ -6255,8 +6330,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "Query"
+        )
       then
          raise Constraint_Error with "native Query object required";
       end if;
@@ -6474,7 +6550,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Query_Access
    is
-      Value : Query := Convert_Native_Query (Build, Item, Depth);
+      Value : Query := Convert_Native_Query
+        (Build, Item, Depth);
    begin
       return new Query'(Value);
    exception
@@ -6492,8 +6569,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "TypeName"
+        )
       then
          raise Constraint_Error with "native TypeName object required";
       end if;
@@ -6546,7 +6624,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Type_Name_Access
    is
-      Value : Type_Name := Convert_Native_Type_Name (Build, Item, Depth);
+      Value : Type_Name := Convert_Native_Type_Name
+        (Build, Item, Depth);
    begin
       return new Type_Name'(Value);
    exception
@@ -6564,8 +6643,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "ColumnRef"
+        )
       then
          raise Constraint_Error with "native ColumnRef object required";
       end if;
@@ -6593,8 +6673,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "ParamRef"
+        )
       then
          raise Constraint_Error with "native ParamRef object required";
       end if;
@@ -6628,8 +6709,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "A_Expr"
+        )
       then
          raise Constraint_Error with "native A_Expr object required";
       end if;
@@ -6678,8 +6760,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "TypeCast"
+        )
       then
          raise Constraint_Error with "native TypeCast object required";
       end if;
@@ -6720,8 +6803,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CollateClause"
+        )
       then
          raise Constraint_Error with "native CollateClause object required";
       end if;
@@ -6751,7 +6835,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Collate_Clause_Access
    is
-      Value : Collate_Clause := Convert_Native_Collate_Clause (Build, Item, Depth);
+      Value : Collate_Clause := Convert_Native_Collate_Clause
+        (Build, Item, Depth);
    begin
       return new Collate_Clause'(Value);
    exception
@@ -6769,8 +6854,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "RoleSpec"
+        )
       then
          raise Constraint_Error with "native RoleSpec object required";
       end if;
@@ -6806,7 +6892,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Role_Spec_Access
    is
-      Value : Role_Spec := Convert_Native_Role_Spec (Build, Item, Depth);
+      Value : Role_Spec := Convert_Native_Role_Spec
+        (Build, Item, Depth);
    begin
       return new Role_Spec'(Value);
    exception
@@ -6824,8 +6911,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "FuncCall"
+        )
       then
          raise Constraint_Error with "native FuncCall object required";
       end if;
@@ -6899,7 +6987,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Func_Call_Access
    is
-      Value : Func_Call := Convert_Native_Func_Call (Build, Item, Depth);
+      Value : Func_Call := Convert_Native_Func_Call
+        (Build, Item, Depth);
    begin
       return new Func_Call'(Value);
    exception
@@ -6917,8 +7006,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "A_Star"
+        )
       then
          raise Constraint_Error with "native A_Star object required";
       end if;
@@ -6938,8 +7028,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "A_Indices"
+        )
       then
          raise Constraint_Error with "native A_Indices object required";
       end if;
@@ -6980,8 +7071,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "A_Indirection"
+        )
       then
          raise Constraint_Error with "native A_Indirection object required";
       end if;
@@ -7009,8 +7101,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "A_ArrayExpr"
+        )
       then
          raise Constraint_Error with "native A_ArrayExpr object required";
       end if;
@@ -7038,8 +7131,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "ResTarget"
+        )
       then
          raise Constraint_Error with "native ResTarget object required";
       end if;
@@ -7081,8 +7175,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "MultiAssignRef"
+        )
       then
          raise Constraint_Error with "native MultiAssignRef object required";
       end if;
@@ -7123,8 +7218,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "SortBy"
+        )
       then
          raise Constraint_Error with "native SortBy object required";
       end if;
@@ -7173,8 +7269,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "WindowDef"
+        )
       then
          raise Constraint_Error with "native WindowDef object required";
       end if;
@@ -7233,7 +7330,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Window_Def_Access
    is
-      Value : Window_Def := Convert_Native_Window_Def (Build, Item, Depth);
+      Value : Window_Def := Convert_Native_Window_Def
+        (Build, Item, Depth);
    begin
       return new Window_Def'(Value);
    exception
@@ -7251,8 +7349,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "RangeSubselect"
+        )
       then
          raise Constraint_Error with "native RangeSubselect object required";
       end if;
@@ -7293,8 +7392,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "RangeFunction"
+        )
       then
          raise Constraint_Error with "native RangeFunction object required";
       end if;
@@ -7344,8 +7444,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "RangeTableFunc"
+        )
       then
          raise Constraint_Error with "native RangeTableFunc object required";
       end if;
@@ -7402,8 +7503,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "RangeTableFuncCol"
+        )
       then
          raise Constraint_Error with "native RangeTableFuncCol object required";
       end if;
@@ -7472,8 +7574,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "RangeTableSample"
+        )
       then
          raise Constraint_Error with "native RangeTableSample object required";
       end if;
@@ -7516,8 +7619,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "ColumnDef"
+        )
       then
          raise Constraint_Error with "native ColumnDef object required";
       end if;
@@ -7658,8 +7762,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "TableLikeClause"
+        )
       then
          raise Constraint_Error with "native TableLikeClause object required";
       end if;
@@ -7700,8 +7805,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "IndexElem"
+        )
       then
          raise Constraint_Error with "native IndexElem object required";
       end if;
@@ -7759,8 +7865,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "DefElem"
+        )
       then
          raise Constraint_Error with "native DefElem object required";
       end if;
@@ -7815,8 +7922,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "LockingClause"
+        )
       then
          raise Constraint_Error with "native LockingClause object required";
       end if;
@@ -7851,8 +7959,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "XmlSerialize"
+        )
       then
          raise Constraint_Error with "native XmlSerialize object required";
       end if;
@@ -7907,8 +8016,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "PartitionElem"
+        )
       then
          raise Constraint_Error with "native PartitionElem object required";
       end if;
@@ -7951,8 +8061,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "PartitionSpec"
+        )
       then
          raise Constraint_Error with "native PartitionSpec object required";
       end if;
@@ -7982,7 +8093,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Partition_Spec_Access
    is
-      Value : Partition_Spec := Convert_Native_Partition_Spec (Build, Item, Depth);
+      Value : Partition_Spec := Convert_Native_Partition_Spec
+        (Build, Item, Depth);
    begin
       return new Partition_Spec'(Value);
    exception
@@ -8000,8 +8112,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "PartitionBoundSpec"
+        )
       then
          raise Constraint_Error with "native PartitionBoundSpec object required";
       end if;
@@ -8054,7 +8167,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Partition_Bound_Spec_Access
    is
-      Value : Partition_Bound_Spec := Convert_Native_Partition_Bound_Spec (Build, Item, Depth);
+      Value : Partition_Bound_Spec := Convert_Native_Partition_Bound_Spec
+        (Build, Item, Depth);
    begin
       return new Partition_Bound_Spec'(Value);
    exception
@@ -8072,8 +8186,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "PartitionRangeDatum"
+        )
       then
          raise Constraint_Error with "native PartitionRangeDatum object required";
       end if;
@@ -8114,8 +8229,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "PartitionCmd"
+        )
       then
          raise Constraint_Error with "native PartitionCmd object required";
       end if;
@@ -8156,8 +8272,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "RangeTblEntry"
+        )
       then
          raise Constraint_Error with "native RangeTblEntry object required";
       end if;
@@ -8347,8 +8464,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "RTEPermissionInfo"
+        )
       then
          raise Constraint_Error with "native RTEPermissionInfo object required";
       end if;
@@ -8399,8 +8517,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "RangeTblFunction"
+        )
       then
          raise Constraint_Error with "native RangeTblFunction object required";
       end if;
@@ -8439,8 +8558,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "TableSampleClause"
+        )
       then
          raise Constraint_Error with "native TableSampleClause object required";
       end if;
@@ -8470,7 +8590,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Table_Sample_Clause_Access
    is
-      Value : Table_Sample_Clause := Convert_Native_Table_Sample_Clause (Build, Item, Depth);
+      Value : Table_Sample_Clause := Convert_Native_Table_Sample_Clause
+        (Build, Item, Depth);
    begin
       return new Table_Sample_Clause'(Value);
    exception
@@ -8488,8 +8609,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "WithCheckOption"
+        )
       then
          raise Constraint_Error with "native WithCheckOption object required";
       end if;
@@ -8544,8 +8666,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "SortGroupClause"
+        )
       then
          raise Constraint_Error with "native SortGroupClause object required";
       end if;
@@ -8600,8 +8723,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "GroupingSet"
+        )
       then
          raise Constraint_Error with "native GroupingSet object required";
       end if;
@@ -8636,8 +8760,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "WindowClause"
+        )
       then
          raise Constraint_Error with "native WindowClause object required";
       end if;
@@ -8744,8 +8869,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "RowMarkClause"
+        )
       then
          raise Constraint_Error with "native RowMarkClause object required";
       end if;
@@ -8793,8 +8919,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "WithClause"
+        )
       then
          raise Constraint_Error with "native WithClause object required";
       end if;
@@ -8824,7 +8951,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return With_Clause_Access
    is
-      Value : With_Clause := Convert_Native_With_Clause (Build, Item, Depth);
+      Value : With_Clause := Convert_Native_With_Clause
+        (Build, Item, Depth);
    begin
       return new With_Clause'(Value);
    exception
@@ -8842,8 +8970,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "InferClause"
+        )
       then
          raise Constraint_Error with "native InferClause object required";
       end if;
@@ -8880,7 +9009,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Infer_Clause_Access
    is
-      Value : Infer_Clause := Convert_Native_Infer_Clause (Build, Item, Depth);
+      Value : Infer_Clause := Convert_Native_Infer_Clause
+        (Build, Item, Depth);
    begin
       return new Infer_Clause'(Value);
    exception
@@ -8898,8 +9028,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "OnConflictClause"
+        )
       then
          raise Constraint_Error with "native OnConflictClause object required";
       end if;
@@ -8943,7 +9074,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return On_Conflict_Clause_Access
    is
-      Value : On_Conflict_Clause := Convert_Native_On_Conflict_Clause (Build, Item, Depth);
+      Value : On_Conflict_Clause := Convert_Native_On_Conflict_Clause
+        (Build, Item, Depth);
    begin
       return new On_Conflict_Clause'(Value);
    exception
@@ -8961,8 +9093,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CTESearchClause"
+        )
       then
          raise Constraint_Error with "native CTESearchClause object required";
       end if;
@@ -8999,7 +9132,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Cte_Search_Clause_Access
    is
-      Value : Cte_Search_Clause := Convert_Native_Cte_Search_Clause (Build, Item, Depth);
+      Value : Cte_Search_Clause := Convert_Native_Cte_Search_Clause
+        (Build, Item, Depth);
    begin
       return new Cte_Search_Clause'(Value);
    exception
@@ -9017,8 +9151,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CTECycleClause"
+        )
       then
          raise Constraint_Error with "native CTECycleClause object required";
       end if;
@@ -9097,7 +9232,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Cte_Cycle_Clause_Access
    is
-      Value : Cte_Cycle_Clause := Convert_Native_Cte_Cycle_Clause (Build, Item, Depth);
+      Value : Cte_Cycle_Clause := Convert_Native_Cte_Cycle_Clause
+        (Build, Item, Depth);
    begin
       return new Cte_Cycle_Clause'(Value);
    exception
@@ -9115,8 +9251,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CommonTableExpr"
+        )
       then
          raise Constraint_Error with "native CommonTableExpr object required";
       end if;
@@ -9197,8 +9334,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "MergeWhenClause"
+        )
       then
          raise Constraint_Error with "native MergeWhenClause object required";
       end if;
@@ -9248,8 +9386,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "MergeAction"
+        )
       then
          raise Constraint_Error with "native MergeAction object required";
       end if;
@@ -9299,8 +9438,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "TriggerTransition"
+        )
       then
          raise Constraint_Error with "native TriggerTransition object required";
       end if;
@@ -9341,8 +9481,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "JsonOutput"
+        )
       then
          raise Constraint_Error with "native JsonOutput object required";
       end if;
@@ -9371,7 +9512,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Json_Output_Access
    is
-      Value : Json_Output := Convert_Native_Json_Output (Build, Item, Depth);
+      Value : Json_Output := Convert_Native_Json_Output
+        (Build, Item, Depth);
    begin
       return new Json_Output'(Value);
    exception
@@ -9389,8 +9531,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "JsonKeyValue"
+        )
       then
          raise Constraint_Error with "native JsonKeyValue object required";
       end if;
@@ -9419,7 +9562,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Json_Key_Value_Access
    is
-      Value : Json_Key_Value := Convert_Native_Json_Key_Value (Build, Item, Depth);
+      Value : Json_Key_Value := Convert_Native_Json_Key_Value
+        (Build, Item, Depth);
    begin
       return new Json_Key_Value'(Value);
    exception
@@ -9437,8 +9581,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "JsonObjectConstructor"
+        )
       then
          raise Constraint_Error with "native JsonObjectConstructor object required";
       end if;
@@ -9487,8 +9632,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "JsonArrayConstructor"
+        )
       then
          raise Constraint_Error with "native JsonArrayConstructor object required";
       end if;
@@ -9530,8 +9676,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "JsonArrayQueryConstructor"
+        )
       then
          raise Constraint_Error with "native JsonArrayQueryConstructor object required";
       end if;
@@ -9586,8 +9733,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "JsonAggConstructor"
+        )
       then
          raise Constraint_Error with "native JsonAggConstructor object required";
       end if;
@@ -9631,7 +9779,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Json_Agg_Constructor_Access
    is
-      Value : Json_Agg_Constructor := Convert_Native_Json_Agg_Constructor (Build, Item, Depth);
+      Value : Json_Agg_Constructor := Convert_Native_Json_Agg_Constructor
+        (Build, Item, Depth);
    begin
       return new Json_Agg_Constructor'(Value);
    exception
@@ -9649,8 +9798,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "JsonObjectAgg"
+        )
       then
          raise Constraint_Error with "native JsonObjectAgg object required";
       end if;
@@ -9698,8 +9848,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "JsonArrayAgg"
+        )
       then
          raise Constraint_Error with "native JsonArrayAgg object required";
       end if;
@@ -9740,8 +9891,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "RawStmt"
+        )
       then
          raise Constraint_Error with "native RawStmt object required";
       end if;
@@ -9777,7 +9929,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Raw_Stmt_Access
    is
-      Value : Raw_Stmt := Convert_Native_Raw_Stmt (Build, Item, Depth);
+      Value : Raw_Stmt := Convert_Native_Raw_Stmt
+        (Build, Item, Depth);
    begin
       return new Raw_Stmt'(Value);
    exception
@@ -9795,8 +9948,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "InsertStmt"
+        )
       then
          raise Constraint_Error with "native InsertStmt object required";
       end if;
@@ -9853,8 +10007,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "DeleteStmt"
+        )
       then
          raise Constraint_Error with "native DeleteStmt object required";
       end if;
@@ -9897,8 +10052,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "UpdateStmt"
+        )
       then
          raise Constraint_Error with "native UpdateStmt object required";
       end if;
@@ -9942,8 +10098,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "MergeStmt"
+        )
       then
          raise Constraint_Error with "native MergeStmt object required";
       end if;
@@ -9992,8 +10149,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "SelectStmt"
+        )
       then
          raise Constraint_Error with "native SelectStmt object required";
       end if;
@@ -10100,7 +10258,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Select_Stmt_Access
    is
-      Value : Select_Stmt := Convert_Native_Select_Stmt (Build, Item, Depth);
+      Value : Select_Stmt := Convert_Native_Select_Stmt
+        (Build, Item, Depth);
    begin
       return new Select_Stmt'(Value);
    exception
@@ -10118,8 +10277,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "SetOperationStmt"
+        )
       then
          raise Constraint_Error with "native SetOperationStmt object required";
       end if;
@@ -10171,8 +10331,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "ReturnStmt"
+        )
       then
          raise Constraint_Error with "native ReturnStmt object required";
       end if;
@@ -10199,8 +10360,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "PLAssignStmt"
+        )
       then
          raise Constraint_Error with "native PLAssignStmt object required";
       end if;
@@ -10249,8 +10411,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreateSchemaStmt"
+        )
       then
          raise Constraint_Error with "native CreateSchemaStmt object required";
       end if;
@@ -10292,8 +10455,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterTableStmt"
+        )
       then
          raise Constraint_Error with "native AlterTableStmt object required";
       end if;
@@ -10335,8 +10499,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "ReplicaIdentityStmt"
+        )
       then
          raise Constraint_Error with "native ReplicaIdentityStmt object required";
       end if;
@@ -10370,8 +10535,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterTableCmd"
+        )
       then
          raise Constraint_Error with "native AlterTableCmd object required";
       end if;
@@ -10447,8 +10613,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterCollationStmt"
+        )
       then
          raise Constraint_Error with "native AlterCollationStmt object required";
       end if;
@@ -10469,8 +10636,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterDomainStmt"
+        )
       then
          raise Constraint_Error with "native AlterDomainStmt object required";
       end if;
@@ -10526,8 +10694,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "GrantStmt"
+        )
       then
          raise Constraint_Error with "native GrantStmt object required";
       end if;
@@ -10587,7 +10756,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Grant_Stmt_Access
    is
-      Value : Grant_Stmt := Convert_Native_Grant_Stmt (Build, Item, Depth);
+      Value : Grant_Stmt := Convert_Native_Grant_Stmt
+        (Build, Item, Depth);
    begin
       return new Grant_Stmt'(Value);
    exception
@@ -10605,8 +10775,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "ObjectWithArgs"
+        )
       then
          raise Constraint_Error with "native ObjectWithArgs object required";
       end if;
@@ -10631,7 +10802,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Object_With_Args_Access
    is
-      Value : Object_With_Args := Convert_Native_Object_With_Args (Build, Item, Depth);
+      Value : Object_With_Args := Convert_Native_Object_With_Args
+        (Build, Item, Depth);
    begin
       return new Object_With_Args'(Value);
    exception
@@ -10649,8 +10821,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AccessPriv"
+        )
       then
          raise Constraint_Error with "native AccessPriv object required";
       end if;
@@ -10678,8 +10851,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "GrantRoleStmt"
+        )
       then
          raise Constraint_Error with "native GrantRoleStmt object required";
       end if;
@@ -10723,8 +10897,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterDefaultPrivilegesStmt"
+        )
       then
          raise Constraint_Error with "native AlterDefaultPrivilegesStmt object required";
       end if;
@@ -10752,8 +10927,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CopyStmt"
+        )
       then
          raise Constraint_Error with "native CopyStmt object required";
       end if;
@@ -10817,8 +10993,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "VariableSetStmt"
+        )
       then
          raise Constraint_Error with "native VariableSetStmt object required";
       end if;
@@ -10855,7 +11032,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Variable_Set_Stmt_Access
    is
-      Value : Variable_Set_Stmt := Convert_Native_Variable_Set_Stmt (Build, Item, Depth);
+      Value : Variable_Set_Stmt := Convert_Native_Variable_Set_Stmt
+        (Build, Item, Depth);
    begin
       return new Variable_Set_Stmt'(Value);
    exception
@@ -10873,8 +11051,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "VariableShowStmt"
+        )
       then
          raise Constraint_Error with "native VariableShowStmt object required";
       end if;
@@ -10894,73 +11073,74 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
 
    function Convert_Native_Create_Stmt
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
-      Depth : Natural) return Create_Stmt
+      Depth : Natural; Source_Prefix : String := "") return Create_Stmt
    is
       Value : Create_Stmt;
    begin
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if Source_Prefix'Length = 0 and then (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreateStmt"
+        )
       then
          raise Constraint_Error with "native CreateStmt object required";
       end if;
       declare
-         Source : constant Builders.Dynamic_Value := Build.Field (Item, "relation");
+         Source : constant Builders.Dynamic_Value := Build.Field (Item, Source_Prefix & "relation");
       begin
          if Source.Kind /= Builders.Null_Value and then (True) then
             Value.Relation := (Present => True, Value => Convert_Native_Range_Var_Access (Build, Source, Depth + 1));
          end if;
       end;
-      Value.Table_Elts := Convert_Native_Sequence_Of_Node (Build, Build.Field (Item, "tableElts"), Depth + 1);
-      Value.Inh_Relations := Convert_Native_Sequence_Of_Node (Build, Build.Field (Item, "inhRelations"), Depth + 1);
+      Value.Table_Elts := Convert_Native_Sequence_Of_Node (Build, Build.Field (Item, Source_Prefix & "tableElts"), Depth + 1);
+      Value.Inh_Relations := Convert_Native_Sequence_Of_Node (Build, Build.Field (Item, Source_Prefix & "inhRelations"), Depth + 1);
       declare
-         Source : constant Builders.Dynamic_Value := Build.Field (Item, "partbound");
+         Source : constant Builders.Dynamic_Value := Build.Field (Item, Source_Prefix & "partbound");
       begin
          if Source.Kind /= Builders.Null_Value and then (True) then
             Value.Partbound := (Present => True, Value => Convert_Native_Partition_Bound_Spec_Access (Build, Source, Depth + 1));
          end if;
       end;
       declare
-         Source : constant Builders.Dynamic_Value := Build.Field (Item, "partspec");
+         Source : constant Builders.Dynamic_Value := Build.Field (Item, Source_Prefix & "partspec");
       begin
          if Source.Kind /= Builders.Null_Value and then (True) then
             Value.Partspec := (Present => True, Value => Convert_Native_Partition_Spec_Access (Build, Source, Depth + 1));
          end if;
       end;
       declare
-         Source : constant Builders.Dynamic_Value := Build.Field (Item, "ofTypename");
+         Source : constant Builders.Dynamic_Value := Build.Field (Item, Source_Prefix & "ofTypename");
       begin
          if Source.Kind /= Builders.Null_Value and then (True) then
             Value.Of_Typename := (Present => True, Value => Convert_Native_Type_Name_Access (Build, Source, Depth + 1));
          end if;
       end;
-      Value.Constraints := Convert_Native_Sequence_Of_Node (Build, Build.Field (Item, "constraints"), Depth + 1);
-      Value.Options := Convert_Native_Sequence_Of_Node (Build, Build.Field (Item, "options"), Depth + 1);
+      Value.Constraints := Convert_Native_Sequence_Of_Node (Build, Build.Field (Item, Source_Prefix & "constraints"), Depth + 1);
+      Value.Options := Convert_Native_Sequence_Of_Node (Build, Build.Field (Item, Source_Prefix & "options"), Depth + 1);
       declare
-         Source : constant Builders.Dynamic_Value := (declare Stored : constant Builders.Dynamic_Value := Build.Field (Item, "oncommit"); begin (if Stored.Kind = Builders.Null_Value then Builders.Number (0) else Stored));
+         Source : constant Builders.Dynamic_Value := (declare Stored : constant Builders.Dynamic_Value := Build.Field (Item, Source_Prefix & "oncommit"); begin (if Stored.Kind = Builders.Null_Value then Builders.Number (0) else Stored));
       begin
          if Source.Kind /= Builders.Null_Value and then (not Native_On_Commit_Action_Is_Default (Source)) then
             Value.Oncommit := (Present => True, Value => Convert_Native_On_Commit_Action (Source));
          end if;
       end;
       declare
-         Source : constant Builders.Dynamic_Value := Build.Field (Item, "tablespacename");
+         Source : constant Builders.Dynamic_Value := Build.Field (Item, Source_Prefix & "tablespacename");
       begin
          if Source.Kind /= Builders.Null_Value and then (Native_Text_Is_Present (Source)) then
             Value.Tablespacename := (Present => True, Value => Native_Text (Source));
          end if;
       end;
       declare
-         Source : constant Builders.Dynamic_Value := Build.Field (Item, "accessMethod");
+         Source : constant Builders.Dynamic_Value := Build.Field (Item, Source_Prefix & "accessMethod");
       begin
          if Source.Kind /= Builders.Null_Value and then (Native_Text_Is_Present (Source)) then
             Value.Access_Method := (Present => True, Value => Native_Text (Source));
          end if;
       end;
       declare
-         Source : constant Builders.Dynamic_Value := Build.Field (Item, "if_not_exists");
+         Source : constant Builders.Dynamic_Value := Build.Field (Item, Source_Prefix & "if_not_exists");
       begin
          if Source.Kind /= Builders.Null_Value and then (Native_Boolean (Source)) then
             Value.If_Not_Exists := (Present => True, Value => Native_Boolean (Source));
@@ -10975,9 +11155,10 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
 
    function Convert_Native_Create_Stmt_Access
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
-      Depth : Natural) return Create_Stmt_Access
+      Depth : Natural; Source_Prefix : String := "") return Create_Stmt_Access
    is
-      Value : Create_Stmt := Convert_Native_Create_Stmt (Build, Item, Depth);
+      Value : Create_Stmt := Convert_Native_Create_Stmt
+        (Build, Item, Depth, Source_Prefix);
    begin
       return new Create_Stmt'(Value);
    exception
@@ -10995,8 +11176,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "Constraint"
+        )
       then
          raise Constraint_Error with "native Constraint object required";
       end if;
@@ -11178,8 +11360,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreateTableSpaceStmt"
+        )
       then
          raise Constraint_Error with "native CreateTableSpaceStmt object required";
       end if;
@@ -11221,8 +11404,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "DropTableSpaceStmt"
+        )
       then
          raise Constraint_Error with "native DropTableSpaceStmt object required";
       end if;
@@ -11256,8 +11440,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterTableSpaceOptionsStmt"
+        )
       then
          raise Constraint_Error with "native AlterTableSpaceOptionsStmt object required";
       end if;
@@ -11292,8 +11477,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterTableMoveAllStmt"
+        )
       then
          raise Constraint_Error with "native AlterTableMoveAllStmt object required";
       end if;
@@ -11342,8 +11528,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreateExtensionStmt"
+        )
       then
          raise Constraint_Error with "native CreateExtensionStmt object required";
       end if;
@@ -11378,8 +11565,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterExtensionStmt"
+        )
       then
          raise Constraint_Error with "native AlterExtensionStmt object required";
       end if;
@@ -11407,8 +11595,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterExtensionContentsStmt"
+        )
       then
          raise Constraint_Error with "native AlterExtensionContentsStmt object required";
       end if;
@@ -11456,8 +11645,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreateFdwStmt"
+        )
       then
          raise Constraint_Error with "native CreateFdwStmt object required";
       end if;
@@ -11486,8 +11676,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterFdwStmt"
+        )
       then
          raise Constraint_Error with "native AlterFdwStmt object required";
       end if;
@@ -11516,8 +11707,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreateForeignServerStmt"
+        )
       then
          raise Constraint_Error with "native CreateForeignServerStmt object required";
       end if;
@@ -11573,8 +11765,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterForeignServerStmt"
+        )
       then
          raise Constraint_Error with "native AlterForeignServerStmt object required";
       end if;
@@ -11616,18 +11809,16 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreateForeignTableStmt"
+        )
       then
          raise Constraint_Error with "native CreateForeignTableStmt object required";
       end if;
-      declare
-         Source : constant Builders.Dynamic_Value := Build.Field (Item, "base");
-      begin
-         if Source.Kind /= Builders.Null_Value and then (True) then
-            Value.Base_Stmt := (Present => True, Value => Convert_Native_Create_Stmt_Access (Build, Source, Depth + 1));
-         end if;
-      end;
+      Value.Base_Stmt :=
+        (Present => True,
+         Value => Convert_Native_Create_Stmt_Access
+           (Build, Item, Depth + 1, "base."));
       declare
          Source : constant Builders.Dynamic_Value := Build.Field (Item, "servername");
       begin
@@ -11652,8 +11843,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreateUserMappingStmt"
+        )
       then
          raise Constraint_Error with "native CreateUserMappingStmt object required";
       end if;
@@ -11695,8 +11887,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterUserMappingStmt"
+        )
       then
          raise Constraint_Error with "native AlterUserMappingStmt object required";
       end if;
@@ -11731,8 +11924,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "DropUserMappingStmt"
+        )
       then
          raise Constraint_Error with "native DropUserMappingStmt object required";
       end if;
@@ -11773,8 +11967,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "ImportForeignSchemaStmt"
+        )
       then
          raise Constraint_Error with "native ImportForeignSchemaStmt object required";
       end if;
@@ -11824,8 +12019,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreatePolicyStmt"
+        )
       then
          raise Constraint_Error with "native CreatePolicyStmt object required";
       end if;
@@ -11888,8 +12084,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterPolicyStmt"
+        )
       then
          raise Constraint_Error with "native AlterPolicyStmt object required";
       end if;
@@ -11938,8 +12135,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreateAmStmt"
+        )
       then
          raise Constraint_Error with "native CreateAmStmt object required";
       end if;
@@ -11974,8 +12172,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreateTrigStmt"
+        )
       then
          raise Constraint_Error with "native CreateTrigStmt object required";
       end if;
@@ -12076,8 +12275,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreateEventTrigStmt"
+        )
       then
          raise Constraint_Error with "native CreateEventTrigStmt object required";
       end if;
@@ -12113,8 +12313,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterEventTrigStmt"
+        )
       then
          raise Constraint_Error with "native AlterEventTrigStmt object required";
       end if;
@@ -12148,8 +12349,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreatePLangStmt"
+        )
       then
          raise Constraint_Error with "native CreatePLangStmt object required";
       end if;
@@ -12193,8 +12395,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreateRoleStmt"
+        )
       then
          raise Constraint_Error with "native CreateRoleStmt object required";
       end if;
@@ -12229,8 +12432,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterRoleStmt"
+        )
       then
          raise Constraint_Error with "native AlterRoleStmt object required";
       end if;
@@ -12265,8 +12469,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterRoleSetStmt"
+        )
       then
          raise Constraint_Error with "native AlterRoleSetStmt object required";
       end if;
@@ -12307,8 +12512,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "DropRoleStmt"
+        )
       then
          raise Constraint_Error with "native DropRoleStmt object required";
       end if;
@@ -12336,8 +12542,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreateSeqStmt"
+        )
       then
          raise Constraint_Error with "native CreateSeqStmt object required";
       end if;
@@ -12386,8 +12593,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterSeqStmt"
+        )
       then
          raise Constraint_Error with "native AlterSeqStmt object required";
       end if;
@@ -12429,8 +12637,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "DefineStmt"
+        )
       then
          raise Constraint_Error with "native DefineStmt object required";
       end if;
@@ -12481,8 +12690,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreateDomainStmt"
+        )
       then
          raise Constraint_Error with "native CreateDomainStmt object required";
       end if;
@@ -12518,8 +12728,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreateOpClassStmt"
+        )
       then
          raise Constraint_Error with "native CreateOpClassStmt object required";
       end if;
@@ -12563,8 +12774,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreateOpClassItem"
+        )
       then
          raise Constraint_Error with "native CreateOpClassItem object required";
       end if;
@@ -12614,8 +12826,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreateOpFamilyStmt"
+        )
       then
          raise Constraint_Error with "native CreateOpFamilyStmt object required";
       end if;
@@ -12643,8 +12856,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterOpFamilyStmt"
+        )
       then
          raise Constraint_Error with "native AlterOpFamilyStmt object required";
       end if;
@@ -12680,8 +12894,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "DropStmt"
+        )
       then
          raise Constraint_Error with "native DropStmt object required";
       end if;
@@ -12730,8 +12945,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "TruncateStmt"
+        )
       then
          raise Constraint_Error with "native TruncateStmt object required";
       end if;
@@ -12766,8 +12982,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CommentStmt"
+        )
       then
          raise Constraint_Error with "native CommentStmt object required";
       end if;
@@ -12808,8 +13025,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "SecLabelStmt"
+        )
       then
          raise Constraint_Error with "native SecLabelStmt object required";
       end if;
@@ -12857,8 +13075,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "DeclareCursorStmt"
+        )
       then
          raise Constraint_Error with "native DeclareCursorStmt object required";
       end if;
@@ -12899,8 +13118,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "ClosePortalStmt"
+        )
       then
          raise Constraint_Error with "native ClosePortalStmt object required";
       end if;
@@ -12927,8 +13147,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "FetchStmt"
+        )
       then
          raise Constraint_Error with "native FetchStmt object required";
       end if;
@@ -12976,8 +13197,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "IndexStmt"
+        )
       then
          raise Constraint_Error with "native IndexStmt object required";
       end if;
@@ -13141,8 +13363,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreateStatsStmt"
+        )
       then
          raise Constraint_Error with "native CreateStatsStmt object required";
       end if;
@@ -13187,8 +13410,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "StatsElem"
+        )
       then
          raise Constraint_Error with "native StatsElem object required";
       end if;
@@ -13222,8 +13446,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterStatsStmt"
+        )
       then
          raise Constraint_Error with "native AlterStatsStmt object required";
       end if;
@@ -13258,8 +13483,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreateFunctionStmt"
+        )
       then
          raise Constraint_Error with "native CreateFunctionStmt object required";
       end if;
@@ -13310,8 +13536,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "FunctionParameter"
+        )
       then
          raise Constraint_Error with "native FunctionParameter object required";
       end if;
@@ -13359,8 +13586,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterFunctionStmt"
+        )
       then
          raise Constraint_Error with "native AlterFunctionStmt object required";
       end if;
@@ -13395,8 +13623,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "DoStmt"
+        )
       then
          raise Constraint_Error with "native DoStmt object required";
       end if;
@@ -13417,8 +13646,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "InlineCodeBlock"
+        )
       then
          raise Constraint_Error with "native InlineCodeBlock object required";
       end if;
@@ -13466,8 +13696,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CallStmt"
+        )
       then
          raise Constraint_Error with "native CallStmt object required";
       end if;
@@ -13502,8 +13733,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CallContext"
+        )
       then
          raise Constraint_Error with "native CallContext object required";
       end if;
@@ -13530,8 +13762,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "RenameStmt"
+        )
       then
          raise Constraint_Error with "native RenameStmt object required";
       end if;
@@ -13607,8 +13840,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterObjectDependsStmt"
+        )
       then
          raise Constraint_Error with "native AlterObjectDependsStmt object required";
       end if;
@@ -13663,8 +13897,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterObjectSchemaStmt"
+        )
       then
          raise Constraint_Error with "native AlterObjectSchemaStmt object required";
       end if;
@@ -13719,8 +13954,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterOwnerStmt"
+        )
       then
          raise Constraint_Error with "native AlterOwnerStmt object required";
       end if;
@@ -13768,8 +14004,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterOperatorStmt"
+        )
       then
          raise Constraint_Error with "native AlterOperatorStmt object required";
       end if;
@@ -13797,8 +14034,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterTypeStmt"
+        )
       then
          raise Constraint_Error with "native AlterTypeStmt object required";
       end if;
@@ -13820,8 +14058,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "RuleStmt"
+        )
       then
          raise Constraint_Error with "native RuleStmt object required";
       end if;
@@ -13884,8 +14123,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "NotifyStmt"
+        )
       then
          raise Constraint_Error with "native NotifyStmt object required";
       end if;
@@ -13919,8 +14159,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "ListenStmt"
+        )
       then
          raise Constraint_Error with "native ListenStmt object required";
       end if;
@@ -13947,8 +14188,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "UnlistenStmt"
+        )
       then
          raise Constraint_Error with "native UnlistenStmt object required";
       end if;
@@ -13975,8 +14217,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "TransactionStmt"
+        )
       then
          raise Constraint_Error with "native TransactionStmt object required";
       end if;
@@ -14025,8 +14268,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CompositeTypeStmt"
+        )
       then
          raise Constraint_Error with "native CompositeTypeStmt object required";
       end if;
@@ -14054,8 +14298,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreateEnumStmt"
+        )
       then
          raise Constraint_Error with "native CreateEnumStmt object required";
       end if;
@@ -14077,8 +14322,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreateRangeStmt"
+        )
       then
          raise Constraint_Error with "native CreateRangeStmt object required";
       end if;
@@ -14100,8 +14346,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterEnumStmt"
+        )
       then
          raise Constraint_Error with "native AlterEnumStmt object required";
       end if;
@@ -14157,8 +14404,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "ViewStmt"
+        )
       then
          raise Constraint_Error with "native ViewStmt object required";
       end if;
@@ -14208,8 +14456,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "LoadStmt"
+        )
       then
          raise Constraint_Error with "native LoadStmt object required";
       end if;
@@ -14236,8 +14485,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreatedbStmt"
+        )
       then
          raise Constraint_Error with "native CreatedbStmt object required";
       end if;
@@ -14265,8 +14515,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterDatabaseStmt"
+        )
       then
          raise Constraint_Error with "native AlterDatabaseStmt object required";
       end if;
@@ -14294,8 +14545,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterDatabaseRefreshCollStmt"
+        )
       then
          raise Constraint_Error with "native AlterDatabaseRefreshCollStmt object required";
       end if;
@@ -14322,8 +14574,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterDatabaseSetStmt"
+        )
       then
          raise Constraint_Error with "native AlterDatabaseSetStmt object required";
       end if;
@@ -14357,8 +14610,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "DropdbStmt"
+        )
       then
          raise Constraint_Error with "native DropdbStmt object required";
       end if;
@@ -14393,8 +14647,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterSystemStmt"
+        )
       then
          raise Constraint_Error with "native AlterSystemStmt object required";
       end if;
@@ -14421,8 +14676,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "ClusterStmt"
+        )
       then
          raise Constraint_Error with "native ClusterStmt object required";
       end if;
@@ -14457,8 +14713,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "VacuumStmt"
+        )
       then
          raise Constraint_Error with "native VacuumStmt object required";
       end if;
@@ -14487,8 +14744,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "VacuumRelation"
+        )
       then
          raise Constraint_Error with "native VacuumRelation object required";
       end if;
@@ -14523,8 +14781,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "ExplainStmt"
+        )
       then
          raise Constraint_Error with "native ExplainStmt object required";
       end if;
@@ -14552,8 +14811,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreateTableAsStmt"
+        )
       then
          raise Constraint_Error with "native CreateTableAsStmt object required";
       end if;
@@ -14608,8 +14868,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "RefreshMatViewStmt"
+        )
       then
          raise Constraint_Error with "native RefreshMatViewStmt object required";
       end if;
@@ -14650,8 +14911,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CheckPointStmt"
+        )
       then
          raise Constraint_Error with "native CheckPointStmt object required";
       end if;
@@ -14671,8 +14933,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "DiscardStmt"
+        )
       then
          raise Constraint_Error with "native DiscardStmt object required";
       end if;
@@ -14699,8 +14962,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "LockStmt"
+        )
       then
          raise Constraint_Error with "native LockStmt object required";
       end if;
@@ -14735,8 +14999,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "ConstraintsSetStmt"
+        )
       then
          raise Constraint_Error with "native ConstraintsSetStmt object required";
       end if;
@@ -14764,8 +15029,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "ReindexStmt"
+        )
       then
          raise Constraint_Error with "native ReindexStmt object required";
       end if;
@@ -14807,8 +15073,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreateConversionStmt"
+        )
       then
          raise Constraint_Error with "native CreateConversionStmt object required";
       end if;
@@ -14851,8 +15118,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreateCastStmt"
+        )
       then
          raise Constraint_Error with "native CreateCastStmt object required";
       end if;
@@ -14907,8 +15175,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreateTransformStmt"
+        )
       then
          raise Constraint_Error with "native CreateTransformStmt object required";
       end if;
@@ -14963,8 +15232,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "PrepareStmt"
+        )
       then
          raise Constraint_Error with "native PrepareStmt object required";
       end if;
@@ -14999,8 +15269,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "ExecuteStmt"
+        )
       then
          raise Constraint_Error with "native ExecuteStmt object required";
       end if;
@@ -15028,8 +15299,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "DeallocateStmt"
+        )
       then
          raise Constraint_Error with "native DeallocateStmt object required";
       end if;
@@ -15056,8 +15328,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "DropOwnedStmt"
+        )
       then
          raise Constraint_Error with "native DropOwnedStmt object required";
       end if;
@@ -15085,8 +15358,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "ReassignOwnedStmt"
+        )
       then
          raise Constraint_Error with "native ReassignOwnedStmt object required";
       end if;
@@ -15114,8 +15388,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterTSDictionaryStmt"
+        )
       then
          raise Constraint_Error with "native AlterTSDictionaryStmt object required";
       end if;
@@ -15137,8 +15412,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterTSConfigurationStmt"
+        )
       then
          raise Constraint_Error with "native AlterTSConfigurationStmt object required";
       end if;
@@ -15189,8 +15465,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "PublicationTable"
+        )
       then
          raise Constraint_Error with "native PublicationTable object required";
       end if;
@@ -15220,7 +15497,8 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
      (Build : Builders.Builder; Item : Builders.Dynamic_Value;
       Depth : Natural) return Publication_Table_Access
    is
-      Value : Publication_Table := Convert_Native_Publication_Table (Build, Item, Depth);
+      Value : Publication_Table := Convert_Native_Publication_Table
+        (Build, Item, Depth);
    begin
       return new Publication_Table'(Value);
    exception
@@ -15238,8 +15516,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "PublicationObjSpec"
+        )
       then
          raise Constraint_Error with "native PublicationObjSpec object required";
       end if;
@@ -15287,8 +15566,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreatePublicationStmt"
+        )
       then
          raise Constraint_Error with "native CreatePublicationStmt object required";
       end if;
@@ -15324,8 +15604,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterPublicationStmt"
+        )
       then
          raise Constraint_Error with "native AlterPublicationStmt object required";
       end if;
@@ -15368,8 +15649,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "CreateSubscriptionStmt"
+        )
       then
          raise Constraint_Error with "native CreateSubscriptionStmt object required";
       end if;
@@ -15405,8 +15687,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "AlterSubscriptionStmt"
+        )
       then
          raise Constraint_Error with "native AlterSubscriptionStmt object required";
       end if;
@@ -15449,8 +15732,9 @@ package body Flyology.Postgres.SQL.AST_Parser_V16 is
       if Depth > 256 then
          raise Constraint_Error with "excessive native AST recursion";
       end if;
-      if Item.Kind /= Builders.Object_Value
+      if (Item.Kind /= Builders.Object_Value
         or else Build.Object_Type (Item) /= "DropSubscriptionStmt"
+        )
       then
          raise Constraint_Error with "native DropSubscriptionStmt object required";
       end if;

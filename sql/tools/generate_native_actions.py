@@ -27,6 +27,11 @@ PASSTHROUGH = {"ImplicitCastExpr", "ParenExpr", "ConstantExpr"}
 ACTION_CHUNK_COUNT = 14
 HELPER_CHUNK_COUNT = 3
 SUPPORTED_MAJORS = (14, 15, 16, 17, 18)
+#  These helpers manipulate PostgreSQL's version-dependent anonymous unions.
+#  The generic Clang-AST lowering cannot preserve that lvalue identity through
+#  the flattened dynamic builder, so Native.Semantics implements them against
+#  the normalized builder field paths.
+HANDWRITTEN_HELPERS = {"doNegate", "doNegateFloat"}
 
 
 def children(node: dict) -> list[dict]:
@@ -77,8 +82,12 @@ def semantic_switch(root: dict) -> dict:
 
 def constant_value(node: dict) -> int:
     for item in walk(node):
-        if item.get("kind") == "IntegerLiteral":
+        if item.get("kind") == "ConstantExpr" and "value" in item:
             return int(item["value"], 0)
+    for item in walk(node):
+        if item.get("kind") in {"IntegerLiteral", "CharacterLiteral"}:
+            value = item["value"]
+            return int(value, 0) if isinstance(value, str) else int(value)
     raise ValueError("integer constant has no literal")
 
 
@@ -153,6 +162,17 @@ class Emitter:
         if node.get("kind") not in {"MemberExpr", "ArraySubscriptExpr"}:
             return None
         if node.get("kind") == "MemberExpr":
+            #  Macro-expanded linitial()/lfirst() expressions still contain
+            #  yyvsp text, but the surrounding list navigation is semantic.
+            #  Collapsing such a member to Values(N) loses both the selected
+            #  list element and its scalar member (for example
+            #  intVal(linitial($6)) in CREATE TRIGGER).
+            if any(
+                item.get("referencedDecl", {}).get("name")
+                in {"list_head", "list_nth_cell"}
+                for item in walk(node)
+            ):
+                return None
             member_count = 0
             current = node
             while current.get("kind") == "MemberExpr":
@@ -161,6 +181,12 @@ class Emitter:
                 while current.get("kind") in PASSTHROUGH and children(current):
                     current = children(current)[0]
             if member_count > 1:
+                return None
+            #  Only the semantic-union selector immediately above yyvsp is
+            #  the stack value.  An enclosing member through a cast or a
+            #  conditional still has to be evaluated (for example choosing a
+            #  JsonAgg node and then selecting its constructor field).
+            if current.get("kind") != "ArraySubscriptExpr":
                 return None
         value = re.sub(r"\s+", "", self.text(node))
         match = re.search(r"yyvsp\[\((\d+)\)-\((\d+)\)\]", value)
@@ -233,6 +259,39 @@ class Emitter:
                 self.rhs_reference(current) is not None):
             ordered = ordered[1:]
         return current, ".".join(ordered)
+
+    def member_target(self, node: dict) -> tuple[str, str]:
+        """Return the dynamic object and flattened field path for a C member.
+
+        PostgreSQL embeds structs and unions with `.`, which the dynamic
+        builder stores as flattened dotted names.  A later `->` crosses into
+        another protobuf object and must instead dereference the accumulated
+        field before continuing.
+        """
+        members: list[tuple[str, bool]] = []
+        current = node
+        while current.get("kind") == "MemberExpr":
+            members.append(
+                (current.get("name", ""), bool(current.get("isArrow", False)))
+            )
+            current = children(current)[0]
+            while current.get("kind") in PASSTHROUGH and children(current):
+                current = children(current)[0]
+        ordered = list(reversed(members))
+        if (
+            referenced_name(current) == "yyval"
+            or self.rhs_reference(current) is not None
+        ):
+            ordered = ordered[1:]
+
+        target = self.expression(current)
+        path: list[str] = []
+        for name, is_arrow in ordered:
+            if is_arrow and path:
+                target = f'Build.Field ({target}, "{".".join(path)}")'
+                path = []
+            path.append(name)
+        return target, ".".join(path)
 
     def arguments(self, values: list[str]) -> str:
         if not values:
@@ -352,17 +411,13 @@ class Emitter:
             return "Builders.No_Value"
         if kind == "MemberExpr":
             name = node.get("name", "")
-            if referenced_name(parts[0]) == "yyval":
-                return "Result"
-            root, path = self.member_path(node)
-            if referenced_name(root) == "yyval":
-                return "Result" if not path else f'Build.Field (Result, "{path}")'
             base = self.expression(parts[0])
             if name in {"ptr_value", "int_value", "oid_value"}:
                 return f"Build.Cell_Element ({base})"
             if name == "parsetree":
                 return "Parse_Result"
-            return f'Build.Field ({self.expression(root)}, "{path}")'
+            target, path = self.member_target(node)
+            return target if not path else f'Build.Field ({target}, "{path}")'
         if kind == "CallExpr":
             name = self.call_name(node)
             args = [self.expression(item) for item in parts[1:]]
@@ -388,10 +443,10 @@ class Emitter:
             if operator == "=":
                 if parts[0].get("kind") == "MemberExpr":
                     member = parts[0]
-                    root, path = self.member_path(member)
+                    target, path = self.member_target(member)
                     return (
                         "Semantics.Set_Field (Build, "
-                        f"{self.expression(root)}, "
+                        f"{target}, "
                         f'"{path}", {self.expression(parts[1])})'
                     )
                 self.unsupported_item("assignment-expression", node)
@@ -424,9 +479,9 @@ class Emitter:
             operator = node.get("opcode", "")
             if operator == "&" and parts and parts[0].get("kind") == "MemberExpr":
                 member = parts[0]
-                root, path = self.member_path(member)
+                target, path = self.member_target(member)
                 return (
-                    f'Builders.Field_Reference ({self.expression(root)}, '
+                    f'Builders.Field_Reference ({target}, '
                     f'"{path}")'
                 )
             if operator == "*":
@@ -471,15 +526,13 @@ class Emitter:
             if name == "yyloc":
                 return [f"{indent}Location := Integer (Semantics.Integer_Of ({value}));"]
         if kind == "MemberExpr":
-            root, path = self.member_path(node)
-            if referenced_name(root) == "yyval":
-                if not path:
-                    return [f"{indent}Result := {value};"]
-                return [f'{indent}Build.Set_Field (Result, "{path}", {value});']
+            target, path = self.member_target(node)
+            if target == "Result" and not path:
+                return [f"{indent}Result := {value};"]
             if node.get("name") == "parsetree":
                 return [f"{indent}Parse_Result := {value};"]
             return [
-                f'{indent}Build.Set_Field ({self.expression(root)}, '
+                f'{indent}Build.Set_Field ({target}, '
                 f'"{path}", {value});'
             ]
         if kind == "UnaryOperator" and node.get("opcode") == "*":
@@ -1027,6 +1080,7 @@ def compile_version(major: int, vendor: Path) -> Version_Model:
     emitted_helpers = [
         (helper.get("name", ""), helper_case(helper_emitter, index, helper))
         for index, (helper, helper_emitter) in enumerate(helper_entries, 1)
+        if helper.get("name", "") not in HANDWRITTEN_HELPERS
     ]
     return Version_Model(
         major, emitted_cases, emitted_helpers, unsupported, examples

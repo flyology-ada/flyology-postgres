@@ -235,6 +235,12 @@ jobs:
             sql/backends/lib
           key: >-
             sql-backends-v1-gnat-16.1.0-gprbuild-26.0.1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('sql/backends/**') }}
+      - name: Cache PostgreSQL regression corpora
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: sql/tests/.cache/postgres-regress
+          key: >-
+            sql-regress-v3-${{ runner.os }}-${{ hashFiles('sql/tests/scripts/prepare_regression_corpus.py', 'sql/backends/v*/vendor/UPSTREAM.toml') }}
       - name: Run SQL parser tests
         working-directory: sql/tests
         run: |
