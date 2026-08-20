@@ -11,6 +11,7 @@ project Tests is
       "postgres_test_fiber_exceptions.adb",
       "postgres_test_server.adb",
       "postgres_test_client.adb",
+      "postgres_test_pipeline.adb",
       "postgres_test_cancellation.adb",
       "postgres_test_replication.adb",
       "postgres_test_replication_server.adb",

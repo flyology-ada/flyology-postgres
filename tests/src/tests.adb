@@ -1519,6 +1519,286 @@ procedure Tests is
          "Terminate closes the local session state");
    end Test_Extended_Client_State;
 
+   procedure Test_Pipelined_Client_State is
+      Channel : aliased Memory_Transport;
+      Session : Client.Session (Channel'Access);
+      Copy_Channel : aliased Memory_Transport;
+      Copy_Session : Client.Session (Copy_Channel'Access);
+      Authentication : Flyology.Bytes.Unbounded_Bytes;
+      Ready_Payload : constant Protocol.Byte_Array (1 .. 1) :=
+        (1 => Protocol.Byte (Character'Pos ('I')));
+      Failure : constant Protocol.Byte_Array (1 .. 4) :=
+        (1 => Protocol.Byte (Character'Pos ('M')),
+         2 => Protocol.Byte (Character'Pos ('x')),
+         3 => 0,
+         4 => 0);
+      Copy_Rejected : Boolean := False;
+
+      function Complete return Protocol.Message is
+         Contents : Flyology.Bytes.Unbounded_Bytes;
+      begin
+         Protocol.Append_C_String (Contents, "SELECT 1");
+         return Protocol.Make_Message
+           ('C', Flyology.Bytes.To_Array (Contents));
+      end Complete;
+
+      function Copy_Out_Response return Protocol.Message is
+         Contents : Flyology.Bytes.Unbounded_Bytes;
+      begin
+         Protocol.Append_Byte (Contents, 0);
+         Protocol.Append_U16 (Contents, 1);
+         Protocol.Append_U16 (Contents, 0);
+         return Protocol.Make_Message
+           ('H', Flyology.Bytes.To_Array (Contents));
+      end Copy_Out_Response;
+
+      function Rejected (Action : not null access procedure) return Boolean is
+      begin
+         Action.all;
+         return False;
+      exception
+         when Program_Error =>
+            return True;
+      end Rejected;
+
+      function Next return Protocol.Backend_Message_Kind is
+         Event : constant Client.Extended_Query_Event :=
+           Client.Receive_Extended_Event (Session, Timeout => 1.0);
+      begin
+         return Protocol.Response_Kind (Event);
+      end Next;
+
+      procedure Write_Batch (Name : String) is
+      begin
+         Client.Prepare_Statement (Session, Name, "select 1", Timeout => 1.0);
+         Client.Bind_Portal (Session, Name, Name, Timeout => 1.0);
+         Client.Execute_Portal (Session, Name, Timeout => 1.0);
+         Client.Synchronize (Session, Timeout => 1.0);
+      end Write_Batch;
+   begin
+      Protocol.Append_U32 (Authentication, 0);
+      Queue
+        (Channel,
+         Protocol.Make_Message
+           ('R', Flyology.Bytes.To_Array (Authentication)));
+      Queue (Channel, Protocol.Make_Message ('Z', Ready_Payload));
+      Client.Startup (Session, User => "tester", Timeout => 1.0);
+
+      Client.Enter_Pipeline_Mode (Session);
+      Assert
+        (Client.In_Pipeline_Mode (Session)
+         and then Client.Pending_Synchronizations (Session) = 0
+         and then Client.State (Session) = Client.Ready,
+         "pipeline mode starts from an idle session");
+
+      declare
+         procedure Invalid_Query is
+         begin
+            Client.Send_Query (Session, "select 1", Timeout => 1.0);
+         end Invalid_Query;
+      begin
+         Assert
+           (Rejected (Invalid_Query'Access),
+            "simple queries are rejected in pipeline mode");
+      end;
+
+      Write_Batch ("first");
+      Assert
+        (Client.State (Session) = Client.Awaiting_Ready
+         and then Client.Pending_Synchronizations (Session) = 1,
+         "the first pipelined batch stays outstanding after Sync");
+
+      Client.Prepare_Statement
+        (Session, "second", "select 1", Timeout => 1.0);
+      Assert
+        (Client.State (Session) = Client.Extended_Query_Active
+         and then Client.Pending_Synchronizations (Session) = 1,
+         "a new batch opens without consuming the pending ReadyForQuery");
+      Client.Bind_Portal (Session, "second", "second", Timeout => 1.0);
+      Client.Execute_Portal (Session, "second", Timeout => 1.0);
+      Client.Synchronize (Session, Timeout => 1.0);
+      Assert
+        (Client.Pending_Synchronizations (Session) = 2,
+         "two Sync-terminated batches are in flight at once");
+
+      declare
+         procedure Invalid_Exit is
+         begin
+            Client.Exit_Pipeline_Mode (Session);
+         end Invalid_Exit;
+      begin
+         Assert
+           (Rejected (Invalid_Exit'Access),
+            "pipeline mode cannot end while a batch is outstanding");
+      end;
+
+      Queue (Channel, Protocol.Make_Message ('E', Failure));
+      Queue (Channel, Protocol.Make_Message ('Z', Ready_Payload));
+      Assert
+        (Next = Protocol.Error_Response
+         and then Client.State (Session) = Client.Awaiting_Ready
+         and then Client.Pending_Synchronizations (Session) = 2,
+         "a failed pipelined batch needs no separate recovery Sync");
+      Assert
+        (Next = Protocol.Ready_For_Query_Response
+         and then Client.State (Session) = Client.Awaiting_Ready
+         and then Client.Pending_Synchronizations (Session) = 1,
+         "each ReadyForQuery ends exactly one pipelined batch");
+
+      Queue (Channel, Protocol.Make_Empty_Message ('1'));
+      Queue (Channel, Protocol.Make_Empty_Message ('2'));
+      Queue (Channel, Complete);
+      Queue (Channel, Protocol.Make_Message ('Z', Ready_Payload));
+      Assert
+        (Next = Protocol.Parse_Complete_Response
+         and then Next = Protocol.Bind_Complete_Response
+         and then Next = Protocol.Command_Complete_Response,
+         "the batch behind a failed one is answered normally");
+      Assert
+        (Next = Protocol.Ready_For_Query_Response
+         and then Client.State (Session) = Client.Ready
+         and then Client.Pending_Synchronizations (Session) = 0,
+         "the last ReadyForQuery restores the ready state");
+
+      Client.Prepare_Statement (Session, "third", "select 1", Timeout => 1.0);
+      Client.Synchronize (Session, Timeout => 1.0);
+      Client.Prepare_Statement (Session, "fourth", "select 1", Timeout => 1.0);
+      Assert
+        (Client.State (Session) = Client.Extended_Query_Active
+         and then Client.Pending_Synchronizations (Session) = 1,
+         "an open batch coexists with an outstanding earlier batch");
+      Queue (Channel, Protocol.Make_Empty_Message ('1'));
+      Queue (Channel, Protocol.Make_Message ('Z', Ready_Payload));
+      Assert
+        (Next = Protocol.Parse_Complete_Response
+         and then Next = Protocol.Ready_For_Query_Response
+         and then Client.State (Session) = Client.Extended_Query_Active
+         and then Client.Pending_Synchronizations (Session) = 0,
+         "retiring an earlier batch leaves the open batch open");
+      Client.Synchronize (Session, Timeout => 1.0);
+      Queue (Channel, Protocol.Make_Message ('Z', Ready_Payload));
+      Assert
+        (Next = Protocol.Ready_For_Query_Response
+         and then Client.State (Session) = Client.Ready,
+         "the last open batch completes through its own Sync");
+
+      Client.Exit_Pipeline_Mode (Session);
+      Assert
+        (not Client.In_Pipeline_Mode (Session)
+         and then Client.Is_Ready (Session),
+         "pipeline mode ends once every batch is consumed");
+
+      Client.Prepare_Statement (Session, "busy", "select 1", Timeout => 1.0);
+      declare
+         procedure Invalid_Enter is
+         begin
+            Client.Enter_Pipeline_Mode (Session);
+         end Invalid_Enter;
+      begin
+         Assert
+           (Rejected (Invalid_Enter'Access),
+            "pipeline mode requires an idle session");
+      end;
+      Client.Synchronize (Session, Timeout => 1.0);
+      Queue (Channel, Protocol.Make_Message ('Z', Ready_Payload));
+      Assert
+        (Next = Protocol.Ready_For_Query_Response
+         and then Client.Is_Ready (Session),
+         "a non-pipelined cycle still ends at ReadyForQuery");
+
+      Client.Enter_Pipeline_Mode (Session);
+      Client.Enter_Pipeline_Mode (Session);
+      Assert
+        (Client.In_Pipeline_Mode (Session),
+         "entering pipeline mode twice is a no-op");
+
+      Client.Prepare_Statement
+        (Session, "flushed", "select 1", Timeout => 1.0);
+      Client.Synchronize (Session, Timeout => 1.0);
+      Client.Flush (Session, Timeout => 1.0);
+      Assert
+        (Client.State (Session) = Client.Awaiting_Ready
+         and then Client.Pending_Synchronizations (Session) = 1,
+         "Flush after Sync forces output without opening a batch");
+      Queue (Channel, Protocol.Make_Empty_Message ('1'));
+      Queue (Channel, Protocol.Make_Message ('Z', Ready_Payload));
+      Assert
+        (Next = Protocol.Parse_Complete_Response
+         and then Next = Protocol.Ready_For_Query_Response
+         and then Client.State (Session) = Client.Ready
+         and then Client.Pending_Synchronizations (Session) = 0,
+         "a flushed pipelined batch still returns the session to Ready");
+
+      Client.Prepare_Statement
+        (Session, "unsynced", "select 1", Timeout => 1.0);
+      Client.Flush (Session, Timeout => 1.0);
+      Queue (Channel, Protocol.Make_Message ('E', Failure));
+      Assert
+        (Next = Protocol.Error_Response
+         and then Client.State (Session) = Client.Recovery_Required
+         and then Client.Pending_Synchronizations (Session) = 0,
+         "an unsynchronized pipelined failure still requires recovery");
+      Client.Synchronize (Session, Timeout => 1.0);
+      Queue (Channel, Protocol.Make_Message ('Z', Ready_Payload));
+      Assert
+        (Next = Protocol.Ready_For_Query_Response
+         and then Client.Is_Ready (Session),
+         "Synchronize recovers a pipelined session");
+
+      Client.Exit_Pipeline_Mode (Session);
+      Client.Exit_Pipeline_Mode (Session);
+      Assert
+        (not Client.In_Pipeline_Mode (Session),
+         "leaving pipeline mode twice is a no-op");
+
+      Client.Enter_Pipeline_Mode (Session);
+      Client.Prepare_Statement
+        (Session, "abandoned", "select 1", Timeout => 1.0);
+      Client.Synchronize (Session, Timeout => 1.0);
+      Client.Send_Command
+        (Session, Protocol.Make_Empty_Message ('X'), Timeout => 1.0);
+      Assert
+        (Client.State (Session) = Client.Closed
+         and then not Client.In_Pipeline_Mode (Session)
+         and then Client.Pending_Synchronizations (Session) = 0,
+         "Terminate clears pipeline mode and its outstanding count");
+
+      --  A rejected COPY response is terminal, so it needs its own session.
+      Queue
+        (Copy_Channel,
+         Protocol.Make_Message
+           ('R', Flyology.Bytes.To_Array (Authentication)));
+      Queue (Copy_Channel, Protocol.Make_Message ('Z', Ready_Payload));
+      Client.Startup (Copy_Session, User => "tester", Timeout => 1.0);
+      Client.Enter_Pipeline_Mode (Copy_Session);
+      Client.Prepare_Statement
+        (Copy_Session, "copy", "copy t to stdout", Timeout => 1.0);
+      Client.Bind_Portal (Copy_Session, "copy", "copy", Timeout => 1.0);
+      Client.Execute_Portal (Copy_Session, "copy", Timeout => 1.0);
+      Client.Synchronize (Copy_Session, Timeout => 1.0);
+      Queue (Copy_Channel, Copy_Out_Response);
+      --  The raise happens in the inner declarative part, which only an
+      --  enclosing frame can handle.
+      begin
+         declare
+            Ignored : constant Client.Extended_Query_Event :=
+              Client.Receive_Extended_Event (Copy_Session, Timeout => 1.0);
+            pragma Unreferenced (Ignored);
+         begin
+            null;
+         end;
+      exception
+         when Protocol.Protocol_Error =>
+            Copy_Rejected := True;
+      end;
+      Assert
+        (Copy_Rejected
+         and then Client.State (Copy_Session) = Client.Closed
+         and then not Client.In_Pipeline_Mode (Copy_Session)
+         and then Client.Pending_Synchronizations (Copy_Session) = 0,
+         "a pipelined COPY response closes the session it arrives on");
+   end Test_Pipelined_Client_State;
+
    function Decode_Is_Rejected
      (Code : Character; Contents : Protocol.Byte_Array) return Boolean is
    begin
@@ -1812,6 +2092,7 @@ begin
    Test_Copy_Client_State;
    Test_Base_Backup_Client_State;
    Test_Extended_Client_State;
+   Test_Pipelined_Client_State;
    Test_Malformed_Backend_Messages;
    Test_RFC_7677_SCRAM_SHA_256;
    Test_SCRAM_Failures;

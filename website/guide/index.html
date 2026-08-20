@@ -67,6 +67,7 @@
             <li><a href="#connect">Connect and start</a></li>
             <li><a href="#simple">Simple queries</a></li>
             <li><a href="#extended">Extended queries</a></li>
+            <li><a href="#pipeline">Pipeline batches</a></li>
             <li><a href="#copy">Stream COPY</a></li>
             <li><a href="#replication">Stream replication</a></li>
             <li><a href="#base-backup">Take a base backup</a></li>
@@ -230,8 +231,62 @@ Client.Synchronize (Session);</code></pre>
             </aside>
           </section>
 
-          <section id="copy">
+          <section id="pipeline">
             <span class="step-label">STEP 06</span>
+            <h2>Pipeline batches without waiting for each result</h2>
+            <p>The extended path normally finishes one <code>Sync</code>-terminated batch before it writes the next batch. Every batch then costs a round trip.</p>
+            <p><a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#2114fa15a2cecd2f63c51ed9c0c1757250e6a99118372870730ca8e6d16ff95d"><code>Enter_Pipeline_Mode</code></a> removes that wait. After <code>Synchronize</code>, the next batch-opening call starts the following batch immediately, so several batches stay in flight. These calls open a batch:</p>
+            <ul>
+              <li><code>Prepare_Statement</code></li>
+              <li><code>Bind_Portal</code></li>
+              <li><a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#16af1dab8110ef0ede5794b7c55e879fc1574c2cd38cb16c90332185b91f39b1"><code>Describe_Statement</code></a> and <code>Describe_Portal</code></li>
+              <li><code>Execute_Portal</code></li>
+              <li><a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#3e62ae054b271cd96d6e4fd02cb4177f5b6fdffcfadc444793cc7282b1e60dbb"><code>Close_Statement</code></a> and <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#4f2588f26ba20749f85900ce37607fa399a9902752cb12bb853a4f71375b3f17"><code>Close_Portal</code></a></li>
+            </ul>
+            <p><code>Flush</code> does not open a batch. It only asks the server for the output that the open batch has already produced.</p>
+            <p><a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#334d6f19eca0c07d84dabc8c47a484f8c8eeb2653a739f148cdec248501b4c9d"><code>Pending_Synchronizations</code></a> counts the batches whose <code>ReadyForQuery</code> has not arrived. <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#ec12baacbef6ec8c9d343d3de09d572c2165c85c726464f3df2712f666bbd339"><code>In_Pipeline_Mode</code></a> reports the mode. <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#599463d3b075a60ad5ace8ec77753cb7a45c61ca173f4bfa3d7124471b7134ca"><code>Exit_Pipeline_Mode</code></a> returns the session to one batch at a time. The session must be idle first, with no batch open and no response outstanding.</p>
+            <figure class="code-panel">
+              <figcaption>one batch per value, all written before the first read</figcaption>
+              <button class="copy-button" type="button" data-copy>Copy</button>
+              <pre><code class="language-ada">Client.Enter_Pipeline_Mode (Session);
+Client.Prepare_Statement
+  (Session, "insert_row", "insert into items (value) values ($1)",
+   (1 =&gt; 25));
+
+for Value of Values loop
+   Client.Bind_Portal
+     (Session,
+      Portal_Name    =&gt; "",
+      Statement_Name =&gt; "insert_row",
+      Parameters     =&gt; (1 =&gt; Protocol.Text_Parameter (Value)));
+   Client.Execute_Portal (Session, "");
+   Client.Synchronize (Session);
+end loop;
+
+--  Every batch is already written before the first response is read.
+while Client.Pending_Synchronizations (Session) &gt; 0 loop
+   Event := Client.Receive_Extended_Event (Session);
+   --  Each Ready_For_Query_Response ends one batch, in send order.
+end loop;
+
+Client.Exit_Pipeline_Mode (Session);</code></pre>
+            </figure>
+            <p>The example prepares <code>insert_row</code> inside the first batch, so every later batch depends on it. If that statement fails to parse, each following bind fails as well. When the SQL is not already known to be valid, prepare it in a batch that the loop drains first.</p>
+            <p>Responses arrive in the order the client wrote the batches, and each <code>ReadyForQuery</code> ends exactly one batch.</p>
+            <p>The server confines a failure to the batch that caused it, provided that batch has already written its <code>Sync</code>. The server abandons the rest of that batch and sends its <code>ReadyForQuery</code>. It then processes the batch behind it normally, so the session does not enter the recovery state. A batch that fails before its <code>Sync</code> is written still requires <code>Synchronize</code>, exactly as it does outside pipeline mode.</p>
+            <p>Every pipelined batch that returns rows must describe its statement or its portal. PostgreSQL sends <code>RowDescription</code> only in reply to <code>Describe_Statement</code> or <code>Describe_Portal</code>, and <code>Receive_Extended_Event</code> rejects a <code>DataRow</code> that no <code>RowDescription</code> introduced.</p>
+            <aside class="callout callout-teal">
+              <span class="callout-symbol" aria-hidden="true">!</span>
+              <p>A session that writes far more than it reads may block. The server stops reading when its own output buffer fills, and the client then blocks on a full socket buffer. Interleave <code>Receive_Extended_Event</code> calls with the writes.</p>
+            </aside>
+            <aside class="callout callout-teal">
+              <span class="callout-symbol" aria-hidden="true">i</span>
+              <p>Pipeline mode rejects a simple query, because a simple query carries no <code>Sync</code> boundary of its own. It also rejects a COPY response, and that rejection is terminal: the session closes and the application must discard its transport. Leave pipeline mode before you start COPY.</p>
+            </aside>
+          </section>
+
+          <section id="copy">
+            <span class="step-label">STEP 07</span>
             <h2>Stream COPY frames without an accumulator</h2>
             <p>A COPY response changes the session state to COPY IN, COPY OUT, or COPY BOTH. Each operation sends or receives one bounded chunk. The same typed path works after simple or extended queries.</p>
             <p>The example reads the format with <a href="../api/a36ef088ca3b7ae38c4f7d063dac83b579fe57b8032d3e535083cd0c1652da94.html#8d36b74c4297d30db30cb6a39bddb4919dce110d29fdedcdce0414f478724218"><code>Protocol.Copy_Formats</code></a>. It sends chunks with <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#afc010c62883a3be2da0c7518bdcb2ef6dacd9acb755e87f924504d56b873cdc"><code>Send_Copy_Data</code></a> and completes input with <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#bdac014f231739812e9a86e6d1bb954133f2e6d09df4fed654bd8394ec98b9d1"><code>Finish_Copy</code></a>.</p>
@@ -257,7 +312,7 @@ end;
           </section>
 
           <section id="replication">
-            <span class="step-label">STEP 07</span>
+            <span class="step-label">STEP 08</span>
             <h2>Stream physical or logical replication in either direction</h2>
             <p><a href="../api/ff96781c12db30886b07c416225bc911e508827a3e8a450b9ed7538461f2299b.html"><code>Flyology.Postgres.Replication</code></a> handles startup, LSN text, commands, physical stream envelopes, keepalives, status updates, and hot-standby feedback.</p>
             <p><a href="../api/1dce60a01a501a9c19d6b28d352177a8d7e54975fef8580577959f82b2909624.html"><code>Flyology.Postgres.Replication.Logical</code></a> adds typed <code>pgoutput</code> messages. <a href="../api/7f26fe6a41b97b43603ba852b6a27156d861c24f86a183d15ff5a6b6f2798386.html"><code>Logical.Producer</code></a> validates and encodes them in the primary direction. Both paths deliver one COPY BOTH frame per call.</p>
@@ -406,7 +461,7 @@ end case;</code></pre>
           </section>
 
           <section id="base-backup">
-            <span class="step-label">STEP 08</span>
+            <span class="step-label">STEP 09</span>
             <h2>Take a physical base backup without <code>pg_basebackup</code></h2>
             <p><a href="../api/440d89140bcaba59ed49867d1e12b0db75b732109d3b378eb45137b5e9ec50d4.html"><code>Flyology.Postgres.Replication.Base_Backups</code></a> exposes the replication-protocol operation that <code>pg_basebackup</code> uses. The application still owns transport setup, storage, durability, and extraction policy.</p>
             <p>The package models the distinct PostgreSQL 14 and 15+ wire streams. It adds PostgreSQL 17+ manifest upload and incremental options. Each receive operation returns one owned event.</p>
@@ -590,7 +645,7 @@ Base_Backups.Start (Backup, Incremental, Timeout =&gt; 10.0);</code></pre>
           </section>
 
           <section id="cancel">
-            <span class="step-label">STEP 09</span>
+            <span class="step-label">STEP 10</span>
             <h2>Cancel on a separate connection</h2>
             <p>Postgres cancellation does not travel on the active query connection. Startup stores the backend process ID and variable-length secret.</p>
             <p><a href="../api/c2380bb30f7dfccb475f43619cb29c1fa17a0cb25f357d668a037d73caa23668.html"><code>Flyology.Postgres.Client_Sockets</code></a> supplies socket-based cancellation. <a href="../api/c2380bb30f7dfccb475f43619cb29c1fa17a0cb25f357d668a037d73caa23668.html#1d94fb103474d450c7761642c75e2288d812efdf863c0749c91ba9f5d9b7db59"><code>Cancel_TLS</code></a> verifies a separate encrypted connection, sends the credentials, and closes without waiting for a response.</p>
@@ -607,7 +662,7 @@ Base_Backups.Start (Backup, Incremental, Timeout =&gt; 10.0);</code></pre>
           </section>
 
           <section id="server">
-            <span class="step-label">STEP 10</span>
+            <span class="step-label">STEP 11</span>
             <h2>Build a Postgres protocol server</h2>
             <p><a href="../api/df1e88b4dad97e36b4fde35ee1bbc7e3355fa74f275b2a5d8c30b94dfa802cb3.html"><code>Flyology.Postgres.Server</code></a> is generic over application context, authentication callbacks, SCRAM verifier lookup, and a command handler. Each accepted connection receives one Flyology handler task.</p>
             <div class="decision-list">
@@ -623,7 +678,7 @@ Base_Backups.Start (Backup, Incremental, Timeout =&gt; 10.0);</code></pre>
           </section>
 
           <section id="parse-sql">
-            <span class="step-label">STEP 11</span>
+            <span class="step-label">STEP 12</span>
             <h2>Parse, analyze, and transform SQL</h2>
             <p>The versioned SQL crates parse PostgreSQL 14 through 18 syntax with native Ada parsers generated from each pinned upstream grammar. Select the crate for the PostgreSQL major that the application accepts.</p>
             <p>Use one of these owned packages for ordinary application code:</p>
@@ -779,7 +834,7 @@ alr -n build
           </section>
 
           <section id="examples">
-            <span class="step-label">STEP 12</span>
+            <span class="step-label">STEP 13</span>
             <h2>Run the example crates</h2>
             <p>The examples are independent nested Alire crates. <code>pgish</code> can require TLS from a configured certificate and key; <code>psqlish</code> supports verified TLS with separate certificate and connection host settings. Their integration uses an ephemeral CA in both directions.</p>
             <figure class="code-panel">
@@ -794,7 +849,7 @@ alr run</code></pre>
           </section>
 
           <section id="boundaries">
-            <span class="step-label">STEP 13</span>
+            <span class="step-label">STEP 14</span>
             <h2>Check the current boundaries before evaluation</h2>
             <p>The library is experimental. Treat these constraints as part of its public contract, not as incidental implementation details.</p>
             <div class="decision-list">
