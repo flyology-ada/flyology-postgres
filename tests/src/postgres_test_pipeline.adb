@@ -511,7 +511,60 @@ procedure Postgres_Test_Pipeline is
          "Sync ends the batch, so its suspended portal cannot be resumed");
 
       ------------------------------------------------------------------
-      --  6. Statement description, empty queries, and closed statements.
+      --  6. Rows without a description. PostgreSQL describes a result only
+      --  when asked, so a portal executed without Describe returns bare
+      --  DataRow messages. Describe the statement once, then run several
+      --  batches that skip it entirely.
+      ------------------------------------------------------------------
+      Client.Prepare_Statement
+        (Session,
+         Statement_Name  => "undescribed",
+         SQL             => "select $1::int4 + 1",
+         Parameter_Types => (1 => 23),
+         Timeout         => Timeout);
+      Client.Describe_Statement (Session, "undescribed", Timeout => Timeout);
+      Client.Synchronize (Session, Timeout => Timeout);
+      declare
+         Shape : constant Batch_Result := Consume_Batch;
+      begin
+         Check
+           (Shape.Parameters = 1 and then Shape.Described = 1
+            and then Shape.Errors = 0,
+            "one Describe must report the parameters and the columns");
+      end;
+
+      for Index in 1 .. 5 loop
+         Client.Bind_Portal
+           (Session,
+            Portal_Name    => "",
+            Statement_Name => "undescribed",
+            Parameters     =>
+              (1 => Protocol.Text_Parameter
+                 (Index'Image (2 .. Index'Image'Last))),
+            Timeout        => Timeout);
+         Client.Execute_Portal (Session, "", Timeout => Timeout);
+         Client.Synchronize (Session, Timeout => Timeout);
+      end loop;
+      for Index in 1 .. 5 loop
+         declare
+            Batch    : constant Batch_Result := Consume_Batch;
+            Expected : constant String := Natural'Image (Index + 1);
+         begin
+            Check
+              (Batch.Rows = 1 and then Batch.Errors = 0,
+               "an undescribed portal must still return its row");
+            Check
+              (Batch.Described = 0,
+               "an undescribed portal must not report a RowDescription");
+            Check
+              (First_Text (Batch) =
+                 Expected (2 .. Expected'Last),
+               "an undescribed row must carry the right value");
+         end;
+      end loop;
+
+      ------------------------------------------------------------------
+      --  7. Statement description, empty queries, and closed statements.
       ------------------------------------------------------------------
       Client.Prepare_Statement
         (Session,
@@ -563,7 +616,7 @@ procedure Postgres_Test_Pipeline is
       end;
 
       ------------------------------------------------------------------
-      --  7. Multi-statement text is rejected inside its own batch.
+      --  8. Multi-statement text is rejected inside its own batch.
       ------------------------------------------------------------------
       Write_Simple_Batch ("select 1; select 2");
       Write_Value_Batch ("after_multi", "select 'after'::text");
@@ -580,7 +633,7 @@ procedure Postgres_Test_Pipeline is
       end;
 
       ------------------------------------------------------------------
-      --  8. A batch left open while an earlier batch is drained.
+      --  9. A batch left open while an earlier batch is drained.
       ------------------------------------------------------------------
       Write_Value_Batch ("closed_first", "select 'first'::text");
       Client.Prepare_Statement
@@ -612,7 +665,7 @@ procedure Postgres_Test_Pipeline is
       end;
 
       ------------------------------------------------------------------
-      --  9. An unsynchronized failure still requires recovery.
+      --  10. An unsynchronized failure still requires recovery.
       ------------------------------------------------------------------
       Client.Prepare_Statement
         (Session, "unsynced", "select flyology_missing_function()",
@@ -639,7 +692,7 @@ procedure Postgres_Test_Pipeline is
       Check (Client.Is_Ready (Session), "recovery must restore Ready");
 
       ------------------------------------------------------------------
-      --  10. Large parameters, written and read in step.
+      --  11. Large parameters, written and read in step.
       ------------------------------------------------------------------
       declare
          Bulk : constant String (1 .. 48_000) := (others => 'x');
@@ -689,7 +742,7 @@ procedure Postgres_Test_Pipeline is
       end;
 
       ------------------------------------------------------------------
-      --  11. Leaving and re-entering the mode.
+      --  12. Leaving and re-entering the mode.
       ------------------------------------------------------------------
       Client.Exit_Pipeline_Mode (Session);
       Check
@@ -709,7 +762,7 @@ procedure Postgres_Test_Pipeline is
       Client.Exit_Pipeline_Mode (Session);
 
       ------------------------------------------------------------------
-      --  12. Everything the deep pipeline claimed to insert is present.
+      --  13. Everything the deep pipeline claimed to insert is present.
       ------------------------------------------------------------------
       Check
         (Simple_Count

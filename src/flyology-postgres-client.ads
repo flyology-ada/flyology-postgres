@@ -275,7 +275,10 @@ package Flyology.Postgres.Client is
       return Extended_Query_Event;
    --  Receive and validate one extended-query response event. In pipeline
    --  mode each ReadyForQuery ends one batch, in the order the batches were
-   --  written.
+   --  written. A portal executed without Describe_Portal or
+   --  Describe_Statement returns rows with no RowDescription, which is
+   --  accepted; the column count is checked only against a description the
+   --  server actually sent.
    --  @param Item Session in an extended-query or recovery state.
    --  @param Timeout Maximum time allowed for the complete event.
    --  @return Next typed event, updating Item's protocol state.

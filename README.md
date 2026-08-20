@@ -223,10 +223,11 @@ and then processes the batch behind it normally, so the session does not enter
 `Synchronize`, exactly as it does outside pipeline mode. Local ordering checks
 such as Execute before Bind apply per batch and reset at each Sync.
 
-A pipelined batch that returns rows must also describe what it returns.
 PostgreSQL sends `RowDescription` only in reply to `Describe_Portal` or
-`Describe_Statement`, and `Receive_Extended_Event` rejects a `DataRow` that no
-`RowDescription` introduced.
+`Describe_Statement`, so a portal executed without one returns bare rows.
+`Receive_Extended_Event` accepts them, and checks the column count only against
+a description the server actually sent. Describe a batch when you want that
+check, or skip it to save a message per batch.
 
 Simple queries are rejected while the mode is active, because a simple query
 carries no Sync boundary of its own. A COPY response is rejected too, and that

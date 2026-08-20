@@ -703,6 +703,9 @@ package body Flyology.Postgres.Client is
             Item.Has_Row_Description := True;
 
          when Protocol.Data_Row_Response =>
+            --  Unlike the extended path, a simple query always describes its
+            --  result before its rows, so a missing description here is a
+            --  protocol violation rather than a skipped Describe.
             if not Item.Has_Row_Description then
                raise Protocol.Protocol_Error with
                  "received DataRow without a RowDescription";
@@ -947,12 +950,14 @@ package body Flyology.Postgres.Client is
               (Protocol.Description (Response));
             Item.Has_Row_Description := True;
          when Protocol.Data_Row_Response =>
-            if not Item.Has_Row_Description then
-               raise Protocol.Protocol_Error with
-                 "received DataRow without a RowDescription";
-            end if;
-            if Protocol.Column_Count (Protocol.Row_Data (Response)) /=
-              Item.Described_Columns
+            --  The backend sends RowDescription only in reply to Describe,
+            --  so a portal that was executed without one legitimately
+            --  returns bare rows. Check the column count against a
+            --  description that actually arrived, and take the rest on
+            --  trust, because nothing else describes their shape.
+            if Item.Has_Row_Description
+              and then Protocol.Column_Count (Protocol.Row_Data (Response)) /=
+                Item.Described_Columns
             then
                raise Protocol.Protocol_Error with
                  "DataRow column count does not match RowDescription";
