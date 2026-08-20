@@ -10,6 +10,7 @@ tests_root=$(CDPATH= cd -- "$script_dir/.." && pwd)
 
 if [ "${POSTGRES_INTEGRATION:-1}" = 1 ]; then
   "$script_dir/run-integration.sh"
+  "$script_dir/run-pipeline-integration.sh"
   if [ "${POSTGRES_REPLICATION_INTEGRATION:-1}" = 1 ]; then
     "$script_dir/run-replication-integration.sh"
   fi

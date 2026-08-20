@@ -659,6 +659,114 @@ procedure Postgres_Test_Client is
             and then Client.State (Session) = Client.Ready);
       end;
 
+      --  Pipelined batches over the TLS transport. Every batch is written
+      --  before the first response is read, and the failing middle batch
+      --  must not disturb the batch queued behind it. This covers the many
+      --  small writes a pipeline makes through TLS; postgres_test_pipeline
+      --  covers depth, transactions, and recovery across every major.
+      Client.Enter_Pipeline_Mode (Session);
+      Client.Prepare_Statement
+        (Session,
+         Statement_Name  => "pipe_first",
+         SQL             => "select $1::int4 + 1",
+         Parameter_Types => (1 => 23),
+         Timeout         => 5.0);
+      Client.Bind_Portal
+        (Session,
+         Portal_Name    => "pipe_first",
+         Statement_Name => "pipe_first",
+         Parameters     => (1 => Protocol.Text_Parameter ("41")),
+         Timeout        => 5.0);
+      Client.Describe_Portal (Session, "pipe_first", Timeout => 5.0);
+      Client.Execute_Portal (Session, "pipe_first", Timeout => 5.0);
+      Client.Close_Portal (Session, "pipe_first", Timeout => 5.0);
+      Client.Close_Statement (Session, "pipe_first", Timeout => 5.0);
+      Client.Synchronize (Session, Timeout => 5.0);
+
+      Client.Prepare_Statement
+        (Session,
+         Statement_Name => "pipe_broken",
+         SQL            => "select flyology_missing_function()",
+         Timeout        => 5.0);
+      Client.Bind_Portal
+        (Session,
+         Portal_Name    => "pipe_broken",
+         Statement_Name => "pipe_broken",
+         Timeout        => 5.0);
+      Client.Describe_Portal (Session, "pipe_broken", Timeout => 5.0);
+      Client.Execute_Portal (Session, "pipe_broken", Timeout => 5.0);
+      Client.Close_Portal (Session, "pipe_broken", Timeout => 5.0);
+      Client.Close_Statement (Session, "pipe_broken", Timeout => 5.0);
+      Client.Synchronize (Session, Timeout => 5.0);
+
+      Client.Prepare_Statement
+        (Session,
+         Statement_Name => "pipe_last",
+         SQL            => "select 'last'::text",
+         Timeout        => 5.0);
+      Client.Bind_Portal
+        (Session,
+         Portal_Name    => "pipe_last",
+         Statement_Name => "pipe_last",
+         Timeout        => 5.0);
+      Client.Describe_Portal (Session, "pipe_last", Timeout => 5.0);
+      Client.Execute_Portal (Session, "pipe_last", Timeout => 5.0);
+      Client.Close_Portal (Session, "pipe_last", Timeout => 5.0);
+      Client.Close_Statement (Session, "pipe_last", Timeout => 5.0);
+      Client.Synchronize (Session, Timeout => 5.0);
+      Check (Client.Pending_Synchronizations (Session) = 3);
+
+      declare
+         Completed   : Natural := 0;
+         Errors      : Natural := 0;
+         Error_Batch : Natural := 0;
+         Closes      : Natural := 0;
+         Saw_Sum     : Boolean := False;
+         Saw_Last    : Boolean := False;
+      begin
+         while Client.Pending_Synchronizations (Session) > 0 loop
+            declare
+               Event : constant Client.Extended_Query_Event :=
+                 Client.Receive_Extended_Event (Session, Timeout => 5.0);
+               Kind  : constant Protocol.Backend_Message_Kind :=
+                 Protocol.Response_Kind (Event);
+            begin
+               if Kind = Protocol.Data_Row_Response then
+                  declare
+                     Row : constant Protocol.Data_Row :=
+                       Protocol.Row_Data (Event);
+                     Text : constant String :=
+                       Protocol.Column_Text (Protocol.Column_At (Row, 1));
+                  begin
+                     Saw_Sum := Saw_Sum or else Text = "42";
+                     Saw_Last := Saw_Last or else Text = "last";
+                  end;
+               elsif Kind = Protocol.Error_Response then
+                  Errors := Errors + 1;
+                  Error_Batch := Completed;
+               elsif Kind = Protocol.Close_Complete_Response then
+                  Closes := Closes + 1;
+               elsif Kind = Protocol.Ready_For_Query_Response then
+                  Completed := Completed + 1;
+               end if;
+            end;
+         end loop;
+         --  The error belongs to the second batch, so exactly one batch has
+         --  already ended when it arrives.
+         Check
+           (Completed = 3
+            and then Errors = 1
+            and then Error_Batch = 1
+            --  The failing batch is abandoned at its error, so only the two
+            --  good batches acknowledge their two closes.
+            and then Closes = 4
+            and then Saw_Sum
+            and then Saw_Last
+            and then Client.State (Session) = Client.Ready);
+      end;
+      Client.Exit_Pipeline_Mode (Session);
+      Check (not Client.In_Pipeline_Mode (Session));
+
       --  Real COPY interoperability. Each Receive_Copy_Event owns exactly one
       --  backend frame, so the session never collects the stream.
       Client.Send_Query

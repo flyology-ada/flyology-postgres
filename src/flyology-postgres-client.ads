@@ -35,13 +35,15 @@ package Flyology.Postgres.Client is
    --  @enum Not_Started No startup packet has been sent.
    --  @enum Ready Startup or synchronization completed; commands may begin.
    --  @enum Simple_Query_Active A simple-query response is being consumed.
-   --  @enum Extended_Query_Active An extended-query cycle is in progress.
+   --  @enum Extended_Query_Active An extended-query batch is being written;
+   --     in pipeline mode earlier batches can still be outstanding.
    --  @enum Copy_In_Active Client-to-server COPY data may be sent.
    --  @enum Copy_Out_Active Server-to-client COPY data is being received.
    --  @enum Copy_Both_Active Bidirectional COPY data may be exchanged.
    --  @enum Copy_Completion_Active COPY completion responses remain pending.
    --  @enum Recovery_Required An extended-query error requires Synchronize.
-   --  @enum Awaiting_Ready A terminal response is pending ReadyForQuery.
+   --  @enum Awaiting_Ready A terminal response is pending ReadyForQuery and
+   --     no later pipelined batch has begun.
    --  @enum Closed The server or client has terminated the session.
 
    procedure Startup
@@ -107,7 +109,8 @@ package Flyology.Postgres.Client is
    --  @param Timeout Maximum time allowed for the write.
    procedure Send_Query
      (Item : in out Session; SQL : String; Timeout : Duration := 30.0);
-   --  Start a simple-query cycle for SQL.
+   --  Start a simple-query cycle for SQL. Pipeline mode rejects the call
+   --  because a simple query has no Sync boundary of its own.
    --  @param Item Ready session, transitioned to Simple_Query_Active.
    --  @param SQL One or more SQL statements encoded as a Query message.
    --  @param Timeout Maximum time allowed for the write.
@@ -199,7 +202,9 @@ package Flyology.Postgres.Client is
       Portal_Name  : String;
       Maximum_Rows : Protocol.Row_Limit := 0;
       Timeout      : Duration := 30.0);
-   --  Continue a portal after PortalSuspended.
+   --  Continue a portal after PortalSuspended. Sync ends the batch that owns
+   --  the portal, so only a batch whose responses arrive through Flush can be
+   --  resumed.
    --  @param Item Session with a suspended portal in the current cycle.
    --  @param Portal_Name Suspended portal to continue.
    --  @param Maximum_Rows Zero for all remaining rows, otherwise a new limit.
@@ -227,16 +232,50 @@ package Flyology.Postgres.Client is
    --  @param Timeout Maximum time allowed for the write.
    procedure Synchronize
      (Item : in out Session; Timeout : Duration := 30.0);
-   --  End or recover an extended-query cycle by sending Sync.
+   --  End or recover an extended-query cycle by sending Sync. In pipeline
+   --  mode Sync closes the current batch and the next command opens the
+   --  following one, so the session does not wait for ReadyForQuery first.
    --  @param Item Active or recovery-required extended-query session.
    --  @param Timeout Maximum time allowed for the write.
+
+   procedure Enter_Pipeline_Mode (Item : in out Session);
+   --  Allow several Sync-terminated extended-query batches to be outstanding
+   --  at once. Outside pipeline mode the session must consume ReadyForQuery
+   --  before it writes the next command. In pipeline mode it can write the
+   --  next batch immediately after Synchronize, and each ReadyForQuery then
+   --  ends exactly one batch in the order the batches were written. Simple
+   --  queries are rejected while the mode is active. A COPY response is
+   --  rejected too, and that rejection is terminal: the response is already
+   --  consumed and the server is already streaming, so the session closes
+   --  and its transport must be discarded. A session that writes a long
+   --  pipeline without receiving can block once both peers fill their socket
+   --  buffers, so interleave Receive_Extended_Event with the writes. The
+   --  call does nothing when the mode is already active.
+   --  @param Item Ready session with no outstanding synchronization.
+   --  @exception Program_Error Item is not in the Ready state.
+   procedure Exit_Pipeline_Mode (Item : in out Session);
+   --  Return the session to one extended-query batch at a time. Every
+   --  written batch must already have produced its ReadyForQuery. The call
+   --  does nothing when the mode is not active.
+   --  @param Item Ready session with no outstanding synchronization.
+   --  @exception Program_Error A written batch is still outstanding.
+   function In_Pipeline_Mode (Item : Session) return Boolean;
+   --  Report whether pipeline mode is active.
+   --  @param Item Session to inspect.
+   --  @return True after Enter_Pipeline_Mode until Exit_Pipeline_Mode.
+   function Pending_Synchronizations (Item : Session) return Natural;
+   --  Count the Sync messages written whose ReadyForQuery has not arrived.
+   --  @param Item Session to inspect.
+   --  @return Number of written batches whose responses remain unconsumed.
 
    subtype Extended_Query_Event is Protocol.Backend_Message;
    --  Typed backend event produced during an extended-query cycle.
    function Receive_Extended_Event
      (Item : in out Session; Timeout : Duration := 30.0)
       return Extended_Query_Event;
-   --  Receive and validate one extended-query response event.
+   --  Receive and validate one extended-query response event. In pipeline
+   --  mode each ReadyForQuery ends one batch, in the order the batches were
+   --  written.
    --  @param Item Session in an extended-query or recovery state.
    --  @param Timeout Maximum time allowed for the complete event.
    --  @return Next typed event, updating Item's protocol state.
@@ -320,6 +359,9 @@ private
       Copy_Receive_Open : Boolean := False;
       Copy_Bidirectional : Boolean := False;
       Copy_Sync_Pending : Boolean := False;
+      Pipelined : Boolean := False;
+      Pending_Syncs : Natural := 0;
+      Batch_Open : Boolean := False;
       Pid     : Protocol.UInt32 := 0;
       Secret  : Flyology.Bytes.Unbounded_Bytes;
    end record;

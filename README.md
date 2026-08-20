@@ -128,8 +128,10 @@ the raw lower-level API for direct protocol control and custom state machines.
 The task-friendly extended path consists of `Prepare_Statement`, `Bind_Portal`,
 `Describe_Statement`, `Describe_Portal`, `Execute_Portal`, `Resume_Portal`,
 `Close_Statement`, `Close_Portal`, `Flush`, `Synchronize`, and repeated
-`Receive_Extended_Event` calls. Commands can be pipelined before Sync, and Flush
-forces pending output without ending the cycle. `State` exposes ready, active simple,
+`Receive_Extended_Event` calls. Commands can be written back to back before Sync,
+and Flush forces pending output without ending the cycle. `Enter_Pipeline_Mode`
+extends that to whole batches, described under Pipelined batches below. `State`
+exposes ready, active simple,
 extended, and COPY operations, COPY completion, recovery-required, and awaiting-ready
 states. Invalid local
 ordering, such as Execute before Bind or Resume before `PortalSuspended`, is rejected
@@ -200,6 +202,81 @@ loop
    end;
 end loop;
 ```
+
+### Pipelined batches
+
+By default the session finishes one Sync-terminated batch before it writes the
+next command, so every batch costs a round trip. `Enter_Pipeline_Mode` lifts
+that restriction. After `Synchronize`, the next `Prepare_Statement`,
+`Bind_Portal`, `Describe_Statement`, `Describe_Portal`, `Execute_Portal`, or
+`Close_Statement`/`Close_Portal` call opens the following batch at once, so
+several batches stay in flight. `Pending_Synchronizations` counts the batches
+whose `ReadyForQuery` has not arrived, `In_Pipeline_Mode` reports the mode, and
+`Exit_Pipeline_Mode` returns the session to one batch at a time once every
+batch has been consumed.
+
+Responses arrive in the order the batches were written, and each
+`ReadyForQuery` ends exactly one batch. Each batch's own Sync contains its
+failure: the server discards the rest of that batch, sends its `ReadyForQuery`,
+and then processes the batch behind it normally, so the session does not enter
+`Recovery_Required`. A batch that fails before its Sync is written still needs
+`Synchronize`, exactly as it does outside pipeline mode. Local ordering checks
+such as Execute before Bind apply per batch and reset at each Sync.
+
+A pipelined batch that returns rows must also describe what it returns.
+PostgreSQL sends `RowDescription` only in reply to `Describe_Portal` or
+`Describe_Statement`, and `Receive_Extended_Event` rejects a `DataRow` that no
+`RowDescription` introduced.
+
+Simple queries are rejected while the mode is active, because a simple query
+carries no Sync boundary of its own. A COPY response is rejected too, and that
+rejection is terminal: the response is already consumed and the server is
+already streaming, so the session closes and its transport must be discarded.
+Leave pipeline mode before starting COPY.
+
+A pipeline that writes far more than it reads can block. The server stops
+reading once its own output buffer fills, and the client then blocks writing
+into a full socket buffer. Interleave `Receive_Extended_Event` calls with the
+writes, or keep the outstanding bytes below the socket buffers.
+
+```ada
+Client.Enter_Pipeline_Mode (Session);
+Client.Prepare_Statement
+  (Session, "insert_row", "insert into items (value) values ($1)",
+   (1 => 25));
+
+for Value of Values loop
+   Client.Bind_Portal
+     (Session,
+      Portal_Name    => "",
+      Statement_Name => "insert_row",
+      Parameters     => (1 => Protocol.Text_Parameter (Value)));
+   Client.Execute_Portal (Session, "");
+   Client.Synchronize (Session);
+end loop;
+
+--  Every batch is already written before the first response is read.
+while Client.Pending_Synchronizations (Session) > 0 loop
+   declare
+      Event : constant Client.Extended_Query_Event :=
+        Client.Receive_Extended_Event (Session);
+   begin
+      if Protocol.Response_Kind (Event) = Protocol.Error_Response then
+         --  Inspect Protocol.Diagnostic_Data (Event). The batches behind
+         --  this one still run.
+         null;
+      end if;
+   end;
+end loop;
+
+Client.Exit_Pipeline_Mode (Session);
+```
+
+The example prepares `insert_row` inside the first batch, so every later batch
+depends on it. If that statement fails to parse, the server abandons the rest
+of the first batch and each following `Bind_Portal` then fails with
+`prepared statement "insert_row" does not exist`. Prepare in a batch that the
+loop drains first when the SQL is not already known to be valid.
 
 ### Streaming COPY
 

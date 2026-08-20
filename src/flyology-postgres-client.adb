@@ -51,6 +51,61 @@ package body Flyology.Postgres.Client is
       end case;
    end Enter_Copy;
 
+   procedure Require_No_Pipelined_Copy (Item : in out Session) is
+      --  COPY takes the connection over until it completes, and its own
+      --  state machine tracks a single Sync. Neither fact survives several
+      --  outstanding batches, so pipeline mode refuses to start COPY.
+      --  The response is already consumed and the server is already
+      --  streaming, so the connection cannot be resynchronized. Close the
+      --  session state rather than let a caller that traps the error keep
+      --  reading into a cascade of unexplained COPY frames.
+   begin
+      if Item.Pipelined then
+         Item.Current_State := Closed;
+         Item.Pipelined := False;
+         Item.Pending_Syncs := 0;
+         Item.Batch_Open := False;
+         Item.Has_Row_Description := False;
+         Item.Described_Columns := 0;
+         Item.Bound_In_Cycle := False;
+         Item.Portal_Is_Suspended := False;
+         Reset_Copy (Item);
+         raise Protocol.Protocol_Error with
+           "COPY cannot start in Postgres pipeline mode; the session is "
+           & "closed and its transport must be discarded";
+      end if;
+   end Require_No_Pipelined_Copy;
+
+   procedure Complete_Synchronization
+     (Item : in out Session; Strict : Boolean) is
+      --  Retire the oldest outstanding Sync when its ReadyForQuery arrives.
+      --  In pipeline mode a later batch can already be open, and that batch
+      --  owns the local ordering state, so only a session with no open batch
+      --  returns to Ready or waits for the next outstanding batch.
+      --  @param Item Session whose oldest outstanding batch is complete.
+      --  @param Strict Reject a ReadyForQuery that no Sync asked for. The
+      --     raw receive path stays lenient and treats one as an idle reset.
+   begin
+      if Item.Pending_Syncs = 0 then
+         if Strict then
+            raise Protocol.Protocol_Error with
+              "received ReadyForQuery without a preceding Sync";
+         end if;
+         Item.Batch_Open := False;
+      else
+         Item.Pending_Syncs := Item.Pending_Syncs - 1;
+      end if;
+      Item.Has_Row_Description := False;
+      Item.Described_Columns := 0;
+      Reset_Copy (Item);
+      if not Item.Batch_Open then
+         Item.Bound_In_Cycle := False;
+         Item.Portal_Is_Suspended := False;
+         Item.Current_State :=
+           (if Item.Pending_Syncs > 0 then Awaiting_Ready else Ready);
+      end if;
+   end Complete_Synchronization;
+
    function Error_Message (Value : Protocol.Message) return String is
      (Protocol.Diagnostic_Message
         (Protocol.Diagnostic_Data (Protocol.Decode_Backend (Value))));
@@ -388,24 +443,34 @@ package body Flyology.Postgres.Client is
      (Item    : in out Session;
       Command : Protocol.Message;
       Timeout : Duration := 30.0) is
+      Tag : constant Protocol.Frontend_Kind := Protocol.Kind (Command);
    begin
       if Item.Current_State in Not_Started | Closed then
          raise Program_Error with "Postgres session is not started";
       end if;
+      if Item.Pipelined and then Tag = Protocol.Query then
+         raise Program_Error with
+           "simple queries are not allowed in Postgres pipeline mode";
+      end if;
       if Item.Current_State = Recovery_Required
-        and then Protocol.Kind (Command) /= Protocol.Sync
-        and then Protocol.Kind (Command) /= Protocol.Terminate_Command
+        and then Tag /= Protocol.Sync
+        and then Tag /= Protocol.Terminate_Command
       then
          raise Program_Error with
            "Postgres extended-query recovery requires Sync";
       end if;
       if Item.Current_State = Awaiting_Ready
-        and then Protocol.Kind (Command) /= Protocol.Terminate_Command
+        and then Tag /= Protocol.Terminate_Command
+        and then not (Item.Pipelined
+                      and then Tag in
+                        Protocol.Parse | Protocol.Bind | Protocol.Describe |
+                        Protocol.Execute | Protocol.Close | Protocol.Flush |
+                        Protocol.Sync)
       then
          raise Program_Error with
            "Postgres session is awaiting ReadyForQuery";
       end if;
-      if Protocol.Kind (Command) in Protocol.Copy_Data |
+      if Tag in Protocol.Copy_Data |
          Protocol.Copy_Done | Protocol.Copy_Fail
         and then (Item.Current_State not in
                     Copy_In_Active | Copy_Both_Active
@@ -414,7 +479,7 @@ package body Flyology.Postgres.Client is
          raise Program_Error with "no writable Postgres COPY stream is active";
       end if;
       Framing.Write_Message (Item.Channel.all, Command, Timeout);
-      case Protocol.Kind (Command) is
+      case Tag is
          when Protocol.Query =>
             Item.Current_State := Simple_Query_Active;
             Item.Has_Row_Description := False;
@@ -423,15 +488,28 @@ package body Flyology.Postgres.Client is
               Protocol.Bind |
               Protocol.Describe |
               Protocol.Execute |
-              Protocol.Close |
-              Protocol.Flush =>
-            if Item.Current_State = Ready then
-               Item.Current_State := Extended_Query_Active;
+              Protocol.Close =>
+            --  A batch-opening command written after Sync starts the next
+            --  pipelined batch, so its local ordering state starts empty.
+            if not Item.Batch_Open then
+               Item.Batch_Open := True;
                Item.Bound_In_Cycle := False;
                Item.Portal_Is_Suspended := False;
             end if;
+            if Item.Current_State in Ready | Awaiting_Ready then
+               Item.Current_State := Extended_Query_Active;
+            end if;
+         when Protocol.Flush =>
+            --  Flush only forces pending output; it opens no batch.
+            if Item.Current_State = Ready then
+               Item.Current_State := Extended_Query_Active;
+            end if;
          when Protocol.Sync =>
+            Item.Pending_Syncs := Item.Pending_Syncs + 1;
             Item.Current_State := Awaiting_Ready;
+            Item.Batch_Open := False;
+            Item.Bound_In_Cycle := False;
+            Item.Portal_Is_Suspended := False;
             if Item.Current_Copy_Origin = Extended_Copy then
                Item.Copy_Sync_Pending := True;
             end if;
@@ -450,6 +528,9 @@ package body Flyology.Postgres.Client is
             Item.Described_Columns := 0;
             Item.Bound_In_Cycle := False;
             Item.Portal_Is_Suspended := False;
+            Item.Batch_Open := False;
+            Item.Pipelined := False;
+            Item.Pending_Syncs := 0;
             Reset_Copy (Item);
          when others =>
             null;
@@ -460,6 +541,10 @@ package body Flyology.Postgres.Client is
      (Item : in out Session; SQL : String; Timeout : Duration := 30.0) is
       Contents : Flyology.Bytes.Unbounded_Bytes;
    begin
+      if Item.Pipelined then
+         raise Program_Error with
+           "simple queries are not allowed in Postgres pipeline mode";
+      end if;
       if Item.Current_State /= Ready then
          raise Program_Error with "Postgres session is not ready for a query";
       end if;
@@ -518,11 +603,12 @@ package body Flyology.Postgres.Client is
                elsif Item.Current_State in
                  Extended_Query_Active | Awaiting_Ready
                then
+                  Require_No_Pipelined_Copy (Item);
                   Enter_Copy
                     (Item,
                      Protocol.Response_Kind (Decoded),
                      Origin       => Extended_Copy,
-                     Sync_Pending => Item.Current_State = Awaiting_Ready);
+                     Sync_Pending => Item.Pending_Syncs > 0);
                end if;
             end;
          when 'c' =>
@@ -576,7 +662,9 @@ package body Flyology.Postgres.Client is
                   Item.Current_State := Recovery_Required;
                   Reset_Copy (Item);
                end if;
-            elsif Item.Current_State = Extended_Query_Active then
+            elsif Item.Current_State = Extended_Query_Active
+              and then Item.Pending_Syncs = 0
+            then
                Item.Current_State := Recovery_Required;
             end if;
          when 'Z' =>
@@ -586,12 +674,7 @@ package body Flyology.Postgres.Client is
             begin
                null;
             end;
-            Item.Current_State := Ready;
-            Item.Has_Row_Description := False;
-            Item.Described_Columns := 0;
-            Item.Bound_In_Cycle := False;
-            Item.Portal_Is_Suspended := False;
-            Reset_Copy (Item);
+            Complete_Synchronization (Item, Strict => False);
          when others =>
             null;
       end case;
@@ -673,11 +756,17 @@ package body Flyology.Postgres.Client is
 
    procedure Require_Extended_Send (Item : Session; Operation : String) is
    begin
-      if Item.Current_State not in Ready | Extended_Query_Active then
-         raise Program_Error with
-           "cannot " & Operation & " while Postgres session state is "
-           & Item.Current_State'Image;
+      if Item.Current_State in Ready | Extended_Query_Active then
+         return;
       end if;
+      --  In pipeline mode a session that has written Sync opens the next
+      --  batch instead of waiting for the outstanding ReadyForQuery.
+      if Item.Pipelined and then Item.Current_State = Awaiting_Ready then
+         return;
+      end if;
+      raise Program_Error with
+        "cannot " & Operation & " while Postgres session state is "
+        & Item.Current_State'Image;
    end Require_Extended_Send;
 
    procedure Prepare_Statement
@@ -820,6 +909,8 @@ package body Flyology.Postgres.Client is
          Copy_Out_Active |
          Copy_Completion_Active |
          Recovery_Required
+        and then not (Item.Pipelined
+                      and then Item.Current_State = Awaiting_Ready)
       then
          raise Program_Error with
            "cannot synchronize while Postgres session state is "
@@ -838,8 +929,7 @@ package body Flyology.Postgres.Client is
      (Item : in out Session; Timeout : Duration := 30.0)
       return Extended_Query_Event is
       Response     : Protocol.Backend_Message;
-      Sync_Pending : constant Boolean :=
-        Item.Current_State = Awaiting_Ready;
+      Sync_Pending : constant Boolean := Item.Pending_Syncs > 0;
    begin
       if Item.Current_State = Recovery_Required then
          raise Program_Error with
@@ -871,34 +961,36 @@ package body Flyology.Postgres.Client is
               Protocol.Empty_Query_Response =>
             Item.Has_Row_Description := False;
             Item.Described_Columns := 0;
-            Item.Portal_Is_Suspended := False;
+            --  An outstanding Sync means this response belongs to an earlier
+            --  batch than the one being written, whose portal state it must
+            --  not disturb.
+            if not Sync_Pending then
+               Item.Portal_Is_Suspended := False;
+            end if;
          when Protocol.No_Data_Response =>
             Item.Has_Row_Description := False;
             Item.Described_Columns := 0;
          when Protocol.Portal_Suspended_Response =>
-            Item.Portal_Is_Suspended := True;
+            if not Sync_Pending then
+               Item.Portal_Is_Suspended := True;
+            end if;
          when Protocol.Error_Response =>
+            Item.Has_Row_Description := False;
+            Item.Described_Columns := 0;
+            --  An outstanding Sync already ends the failed batch, and the
+            --  server skips to it. Only an unsynchronized failure leaves the
+            --  open batch in need of recovery.
             if not Sync_Pending then
                Item.Current_State := Recovery_Required;
+               Item.Bound_In_Cycle := False;
+               Item.Portal_Is_Suspended := False;
             end if;
-            Item.Has_Row_Description := False;
-            Item.Described_Columns := 0;
-            Item.Bound_In_Cycle := False;
-            Item.Portal_Is_Suspended := False;
          when Protocol.Ready_For_Query_Response =>
-            if Item.Current_State /= Awaiting_Ready then
-               raise Protocol.Protocol_Error with
-                 "received ReadyForQuery without a preceding Sync";
-            end if;
-            Item.Current_State := Ready;
-            Item.Has_Row_Description := False;
-            Item.Described_Columns := 0;
-            Item.Bound_In_Cycle := False;
-            Item.Portal_Is_Suspended := False;
-            Reset_Copy (Item);
+            Complete_Synchronization (Item, Strict => True);
          when Protocol.Copy_In_Response |
               Protocol.Copy_Out_Response |
               Protocol.Copy_Both_Response =>
+            Require_No_Pipelined_Copy (Item);
             Enter_Copy
               (Item,
                Protocol.Response_Kind (Response),
@@ -1027,7 +1119,14 @@ package body Flyology.Postgres.Client is
                raise Protocol.Protocol_Error with
                  "received ReadyForQuery before extended COPY Sync";
             end if;
-            Item.Current_State := Ready;
+            --  A simple-query COPY reaches ReadyForQuery without a Sync of
+            --  its own, so only an extended COPY has one to retire.
+            if Item.Pending_Syncs > 0 then
+               Item.Pending_Syncs := Item.Pending_Syncs - 1;
+            end if;
+            Item.Batch_Open := False;
+            Item.Current_State :=
+              (if Item.Pending_Syncs > 0 then Awaiting_Ready else Ready);
             Item.Has_Row_Description := False;
             Item.Described_Columns := 0;
             Item.Bound_In_Cycle := False;
@@ -1087,6 +1186,44 @@ package body Flyology.Postgres.Client is
       end case;
       return Response;
    end Receive_Copy_Event;
+
+   procedure Enter_Pipeline_Mode (Item : in out Session) is
+   begin
+      if Item.Pipelined then
+         return;
+      end if;
+      if Item.Current_State /= Ready then
+         raise Program_Error with
+           "cannot enter Postgres pipeline mode while session state is "
+           & Item.Current_State'Image;
+      end if;
+      Item.Pipelined := True;
+   end Enter_Pipeline_Mode;
+
+   procedure Exit_Pipeline_Mode (Item : in out Session) is
+   begin
+      if not Item.Pipelined then
+         return;
+      end if;
+      if Item.Pending_Syncs > 0 then
+         raise Program_Error with
+           "cannot end Postgres pipeline mode with"
+           & Natural'Image (Item.Pending_Syncs)
+           & " batch responses still outstanding";
+      end if;
+      if Item.Current_State /= Ready then
+         raise Program_Error with
+           "cannot end Postgres pipeline mode while session state is "
+           & Item.Current_State'Image;
+      end if;
+      Item.Pipelined := False;
+   end Exit_Pipeline_Mode;
+
+   function In_Pipeline_Mode (Item : Session) return Boolean is
+     (Item.Pipelined);
+
+   function Pending_Synchronizations (Item : Session) return Natural is
+     (Item.Pending_Syncs);
 
    function Is_Ready (Item : Session) return Boolean is
      (Item.Current_State = Ready);
