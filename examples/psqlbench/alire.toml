@@ -13,14 +13,8 @@ executables = ["psqlbench"]
 [[depends-on]]
 flyology = "~0.1.1-dev"
 
-[[pins]]
-flyology = { url = "https://github.com/flyology-ada/flyology.git", commit = "514dcd6f1d2f9722a8ee6e95856352ce48c2ff39" }
-
 [[depends-on]]
 flyology_http = "~0.1.1-dev"
-
-[[pins]]
-flyology_http = { url = "https://github.com/flyology-ada/flyology-http.git", commit = "019b3cd9b5a69046cb49d6877a4411f2caabac36" }
 
 [[depends-on]]
 flyology_postgres = "*"
