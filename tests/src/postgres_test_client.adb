@@ -663,7 +663,9 @@ procedure Postgres_Test_Client is
       --  before the first response is read, and the failing middle batch
       --  must not disturb the batch queued behind it. This covers the many
       --  small writes a pipeline makes through TLS; postgres_test_pipeline
-      --  covers depth, transactions, and recovery across every major.
+      --  covers depth, transactions, and recovery across every major. The
+      --  last batch skips Describe on purpose, so its rows arrive with no
+      --  RowDescription.
       Client.Enter_Pipeline_Mode (Session);
       Client.Prepare_Statement
         (Session,
@@ -709,7 +711,6 @@ procedure Postgres_Test_Client is
          Portal_Name    => "pipe_last",
          Statement_Name => "pipe_last",
          Timeout        => 5.0);
-      Client.Describe_Portal (Session, "pipe_last", Timeout => 5.0);
       Client.Execute_Portal (Session, "pipe_last", Timeout => 5.0);
       Client.Close_Portal (Session, "pipe_last", Timeout => 5.0);
       Client.Close_Statement (Session, "pipe_last", Timeout => 5.0);

@@ -1542,6 +1542,17 @@ procedure Tests is
            ('C', Flyology.Bytes.To_Array (Contents));
       end Complete;
 
+      function Single_Column_Row return Protocol.Message is
+         Contents : Flyology.Bytes.Unbounded_Bytes;
+      begin
+         Protocol.Append_U16 (Contents, 1);
+         Protocol.Append_U32 (Contents, 1);
+         Protocol.Append_Byte
+           (Contents, Protocol.Byte (Character'Pos ('1')));
+         return Protocol.Make_Message
+           ('D', Flyology.Bytes.To_Array (Contents));
+      end Single_Column_Row;
+
       function Copy_Out_Response return Protocol.Message is
          Contents : Flyology.Bytes.Unbounded_Bytes;
       begin
@@ -1744,6 +1755,26 @@ procedure Tests is
         (Next = Protocol.Ready_For_Query_Response
          and then Client.Is_Ready (Session),
          "Synchronize recovers a pipelined session");
+
+      --  A portal executed without Describe returns bare rows, which the
+      --  extended path accepts. Only a description that arrived constrains
+      --  the column count.
+      Client.Prepare_Statement
+        (Session, "bare", "select 1", Timeout => 1.0);
+      Client.Bind_Portal (Session, "bare", "bare", Timeout => 1.0);
+      Client.Execute_Portal (Session, "bare", Timeout => 1.0);
+      Client.Synchronize (Session, Timeout => 1.0);
+      Queue (Channel, Protocol.Make_Empty_Message ('1'));
+      Queue (Channel, Protocol.Make_Empty_Message ('2'));
+      Queue (Channel, Single_Column_Row);
+      Queue (Channel, Protocol.Make_Message ('Z', Ready_Payload));
+      Assert
+        (Next = Protocol.Parse_Complete_Response
+         and then Next = Protocol.Bind_Complete_Response
+         and then Next = Protocol.Data_Row_Response
+         and then Next = Protocol.Ready_For_Query_Response
+         and then Client.Is_Ready (Session),
+         "an undescribed portal may return rows without a RowDescription");
 
       Client.Exit_Pipeline_Mode (Session);
       Client.Exit_Pipeline_Mode (Session);
