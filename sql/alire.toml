@@ -12,11 +12,11 @@ tags = ["ada", "postgres", "sql", "parser", "ast"]
 project-files = ["sql.gpr"]
 
 [[depends-on]]
-flyology_postgres_sql_v14 = "*"
-flyology_postgres_sql_v15 = "*"
-flyology_postgres_sql_v16 = "*"
-flyology_postgres_sql_v17 = "*"
-flyology_postgres_sql_v18 = "*"
+flyology_postgres_sql_v14 = "~0.1.1-dev"
+flyology_postgres_sql_v15 = "~0.1.1-dev"
+flyology_postgres_sql_v16 = "~0.1.1-dev"
+flyology_postgres_sql_v17 = "~0.1.1-dev"
+flyology_postgres_sql_v18 = "~0.1.1-dev"
 
 [[pins]]
 flyology_postgres_sql_v14 = { path = "v14" }

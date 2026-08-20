@@ -12,7 +12,7 @@ tags = ["ada", "postgres", "sql", "parser"]
 project-files = ["sql_core.gpr"]
 
 [[depends-on]]
-flyology_postgres = "*"
+flyology_postgres = "~0.1.1-dev"
 
 [[pins]]
 flyology_postgres = { path = "../.." }
