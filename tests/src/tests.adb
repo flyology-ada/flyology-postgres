@@ -2083,6 +2083,83 @@ procedure Tests is
          Client.Startup (Item, User => "operation-test", Timeout => 1.0);
       end Start_Memory_Session;
 
+      procedure Test_Startup_Operations is
+         Channel : aliased Memory_Transport;
+         Session : aliased Client.Session (Channel'Access);
+         Set     : aliased Operations.Completion_Set (Capacity => 2);
+         Authentication : Flyology.Bytes.Unbounded_Bytes;
+         Ready_Payload : constant Protocol.Byte_Array (1 .. 1) :=
+           (1 => Protocol.Byte (Character'Pos ('I')));
+      begin
+         Flyology.Bytes.Append
+           (Channel.Input,
+            (1 => Protocol.Byte (Character'Pos ('S'))));
+         declare
+            Request : Client.Startup_Operation :=
+              Client.Negotiate_TLS
+                (Set'Access, Session'Access, Timeout => 1.0);
+         begin
+            Operations.Wait_All (Set);
+            Client.Finish (Request);
+            Assert
+              (Client.State (Session) = Client.TLS_Negotiated,
+               "scoped SSLRequest retains the accepted TLS boundary");
+         end;
+
+         Protocol.Append_U32 (Authentication, 0);
+         Queue
+           (Channel,
+            Protocol.Make_Message
+              ('R', Flyology.Bytes.To_Array (Authentication)));
+         Queue (Channel, Protocol.Make_Message ('Z', Ready_Payload));
+         declare
+            Start : Client.Startup_Operation :=
+              Client.Startup
+                (Set'Access,
+                 Session'Access,
+                 User    => "operation-test",
+                 Timeout => 1.0);
+         begin
+            Operations.Wait_All (Set);
+            Client.Finish (Start);
+            Assert
+              (Client.Is_Ready (Session) and then not Channel.Engaged,
+               "scoped startup authenticates and releases its capability");
+         end;
+
+         declare
+            Refused_Channel : aliased Memory_Transport;
+            Refused_Session : aliased Client.Session
+              (Refused_Channel'Access);
+            Refused_Set : aliased Operations.Completion_Set (Capacity => 1);
+            Refused : Boolean := False;
+         begin
+            Flyology.Bytes.Append
+              (Refused_Channel.Input,
+               (1 => Protocol.Byte (Character'Pos ('N'))));
+            declare
+               Request : Client.Startup_Operation :=
+                 Client.Negotiate_TLS
+                   (Refused_Set'Access,
+                    Refused_Session'Access,
+                    Timeout => 1.0);
+            begin
+               Operations.Wait_All (Refused_Set);
+               begin
+                  Client.Finish (Request);
+               exception
+                  when Client.TLS_Not_Available =>
+                     Refused := True;
+               end;
+            end;
+            Assert
+              (Refused
+               and then Client.State (Refused_Session) = Client.Closed
+               and then not Refused_Channel.Engaged,
+               "TLS refusal is retained until Finish and is terminal");
+         end;
+      end Test_Startup_Operations;
+
       procedure Test_Partial_And_Gates is
          Channel : aliased Memory_Transport;
          Session : aliased Client.Session (Channel'Access);
@@ -2372,6 +2449,7 @@ procedure Tests is
       end Test_Timeout_Cancel_Failure_And_Cleanup;
 
    begin
+      Test_Startup_Operations;
       Test_Partial_And_Gates;
       Test_Counted_Multiple_Connections;
       Test_Extended_Operations;

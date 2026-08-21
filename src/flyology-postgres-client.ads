@@ -5,6 +5,8 @@ with Flyology.Postgres.Protocol;
 with Flyology.Postgres.Transports;
 private with Ada.Exceptions;
 private with Ada.Finalization;
+private with Ada.Strings.Unbounded;
+private with Flyology.Postgres.SCRAM;
 
 package Flyology.Postgres.Client is
    --  Stateful PostgreSQL frontend implementing startup, authentication,
@@ -35,8 +37,13 @@ package Flyology.Postgres.Client is
    --  Limited scoped receive retaining one owned typed query event until
    --  Finish. Protocol payload allocation is result storage, not wait state.
 
+   type Startup_Operation is new Client_Operation with private;
+   --  Limited scoped PostgreSQL SSL negotiation or startup/authentication
+   --  operation. Credential and protocol state are owned until Finish.
+
    type Operation_State is
      (Not_Started,
+      TLS_Negotiated,
       Ready,
       Simple_Query_Active,
       Extended_Query_Active,
@@ -49,6 +56,8 @@ package Flyology.Postgres.Client is
       Closed);
    --  Client protocol state controlling which operations are currently legal.
    --  @enum Not_Started No startup packet has been sent.
+   --  @enum TLS_Negotiated SSLRequest was accepted; the caller must upgrade
+   --     the same transport before starting authentication.
    --  @enum Ready Startup or synchronization completed; commands may begin.
    --  @enum Simple_Query_Active A simple-query response is being consumed.
    --  @enum Extended_Query_Active An extended-query batch is being written;
@@ -86,6 +95,55 @@ package Flyology.Postgres.Client is
    --     replication startup parameter.
    --  @exception Database_Error The server rejects startup or authentication.
    --  @exception Unsupported_Authentication The requested method is unknown.
+
+   function Startup
+     (Set              : not null access
+        Flyology.Operations.Completion_Set'Class;
+      Item             : not null access Session;
+      User             : String;
+      Database         : String := "";
+      Password         : String := "";
+      Application_Name : String := "flyology_postgres";
+      Timeout          : Duration := 30.0;
+      Replication_Mode : Protocol.Replication_Connection_Mode :=
+        Protocol.Normal_Connection) return Startup_Operation;
+   --  Start PostgreSQL startup and authentication without waiting. One
+   --  deadline spans the complete startup sequence.
+
+   procedure Startup
+     (Item             : not null access Session;
+      User             : String;
+      Database         : String := "";
+      Password         : String := "";
+      Application_Name : String := "flyology_postgres";
+      Timeout          : Duration := 30.0;
+      Replication_Mode : Protocol.Replication_Connection_Mode :=
+        Protocol.Normal_Connection;
+      Operation        : in out Startup_Operation)
+     with Pre =>
+       not Flyology.Operations.Is_Active (Operation)
+       and then not Flyology.Operations.Is_Terminal (Operation);
+   --  Start or restart startup/authentication in a reusable operation.
+
+   function Negotiate_TLS
+     (Set     : not null access Flyology.Operations.Completion_Set'Class;
+      Item    : not null access Session;
+      Timeout : Duration := 30.0) return Startup_Operation;
+   --  Send SSLRequest and receive the one-byte acceptance response. Finish
+   --  leaves Item in TLS_Negotiated; upgrade the same transport before
+   --  calling Startup.
+
+   procedure Negotiate_TLS
+     (Item      : not null access Session;
+      Timeout   : Duration := 30.0;
+      Operation : in out Startup_Operation)
+     with Pre =>
+       not Flyology.Operations.Is_Active (Operation)
+       and then not Flyology.Operations.Is_Terminal (Operation);
+   --  Start or restart SSLRequest negotiation.
+
+   procedure Finish (Operation : in out Startup_Operation);
+   --  Consume a terminal startup stage and raise its retained familiar error.
 
    procedure Startup_TLS
      (Item             : in out Session;
@@ -456,7 +514,8 @@ private
       Transferring_Data,
       Reading_Tag,
       Reading_Length,
-      Reading_Body);
+      Reading_Body,
+      Reading_TLS_Response);
 
    type Client_Operation is
      abstract new Flyology.Operations.Operation with record
@@ -487,6 +546,34 @@ private
       Failure      : Ada.Exceptions.Exception_Occurrence;
    end record;
 
+   type Startup_Kind is (TLS_Negotiation_Stage, Authentication_Stage);
+   type Startup_SASL_Phase is
+     (No_SASL, Awaiting_Continue, Awaiting_Final, Final_Verified);
+
+   type Startup_Operation is new Client_Operation with record
+      Buffer       : Buffer_Owner;
+      Tag          : Protocol.Byte_Array (1 .. 1);
+      Length_Data  : Protocol.Byte_Array (1 .. 4);
+      TLS_Response : Protocol.Byte_Array (1 .. 1);
+      Cursor       : Protocol.Byte_Offset := 1;
+      Phase        : Transfer_Phase := Transfer_Idle;
+      Kind         : Startup_Kind := Authentication_Stage;
+      SASL_Phase   : Startup_SASL_Phase := No_SASL;
+      User         : Ada.Strings.Unbounded.Unbounded_String;
+      Database     : Ada.Strings.Unbounded.Unbounded_String;
+      Password     : Ada.Strings.Unbounded.Unbounded_String;
+      Application  : Ada.Strings.Unbounded.Unbounded_String;
+      Nonce        : Ada.Strings.Unbounded.Unbounded_String;
+      Bare_First   : Ada.Strings.Unbounded.Unbounded_String;
+      Expected_Server_Signature : Flyology.Postgres.SCRAM.Digest :=
+        (others => 0);
+      Authentication_Ok : Boolean := False;
+      Replication_Mode : Protocol.Replication_Connection_Mode :=
+        Protocol.Normal_Connection;
+      Timeout : Duration := 30.0;
+      Failure : Ada.Exceptions.Exception_Occurrence;
+   end record;
+
    overriding procedure Drive
      (Item  : in out Send_Operation;
       Event : Flyology.Operations.Driver_Event);
@@ -500,6 +587,13 @@ private
 
    overriding procedure Request_Cancellation
      (Item : in out Receive_Operation);
+
+   overriding procedure Drive
+     (Item  : in out Startup_Operation;
+      Event : Flyology.Operations.Driver_Event);
+
+   overriding procedure Request_Cancellation
+     (Item : in out Startup_Operation);
 
    type Copy_Origin is (No_Copy, Simple_Copy, Extended_Copy);
 

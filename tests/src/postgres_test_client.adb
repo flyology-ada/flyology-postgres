@@ -4,6 +4,7 @@ with Ada.Text_IO;
 with Flyology;
 with Flyology.Bytes;
 with Flyology.IO.Connections;
+with Flyology.IO.Connections.TLS;
 with Flyology.IO.Sockets;
 with Flyology.IO.TLS;
 with Flyology.IO.TLS.OpenSSL;
@@ -23,6 +24,7 @@ procedure Postgres_Test_Client is
    package TLS renames Flyology.IO.TLS;
    package OpenSSL renames Flyology.IO.TLS.OpenSSL;
    package Connections renames Flyology.IO.Connections;
+   package Connection_TLS renames Flyology.IO.Connections.TLS;
    package Operations renames Flyology.Operations;
    package Connection_Transports renames
      Flyology.Postgres.Transports.Connections;
@@ -75,7 +77,7 @@ procedure Postgres_Test_Client is
    end Worker;
 
    task body Worker is
-      Backend : OpenSSL.OpenSSL_Provider;
+      Backend : aliased OpenSSL.OpenSSL_Provider;
       Socket  : aliased Sockets.Socket_Type;
       Channel : aliased Transports.TLS_Socket_Transport (Socket'Access);
       Session : Client.Session (Channel'Access);
@@ -1158,14 +1160,40 @@ procedure Postgres_Test_Client is
          Sockets.Create_Socket (Scoped_Socket);
          Sockets.Connect (Scoped_Socket, Server, Timeout => 5.0);
          Connections.Take (Manager, Scoped_Socket, Connection);
-         Client.Startup_TLS
-           (Scoped_Session,
-            Backend,
-            Server_Name => Server_Name,
-            User        => "flyology",
-            Database    => "postgres",
-            Password    => "flyology-secret",
-            Timeout     => 5.0);
+         declare
+            Request : Client.Startup_Operation :=
+              Client.Negotiate_TLS
+                (Set'Access, Scoped_Session'Access, Timeout => 5.0);
+         begin
+            Operations.Wait_All (Set);
+            Client.Finish (Request);
+         end;
+         declare
+            Upgrade : Connection_TLS.Upgrade_Operation :=
+              Connection_TLS.Upgrade
+                (Set'Access,
+                 Connection'Access,
+                 Backend'Access,
+                 TLS.Client,
+                 Server_Name,
+                 Timeout => 5.0);
+         begin
+            Operations.Wait_All (Set);
+            Connection_TLS.Finish (Upgrade);
+         end;
+         declare
+            Start : Client.Startup_Operation :=
+              Client.Startup
+                (Set'Access,
+                 Scoped_Session'Access,
+                 User     => "flyology",
+                 Database => "postgres",
+                 Password => "flyology-secret",
+                 Timeout  => 5.0);
+         begin
+            Operations.Wait_All (Set);
+            Client.Finish (Start);
+         end;
          declare
             Send : Client.Send_Operation :=
               Client.Send_Query
