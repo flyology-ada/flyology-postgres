@@ -1,7 +1,9 @@
 with Ada.Streams;
 with Flyology.Cancellation;
 with Flyology.IO.Connections;
+with Flyology.IO.Connections.Drivers;
 with Flyology.IO.TLS;
+with Flyology.Operations;
 
 package Flyology.Postgres.Transports.Connections is
    --  PostgreSQL transport adapter for a cancellable Flyology connection.
@@ -11,7 +13,8 @@ package Flyology.Postgres.Transports.Connections is
       --  Borrowed connection channel.
       Token   : access Flyology.Cancellation.Token)
       --  Optional cooperative cancellation token.
-   is limited new TLS_Upgradable_Transport with private;
+   is limited new TLS_Upgradable_Transport and Operation_Transport
+     with private;
    --  Non-owning view of Channel with optional cooperative cancellation.
 
    overriding procedure Receive_Exactly
@@ -44,10 +47,49 @@ package Flyology.Postgres.Transports.Connections is
    --  @param Server_Name DNS name checked during certificate verification.
    --  @param Timeout Maximum time allowed for the handshake.
 
+   overriding procedure Start_Operation
+     (Item      : in out Connection_Transport;
+      Operation : in out Flyology.Operations.Operation'Class;
+      Result    : out Acquisition_Result;
+      Timeout   : Duration);
+
+   overriding procedure Poll_Acquisition
+     (Item   : in out Connection_Transport;
+      Result : out Acquisition_Result);
+
+   overriding procedure Arm_Acquisition
+     (Item      : in out Connection_Transport;
+      Operation : in out Flyology.Operations.Operation'Class);
+
+   overriding procedure Receive_Step
+     (Item   : in out Connection_Transport;
+      Data   : out Ada.Streams.Stream_Element_Array;
+      Last   : out Ada.Streams.Stream_Element_Offset;
+      Result : out Step_Result);
+
+   overriding procedure Send_Step
+     (Item   : in out Connection_Transport;
+      Data   : Ada.Streams.Stream_Element_Array;
+      Last   : out Ada.Streams.Stream_Element_Offset;
+      Result : out Step_Result);
+
+   overriding procedure Arm_Transport
+     (Item      : in out Connection_Transport;
+      Operation : in out Flyology.Operations.Operation'Class;
+      Required  : Step_Result);
+
+   overriding procedure Release_Operation
+     (Item : in out Connection_Transport);
+
+   overriding procedure Cancel_Operation
+     (Item : in out Connection_Transport);
+
 private
    type Connection_Transport
      (Channel : not null access Flyology.IO.Connections.Connection;
       Token   : access Flyology.Cancellation.Token)
-   is limited new TLS_Upgradable_Transport with null record;
+   is limited new TLS_Upgradable_Transport and Operation_Transport with record
+      IO : Flyology.IO.Connections.Drivers.Capability;
+   end record;
 
 end Flyology.Postgres.Transports.Connections;

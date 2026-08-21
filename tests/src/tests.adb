@@ -4,8 +4,12 @@ with Ada.Text_IO;
 with Interfaces;
 with AUnit.Assertions; use AUnit.Assertions;
 with Flyology.Bytes;
+with Flyology.IO;
+with Flyology.IO.Timers;
 with Flyology.IO.TLS;
 with Flyology.IO.TLS.OpenSSL;
+with Flyology.Operations;
+with Flyology.Operations.Drivers;
 with Flyology.Postgres.Client;
 with Flyology.Postgres.Protocol;
 with Flyology.Postgres.Replication.Base_Backups;
@@ -28,6 +32,9 @@ procedure Tests is
      Flyology.Postgres.Replication.Base_Backups.Server_Sessions;
    package Server_Sessions renames Flyology.Postgres.Server_Sessions;
    package Transports renames Flyology.Postgres.Transports;
+   package Operations renames Flyology.Operations;
+   package Operation_Drivers renames Flyology.Operations.Drivers;
+   package Timers renames Flyology.IO.Timers;
 
    use type Protocol.Byte;
    use type Protocol.Byte_Offset;
@@ -42,15 +49,21 @@ procedure Tests is
    use type Protocol.UInt16;
    use type Protocol.UInt32;
    use type Client.Operation_State;
+   use type Operations.Terminal_Outcome;
    use type Base_Backups.Event_Kind;
    use type Interfaces.Unsigned_64;
    use type Ada.Streams.Stream_Element_Array;
 
    type Memory_Transport is
-     limited new Transports.TLS_Upgradable_Transport with record
-      Input  : Flyology.Bytes.Unbounded_Bytes;
-      Output : Flyology.Bytes.Unbounded_Bytes;
-      Next   : Natural := 1;
+     limited new Transports.TLS_Upgradable_Transport
+       and Transports.Operation_Transport with record
+         Input        : Flyology.Bytes.Unbounded_Bytes;
+         Output       : Flyology.Bytes.Unbounded_Bytes;
+         Next         : Natural := 1;
+         Engaged      : Boolean := False;
+         Blocked      : Boolean := False;
+         Fail_Receive : Boolean := False;
+         Chunk        : Positive := 1;
    end record;
 
    overriding procedure Receive_Exactly
@@ -69,6 +82,40 @@ procedure Tests is
       Backend     : in out Flyology.IO.TLS.Provider'Class;
       Server_Name : String;
       Timeout     : Duration);
+
+   overriding procedure Start_Operation
+     (Item      : in out Memory_Transport;
+      Operation : in out Operations.Operation'Class;
+      Result    : out Transports.Acquisition_Result;
+      Timeout   : Duration);
+
+   overriding procedure Poll_Acquisition
+     (Item   : in out Memory_Transport;
+      Result : out Transports.Acquisition_Result);
+
+   overriding procedure Arm_Acquisition
+     (Item      : in out Memory_Transport;
+      Operation : in out Operations.Operation'Class);
+
+   overriding procedure Receive_Step
+     (Item   : in out Memory_Transport;
+      Data   : out Ada.Streams.Stream_Element_Array;
+      Last   : out Ada.Streams.Stream_Element_Offset;
+      Result : out Transports.Step_Result);
+
+   overriding procedure Send_Step
+     (Item   : in out Memory_Transport;
+      Data   : Ada.Streams.Stream_Element_Array;
+      Last   : out Ada.Streams.Stream_Element_Offset;
+      Result : out Transports.Step_Result);
+
+   overriding procedure Arm_Transport
+     (Item      : in out Memory_Transport;
+      Operation : in out Operations.Operation'Class;
+      Required  : Transports.Step_Result);
+
+   overriding procedure Release_Operation (Item : in out Memory_Transport);
+   overriding procedure Cancel_Operation (Item : in out Memory_Transport);
 
    overriding procedure Receive_Exactly
      (Item    : in out Memory_Transport;
@@ -110,6 +157,104 @@ procedure Tests is
    begin
       raise Program_Error with "unexpected memory transport TLS upgrade";
    end Upgrade_TLS;
+
+   overriding procedure Start_Operation
+     (Item      : in out Memory_Transport;
+      Operation : in out Operations.Operation'Class;
+      Result    : out Transports.Acquisition_Result;
+      Timeout   : Duration) is
+   begin
+      if Item.Engaged then
+         raise Program_Error with "memory transport is already engaged";
+      end if;
+      Item.Engaged := True;
+      if Timeout >= 0.0 then
+         Operation_Drivers.Arm_Deadline (Operation, Timeout);
+      end if;
+      Result := Transports.Acquired;
+   end Start_Operation;
+
+   overriding procedure Poll_Acquisition
+     (Item   : in out Memory_Transport;
+      Result : out Transports.Acquisition_Result) is
+      pragma Unreferenced (Item);
+   begin
+      Result := Transports.Acquired;
+   end Poll_Acquisition;
+
+   overriding procedure Arm_Acquisition
+     (Item      : in out Memory_Transport;
+      Operation : in out Operations.Operation'Class) is
+      pragma Unreferenced (Item);
+   begin
+      Operation_Drivers.Reschedule (Operation);
+   end Arm_Acquisition;
+
+   overriding procedure Receive_Step
+     (Item   : in out Memory_Transport;
+      Data   : out Ada.Streams.Stream_Element_Array;
+      Last   : out Ada.Streams.Stream_Element_Offset;
+      Result : out Transports.Step_Result) is
+      Available : constant Protocol.Byte_Array :=
+        Flyology.Bytes.To_Array (Item.Input);
+      Count : Natural;
+   begin
+      Last := Data'First - 1;
+      if Item.Fail_Receive then
+         raise Program_Error with "synthetic provider receive failure";
+      elsif Item.Blocked then
+         Result := Transports.Need_Read;
+         return;
+      elsif Item.Next > Available'Length then
+         Result := Transports.Peer_Closed;
+         return;
+      end if;
+      Count := Natural'Min
+        (Item.Chunk,
+         Natural'Min
+           (Data'Length, Available'Length - Item.Next + 1));
+      for Offset in 0 .. Count - 1 loop
+         Data (Data'First + Ada.Streams.Stream_Element_Offset (Offset)) :=
+           Available (Protocol.Byte_Offset (Item.Next + Offset));
+      end loop;
+      Item.Next := Item.Next + Count;
+      Last := Data'First + Ada.Streams.Stream_Element_Offset (Count) - 1;
+      Result := Transports.Made_Progress;
+   end Receive_Step;
+
+   overriding procedure Send_Step
+     (Item   : in out Memory_Transport;
+      Data   : Ada.Streams.Stream_Element_Array;
+      Last   : out Ada.Streams.Stream_Element_Offset;
+      Result : out Transports.Step_Result) is
+      Count : constant Natural := Natural'Min (Item.Chunk, Data'Length);
+      Final : constant Ada.Streams.Stream_Element_Offset :=
+        Data'First + Ada.Streams.Stream_Element_Offset (Count) - 1;
+   begin
+      Flyology.Bytes.Append (Item.Output, Data (Data'First .. Final));
+      Last := Final;
+      Result := Transports.Made_Progress;
+   end Send_Step;
+
+   overriding procedure Arm_Transport
+     (Item      : in out Memory_Transport;
+      Operation : in out Operations.Operation'Class;
+      Required  : Transports.Step_Result) is
+      pragma Unreferenced (Item, Operation, Required);
+   begin
+      --  A blocked synthetic transfer retains Start's deadline source.
+      null;
+   end Arm_Transport;
+
+   overriding procedure Release_Operation (Item : in out Memory_Transport) is
+   begin
+      Item.Engaged := False;
+   end Release_Operation;
+
+   overriding procedure Cancel_Operation (Item : in out Memory_Transport) is
+   begin
+      Item.Engaged := False;
+   end Cancel_Operation;
 
    procedure Queue
      (Item : in out Memory_Transport; Message : Protocol.Message) is
@@ -1920,6 +2065,319 @@ procedure Tests is
          "backend CopyDone rejects a nonempty payload");
    end Test_Malformed_Backend_Messages;
 
+   procedure Test_Composable_Client_Operations is
+
+      procedure Start_Memory_Session
+        (Item    : in out Client.Session;
+         Channel : in out Memory_Transport) is
+         Authentication : Flyology.Bytes.Unbounded_Bytes;
+         Ready_Payload  : constant Protocol.Byte_Array (1 .. 1) :=
+           (1 => Protocol.Byte (Character'Pos ('I')));
+      begin
+         Protocol.Append_U32 (Authentication, 0);
+         Queue
+           (Channel,
+            Protocol.Make_Message
+              ('R', Flyology.Bytes.To_Array (Authentication)));
+         Queue (Channel, Protocol.Make_Message ('Z', Ready_Payload));
+         Client.Startup (Item, User => "operation-test", Timeout => 1.0);
+      end Start_Memory_Session;
+
+      procedure Test_Partial_And_Gates is
+         Channel : aliased Memory_Transport;
+         Session : aliased Client.Session (Channel'Access);
+         Set     : aliased Operations.Completion_Set (Capacity => 6);
+         Ready_Payload : constant Protocol.Byte_Array (1 .. 1) :=
+           (1 => Protocol.Byte (Character'Pos ('I')));
+      begin
+         Start_Memory_Session (Session, Channel);
+         declare
+            Batch : Operations.Completion_Batch (Set.Capacity);
+            Send  : Client.Send_Operation :=
+              Client.Send_Query
+                (Set'Access, Session'Access, "select 1", Timeout => 1.0);
+            Timer : Timers.Timer_Operation :=
+              Timers.Sleep_For (Set'Access, 0.001);
+            Gate  : Operations.Gate_Operation :=
+              Operations.Wait_For_Success
+                (Set'Access,
+                 Operations.Operation_Reference_Array'
+                   (1 => Operations.Reference (Send),
+                    2 => Operations.Reference (Timer)));
+         begin
+            Operations.Wait_All (Set);
+            Operations.Finish (Gate, Batch);
+            Client.Finish (Send);
+            Timers.Finish (Timer);
+            Assert
+              (Client.State (Session) = Client.Simple_Query_Active,
+               "scoped query send preserves synchronous state transition");
+            Assert
+              (not Channel.Engaged,
+               "successful send releases the transport capability");
+         end;
+
+         Queue (Channel, Protocol.Make_Empty_Message ('I'));
+         Queue (Channel, Protocol.Make_Message ('Z', Ready_Payload));
+         declare
+            Event   : Protocol.Backend_Message;
+            Receive : Client.Receive_Operation :=
+              Client.Receive_Query_Event
+                (Set'Access, Session'Access, Timeout => 1.0);
+         begin
+            Operations.Wait_All (Set);
+            Client.Finish (Receive, Event);
+            Assert
+              (Protocol.Response_Kind (Event) =
+                 Protocol.Empty_Query_Response,
+               "partial scoped receive returns the decoded query event");
+
+            Client.Receive_Query_Event
+              (Session'Access, Timeout => 1.0, Operation => Receive);
+            Operations.Wait_All (Set);
+            Client.Finish (Receive, Event);
+            Assert
+              (Protocol.Response_Kind (Event) =
+                 Protocol.Ready_For_Query_Response,
+               "reusable receive reaches ReadyForQuery");
+            Assert
+              (Client.Is_Ready (Session) and then not Channel.Engaged,
+               "reusable receive releases ownership and restores readiness");
+         end;
+      end Test_Partial_And_Gates;
+
+      procedure Test_Counted_Multiple_Connections is
+         Left_Channel  : aliased Memory_Transport;
+         Right_Channel : aliased Memory_Transport;
+         Left_Session  : aliased Client.Session (Left_Channel'Access);
+         Right_Session : aliased Client.Session (Right_Channel'Access);
+         Set   : aliased Operations.Completion_Set (Capacity => 5);
+         Batch : Operations.Completion_Batch (Set.Capacity);
+         Ready_Payload : constant Protocol.Byte_Array (1 .. 1) :=
+           (1 => Protocol.Byte (Character'Pos ('I')));
+      begin
+         Start_Memory_Session (Left_Session, Left_Channel);
+         Start_Memory_Session (Right_Session, Right_Channel);
+         declare
+            Left : Client.Send_Operation :=
+              Client.Send_Query
+                (Set'Access, Left_Session'Access, "select 1", 1.0);
+            Right : Client.Send_Operation :=
+              Client.Send_Query
+                (Set'Access, Right_Session'Access, "select 2", 1.0);
+            Successes : Operations.Gate_Operation :=
+              Operations.Wait_For_Successes
+                (Set'Access,
+                 Operations.Operation_Reference_Array'
+                   (1 => Operations.Reference (Left),
+                    2 => Operations.Reference (Right)),
+                 Required => 2);
+         begin
+            Operations.Wait_Some (Set, Required => 2, Completed => Batch);
+            Assert
+              (Batch.Count >= 2,
+               "counted Wait_Some reports multiple connection operations");
+            Operations.Wait_All (Set);
+            Operations.Finish (Successes, Batch);
+            Client.Finish (Left);
+            Client.Finish (Right);
+            Assert
+              (not Left_Channel.Engaged
+               and then not Right_Channel.Engaged,
+               "multiple connection operations release both capabilities");
+
+            Queue
+              (Left_Channel, Protocol.Make_Message ('Z', Ready_Payload));
+            Queue
+              (Right_Channel, Protocol.Make_Message ('Z', Ready_Payload));
+            declare
+               Ignored_Left : constant Client.Simple_Query_Event :=
+                 Client.Receive_Query_Event (Left_Session, 1.0);
+               Ignored_Right : constant Client.Simple_Query_Event :=
+                 Client.Receive_Query_Event (Right_Session, 1.0);
+               pragma Unreferenced (Ignored_Left, Ignored_Right);
+            begin
+               null;
+            end;
+            Client.Send_Query
+              (Left_Session'Access, "select 3", 1.0, Left);
+            Client.Send_Query
+              (Right_Session'Access, "select 4", 1.0, Right);
+            Operations.Wait_At_Least (Set, 2, Batch);
+            Assert
+              (Batch.Count >= 2,
+               "Wait_At_Least reports the requested operation count");
+            Operations.Wait_All (Set);
+            Client.Finish (Left);
+            Client.Finish (Right);
+         end;
+      end Test_Counted_Multiple_Connections;
+
+      procedure Test_Extended_Operations is
+         Channel : aliased Memory_Transport;
+         Session : aliased Client.Session (Channel'Access);
+         Set     : aliased Operations.Completion_Set (Capacity => 2);
+         Event   : Protocol.Backend_Message;
+      begin
+         Start_Memory_Session (Session, Channel);
+         Client.Prepare_Statement
+           (Session, Statement_Name => "statement", SQL => "select 1");
+         Client.Bind_Portal
+           (Session,
+            Portal_Name    => "portal",
+            Statement_Name => "statement");
+         declare
+            Execute : Client.Send_Operation :=
+              Client.Execute_Portal
+                (Set'Access,
+                 Session'Access,
+                 Portal_Name => "portal",
+                 Maximum_Rows => 1,
+                 Timeout => 1.0);
+         begin
+            Operations.Wait_All (Set);
+            Client.Finish (Execute);
+         end;
+         Queue (Channel, Protocol.Make_Empty_Message ('1'));
+         declare
+            Receive : Client.Receive_Operation :=
+              Client.Receive_Extended_Event
+                (Set'Access, Session'Access, Timeout => 1.0);
+         begin
+            Operations.Wait_All (Set);
+            Client.Finish (Receive, Event);
+            Assert
+              (Protocol.Response_Kind (Event) =
+                 Protocol.Parse_Complete_Response,
+               "scoped extended receive returns a typed event");
+         end;
+      end Test_Extended_Operations;
+
+      procedure Test_Timeout_Cancel_Failure_And_Cleanup is
+         Ready_Payload : constant Protocol.Byte_Array (1 .. 1) :=
+           (1 => Protocol.Byte (Character'Pos ('I')));
+
+         procedure Begin_Query
+           (Session : in out Client.Session;
+            Channel : in out Memory_Transport) is
+         begin
+            Start_Memory_Session (Session, Channel);
+            Client.Send_Query (Session, "select 1", Timeout => 1.0);
+            Queue (Channel, Protocol.Make_Message ('Z', Ready_Payload));
+         end Begin_Query;
+      begin
+         declare
+            Channel : aliased Memory_Transport;
+            Session : aliased Client.Session (Channel'Access);
+            Set     : aliased Operations.Completion_Set (Capacity => 1);
+            Event   : Protocol.Backend_Message;
+            Timed_Out : Boolean := False;
+         begin
+            Begin_Query (Session, Channel);
+            Channel.Blocked := True;
+            declare
+               Receive : Client.Receive_Operation :=
+                 Client.Receive_Query_Event
+                   (Set'Access, Session'Access, Timeout => 0.001);
+            begin
+               Operations.Wait_All (Set);
+               begin
+                  Client.Finish (Receive, Event);
+               exception
+                  when Flyology.IO.Timeout_Error =>
+                     Timed_Out := True;
+               end;
+            end;
+            Assert
+              (Timed_Out and then not Channel.Engaged,
+               "timeout is retained until Finish and releases capability");
+         end;
+
+         declare
+            Channel : aliased Memory_Transport;
+            Session : aliased Client.Session (Channel'Access);
+            Set     : aliased Operations.Completion_Set (Capacity => 1);
+            Event   : Protocol.Backend_Message;
+            Cancelled : Boolean := False;
+         begin
+            Begin_Query (Session, Channel);
+            Channel.Blocked := True;
+            declare
+               Receive : Client.Receive_Operation :=
+                 Client.Receive_Query_Event
+                   (Set'Access, Session'Access, Timeout => 10.0);
+            begin
+               Operations.Cancel (Receive);
+               begin
+                  Client.Finish (Receive, Event);
+               exception
+                  when Operations.Operation_Cancelled =>
+                     Cancelled := True;
+               end;
+            end;
+            Assert
+              (Cancelled and then not Channel.Engaged,
+               "cancellation is retained until Finish and releases borrow");
+         end;
+
+         declare
+            Channel : aliased Memory_Transport;
+            Session : aliased Client.Session (Channel'Access);
+            Set     : aliased Operations.Completion_Set (Capacity => 1);
+            Event   : Protocol.Backend_Message;
+            Failed  : Boolean := False;
+         begin
+            Begin_Query (Session, Channel);
+            Channel.Fail_Receive := True;
+            declare
+               Receive : Client.Receive_Operation :=
+                 Client.Receive_Query_Event
+                   (Set'Access, Session'Access, Timeout => 1.0);
+            begin
+               Assert
+                 (Operations.Is_Terminal (Receive)
+                  and then Operations.Outcome (Receive) = Operations.Failed,
+                  "provider failure is retained as a terminal outcome");
+               begin
+                  Client.Finish (Receive, Event);
+               exception
+                  when Program_Error =>
+                     Failed := True;
+               end;
+            end;
+            Assert
+              (Failed and then not Channel.Engaged,
+               "Finish reraises the retained provider failure");
+         end;
+
+         declare
+            Channel : aliased Memory_Transport;
+            Session : aliased Client.Session (Channel'Access);
+            Set     : aliased Operations.Completion_Set (Capacity => 1);
+         begin
+            Begin_Query (Session, Channel);
+            Channel.Blocked := True;
+            declare
+               Receive : Client.Receive_Operation :=
+                 Client.Receive_Query_Event
+                   (Set'Access, Session'Access, Timeout => 10.0);
+               pragma Unreferenced (Receive);
+            begin
+               Assert (Channel.Engaged, "pending operation owns capability");
+            end;
+            Assert
+              (not Channel.Engaged,
+               "scope-exit finalization cancels and releases capability");
+         end;
+      end Test_Timeout_Cancel_Failure_And_Cleanup;
+
+   begin
+      Test_Partial_And_Gates;
+      Test_Counted_Multiple_Connections;
+      Test_Extended_Operations;
+      Test_Timeout_Cancel_Failure_And_Cleanup;
+   end Test_Composable_Client_Operations;
+
    procedure Test_RFC_7677_SCRAM_SHA_256 is
       package SCRAM renames Flyology.Postgres.SCRAM;
       Client_Nonce : constant String := "rOprNGfwEbeRWgbNEkqO";
@@ -2125,6 +2583,7 @@ begin
    Test_Extended_Client_State;
    Test_Pipelined_Client_State;
    Test_Malformed_Backend_Messages;
+   Test_Composable_Client_Operations;
    Test_RFC_7677_SCRAM_SHA_256;
    Test_SCRAM_Failures;
    Test_Raw_Password_Boundary;

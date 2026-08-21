@@ -3,12 +3,15 @@ with Ada.Exceptions;
 with Ada.Text_IO;
 with Flyology;
 with Flyology.Bytes;
+with Flyology.IO.Connections;
 with Flyology.IO.Sockets;
 with Flyology.IO.TLS;
 with Flyology.IO.TLS.OpenSSL;
+with Flyology.Operations;
 with Flyology.Postgres.Client;
 with Flyology.Postgres.Client_Sockets;
 with Flyology.Postgres.Protocol;
+with Flyology.Postgres.Transports.Connections;
 with Flyology.Postgres.Transports.TLS_Sockets;
 
 procedure Postgres_Test_Client is
@@ -19,6 +22,10 @@ procedure Postgres_Test_Client is
    package Sockets renames Flyology.IO.Sockets;
    package TLS renames Flyology.IO.TLS;
    package OpenSSL renames Flyology.IO.TLS.OpenSSL;
+   package Connections renames Flyology.IO.Connections;
+   package Operations renames Flyology.Operations;
+   package Connection_Transports renames
+     Flyology.Postgres.Transports.Connections;
    package Transports renames Flyology.Postgres.Transports.TLS_Sockets;
 
    use type Protocol.Backend_Message_Kind;
@@ -1132,6 +1139,67 @@ procedure Postgres_Test_Client is
          end loop;
       end;
       Check (Saw_Cancellation);
+
+      --  Exercise the public set-independent connection capability after a
+      --  synchronous same-connection PostgreSQL TLS negotiation.  The query
+      --  and every result frame are scoped operations over upgraded TLS.
+      declare
+         Manager : aliased Connections.Server (Capacity => 1);
+         Scoped_Socket : aliased Sockets.Socket_Type;
+         Connection : aliased Connections.Connection (Manager'Access);
+         Scoped_Channel : aliased
+           Connection_Transports.Connection_Transport
+             (Connection'Access, null);
+         Scoped_Session : aliased Client.Session (Scoped_Channel'Access);
+         Set : aliased Operations.Completion_Set (Capacity => 2);
+         Event : Protocol.Backend_Message;
+         Rows  : Natural := 0;
+      begin
+         Sockets.Create_Socket (Scoped_Socket);
+         Sockets.Connect (Scoped_Socket, Server, Timeout => 5.0);
+         Connections.Take (Manager, Scoped_Socket, Connection);
+         Client.Startup_TLS
+           (Scoped_Session,
+            Backend,
+            Server_Name => Server_Name,
+            User        => "flyology",
+            Database    => "postgres",
+            Password    => "flyology-secret",
+            Timeout     => 5.0);
+         declare
+            Send : Client.Send_Operation :=
+              Client.Send_Query
+                (Set'Access,
+                 Scoped_Session'Access,
+                 "select n from generate_series(1, 3) n order by n",
+                 Timeout => 5.0);
+            Receive : Client.Receive_Operation (Set'Access);
+         begin
+            Operations.Wait_All (Set);
+            Client.Finish (Send);
+            loop
+               Client.Receive_Query_Event
+                 (Scoped_Session'Access,
+                  Timeout   => 5.0,
+                  Operation => Receive);
+               Operations.Wait_All (Set);
+               Client.Finish (Receive, Event);
+               if Protocol.Response_Kind (Event) =
+                 Protocol.Data_Row_Response
+               then
+                  Rows := Rows + 1;
+               end if;
+               exit when Protocol.Response_Kind (Event) =
+                 Protocol.Ready_For_Query_Response;
+            end loop;
+         end;
+         Check (Rows = 3 and then Client.Is_Ready (Scoped_Session));
+         Client.Send_Command
+           (Scoped_Session,
+            Protocol.Make_Empty_Message ('X'),
+            Timeout => 5.0);
+         Connections.Close (Connection);
+      end;
 
       Client.Send_Command
         (Session, Protocol.Make_Empty_Message ('X'), Timeout => 5.0);

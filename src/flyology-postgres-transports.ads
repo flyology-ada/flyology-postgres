@@ -1,5 +1,6 @@
 with Ada.Streams;
 with Flyology.IO.TLS;
+with Flyology.Operations;
 
 package Flyology.Postgres.Transports is
    --  Abstract byte transports used by the PostgreSQL client and server.
@@ -47,6 +48,66 @@ package Flyology.Postgres.Transports is
    --  @param Data Complete buffer to transmit.
    --  @param Timeout Maximum time allowed for the complete transfer.
    --  @exception Flyology.IO.Timeout_Error The deadline expires first.
+
+   type Operation_Transport is limited interface;
+   --  Set-independent immediate-step capability used by one outer PostgreSQL
+   --  operation.  Implementations retain their private connection or TLS
+   --  capability in the concrete transport object; the PostgreSQL operation
+   --  owns the only Flyology completion-set slot.
+
+   type Acquisition_Result is (Acquired, Need_Acquire_Readiness);
+   --  Result of one immediate attempt to acquire the transport capability.
+
+   type Step_Result is
+     (Made_Progress, Need_Read, Need_Write, Peer_Closed);
+   --  Result of one bounded receive or send step.
+
+   procedure Start_Operation
+     (Item      : in out Operation_Transport;
+      Operation : in out Flyology.Operations.Operation'Class;
+      Result    : out Acquisition_Result;
+      Timeout   : Duration) is abstract;
+   --  Begin one transport operation, attempt acquisition once, and arm its
+   --  shared deadline on Operation.
+
+   procedure Poll_Acquisition
+     (Item   : in out Operation_Transport;
+      Result : out Acquisition_Result) is abstract;
+   --  Retry acquisition after the previously armed source becomes ready.
+
+   procedure Arm_Acquisition
+     (Item      : in out Operation_Transport;
+      Operation : in out Flyology.Operations.Operation'Class) is abstract;
+   --  Arm lease and lifecycle readiness on Operation.
+
+   procedure Receive_Step
+     (Item   : in out Operation_Transport;
+      Data   : out Ada.Streams.Stream_Element_Array;
+      Last   : out Ada.Streams.Stream_Element_Offset;
+      Result : out Step_Result) is abstract;
+   --  Attempt at most one immediate receive step.
+
+   procedure Send_Step
+     (Item   : in out Operation_Transport;
+      Data   : Ada.Streams.Stream_Element_Array;
+      Last   : out Ada.Streams.Stream_Element_Offset;
+      Result : out Step_Result) is abstract;
+   --  Attempt at most one immediate send step.
+
+   procedure Arm_Transport
+     (Item      : in out Operation_Transport;
+      Operation : in out Flyology.Operations.Operation'Class;
+      Required  : Step_Result) is abstract;
+   --  Arm the read or write readiness requested by the last step, plus the
+   --  shared deadline and lifecycle sources.
+
+   procedure Release_Operation
+     (Item : in out Operation_Transport) is abstract;
+   --  Release every transport borrow before the outer operation terminalizes.
+
+   procedure Cancel_Operation
+     (Item : in out Operation_Transport) is abstract;
+   --  Cancel and release every transport borrow before outer cancellation.
 
    type TLS_Upgradable_Transport is limited interface and Transport;
    --  Plain transport that can transfer its underlying channel into TLS.
