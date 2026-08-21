@@ -1,0 +1,17 @@
+name = "postgres_client_operations_benchmark"
+description = "Reproducible Flyology Postgres client operation benchmark"
+version = "0.1.0-dev"
+
+authors = ["Yurii Rashkovskii"]
+maintainers = ["Yurii Rashkovskii <yrashk@gmail.com>"]
+maintainers-logins = ["yrashk"]
+licenses = "MIT OR Apache-2.0"
+tags = ["benchmark", "postgres", "client"]
+
+executables = ["postgres_client_operations_benchmark"]
+
+[[depends-on]]
+flyology_postgres = "*"
+
+[[pins]]
+flyology_postgres = { path = "../.." }
