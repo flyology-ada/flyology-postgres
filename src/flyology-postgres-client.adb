@@ -1613,6 +1613,21 @@ package body Flyology.Postgres.Client is
    begin
       Flyology.Postgres.SCRAM_Core.Wipe
         (Item.Expected_Server_Signature);
+      for Index in 1 .. Length (Item.Password) loop
+         Replace_Element
+           (Item.Password, Index, Character'Val (0));
+      end loop;
+      Item.Password := Null_Unbounded_String;
+      for Index in 1 .. Length (Item.Nonce) loop
+         Replace_Element
+           (Item.Nonce, Index, Character'Val (0));
+      end loop;
+      Item.Nonce := Null_Unbounded_String;
+      for Index in 1 .. Length (Item.Bare_First) loop
+         Replace_Element
+           (Item.Bare_First, Index, Character'Val (0));
+      end loop;
+      Item.Bare_First := Null_Unbounded_String;
    end Wipe_Startup;
 
    procedure Fail_Startup
@@ -2181,6 +2196,10 @@ package body Flyology.Postgres.Client is
       Operation.Replication_Mode := Replication_Mode;
       Start_Startup_Operation
         (Item, Authentication_Stage, Timeout, Operation);
+   exception
+      when others =>
+         Wipe_Startup (Operation);
+         raise;
    end Startup;
 
    procedure Finish (Operation : in out Startup_Operation) is
