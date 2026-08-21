@@ -681,17 +681,10 @@ package body Flyology.Postgres.Client is
       return Response;
    end Receive_Message;
 
-   function Receive_Query_Event
-     (Item : in out Session; Timeout : Duration := 30.0)
-      return Simple_Query_Event is
-      Response : Protocol.Backend_Message;
+   procedure Apply_Query_Event
+     (Item     : in out Session;
+      Response : Simple_Query_Event) is
    begin
-      if Item.Current_State /= Simple_Query_Active then
-         raise Program_Error with "no simple query is active";
-      end if;
-
-      Response := Protocol.Decode_Backend
-        (Framing.Read_Message (Item.Channel.all, Timeout));
       case Protocol.Response_Kind (Response) is
          when Protocol.Row_Description_Response =>
             if Item.Has_Row_Description then
@@ -754,6 +747,20 @@ package body Flyology.Postgres.Client is
               Protocol.Unknown_Response =>
             null;
       end case;
+   end Apply_Query_Event;
+
+   function Receive_Query_Event
+     (Item : in out Session; Timeout : Duration := 30.0)
+      return Simple_Query_Event is
+      Response : Protocol.Backend_Message;
+   begin
+      if Item.Current_State /= Simple_Query_Active then
+         raise Program_Error with "no simple query is active";
+      end if;
+
+      Response := Protocol.Decode_Backend
+        (Framing.Read_Message (Item.Channel.all, Timeout));
+      Apply_Query_Event (Item, Response);
       return Response;
    end Receive_Query_Event;
 
@@ -928,22 +935,11 @@ package body Flyology.Postgres.Client is
       Send_Command (Item, Protocol.Make_Sync_Message, Timeout);
    end Synchronize;
 
-   function Receive_Extended_Event
-     (Item : in out Session; Timeout : Duration := 30.0)
-      return Extended_Query_Event is
-      Response     : Protocol.Backend_Message;
-      Sync_Pending : constant Boolean := Item.Pending_Syncs > 0;
+   procedure Apply_Extended_Event
+     (Item         : in out Session;
+      Response     : Extended_Query_Event;
+      Sync_Pending : Boolean) is
    begin
-      if Item.Current_State = Recovery_Required then
-         raise Program_Error with
-           "Postgres extended-query recovery requires Sync before receiving";
-      end if;
-      if Item.Current_State not in Extended_Query_Active | Awaiting_Ready then
-         raise Program_Error with "no extended query is active";
-      end if;
-
-      Response := Protocol.Decode_Backend
-        (Framing.Read_Message (Item.Channel.all, Timeout));
       case Protocol.Response_Kind (Response) is
          when Protocol.Row_Description_Response =>
             Item.Described_Columns := Protocol.Field_Count
@@ -1014,6 +1010,25 @@ package body Flyology.Postgres.Client is
               Protocol.Unknown_Response =>
             null;
       end case;
+   end Apply_Extended_Event;
+
+   function Receive_Extended_Event
+     (Item : in out Session; Timeout : Duration := 30.0)
+      return Extended_Query_Event is
+      Response     : Protocol.Backend_Message;
+      Sync_Pending : constant Boolean := Item.Pending_Syncs > 0;
+   begin
+      if Item.Current_State = Recovery_Required then
+         raise Program_Error with
+           "Postgres extended-query recovery requires Sync before receiving";
+      end if;
+      if Item.Current_State not in Extended_Query_Active | Awaiting_Ready then
+         raise Program_Error with "no extended query is active";
+      end if;
+
+      Response := Protocol.Decode_Backend
+        (Framing.Read_Message (Item.Channel.all, Timeout));
+      Apply_Extended_Event (Item, Response, Sync_Pending);
       return Response;
    end Receive_Extended_Event;
 
