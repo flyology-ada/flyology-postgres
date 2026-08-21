@@ -66,7 +66,82 @@ is retained so the noise is not hidden.
 
 ## Composable-operations result
 
-To be populated after the migration and full regression suite pass.
+Candidate Flyology Postgres revision:
+`d7e0f090ff3b30423d3fac074eb7501d6c084279`.  The GitHub dependency resolved
+the `codex/composable-operations` branch of Flyology PR #60 at
+`1810fc60ba41bd9029a7d1c96c0e326af1ad415a`.
+
+Two complete candidate campaigns were retained because this shared host was
+heavily contended.  The first ran at revision `1e19383` after the full
+PostgreSQL 14--18 regression matrix; the only later implementation change
+scrubs copied startup credentials during operation cleanup and does not touch
+the measured synchronous path.  Its post-run load averages were
+53.66/36.20/33.25 on 16 cores, and `/usr/bin/time -l` counted 141,151
+involuntary context switches.
+
+| Sample | Full cycles/s | Full latency (µs) | Query cycles/s | Query latency (µs) | Rows/s |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 95.544 | 10,466.382 | 12,778.200 | 78.258 | 102,225.600 |
+| 2 | 93.598 | 10,683.989 | 13,063.100 | 76.552 | 104,504.800 |
+| 3 | 86.026 | 11,624.393 | 7,207.640 | 138.742 | 57,661.120 |
+| 4 | 84.165 | 11,881.423 | 8,804.230 | 113.582 | 70,433.840 |
+| 5 | 88.912 | 11,247.076 | 7,994.340 | 125.089 | 63,954.720 |
+| 6 | 57.154 | 17,496.588 | 9,653.020 | 103.595 | 77,224.160 |
+| 7 | 72.488 | 13,795.387 | 10,705.000 | 93.414 | 85,640.000 |
+
+| Metric | Min | Median | Mean | Max | Population σ |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Full connect/query/result cycles/s | 57.154 | 86.026 | 82.555 | 95.544 | 12.492 |
+| Persistent query/result cycles/s | 7,207.640 | 9,653.020 | 10,029.360 | 13,063.100 | 2,103.130 |
+| Persistent result rows/s | 57,661.120 | 77,224.160 | 80,234.880 | 104,504.800 | 16,825.040 |
+
+That process consumed 48.13 s wall time, 29.12 s user CPU, and 1.68 s system
+CPU.  Maximum resident set size was 2,850,816 bytes and peak memory footprint
+was 1,573,200 bytes.
+
+The confirmation campaign used the final candidate revision.  Its post-run
+load averages were still 24.29/25.22/27.70, and it counted 121,001 involuntary
+context switches.
+
+| Sample | Full cycles/s | Full latency (µs) | Query cycles/s | Query latency (µs) | Rows/s |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 84.967 | 11,769.293 | 6,069.282 | 164.764 | 48,554.257 |
+| 2 | 81.994 | 12,196.087 | 8,576.743 | 116.594 | 68,613.945 |
+| 3 | 84.968 | 11,769.142 | 12,377.258 | 80.793 | 99,018.061 |
+| 4 | 89.035 | 11,231.553 | 11,357.895 | 88.044 | 90,863.160 |
+| 5 | 88.794 | 11,262.021 | 12,331.812 | 81.091 | 98,654.497 |
+| 6 | 87.712 | 11,400.953 | 11,802.742 | 84.726 | 94,421.936 |
+| 7 | 84.415 | 11,846.288 | 13,089.535 | 76.397 | 104,716.279 |
+
+| Metric | Min | Median | Mean | Max | Population σ |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Full connect/query/result cycles/s | 81.994 | 84.968 | 85.983 | 89.035 | 2.410 |
+| Persistent query/result cycles/s | 6,069.282 | 11,802.742 | 10,800.752 | 13,089.535 | 2,351.761 |
+| Persistent result rows/s | 48,554.257 | 94,421.936 | 86,406.019 | 104,716.279 | 18,814.088 |
+
+The confirmation process consumed 45.14 s wall time, 29.33 s user CPU, and
+1.55 s system CPU.  Maximum resident set size was 2,883,584 bytes and peak
+memory footprint was 1,605,968 bytes.  Compared with baseline, RSS increased
+by 32 KiB while peak footprint decreased by 32 KiB.
+
+The contended candidate medians are 11.1% lower for full cycles and 10.2%
+lower for persistent queries than the baseline medians.  This initially looks
+material, so the measured path and distribution were investigated rather than
+accepting the aggregate.  The benchmark deliberately uses the familiar
+synchronous API over `Transports.Sockets.Socket_Transport`; it does not enter
+the new operation provider or the Flyology connection-driver capability.  The
+socket transport itself has no implementation diff from the baseline.  The
+first candidate campaign also reached 95.544 full cycles/s and 13,063.100
+persistent queries/s, respectively within 0.01% and 0.62% of the baseline
+medians, before both phases slowed together as host load rose.  That
+simultaneous degradation, the extreme run-queue load, and the context-switch
+counts identify host contention rather than an operation-specific hot path.
+
+The evidence therefore shows that the existing performance profile remains
+reachable, with no steady-state memory-footprint regression attributable to
+waiting.  It does not support a precise small before/after delta on this host.
+A dedicated or otherwise quiet runner is required before treating differences
+below the observed contention spread as implementation signal.
 
 ## Interpretation and limitations
 
@@ -74,4 +149,8 @@ This loopback workload is designed to detect overhead in connect, startup,
 query send, partial/complete result receive, and synchronous waiting. It is not
 a database-capacity benchmark and does not cover TLS, wide or large rows,
 storage-bound queries, network delay, or many concurrent clients. Small
-differences must be interpreted against the sample spread and host load.
+differences must be interpreted against the sample spread and host load.  The
+current benchmark intentionally protects synchronous parity; the synthetic
+and real-TLS regression suites cover operation composition, but a separate
+concurrent operation-throughput workload remains useful future work once a
+quiet performance runner is available.
