@@ -65,6 +65,7 @@
             <li><a href="#requirements">Requirements</a></li>
             <li><a href="#add">Add the crate</a></li>
             <li><a href="#connect">Connect and start</a></li>
+            <li><a href="#composable">Compose operations</a></li>
             <li><a href="#simple">Simple queries</a></li>
             <li><a href="#extended">Extended queries</a></li>
             <li><a href="#pipeline">Pipeline batches</a></li>
@@ -157,8 +158,85 @@ Client.Startup_TLS
             </aside>
           </section>
 
-          <section id="simple">
+          <section id="composable">
             <span class="step-label">STEP 04</span>
+            <h2>Compose PostgreSQL work with other Flyology operations</h2>
+            <p>The client operation overloads register limited operations in a caller-owned completion set. Use <a href="../api/996b861c76176acb3cfaa444ecb9354018fb43f2a82b45a080d4b9e53d2b6df6.html#77ae6670dd75fed7641aeb20c1ed94e191fb9cee78b51479b060f01728047526"><code>Connection_Transport</code></a> for these overloads. The socket-specific transport adapters support only the synchronous APIs.</p>
+            <p>The connection transport borrows a Flyology connection and an optional cancellation token. The connection, transport, session, and completion set must outlive every operation that uses them.</p>
+            <p>Use the operation-producing <code>Connections.Connect</code> overload when connection setup must join the completion set. Declare the managed objects in ownership order.</p>
+            <figure class="code-panel">
+              <figcaption>operation-capable session objects</figcaption>
+              <button class="copy-button" type="button" data-copy>Copy</button>
+              <pre><code class="language-ada">Manager    : aliased Connections.Server (Capacity =&gt; 1);
+Connection : aliased Connections.Connection (Manager'Access);
+Channel    : aliased Connection_Transports.Connection_Transport
+  (Connection'Access, null);
+Session    : aliased Client.Session (Channel'Access);
+Set        : aliased Operations.Completion_Set (Capacity =&gt; 2);
+
+declare
+   Attempt : Connections.Connect_Operation :=
+     Connections.Connect
+       (Set'Access,
+        Manager'Access,
+        Database_Endpoint,
+        Timeout =&gt; 5.0);
+begin
+   Operations.Wait_All (Set);
+   Connections.Finish (Attempt, Connection);
+end;</code></pre>
+            </figure>
+            <p>The managed connect temporarily uses two completion-set slots: one parent and one hidden socket operation. It retains the socket and admission permit until <code>Finish</code> transfers them to the closed connection.</p>
+            <p>Use the synchronous <code>Connections.Connect</code> procedure when connection setup does not need composition. Use <code>Connections.Take</code> when the application already owns a connected or specially configured socket.</p>
+            <div class="decision-list">
+              <dl>
+                <div class="decision-row"><dt>Start</dt><dd><a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#76aeac60b66b87462d8bcd34f7c2e9af4270cb7affc0bf76be037070b7112f4f"><code>Send_Query</code></a> returns a <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#1da9022893233dddc8f63cdb756977b23a008667f51e5f0d69f4db8b3a049a19"><code>Send_Operation</code></a>. The function overload of <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#bed6e11a1d6851483be84fb9a2270f352569ee5bcdbe73adfbc7d6dcd366581a"><code>Receive_Query_Event</code></a> returns a <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#4800a0673312c892dd4ea631cd65991322546c38c2e39c38f11633a4a99f0f9d"><code>Receive_Operation</code></a>. The <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#23e53a722cde3f2651a42db29ea188c39c83ba0f6a43bb3e9eb416412348572b"><code>Receive_Query_Event</code></a> procedure starts or restarts an existing receive operation.</dd></div>
+                <div class="decision-row"><dt>Wait</dt><dd>Use <code>Wait_All</code>, <code>Wait_Some</code>, <code>Wait_At_Least</code>, <code>Wait_For_Success</code>, or <code>Wait_For_Successes</code>. Timers and gates can occupy other slots in the same set.</dd></div>
+                <div class="decision-row"><dt>Finish</dt><dd>After a wait reports a terminal operation, call the <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html"><code>Finish</code></a> overload for that operation type. For a receive operation, <code>Finish</code> writes the event to its output parameter. <code>Finish</code> raises any retained exception.</dd></div>
+              </dl>
+            </div>
+            <p>A connection permits one in-flight PostgreSQL operation. Use a separate connection and session for each database operation that must be active in the same completion set. On one session, start the next operation only after the previous operation becomes terminal.</p>
+            <p>Each active operation uses one completion-set slot. A receive operation owns one <a href="../api/a36ef088ca3b7ae38c4f7d063dac83b579fe57b8032d3e535083cd0c1652da94.html#6d1c715d69dfb0415a6fb44a511d5fb022f0f616a54d65b9b714df26d5e53ae4"><code>Backend_Message</code></a> result until <code>Finish</code>.</p>
+            <figure class="code-panel">
+              <figcaption>compose a query after startup completes</figcaption>
+              <button class="copy-button" type="button" data-copy>Copy</button>
+              <pre><code class="language-ada">Event   : Protocol.Backend_Message;
+Receive : Client.Receive_Operation (Set'Access);
+
+declare
+   Send : Client.Send_Operation :=
+     Client.Send_Query
+       (Set'Access,
+        Session'Access,
+        "select id, value from items",
+        Timeout =&gt; 5.0);
+begin
+   Operations.Wait_All (Set);
+   Client.Finish (Send);
+end;
+
+loop
+   Client.Receive_Query_Event
+     (Session'Access, Timeout =&gt; 5.0, Operation =&gt; Receive);
+   Operations.Wait_All (Set);
+   Client.Finish (Receive, Event);
+   Consume (Event);
+   exit when Protocol.Response_Kind (Event) =
+     Protocol.Ready_For_Query_Response;
+end loop;</code></pre>
+            </figure>
+            <p>The example reuses one receive operation to avoid creating a new operation object for each message. <code>Session</code> is aliased and uses an aliased connection transport.</p>
+            <p>Each operation retains a timeout, cancellation, or provider failure until <code>Finish</code>. The client reports a PostgreSQL query error as an <a href="../api/a36ef088ca3b7ae38c4f7d063dac83b579fe57b8032d3e535083cd0c1652da94.html#71e1d6fff1d32cd6b5545a78f930f4c56b1c5fecce15dd9f8117163756225347"><code>Error_Response</code></a> event.</p>
+            <p>For TLS, first start and finish a <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#5505ebd8433274a9263baaa38073e3070fdbb8151b499223dcb365beec281035"><code>Negotiate_TLS</code></a> operation. Then start and finish the Flyology connection TLS upgrade on the same connection. Finally, start and finish a <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#4af1546291981a46d98479d2682f7968783a78f11aedd06d8650836b4d001942"><code>Startup</code></a> operation. Both client calls return a <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#13f98b7f25649d16c10f40c514c8b30ab534253bcf0abbc8c7bbc2a2249bcff7"><code>Startup_Operation</code></a>.</p>
+            <aside class="callout">
+              <span class="callout-symbol" aria-hidden="true">!</span>
+              <p>An unfinished operation cancels and releases its connection lease when its Ada scope ends. After a wait reports a terminal operation, call <code>Finish</code> so the application observes the retained result.</p>
+            </aside>
+            <p>Use the synchronous APIs when the application does not need composition. They drive the same bounded PostgreSQL protocol state.</p>
+          </section>
+
+          <section id="simple">
+            <span class="step-label">STEP 05</span>
             <h2>Receive simple-query results one event at a time</h2>
             <div class="decision-list">
               <dl>
@@ -195,7 +273,7 @@ end loop;</code></pre>
           </section>
 
           <section id="extended">
-            <span class="step-label">STEP 05</span>
+            <span class="step-label">STEP 06</span>
             <h2>Use prepared statements and bounded portals</h2>
             <p>The extended path models named or unnamed statements and portals. <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#2ed3ada497b8bde713b8d5f07d8a3075d17dc79139699920621e7ca69eee10cd"><code>Prepare_Statement</code></a> creates statement state. <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#c7af87ec95c97450ae9989fe082d0fd55966b8bf32ba22ffa9f135ca68bc5463"><code>Bind_Portal</code></a> binds values such as <a href="../api/a36ef088ca3b7ae38c4f7d063dac83b579fe57b8032d3e535083cd0c1652da94.html#56a49d5695520566256c545b7d0543f5d654a095373dc8052564fcf19b32043c"><code>Text_Parameter</code></a>.</p>
             <p><a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#69cdd12c37469696c7fc008bb05b46f342da277248314674f63d5b043f880a8d"><code>Describe_Portal</code></a> requests metadata, and <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#47d2fd9595c8cc940c17c889ca3aca2a8c6b3044a31b1cfadf75e3c796cad7ea"><code>Execute_Portal</code></a> applies a row limit. <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#9f6193d48616923847e829b65fafe4d23420d6244051e1b25d09429286ae3988"><code>Flush</code></a> requests pending output without ending the cycle.</p>
@@ -232,7 +310,7 @@ Client.Synchronize (Session);</code></pre>
           </section>
 
           <section id="pipeline">
-            <span class="step-label">STEP 06</span>
+            <span class="step-label">STEP 07</span>
             <h2>Pipeline batches without waiting for each result</h2>
             <p>The extended path normally finishes one <code>Sync</code>-terminated batch before it writes the next batch. Every batch then costs a round trip.</p>
             <p><a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#2114fa15a2cecd2f63c51ed9c0c1757250e6a99118372870730ca8e6d16ff95d"><code>Enter_Pipeline_Mode</code></a> removes that wait. After <code>Synchronize</code>, the next batch-opening call starts the following batch immediately, so several batches stay in flight. These calls open a batch:</p>
@@ -286,7 +364,7 @@ Client.Exit_Pipeline_Mode (Session);</code></pre>
           </section>
 
           <section id="copy">
-            <span class="step-label">STEP 07</span>
+            <span class="step-label">STEP 08</span>
             <h2>Stream COPY frames without an accumulator</h2>
             <p>A COPY response changes the session state to COPY IN, COPY OUT, or COPY BOTH. Each operation sends or receives one bounded chunk. The same typed path works after simple or extended queries.</p>
             <p>The example reads the format with <a href="../api/a36ef088ca3b7ae38c4f7d063dac83b579fe57b8032d3e535083cd0c1652da94.html#8d36b74c4297d30db30cb6a39bddb4919dce110d29fdedcdce0414f478724218"><code>Protocol.Copy_Formats</code></a>. It sends chunks with <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#afc010c62883a3be2da0c7518bdcb2ef6dacd9acb755e87f924504d56b873cdc"><code>Send_Copy_Data</code></a> and completes input with <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#bdac014f231739812e9a86e6d1bb954133f2e6d09df4fed654bd8394ec98b9d1"><code>Finish_Copy</code></a>.</p>
@@ -312,7 +390,7 @@ end;
           </section>
 
           <section id="replication">
-            <span class="step-label">STEP 08</span>
+            <span class="step-label">STEP 09</span>
             <h2>Stream physical or logical replication in either direction</h2>
             <p><a href="../api/ff96781c12db30886b07c416225bc911e508827a3e8a450b9ed7538461f2299b.html"><code>Flyology.Postgres.Replication</code></a> handles startup, LSN text, commands, physical stream envelopes, keepalives, status updates, and hot-standby feedback.</p>
             <p><a href="../api/1dce60a01a501a9c19d6b28d352177a8d7e54975fef8580577959f82b2909624.html"><code>Flyology.Postgres.Replication.Logical</code></a> adds typed <code>pgoutput</code> messages. <a href="../api/7f26fe6a41b97b43603ba852b6a27156d861c24f86a183d15ff5a6b6f2798386.html"><code>Logical.Producer</code></a> validates and encodes them in the primary direction. Both paths deliver one COPY BOTH frame per call.</p>
@@ -461,7 +539,7 @@ end case;</code></pre>
           </section>
 
           <section id="base-backup">
-            <span class="step-label">STEP 09</span>
+            <span class="step-label">STEP 10</span>
             <h2>Take a physical base backup without <code>pg_basebackup</code></h2>
             <p><a href="../api/440d89140bcaba59ed49867d1e12b0db75b732109d3b378eb45137b5e9ec50d4.html"><code>Flyology.Postgres.Replication.Base_Backups</code></a> exposes the replication-protocol operation that <code>pg_basebackup</code> uses. The application still owns transport setup, storage, durability, and extraction policy.</p>
             <p>The package models the distinct PostgreSQL 14 and 15+ wire streams. It adds PostgreSQL 17+ manifest upload and incremental options. Each receive operation returns one owned event.</p>
@@ -645,7 +723,7 @@ Base_Backups.Start (Backup, Incremental, Timeout =&gt; 10.0);</code></pre>
           </section>
 
           <section id="cancel">
-            <span class="step-label">STEP 10</span>
+            <span class="step-label">STEP 11</span>
             <h2>Cancel on a separate connection</h2>
             <p>Postgres cancellation does not travel on the active query connection. Startup stores the backend process ID and variable-length secret.</p>
             <p><a href="../api/c2380bb30f7dfccb475f43619cb29c1fa17a0cb25f357d668a037d73caa23668.html"><code>Flyology.Postgres.Client_Sockets</code></a> supplies socket-based cancellation. <a href="../api/c2380bb30f7dfccb475f43619cb29c1fa17a0cb25f357d668a037d73caa23668.html#1d94fb103474d450c7761642c75e2288d812efdf863c0749c91ba9f5d9b7db59"><code>Cancel_TLS</code></a> verifies a separate encrypted connection, sends the credentials, and closes without waiting for a response.</p>
@@ -662,7 +740,7 @@ Base_Backups.Start (Backup, Incremental, Timeout =&gt; 10.0);</code></pre>
           </section>
 
           <section id="server">
-            <span class="step-label">STEP 11</span>
+            <span class="step-label">STEP 12</span>
             <h2>Build a Postgres protocol server</h2>
             <p><a href="../api/df1e88b4dad97e36b4fde35ee1bbc7e3355fa74f275b2a5d8c30b94dfa802cb3.html"><code>Flyology.Postgres.Server</code></a> is generic over application context, authentication callbacks, SCRAM verifier lookup, and a command handler. Each accepted connection receives one Flyology handler task.</p>
             <div class="decision-list">
@@ -678,7 +756,7 @@ Base_Backups.Start (Backup, Incremental, Timeout =&gt; 10.0);</code></pre>
           </section>
 
           <section id="parse-sql">
-            <span class="step-label">STEP 12</span>
+            <span class="step-label">STEP 13</span>
             <h2>Parse, analyze, and transform SQL</h2>
             <p>The versioned SQL crates parse PostgreSQL 14 through 18 syntax with native Ada parsers generated from each pinned upstream grammar. Select the crate for the PostgreSQL major that the application accepts.</p>
             <p>Use one of these owned packages for ordinary application code:</p>
@@ -834,7 +912,7 @@ alr -n build
           </section>
 
           <section id="examples">
-            <span class="step-label">STEP 13</span>
+            <span class="step-label">STEP 14</span>
             <h2>Run the example crates</h2>
             <p>The examples are independent nested Alire crates. <code>pgish</code> can require TLS from a configured certificate and key; <code>psqlish</code> supports verified TLS with separate certificate and connection host settings. Their integration uses an ephemeral CA in both directions.</p>
             <figure class="code-panel">
@@ -849,7 +927,7 @@ alr run</code></pre>
           </section>
 
           <section id="boundaries">
-            <span class="step-label">STEP 14</span>
+            <span class="step-label">STEP 15</span>
             <h2>Check the current boundaries before evaluation</h2>
             <p>The library is experimental. Treat these constraints as part of its public contract, not as incidental implementation details.</p>
             <div class="decision-list">
