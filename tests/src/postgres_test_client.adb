@@ -1147,7 +1147,6 @@ procedure Postgres_Test_Client is
       --  and every result frame are scoped operations over upgraded TLS.
       declare
          Manager : aliased Connections.Server (Capacity => 1);
-         Scoped_Socket : aliased Sockets.Socket_Type;
          Connection : aliased Connections.Connection (Manager'Access);
          Scoped_Channel : aliased
            Connection_Transports.Connection_Transport
@@ -1157,9 +1156,17 @@ procedure Postgres_Test_Client is
          Event : Protocol.Backend_Message;
          Rows  : Natural := 0;
       begin
-         Sockets.Create_Socket (Scoped_Socket);
-         Sockets.Connect (Scoped_Socket, Server, Timeout => 5.0);
-         Connections.Take (Manager, Scoped_Socket, Connection);
+         declare
+            Attempt : Connections.Connect_Operation :=
+              Connections.Connect
+                (Set'Access,
+                 Manager'Access,
+                 Server,
+                 Timeout => 5.0);
+         begin
+            Operations.Wait_All (Set);
+            Connections.Finish (Attempt, Connection);
+         end;
          declare
             Request : Client.Startup_Operation :=
               Client.Negotiate_TLS

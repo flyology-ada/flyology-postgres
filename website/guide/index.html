@@ -163,7 +163,7 @@ Client.Startup_TLS
             <h2>Compose PostgreSQL work with other Flyology operations</h2>
             <p>The client operation overloads register limited operations in a caller-owned completion set. Use <a href="../api/996b861c76176acb3cfaa444ecb9354018fb43f2a82b45a080d4b9e53d2b6df6.html#77ae6670dd75fed7641aeb20c1ed94e191fb9cee78b51479b060f01728047526"><code>Connection_Transport</code></a> for these overloads. The socket-specific transport adapters support only the synchronous APIs.</p>
             <p>The connection transport borrows a Flyology connection and an optional cancellation token. The connection, transport, session, and completion set must outlive every operation that uses them.</p>
-            <p>After connecting a socket, move it into a Flyology connection with <code>Connections.Take</code>. Declare the remaining objects in ownership order.</p>
+            <p>Use the operation-producing <code>Connections.Connect</code> overload when connection setup must join the completion set. Declare the managed objects in ownership order.</p>
             <figure class="code-panel">
               <figcaption>operation-capable session objects</figcaption>
               <button class="copy-button" type="button" data-copy>Copy</button>
@@ -174,8 +174,20 @@ Channel    : aliased Connection_Transports.Connection_Transport
 Session    : aliased Client.Session (Channel'Access);
 Set        : aliased Operations.Completion_Set (Capacity =&gt; 2);
 
-Connections.Take (Manager, Connected_Socket, Connection);</code></pre>
+declare
+   Attempt : Connections.Connect_Operation :=
+     Connections.Connect
+       (Set'Access,
+        Manager'Access,
+        Database_Endpoint,
+        Timeout =&gt; 5.0);
+begin
+   Operations.Wait_All (Set);
+   Connections.Finish (Attempt, Connection);
+end;</code></pre>
             </figure>
+            <p>The managed connect temporarily uses two completion-set slots: one parent and one hidden socket operation. It retains the socket and admission permit until <code>Finish</code> transfers them to the closed connection.</p>
+            <p>Use the synchronous <code>Connections.Connect</code> procedure when connection setup does not need composition. Use <code>Connections.Take</code> when the application already owns a connected or specially configured socket.</p>
             <div class="decision-list">
               <dl>
                 <div class="decision-row"><dt>Start</dt><dd><a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#76aeac60b66b87462d8bcd34f7c2e9af4270cb7affc0bf76be037070b7112f4f"><code>Send_Query</code></a> returns a <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#1da9022893233dddc8f63cdb756977b23a008667f51e5f0d69f4db8b3a049a19"><code>Send_Operation</code></a>. The function overload of <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#bed6e11a1d6851483be84fb9a2270f352569ee5bcdbe73adfbc7d6dcd366581a"><code>Receive_Query_Event</code></a> returns a <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#4800a0673312c892dd4ea631cd65991322546c38c2e39c38f11633a4a99f0f9d"><code>Receive_Operation</code></a>. The <a href="../api/4ddcb05b94ba502c67e4c42413892bdd0ac3590e06d20ec2052471372ce5f7cb.html#23e53a722cde3f2651a42db29ea188c39c83ba0f6a43bb3e9eb416412348572b"><code>Receive_Query_Event</code></a> procedure starts or restarts an existing receive operation.</dd></div>
