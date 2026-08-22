@@ -66,7 +66,7 @@ is retained so the noise is not hidden.
 
 ## Composable-operations result
 
-Candidate Flyology Postgres revision:
+Initial candidate Flyology Postgres revision:
 `d7e0f090ff3b30423d3fac074eb7501d6c084279`.  The GitHub dependency resolved
 the `codex/composable-operations` branch of Flyology PR #60 at
 `1810fc60ba41bd9029a7d1c96c0e326af1ad415a`.
@@ -142,6 +142,53 @@ reachable, with no steady-state memory-footprint regression attributable to
 waiting.  It does not support a precise small before/after delta on this host.
 A dedicated or otherwise quiet runner is required before treating differences
 below the observed contention spread as implementation signal.
+
+## Final foundation campaign
+
+The final campaign used benchmark source revision
+`72a16b6c007a297d873216b6eb5e43c2df427f7f` plus the uncommitted exact
+dependency pin that was subsequently committed with this report.  All three
+consumer workspaces resolved Flyology PR #60 at
+`195b2289cb436a404ea67a7784799be6daa55d6a`.  This revision includes the
+cross-operation liveness fix that performs a zero-time descriptor pass after
+an immediate provider pass.  The benchmark workspace was regenerated from
+scratch and its checkout SHA was verified before measurement.
+
+The campaign was serialized against the other consumer benchmark and started
+only after unrelated CPU-saturated compiler probes were paused.  Host load
+averages were 7.27/18.37/33.60 immediately before the run and
+11.24/17.30/31.83 immediately after it.  The one-minute load remained below
+the machine's 16 logical cores at both recorded boundaries;
+the longer averages retain load from the earlier contention.
+
+| Sample | Full cycles/s | Full latency (µs) | Query cycles/s | Query latency (µs) | Rows/s |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 103.332 | 9,677.584 | 12,941.025 | 77.274 | 103,528.198 |
+| 2 | 102.555 | 9,750.845 | 12,968.456 | 77.110 | 103,747.646 |
+| 3 | 100.670 | 9,933.465 | 14,119.057 | 70.826 | 112,952.458 |
+| 4 | 98.670 | 10,134.813 | 12,927.652 | 77.354 | 103,421.217 |
+| 5 | 99.224 | 10,078.185 | 12,934.960 | 77.310 | 103,479.677 |
+| 6 | 101.482 | 9,854.000 | 12,740.272 | 78.491 | 101,922.178 |
+| 7 | 102.473 | 9,758.656 | 13,253.371 | 75.453 | 106,026.971 |
+
+| Metric | Min | Median | Mean | Max | Population σ |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Full connect/query/result cycles/s | 98.670 | 101.482 | 101.201 | 103.332 | 1.633 |
+| Persistent query/result cycles/s | 12,740.272 | 12,941.025 | 13,126.399 | 14,119.057 | 428.627 |
+| Persistent result rows/s | 101,922.178 | 103,528.198 | 105,011.192 | 112,952.458 | 3,429.013 |
+
+The timed process consumed 38.15 s wall time, 27.16 s user CPU, and 1.14 s
+system CPU.  macOS `/usr/bin/time -l` reported 2,834,432 bytes maximum
+resident set size, 1,556,792 bytes peak memory footprint, 55,877 involuntary
+context switches, and no voluntary context switches.
+
+Against the baseline medians, final full connect/query/result throughput is
+6.21% higher and persistent query/result throughput is 1.54% lower.  Maximum
+RSS is 16 KiB lower and peak footprint is 81,944 bytes lower.  The persistent
+difference is well inside the measured sample spread, while the full-cycle
+distribution improves beyond the baseline.  This complete, lower-contention
+campaign therefore finds no material performance or memory regression from
+the composable-operations migration or final Flyology foundation revision.
 
 ## Interpretation and limitations
 
