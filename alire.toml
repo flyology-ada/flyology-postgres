@@ -13,6 +13,3 @@ tags = ["ada", "postgres", "database", "client", "server", "protocol"]
 flyology = "~0.1.1-dev"
 system_random = "^1.0.0"
 hmac_ada = "^0.2.0"
-
-[[pins]]
-flyology = { url='https://github.com/flyology-ada/flyology.git', commit='195b2289cb436a404ea67a7784799be6daa55d6a' }
