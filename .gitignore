@@ -1,3 +1,6 @@
+/.agents/
+/.claude/rules/
+/.claude/skills/
 /obj/
 /lib/
 /alire/
@@ -10,3 +13,4 @@
 /sql/tests/.cache/
 /tests/tmp/
 /proof-status.md
+apm_modules/

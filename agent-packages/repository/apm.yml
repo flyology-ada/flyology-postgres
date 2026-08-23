@@ -1,0 +1,4 @@
+name: flyology-postgres-repository-instructions
+version: 0.1.0
+type: instructions
+includes: auto
