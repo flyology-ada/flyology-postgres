@@ -1,8 +1,11 @@
-with Ada.Exceptions;
+with Ada.Streams;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
+with Ada.Unchecked_Deallocation;
+with Flyology.IO;
+with Flyology.Operations.Drivers;
 with Flyology.Postgres.Framing;
-with Flyology.Postgres.SCRAM;
 with Flyology.Postgres.SCRAM_Core;
+with Flyology.Postgres.Wire;
 with System;
 
 package body Flyology.Postgres.Client is
@@ -12,6 +15,21 @@ package body Flyology.Postgres.Client is
    use type Protocol.Frontend_Kind;
    use type System.Address;
    use type Protocol.Backend_Message_Kind;
+   use type Transports.Acquisition_Result;
+
+   procedure Free is new Ada.Unchecked_Deallocation
+     (Object => Protocol.Byte_Array,
+      Name   => Byte_Array_Access);
+
+   overriding procedure Finalize (Item : in out Buffer_Owner) is
+   begin
+      Free (Item.Value);
+   end Finalize;
+
+   procedure Clear (Item : in out Buffer_Owner) is
+   begin
+      Free (Item.Value);
+   end Clear;
 
    procedure Reset_Copy (Item : in out Session) is
    begin
@@ -188,7 +206,7 @@ package body Flyology.Postgres.Client is
         (others => 0);
       Authentication_Ok : Boolean := False;
    begin
-      if Item.Current_State /= Not_Started then
+      if Item.Current_State not in Not_Started | TLS_Negotiated then
          raise Program_Error with "Postgres session is already started";
       end if;
 
@@ -445,7 +463,7 @@ package body Flyology.Postgres.Client is
       Timeout : Duration := 30.0) is
       Tag : constant Protocol.Frontend_Kind := Protocol.Kind (Command);
    begin
-      if Item.Current_State in Not_Started | Closed then
+      if Item.Current_State in Not_Started | TLS_Negotiated | Closed then
          raise Program_Error with "Postgres session is not started";
       end if;
       if Item.Pipelined and then Tag = Protocol.Query then
@@ -567,7 +585,7 @@ package body Flyology.Postgres.Client is
       Secret : constant Protocol.Byte_Array :=
         Flyology.Bytes.To_Array (Item.Secret);
    begin
-      if Item.Current_State in Not_Started | Closed
+      if Item.Current_State in Not_Started | TLS_Negotiated | Closed
         or else Secret'Length not in 4 .. 256
       then
          raise Program_Error with
@@ -681,17 +699,10 @@ package body Flyology.Postgres.Client is
       return Response;
    end Receive_Message;
 
-   function Receive_Query_Event
-     (Item : in out Session; Timeout : Duration := 30.0)
-      return Simple_Query_Event is
-      Response : Protocol.Backend_Message;
+   procedure Apply_Query_Event
+     (Item     : in out Session;
+      Response : Simple_Query_Event) is
    begin
-      if Item.Current_State /= Simple_Query_Active then
-         raise Program_Error with "no simple query is active";
-      end if;
-
-      Response := Protocol.Decode_Backend
-        (Framing.Read_Message (Item.Channel.all, Timeout));
       case Protocol.Response_Kind (Response) is
          when Protocol.Row_Description_Response =>
             if Item.Has_Row_Description then
@@ -754,6 +765,20 @@ package body Flyology.Postgres.Client is
               Protocol.Unknown_Response =>
             null;
       end case;
+   end Apply_Query_Event;
+
+   function Receive_Query_Event
+     (Item : in out Session; Timeout : Duration := 30.0)
+      return Simple_Query_Event is
+      Response : Protocol.Backend_Message;
+   begin
+      if Item.Current_State /= Simple_Query_Active then
+         raise Program_Error with "no simple query is active";
+      end if;
+
+      Response := Protocol.Decode_Backend
+        (Framing.Read_Message (Item.Channel.all, Timeout));
+      Apply_Query_Event (Item, Response);
       return Response;
    end Receive_Query_Event;
 
@@ -928,22 +953,11 @@ package body Flyology.Postgres.Client is
       Send_Command (Item, Protocol.Make_Sync_Message, Timeout);
    end Synchronize;
 
-   function Receive_Extended_Event
-     (Item : in out Session; Timeout : Duration := 30.0)
-      return Extended_Query_Event is
-      Response     : Protocol.Backend_Message;
-      Sync_Pending : constant Boolean := Item.Pending_Syncs > 0;
+   procedure Apply_Extended_Event
+     (Item         : in out Session;
+      Response     : Extended_Query_Event;
+      Sync_Pending : Boolean) is
    begin
-      if Item.Current_State = Recovery_Required then
-         raise Program_Error with
-           "Postgres extended-query recovery requires Sync before receiving";
-      end if;
-      if Item.Current_State not in Extended_Query_Active | Awaiting_Ready then
-         raise Program_Error with "no extended query is active";
-      end if;
-
-      Response := Protocol.Decode_Backend
-        (Framing.Read_Message (Item.Channel.all, Timeout));
       case Protocol.Response_Kind (Response) is
          when Protocol.Row_Description_Response =>
             Item.Described_Columns := Protocol.Field_Count
@@ -1014,6 +1028,1214 @@ package body Flyology.Postgres.Client is
               Protocol.Unknown_Response =>
             null;
       end case;
+   end Apply_Extended_Event;
+
+   function Operation_Channel
+     (Item : not null Session_Access)
+      return access Transports.Operation_Transport'Class is
+   begin
+      if Item.Channel.all not in Transports.Operation_Transport'Class then
+         raise Program_Error with
+           "Postgres transport does not support scoped operations";
+      end if;
+      return Transports.Operation_Transport'Class
+        (Item.Channel.all)'Unchecked_Access;
+   end Operation_Channel;
+
+   procedure Release_Transport (Item : in out Send_Operation) is
+   begin
+      if Item.Phase /= Transfer_Idle then
+         Operation_Channel (Item.Item).Release_Operation;
+         Item.Phase := Transfer_Idle;
+      end if;
+   end Release_Transport;
+
+   procedure Release_Transport (Item : in out Receive_Operation) is
+   begin
+      if Item.Phase /= Transfer_Idle then
+         Operation_Channel (Item.Item).Release_Operation;
+         Item.Phase := Transfer_Idle;
+      end if;
+   end Release_Transport;
+
+   procedure Fail_Send
+     (Item  : in out Send_Operation;
+      Error : Ada.Exceptions.Exception_Occurrence) is
+   begin
+      begin
+         Release_Transport (Item);
+      exception
+         when Cleanup_Error : others =>
+            Ada.Exceptions.Save_Occurrence (Item.Failure, Cleanup_Error);
+            Flyology.Operations.Drivers.Complete
+              (Item, Flyology.Operations.Failed);
+            return;
+      end;
+      Ada.Exceptions.Save_Occurrence (Item.Failure, Error);
+      Flyology.Operations.Drivers.Complete
+        (Item, Flyology.Operations.Failed);
+   end Fail_Send;
+
+   procedure Fail_Receive
+     (Item  : in out Receive_Operation;
+      Error : Ada.Exceptions.Exception_Occurrence) is
+   begin
+      begin
+         Release_Transport (Item);
+      exception
+         when Cleanup_Error : others =>
+            Ada.Exceptions.Save_Occurrence (Item.Failure, Cleanup_Error);
+            Flyology.Operations.Drivers.Complete
+              (Item, Flyology.Operations.Failed);
+            return;
+      end;
+      Ada.Exceptions.Save_Occurrence (Item.Failure, Error);
+      Flyology.Operations.Drivers.Complete
+        (Item, Flyology.Operations.Failed);
+   end Fail_Receive;
+
+   procedure Complete_Send (Item : in out Send_Operation) is
+   begin
+      Release_Transport (Item);
+      case Item.Kind is
+         when Simple_Query_Send =>
+            Item.Item.Current_State := Simple_Query_Active;
+            Item.Item.Has_Row_Description := False;
+            Item.Item.Described_Columns := 0;
+         when Portal_Execute_Send =>
+            null;
+      end case;
+      Flyology.Operations.Drivers.Complete
+        (Item, Flyology.Operations.Succeeded);
+   end Complete_Send;
+
+   procedure Drive_Send_Step (Item : in out Send_Operation) is
+      Last   : Ada.Streams.Stream_Element_Offset;
+      Result : Transports.Step_Result;
+   begin
+      Operation_Channel (Item.Item).Send_Step
+        (Item.Buffer.Value.all (Item.Cursor .. Item.Buffer.Value.all'Last),
+         Last,
+         Result);
+      case Result is
+         when Transports.Made_Progress =>
+            Item.Cursor := Last + 1;
+            if Item.Cursor > Item.Buffer.Value.all'Last then
+               Complete_Send (Item);
+            else
+               Flyology.Operations.Drivers.Reschedule (Item);
+            end if;
+         when Transports.Need_Read | Transports.Need_Write =>
+            Operation_Channel (Item.Item).Arm_Transport
+              (Item, Result);
+         when Transports.Peer_Closed =>
+            raise Flyology.IO.Device_Error with
+              "Postgres peer closed before the message was sent";
+      end case;
+   end Drive_Send_Step;
+
+   overriding procedure Drive
+     (Item  : in out Send_Operation;
+      Event : Flyology.Operations.Driver_Event) is
+      Acquisition : Transports.Acquisition_Result;
+   begin
+      begin
+         case Event is
+            when Flyology.Operations.Start_Operation =>
+               Item.Phase := Acquiring_Transport;
+               Operation_Channel (Item.Item).Start_Operation
+                 (Item, Acquisition, Item.Timeout);
+               if Acquisition = Transports.Acquired then
+                  Item.Phase := Transferring_Data;
+                  Drive_Send_Step (Item);
+               else
+                  Operation_Channel (Item.Item).Arm_Acquisition (Item);
+               end if;
+            when Flyology.Operations.Source_Ready =>
+               if Item.Phase = Acquiring_Transport then
+                  Operation_Channel (Item.Item).Poll_Acquisition
+                    (Acquisition);
+                  if Acquisition = Transports.Acquired then
+                     Item.Phase := Transferring_Data;
+                     Drive_Send_Step (Item);
+                  else
+                     Operation_Channel (Item.Item).Arm_Acquisition (Item);
+                  end if;
+               elsif Item.Phase = Transferring_Data then
+                  Drive_Send_Step (Item);
+               else
+                  raise Program_Error with
+                    "Postgres send operation has no ready source";
+               end if;
+            when Flyology.Operations.Continue_Operation =>
+               if Item.Phase /= Transferring_Data then
+                  raise Program_Error with
+                    "Postgres send operation cannot continue";
+               end if;
+               Drive_Send_Step (Item);
+            when Flyology.Operations.Deadline_Reached =>
+               raise Flyology.IO.Timeout_Error with
+                 "Postgres send operation deadline expired";
+            when Flyology.Operations.Dependency_Changed =>
+               raise Program_Error with
+                 "Postgres send operation has no dependency";
+         end case;
+      exception
+         when Error : others =>
+            Fail_Send (Item, Error);
+      end;
+   end Drive;
+
+   overriding procedure Request_Cancellation
+     (Item : in out Send_Operation) is
+   begin
+      begin
+         if Item.Phase /= Transfer_Idle then
+            Operation_Channel (Item.Item).Cancel_Operation;
+            Item.Phase := Transfer_Idle;
+         end if;
+         Flyology.Operations.Drivers.Complete
+           (Item, Flyology.Operations.Cancelled);
+      exception
+         when Error : others =>
+            Fail_Send (Item, Error);
+      end;
+   end Request_Cancellation;
+
+   procedure Start_Send
+     (Item      : not null access Session;
+      Command   : Protocol.Message;
+      Kind      : Send_Kind;
+      Timeout   : Duration;
+      Operation : in out Send_Operation) is
+   begin
+      Operation.Item := Item.all'Unchecked_Access;
+      declare
+         Ignored : constant access Transports.Operation_Transport'Class :=
+           Operation_Channel (Operation.Item);
+      begin
+         null;
+      end;
+      Clear (Operation.Buffer);
+      Operation.Buffer.Value :=
+        new Protocol.Byte_Array'(Protocol.Encode (Command));
+      Operation.Cursor := Operation.Buffer.Value.all'First;
+      Operation.Kind := Kind;
+      Operation.Phase := Transfer_Idle;
+      Operation.Timeout := Timeout;
+      Flyology.Operations.Drivers.Start (Operation);
+      Operation.Drive (Flyology.Operations.Start_Operation);
+   exception
+      when others =>
+         if Flyology.Operations.Is_Active (Operation) then
+            if Operation.Phase /= Transfer_Idle then
+               begin
+                  Release_Transport (Operation);
+               exception
+                  when others =>
+                     null;
+               end;
+            end if;
+            Flyology.Operations.Drivers.Rollback_Start (Operation);
+         end if;
+         raise;
+   end Start_Send;
+
+   function Send_Query
+     (Set     : not null access Flyology.Operations.Completion_Set'Class;
+      Item    : not null access Session;
+      SQL     : String;
+      Timeout : Duration := 30.0) return Send_Operation is
+   begin
+      return Result : Send_Operation (Set) do
+         Send_Query (Item, SQL, Timeout, Result);
+      end return;
+   end Send_Query;
+
+   procedure Send_Query
+     (Item      : not null access Session;
+      SQL       : String;
+      Timeout   : Duration := 30.0;
+      Operation : in out Send_Operation) is
+      Contents : Flyology.Bytes.Unbounded_Bytes;
+   begin
+      if Item.Current_State /= Ready then
+         raise Program_Error with "Postgres session is not ready for a query";
+      elsif SQL'Length > Protocol.Maximum_Message_Size - 5 then
+         raise Protocol.Protocol_Error with
+           "Query message exceeds the configured limit";
+      end if;
+      Protocol.Append_C_String (Contents, SQL);
+      Start_Send
+        (Item,
+         Protocol.Make_Message ('Q', Flyology.Bytes.To_Array (Contents)),
+         Simple_Query_Send,
+         Timeout,
+         Operation);
+   end Send_Query;
+
+   function Execute_Portal
+     (Set          : not null access Flyology.Operations.Completion_Set'Class;
+      Item         : not null access Session;
+      Portal_Name  : String;
+      Maximum_Rows : Protocol.Row_Limit := 0;
+      Timeout      : Duration := 30.0) return Send_Operation is
+   begin
+      return Result : Send_Operation (Set) do
+         Execute_Portal
+           (Item, Portal_Name, Maximum_Rows, Timeout, Result);
+      end return;
+   end Execute_Portal;
+
+   procedure Execute_Portal
+     (Item         : not null access Session;
+      Portal_Name  : String;
+      Maximum_Rows : Protocol.Row_Limit := 0;
+      Timeout      : Duration := 30.0;
+      Operation    : in out Send_Operation) is
+   begin
+      Require_Extended_Send (Item.all, "execute a portal");
+      if not Item.Bound_In_Cycle then
+         raise Program_Error with
+           "cannot execute a portal before binding it in this query cycle";
+      elsif Item.Portal_Is_Suspended then
+         raise Program_Error with
+           "use Resume_Portal for a suspended portal";
+      end if;
+      Start_Send
+        (Item,
+         Protocol.Make_Execute_Message (Portal_Name, Maximum_Rows),
+         Portal_Execute_Send,
+         Timeout,
+         Operation);
+   end Execute_Portal;
+
+   procedure Finish (Operation : in out Send_Operation) is
+      Terminal : constant Flyology.Operations.Terminal_Outcome :=
+        Flyology.Operations.Outcome (Operation);
+   begin
+      Flyology.Operations.Consume (Operation);
+      Clear (Operation.Buffer);
+      case Terminal is
+         when Flyology.Operations.Succeeded =>
+            null;
+         when Flyology.Operations.Cancelled =>
+            raise Flyology.Operations.Operation_Cancelled;
+         when Flyology.Operations.Failed =>
+            Ada.Exceptions.Reraise_Occurrence (Operation.Failure);
+      end case;
+   end Finish;
+
+   procedure Complete_Receive (Item : in out Receive_Operation) is
+      Raw : constant Protocol.Message :=
+        Protocol.Make_Message
+          (Character'Val (Item.Tag (Item.Tag'First)),
+           Item.Buffer.Value.all);
+   begin
+      Item.Result := Protocol.Decode_Backend (Raw);
+      case Item.Kind is
+         when Simple_Query_Receive =>
+            Apply_Query_Event (Item.Item.all, Item.Result);
+         when Extended_Query_Receive =>
+            Apply_Extended_Event
+              (Item.Item.all, Item.Result, Item.Sync_Pending);
+      end case;
+      Release_Transport (Item);
+      Flyology.Operations.Drivers.Complete
+        (Item, Flyology.Operations.Succeeded);
+   end Complete_Receive;
+
+   procedure Advance_Receive (Item : in out Receive_Operation) is
+      Last   : Ada.Streams.Stream_Element_Offset;
+      Result : Transports.Step_Result;
+   begin
+      case Item.Phase is
+         when Reading_Tag =>
+            Operation_Channel (Item.Item).Receive_Step
+              (Item.Tag (Item.Cursor .. Item.Tag'Last), Last, Result);
+         when Reading_Length =>
+            Operation_Channel (Item.Item).Receive_Step
+              (Item.Length_Data (Item.Cursor .. Item.Length_Data'Last),
+               Last,
+               Result);
+         when Reading_Body =>
+            Operation_Channel (Item.Item).Receive_Step
+              (Item.Buffer.Value.all
+                 (Item.Cursor .. Item.Buffer.Value.all'Last),
+               Last,
+               Result);
+         when others =>
+            raise Program_Error with
+              "Postgres receive operation is not reading";
+      end case;
+
+      case Result is
+         when Transports.Made_Progress =>
+            Item.Cursor := Last + 1;
+            case Item.Phase is
+               when Reading_Tag =>
+                  if Item.Cursor > Item.Tag'Last then
+                     Item.Phase := Reading_Length;
+                     Item.Cursor := Item.Length_Data'First;
+                  end if;
+                  Flyology.Operations.Drivers.Reschedule (Item);
+               when Reading_Length =>
+                  if Item.Cursor > Item.Length_Data'Last then
+                     declare
+                        Cursor : Protocol.Byte_Offset :=
+                          Item.Length_Data'First;
+                        Length : constant Protocol.UInt32 :=
+                          Protocol.Read_U32 (Item.Length_Data, Cursor);
+                     begin
+                        if not Flyology.Postgres.Wire.Valid_Typed_Length
+                          (Length)
+                        then
+                           raise Protocol.Protocol_Error with
+                             "invalid typed Postgres message length";
+                        end if;
+                        Clear (Item.Buffer);
+                        Item.Buffer.Value := new Protocol.Byte_Array
+                          (1 .. Protocol.Byte_Offset
+                             (Flyology.Postgres.Wire.Content_Length
+                                (Length)));
+                        Item.Phase := Reading_Body;
+                        Item.Cursor := Item.Buffer.Value.all'First;
+                        if Item.Buffer.Value.all'Length = 0 then
+                           Complete_Receive (Item);
+                        else
+                           Flyology.Operations.Drivers.Reschedule (Item);
+                        end if;
+                     end;
+                  else
+                     Flyology.Operations.Drivers.Reschedule (Item);
+                  end if;
+               when Reading_Body =>
+                  if Item.Cursor > Item.Buffer.Value.all'Last then
+                     Complete_Receive (Item);
+                  else
+                     Flyology.Operations.Drivers.Reschedule (Item);
+                  end if;
+               when others =>
+                  null;
+            end case;
+         when Transports.Need_Read | Transports.Need_Write =>
+            Operation_Channel (Item.Item).Arm_Transport (Item, Result);
+         when Transports.Peer_Closed =>
+            raise Flyology.IO.Device_Error with
+              "Postgres peer closed before the message was complete";
+      end case;
+   end Advance_Receive;
+
+   overriding procedure Drive
+     (Item  : in out Receive_Operation;
+      Event : Flyology.Operations.Driver_Event) is
+      Acquisition : Transports.Acquisition_Result;
+   begin
+      begin
+         case Event is
+            when Flyology.Operations.Start_Operation =>
+               Item.Phase := Acquiring_Transport;
+               Operation_Channel (Item.Item).Start_Operation
+                 (Item, Acquisition, Item.Timeout);
+               if Acquisition = Transports.Acquired then
+                  Item.Phase := Reading_Tag;
+                  Item.Cursor := Item.Tag'First;
+                  Advance_Receive (Item);
+               else
+                  Operation_Channel (Item.Item).Arm_Acquisition (Item);
+               end if;
+            when Flyology.Operations.Source_Ready =>
+               if Item.Phase = Acquiring_Transport then
+                  Operation_Channel (Item.Item).Poll_Acquisition
+                    (Acquisition);
+                  if Acquisition = Transports.Acquired then
+                     Item.Phase := Reading_Tag;
+                     Item.Cursor := Item.Tag'First;
+                     Advance_Receive (Item);
+                  else
+                     Operation_Channel (Item.Item).Arm_Acquisition (Item);
+                  end if;
+               else
+                  Advance_Receive (Item);
+               end if;
+            when Flyology.Operations.Continue_Operation =>
+               Advance_Receive (Item);
+            when Flyology.Operations.Deadline_Reached =>
+               raise Flyology.IO.Timeout_Error with
+                 "Postgres receive operation deadline expired";
+            when Flyology.Operations.Dependency_Changed =>
+               raise Program_Error with
+                 "Postgres receive operation has no dependency";
+         end case;
+      exception
+         when Error : others =>
+            Fail_Receive (Item, Error);
+      end;
+   end Drive;
+
+   overriding procedure Request_Cancellation
+     (Item : in out Receive_Operation) is
+   begin
+      begin
+         if Item.Phase /= Transfer_Idle then
+            Operation_Channel (Item.Item).Cancel_Operation;
+            Item.Phase := Transfer_Idle;
+         end if;
+         Flyology.Operations.Drivers.Complete
+           (Item, Flyology.Operations.Cancelled);
+      exception
+         when Error : others =>
+            Fail_Receive (Item, Error);
+      end;
+   end Request_Cancellation;
+
+   procedure Start_Receive
+     (Item      : not null access Session;
+      Kind      : Receive_Kind;
+      Timeout   : Duration;
+      Operation : in out Receive_Operation) is
+   begin
+      Operation.Item := Item.all'Unchecked_Access;
+      declare
+         Ignored : constant access Transports.Operation_Transport'Class :=
+           Operation_Channel (Operation.Item);
+      begin
+         null;
+      end;
+      case Kind is
+         when Simple_Query_Receive =>
+            if Item.Current_State /= Simple_Query_Active then
+               raise Program_Error with "no simple query is active";
+            end if;
+         when Extended_Query_Receive =>
+            if Item.Current_State = Recovery_Required then
+               raise Program_Error with
+                 "Postgres extended-query recovery requires Sync before"
+                 & " receiving";
+            elsif Item.Current_State not in
+              Extended_Query_Active | Awaiting_Ready
+            then
+               raise Program_Error with "no extended query is active";
+            end if;
+      end case;
+      Clear (Operation.Buffer);
+      Operation.Kind := Kind;
+      Operation.Sync_Pending := Item.Current_State = Awaiting_Ready;
+      Operation.Phase := Transfer_Idle;
+      Operation.Timeout := Timeout;
+      Flyology.Operations.Drivers.Start (Operation);
+      Operation.Drive (Flyology.Operations.Start_Operation);
+   exception
+      when others =>
+         if Flyology.Operations.Is_Active (Operation) then
+            if Operation.Phase /= Transfer_Idle then
+               begin
+                  Release_Transport (Operation);
+               exception
+                  when others =>
+                     null;
+               end;
+            end if;
+            Flyology.Operations.Drivers.Rollback_Start (Operation);
+         end if;
+         raise;
+   end Start_Receive;
+
+   function Receive_Query_Event
+     (Set     : not null access Flyology.Operations.Completion_Set'Class;
+      Item    : not null access Session;
+      Timeout : Duration := 30.0) return Receive_Operation is
+   begin
+      return Result : Receive_Operation (Set) do
+         Receive_Query_Event (Item, Timeout, Result);
+      end return;
+   end Receive_Query_Event;
+
+   procedure Receive_Query_Event
+     (Item      : not null access Session;
+      Timeout   : Duration := 30.0;
+      Operation : in out Receive_Operation) is
+   begin
+      Start_Receive
+        (Item, Simple_Query_Receive, Timeout, Operation);
+   end Receive_Query_Event;
+
+   function Receive_Extended_Event
+     (Set     : not null access Flyology.Operations.Completion_Set'Class;
+      Item    : not null access Session;
+      Timeout : Duration := 30.0) return Receive_Operation is
+   begin
+      return Result : Receive_Operation (Set) do
+         Receive_Extended_Event (Item, Timeout, Result);
+      end return;
+   end Receive_Extended_Event;
+
+   procedure Receive_Extended_Event
+     (Item      : not null access Session;
+      Timeout   : Duration := 30.0;
+      Operation : in out Receive_Operation) is
+   begin
+      Start_Receive
+        (Item, Extended_Query_Receive, Timeout, Operation);
+   end Receive_Extended_Event;
+
+   procedure Finish
+     (Operation : in out Receive_Operation;
+      Event     : out Protocol.Backend_Message) is
+      Terminal : constant Flyology.Operations.Terminal_Outcome :=
+        Flyology.Operations.Outcome (Operation);
+   begin
+      case Terminal is
+         when Flyology.Operations.Succeeded =>
+            Event := Operation.Result;
+            Flyology.Operations.Consume (Operation);
+            Clear (Operation.Buffer);
+         when Flyology.Operations.Cancelled =>
+            Flyology.Operations.Consume (Operation);
+            Clear (Operation.Buffer);
+            raise Flyology.Operations.Operation_Cancelled;
+         when Flyology.Operations.Failed =>
+            Flyology.Operations.Consume (Operation);
+            Clear (Operation.Buffer);
+            Ada.Exceptions.Reraise_Occurrence (Operation.Failure);
+      end case;
+   end Finish;
+
+   procedure Release_Transport (Item : in out Startup_Operation) is
+   begin
+      if Item.Phase /= Transfer_Idle then
+         Operation_Channel (Item.Item).Release_Operation;
+         Item.Phase := Transfer_Idle;
+      end if;
+   end Release_Transport;
+
+   procedure Wipe_Startup (Item : in out Startup_Operation) is
+   begin
+      Flyology.Postgres.SCRAM_Core.Wipe
+        (Item.Expected_Server_Signature);
+      for Index in 1 .. Length (Item.Password) loop
+         Replace_Element
+           (Item.Password, Index, Character'Val (0));
+      end loop;
+      Item.Password := Null_Unbounded_String;
+      for Index in 1 .. Length (Item.Nonce) loop
+         Replace_Element
+           (Item.Nonce, Index, Character'Val (0));
+      end loop;
+      Item.Nonce := Null_Unbounded_String;
+      for Index in 1 .. Length (Item.Bare_First) loop
+         Replace_Element
+           (Item.Bare_First, Index, Character'Val (0));
+      end loop;
+      Item.Bare_First := Null_Unbounded_String;
+   end Wipe_Startup;
+
+   procedure Fail_Startup
+     (Item  : in out Startup_Operation;
+      Error : Ada.Exceptions.Exception_Occurrence) is
+   begin
+      begin
+         Release_Transport (Item);
+      exception
+         when Cleanup_Error : others =>
+            Ada.Exceptions.Save_Occurrence (Item.Failure, Cleanup_Error);
+            Wipe_Startup (Item);
+            Flyology.Operations.Drivers.Complete
+              (Item, Flyology.Operations.Failed);
+            return;
+      end;
+      if Item.Kind = TLS_Negotiation_Stage then
+         Item.Item.Current_State := Closed;
+      end if;
+      Ada.Exceptions.Save_Occurrence (Item.Failure, Error);
+      Wipe_Startup (Item);
+      Flyology.Operations.Drivers.Complete
+        (Item, Flyology.Operations.Failed);
+   end Fail_Startup;
+
+   procedure Prepare_Startup_Send
+     (Item : in out Startup_Operation;
+      Data : Protocol.Byte_Array) is
+   begin
+      Clear (Item.Buffer);
+      Item.Buffer.Value := new Protocol.Byte_Array'(Data);
+      Item.Cursor := Item.Buffer.Value.all'First;
+      Item.Phase := Transferring_Data;
+   end Prepare_Startup_Send;
+
+   procedure Read_Next_Startup_Message
+     (Item : in out Startup_Operation) is
+   begin
+      Clear (Item.Buffer);
+      Item.Cursor := Item.Tag'First;
+      Item.Phase := Reading_Tag;
+      Flyology.Operations.Drivers.Reschedule (Item);
+   end Read_Next_Startup_Message;
+
+   procedure Complete_Startup_Operation
+     (Item : in out Startup_Operation) is
+   begin
+      Release_Transport (Item);
+      Wipe_Startup (Item);
+      Flyology.Operations.Drivers.Complete
+        (Item, Flyology.Operations.Succeeded);
+   end Complete_Startup_Operation;
+
+   procedure Process_Startup_Message
+     (Item : in out Startup_Operation) is
+      Response : constant Protocol.Message :=
+        Protocol.Make_Message
+          (Character'Val (Item.Tag (Item.Tag'First)),
+           Item.Buffer.Value.all);
+      Contents : constant Protocol.Byte_Array := Protocol.Payload (Response);
+   begin
+      case Protocol.Code (Response) is
+         when 'R' =>
+            declare
+               Cursor : Protocol.Byte_Offset := Contents'First;
+               Method : constant Protocol.UInt32 :=
+                 Protocol.Read_U32 (Contents, Cursor);
+            begin
+               case Method is
+                  when 0 =>
+                     if Item.SASL_Phase in
+                       Awaiting_Continue | Awaiting_Final
+                     then
+                        raise Protocol.Protocol_Error with
+                          "AuthenticationOk arrived before SCRAM completed";
+                     end if;
+                     Item.Authentication_Ok := True;
+                     Read_Next_Startup_Message (Item);
+                  when 3 =>
+                     if Item.SASL_Phase /= No_SASL then
+                        raise Protocol.Protocol_Error with
+                          "unexpected cleartext authentication request";
+                     end if;
+                     declare
+                        Payload : Flyology.Bytes.Unbounded_Bytes;
+                     begin
+                        Protocol.Append_C_String
+                          (Payload, To_String (Item.Password));
+                        Prepare_Startup_Send
+                          (Item,
+                           Protocol.Encode
+                             (Protocol.Make_Message
+                                ('p', Flyology.Bytes.To_Array (Payload))));
+                        Flyology.Operations.Drivers.Reschedule (Item);
+                     end;
+                  when 10 =>
+                     if Item.SASL_Phase /= No_SASL then
+                        raise Protocol.Protocol_Error with
+                          "duplicate SASL authentication request";
+                     end if;
+                     declare
+                        Offered    : Boolean := False;
+                        Terminated : Boolean := False;
+                        Position   : Protocol.Byte_Offset := Cursor;
+                     begin
+                        while Position <= Contents'Last loop
+                           declare
+                              Name : constant String :=
+                                Protocol.Read_C_String
+                                  (Contents, Position);
+                           begin
+                              if Name'Length = 0 then
+                                 Terminated := True;
+                                 exit;
+                              elsif Name =
+                                Flyology.Postgres.SCRAM.Mechanism
+                              then
+                                 Offered := True;
+                              end if;
+                           end;
+                        end loop;
+                        if not Terminated
+                          or else Position <= Contents'Last
+                        then
+                           raise Protocol.Protocol_Error with
+                             "malformed AuthenticationSASL mechanism list";
+                        elsif not Offered then
+                           raise Unsupported_Authentication with
+                             "server did not offer SCRAM-SHA-256";
+                        end if;
+                     end;
+                     Item.Nonce := To_Unbounded_String
+                       (Flyology.Postgres.SCRAM.Random_Nonce);
+                     Item.Bare_First := To_Unbounded_String
+                       (Flyology.Postgres.SCRAM.Client_First_Bare
+                          (To_String (Item.User), To_String (Item.Nonce)));
+                     declare
+                        Initial : constant String :=
+                          Flyology.Postgres.SCRAM.Client_First_Message
+                            (To_String (Item.User), To_String (Item.Nonce));
+                        Payload : Flyology.Bytes.Unbounded_Bytes;
+                     begin
+                        Protocol.Append_C_String
+                          (Payload, Flyology.Postgres.SCRAM.Mechanism);
+                        Protocol.Append_U32
+                          (Payload, Protocol.UInt32 (Initial'Length));
+                        Flyology.Bytes.Append_Byte_String (Payload, Initial);
+                        Prepare_Startup_Send
+                          (Item,
+                           Protocol.Encode
+                             (Protocol.Make_Message
+                                ('p', Flyology.Bytes.To_Array (Payload))));
+                     end;
+                     Item.SASL_Phase := Awaiting_Continue;
+                     Flyology.Operations.Drivers.Reschedule (Item);
+                  when 11 =>
+                     if Item.SASL_Phase /= Awaiting_Continue then
+                        raise Protocol.Protocol_Error with
+                          "unexpected AuthenticationSASLContinue";
+                     end if;
+                     declare
+                        Server_First : constant String :=
+                          Payload_Text (Contents, Cursor);
+                        Client_Final : constant String :=
+                          Flyology.Postgres.SCRAM.Client_Final_Message
+                            (To_String (Item.Password),
+                             To_String (Item.Bare_First),
+                             Server_First,
+                             To_String (Item.Nonce),
+                             Item.Expected_Server_Signature);
+                        Payload : Flyology.Bytes.Unbounded_Bytes;
+                     begin
+                        Flyology.Bytes.Append_Byte_String
+                          (Payload, Client_Final);
+                        Prepare_Startup_Send
+                          (Item,
+                           Protocol.Encode
+                             (Protocol.Make_Message
+                                ('p', Flyology.Bytes.To_Array (Payload))));
+                     end;
+                     Item.SASL_Phase := Awaiting_Final;
+                     Flyology.Operations.Drivers.Reschedule (Item);
+                  when 12 =>
+                     if Item.SASL_Phase /= Awaiting_Final then
+                        raise Protocol.Protocol_Error with
+                          "unexpected AuthenticationSASLFinal";
+                     end if;
+                     Flyology.Postgres.SCRAM.Verify_Server_Final
+                       (Payload_Text (Contents, Cursor),
+                        Item.Expected_Server_Signature);
+                     Wipe_Startup (Item);
+                     Item.SASL_Phase := Final_Verified;
+                     Read_Next_Startup_Message (Item);
+                  when others =>
+                     raise Unsupported_Authentication with
+                       "server requested unsupported authentication"
+                       & Method'Image;
+               end case;
+            end;
+         when 'K' =>
+            if Contents'Length not in 8 .. 260 then
+               raise Protocol.Protocol_Error with
+                 "invalid BackendKeyData secret length";
+            end if;
+            declare
+               Cursor : Protocol.Byte_Offset := Contents'First;
+            begin
+               Item.Item.Pid := Protocol.Read_U32 (Contents, Cursor);
+               Item.Item.Secret := Flyology.Bytes.To_Unbounded_Bytes
+                 (Contents (Cursor .. Contents'Last));
+            end;
+            Read_Next_Startup_Message (Item);
+         when 'E' =>
+            raise Database_Error with
+              SQL_State (Response) & ": " & Error_Message (Response);
+         when 'N' | 'S' =>
+            declare
+               Ignored : constant Protocol.Backend_Message :=
+                 Protocol.Decode_Backend (Response);
+            begin
+               null;
+            end;
+            Read_Next_Startup_Message (Item);
+         when 'Z' =>
+            declare
+               Ignored : constant Protocol.Backend_Message :=
+                 Protocol.Decode_Backend (Response);
+            begin
+               null;
+            end;
+            if not Item.Authentication_Ok then
+               raise Protocol.Protocol_Error with
+                 "ReadyForQuery arrived before AuthenticationOk";
+            end if;
+            Item.Item.Current_State := Ready;
+            Complete_Startup_Operation (Item);
+         when others =>
+            Read_Next_Startup_Message (Item);
+      end case;
+   end Process_Startup_Message;
+
+   procedure Advance_Startup_Send (Item : in out Startup_Operation) is
+      Last   : Ada.Streams.Stream_Element_Offset;
+      Result : Transports.Step_Result;
+   begin
+      Operation_Channel (Item.Item).Send_Step
+        (Item.Buffer.Value.all (Item.Cursor .. Item.Buffer.Value.all'Last),
+         Last,
+         Result);
+      case Result is
+         when Transports.Made_Progress =>
+            Item.Cursor := Last + 1;
+            if Item.Cursor > Item.Buffer.Value.all'Last then
+               Clear (Item.Buffer);
+               if Item.Kind = TLS_Negotiation_Stage then
+                  Item.Cursor := Item.TLS_Response'First;
+                  Item.Phase := Reading_TLS_Response;
+               else
+                  Item.Cursor := Item.Tag'First;
+                  Item.Phase := Reading_Tag;
+               end if;
+               Flyology.Operations.Drivers.Reschedule (Item);
+            else
+               Flyology.Operations.Drivers.Reschedule (Item);
+            end if;
+         when Transports.Need_Read | Transports.Need_Write =>
+            Operation_Channel (Item.Item).Arm_Transport (Item, Result);
+         when Transports.Peer_Closed =>
+            raise Flyology.IO.Device_Error with
+              "Postgres peer closed during startup send";
+      end case;
+   end Advance_Startup_Send;
+
+   procedure Advance_Startup_Receive (Item : in out Startup_Operation) is
+      Last   : Ada.Streams.Stream_Element_Offset;
+      Result : Transports.Step_Result;
+   begin
+      case Item.Phase is
+         when Reading_TLS_Response =>
+            Operation_Channel (Item.Item).Receive_Step
+              (Item.TLS_Response
+                 (Item.Cursor .. Item.TLS_Response'Last),
+               Last,
+               Result);
+         when Reading_Tag =>
+            Operation_Channel (Item.Item).Receive_Step
+              (Item.Tag (Item.Cursor .. Item.Tag'Last), Last, Result);
+         when Reading_Length =>
+            Operation_Channel (Item.Item).Receive_Step
+              (Item.Length_Data (Item.Cursor .. Item.Length_Data'Last),
+               Last,
+               Result);
+         when Reading_Body =>
+            Operation_Channel (Item.Item).Receive_Step
+              (Item.Buffer.Value.all
+                 (Item.Cursor .. Item.Buffer.Value.all'Last),
+               Last,
+               Result);
+         when others =>
+            raise Program_Error with "Postgres startup is not receiving";
+      end case;
+
+      case Result is
+         when Transports.Made_Progress =>
+            Item.Cursor := Last + 1;
+            case Item.Phase is
+               when Reading_TLS_Response =>
+                  if Item.Cursor > Item.TLS_Response'Last then
+                     if Item.TLS_Response (Item.TLS_Response'First) /=
+                       Protocol.Byte (Character'Pos ('S'))
+                     then
+                        raise TLS_Not_Available with
+                          "Postgres server refused TLS";
+                     end if;
+                     Item.Item.Current_State := TLS_Negotiated;
+                     Complete_Startup_Operation (Item);
+                  else
+                     Flyology.Operations.Drivers.Reschedule (Item);
+                  end if;
+               when Reading_Tag =>
+                  if Item.Cursor > Item.Tag'Last then
+                     Item.Cursor := Item.Length_Data'First;
+                     Item.Phase := Reading_Length;
+                  end if;
+                  Flyology.Operations.Drivers.Reschedule (Item);
+               when Reading_Length =>
+                  if Item.Cursor > Item.Length_Data'Last then
+                     declare
+                        Cursor : Protocol.Byte_Offset :=
+                          Item.Length_Data'First;
+                        Length : constant Protocol.UInt32 :=
+                          Protocol.Read_U32 (Item.Length_Data, Cursor);
+                     begin
+                        if not Flyology.Postgres.Wire.Valid_Typed_Length
+                          (Length)
+                        then
+                           raise Protocol.Protocol_Error with
+                             "invalid typed Postgres message length";
+                        end if;
+                        Clear (Item.Buffer);
+                        Item.Buffer.Value := new Protocol.Byte_Array
+                          (1 .. Protocol.Byte_Offset
+                             (Flyology.Postgres.Wire.Content_Length
+                                (Length)));
+                        Item.Cursor := Item.Buffer.Value.all'First;
+                        Item.Phase := Reading_Body;
+                        if Item.Buffer.Value.all'Length = 0 then
+                           Process_Startup_Message (Item);
+                        else
+                           Flyology.Operations.Drivers.Reschedule (Item);
+                        end if;
+                     end;
+                  else
+                     Flyology.Operations.Drivers.Reschedule (Item);
+                  end if;
+               when Reading_Body =>
+                  if Item.Cursor > Item.Buffer.Value.all'Last then
+                     Process_Startup_Message (Item);
+                  else
+                     Flyology.Operations.Drivers.Reschedule (Item);
+                  end if;
+               when others =>
+                  null;
+            end case;
+         when Transports.Need_Read | Transports.Need_Write =>
+            Operation_Channel (Item.Item).Arm_Transport (Item, Result);
+         when Transports.Peer_Closed =>
+            raise Flyology.IO.Device_Error with
+              "Postgres peer closed during startup receive";
+      end case;
+   end Advance_Startup_Receive;
+
+   overriding procedure Drive
+     (Item  : in out Startup_Operation;
+      Event : Flyology.Operations.Driver_Event) is
+      Acquisition : Transports.Acquisition_Result;
+   begin
+      begin
+         case Event is
+            when Flyology.Operations.Start_Operation =>
+               Item.Phase := Acquiring_Transport;
+               Operation_Channel (Item.Item).Start_Operation
+                 (Item, Acquisition, Item.Timeout);
+               if Acquisition = Transports.Acquired then
+                  Item.Phase := Transferring_Data;
+                  Advance_Startup_Send (Item);
+               else
+                  Operation_Channel (Item.Item).Arm_Acquisition (Item);
+               end if;
+            when Flyology.Operations.Source_Ready =>
+               if Item.Phase = Acquiring_Transport then
+                  Operation_Channel (Item.Item).Poll_Acquisition
+                    (Acquisition);
+                  if Acquisition = Transports.Acquired then
+                     Item.Phase := Transferring_Data;
+                     Advance_Startup_Send (Item);
+                  else
+                     Operation_Channel (Item.Item).Arm_Acquisition (Item);
+                  end if;
+               elsif Item.Phase = Transferring_Data then
+                  Advance_Startup_Send (Item);
+               else
+                  Advance_Startup_Receive (Item);
+               end if;
+            when Flyology.Operations.Continue_Operation =>
+               if Item.Phase = Transferring_Data then
+                  Advance_Startup_Send (Item);
+               else
+                  Advance_Startup_Receive (Item);
+               end if;
+            when Flyology.Operations.Deadline_Reached =>
+               raise Flyology.IO.Timeout_Error with
+                 "Postgres startup operation deadline expired";
+            when Flyology.Operations.Dependency_Changed =>
+               raise Program_Error with
+                 "Postgres startup operation has no dependency";
+         end case;
+      exception
+         when Error : Flyology.Postgres.SCRAM.SCRAM_Error =>
+            declare
+               Wrapped : Ada.Exceptions.Exception_Occurrence;
+            begin
+               begin
+                  raise Protocol.Protocol_Error with
+                    Ada.Exceptions.Exception_Message (Error);
+               exception
+                  when Converted : others =>
+                     Ada.Exceptions.Save_Occurrence (Wrapped, Converted);
+               end;
+               Fail_Startup (Item, Wrapped);
+            end;
+         when Error : others =>
+            Fail_Startup (Item, Error);
+      end;
+   end Drive;
+
+   overriding procedure Request_Cancellation
+     (Item : in out Startup_Operation) is
+   begin
+      begin
+         if Item.Phase /= Transfer_Idle then
+            Operation_Channel (Item.Item).Cancel_Operation;
+            Item.Phase := Transfer_Idle;
+         end if;
+         Wipe_Startup (Item);
+         Flyology.Operations.Drivers.Complete
+           (Item, Flyology.Operations.Cancelled);
+      exception
+         when Error : others =>
+            Fail_Startup (Item, Error);
+      end;
+   end Request_Cancellation;
+
+   procedure Start_Startup_Operation
+     (Item      : not null access Session;
+      Kind      : Startup_Kind;
+      Timeout   : Duration;
+      Operation : in out Startup_Operation) is
+   begin
+      Operation.Item := Item.all'Unchecked_Access;
+      declare
+         Ignored : constant access Transports.Operation_Transport'Class :=
+           Operation_Channel (Operation.Item);
+      begin
+         null;
+      end;
+      if Kind = TLS_Negotiation_Stage then
+         if Item.Current_State /= Not_Started then
+            raise Program_Error with "Postgres session is already started";
+         end if;
+         Prepare_Startup_Send (Operation, Protocol.Encode_SSL_Request);
+      else
+         if Item.Current_State not in Not_Started | TLS_Negotiated then
+            raise Program_Error with "Postgres session is already started";
+         end if;
+         Prepare_Startup_Send
+           (Operation,
+            Protocol.Encode_Startup
+              (User             => To_String (Operation.User),
+               Database         => To_String (Operation.Database),
+               Application_Name => To_String (Operation.Application),
+               Protocol_Minor   => 2,
+               Replication_Mode => Operation.Replication_Mode));
+      end if;
+      Operation.Kind := Kind;
+      Operation.SASL_Phase := No_SASL;
+      Operation.Authentication_Ok := False;
+      Operation.Timeout := Timeout;
+      Flyology.Operations.Drivers.Start (Operation);
+      Operation.Drive (Flyology.Operations.Start_Operation);
+   exception
+      when others =>
+         if Flyology.Operations.Is_Active (Operation) then
+            if Operation.Phase /= Transfer_Idle then
+               begin
+                  Release_Transport (Operation);
+               exception
+                  when others =>
+                     null;
+               end;
+            end if;
+            Flyology.Operations.Drivers.Rollback_Start (Operation);
+         end if;
+         raise;
+   end Start_Startup_Operation;
+
+   function Negotiate_TLS
+     (Set     : not null access Flyology.Operations.Completion_Set'Class;
+      Item    : not null access Session;
+      Timeout : Duration := 30.0) return Startup_Operation is
+   begin
+      return Result : Startup_Operation (Set) do
+         Negotiate_TLS (Item, Timeout, Result);
+      end return;
+   end Negotiate_TLS;
+
+   procedure Negotiate_TLS
+     (Item      : not null access Session;
+      Timeout   : Duration := 30.0;
+      Operation : in out Startup_Operation) is
+   begin
+      Start_Startup_Operation
+        (Item, TLS_Negotiation_Stage, Timeout, Operation);
+   end Negotiate_TLS;
+
+   function Startup
+     (Set              : not null access
+        Flyology.Operations.Completion_Set'Class;
+      Item             : not null access Session;
+      User             : String;
+      Database         : String := "";
+      Password         : String := "";
+      Application_Name : String := "flyology_postgres";
+      Timeout          : Duration := 30.0;
+      Replication_Mode : Protocol.Replication_Connection_Mode :=
+        Protocol.Normal_Connection) return Startup_Operation is
+   begin
+      return Result : Startup_Operation (Set) do
+         Startup
+           (Item,
+            User,
+            Database,
+            Password,
+            Application_Name,
+            Timeout,
+            Replication_Mode,
+            Result);
+      end return;
+   end Startup;
+
+   procedure Startup
+     (Item             : not null access Session;
+      User             : String;
+      Database         : String := "";
+      Password         : String := "";
+      Application_Name : String := "flyology_postgres";
+      Timeout          : Duration := 30.0;
+      Replication_Mode : Protocol.Replication_Connection_Mode :=
+        Protocol.Normal_Connection;
+      Operation        : in out Startup_Operation) is
+   begin
+      Operation.User := To_Unbounded_String (User);
+      Operation.Database := To_Unbounded_String (Database);
+      Operation.Password := To_Unbounded_String (Password);
+      Operation.Application := To_Unbounded_String (Application_Name);
+      Operation.Replication_Mode := Replication_Mode;
+      Start_Startup_Operation
+        (Item, Authentication_Stage, Timeout, Operation);
+   exception
+      when others =>
+         Wipe_Startup (Operation);
+         raise;
+   end Startup;
+
+   procedure Finish (Operation : in out Startup_Operation) is
+      Terminal : constant Flyology.Operations.Terminal_Outcome :=
+        Flyology.Operations.Outcome (Operation);
+   begin
+      Flyology.Operations.Consume (Operation);
+      Clear (Operation.Buffer);
+      Wipe_Startup (Operation);
+      case Terminal is
+         when Flyology.Operations.Succeeded =>
+            null;
+         when Flyology.Operations.Cancelled =>
+            raise Flyology.Operations.Operation_Cancelled;
+         when Flyology.Operations.Failed =>
+            Ada.Exceptions.Reraise_Occurrence (Operation.Failure);
+      end case;
+   end Finish;
+
+   function Receive_Extended_Event
+     (Item : in out Session; Timeout : Duration := 30.0)
+      return Extended_Query_Event is
+      Response     : Protocol.Backend_Message;
+      Sync_Pending : constant Boolean := Item.Pending_Syncs > 0;
+   begin
+      if Item.Current_State = Recovery_Required then
+         raise Program_Error with
+           "Postgres extended-query recovery requires Sync before receiving";
+      end if;
+      if Item.Current_State not in Extended_Query_Active | Awaiting_Ready then
+         raise Program_Error with "no extended query is active";
+      end if;
+
+      Response := Protocol.Decode_Backend
+        (Framing.Read_Message (Item.Channel.all, Timeout));
+      Apply_Extended_Event (Item, Response, Sync_Pending);
       return Response;
    end Receive_Extended_Event;
 

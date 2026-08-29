@@ -1,7 +1,12 @@
 with Flyology.Bytes;
 with Flyology.IO.TLS;
+with Flyology.Operations;
 with Flyology.Postgres.Protocol;
 with Flyology.Postgres.Transports;
+private with Ada.Exceptions;
+private with Ada.Finalization;
+private with Ada.Strings.Unbounded;
+private with Flyology.Postgres.SCRAM;
 
 package Flyology.Postgres.Client is
    --  Stateful PostgreSQL frontend implementing startup, authentication,
@@ -19,8 +24,26 @@ package Flyology.Postgres.Client is
    --  One stateful PostgreSQL connection over a caller-owned transport.
    --  @field Channel Open transport whose lifetime exceeds the session.
 
+   type Client_Operation is
+     abstract new Flyology.Operations.Operation with private;
+   --  Common limited base for scoped PostgreSQL client operations.
+
+   type Send_Operation is new Client_Operation with private;
+   --  Limited scoped send for a PostgreSQL query or execute request. Item and
+   --  its operation-capable transport remain borrowed until Finish or
+   --  finalization.
+
+   type Receive_Operation is new Client_Operation with private;
+   --  Limited scoped receive retaining one owned typed query event until
+   --  Finish. Protocol payload allocation is result storage, not wait state.
+
+   type Startup_Operation is new Client_Operation with private;
+   --  Limited scoped PostgreSQL SSL negotiation or startup/authentication
+   --  operation. Credential and protocol state are owned until Finish.
+
    type Operation_State is
      (Not_Started,
+      TLS_Negotiated,
       Ready,
       Simple_Query_Active,
       Extended_Query_Active,
@@ -33,6 +56,8 @@ package Flyology.Postgres.Client is
       Closed);
    --  Client protocol state controlling which operations are currently legal.
    --  @enum Not_Started No startup packet has been sent.
+   --  @enum TLS_Negotiated SSLRequest was accepted; the caller must upgrade
+   --     the same transport before starting authentication.
    --  @enum Ready Startup or synchronization completed; commands may begin.
    --  @enum Simple_Query_Active A simple-query response is being consumed.
    --  @enum Extended_Query_Active An extended-query batch is being written;
@@ -70,6 +95,55 @@ package Flyology.Postgres.Client is
    --     replication startup parameter.
    --  @exception Database_Error The server rejects startup or authentication.
    --  @exception Unsupported_Authentication The requested method is unknown.
+
+   function Startup
+     (Set              : not null access
+        Flyology.Operations.Completion_Set'Class;
+      Item             : not null access Session;
+      User             : String;
+      Database         : String := "";
+      Password         : String := "";
+      Application_Name : String := "flyology_postgres";
+      Timeout          : Duration := 30.0;
+      Replication_Mode : Protocol.Replication_Connection_Mode :=
+        Protocol.Normal_Connection) return Startup_Operation;
+   --  Start PostgreSQL startup and authentication without waiting. One
+   --  deadline spans the complete startup sequence.
+
+   procedure Startup
+     (Item             : not null access Session;
+      User             : String;
+      Database         : String := "";
+      Password         : String := "";
+      Application_Name : String := "flyology_postgres";
+      Timeout          : Duration := 30.0;
+      Replication_Mode : Protocol.Replication_Connection_Mode :=
+        Protocol.Normal_Connection;
+      Operation        : in out Startup_Operation)
+     with Pre =>
+       not Flyology.Operations.Is_Active (Operation)
+       and then not Flyology.Operations.Is_Terminal (Operation);
+   --  Start or restart startup/authentication in a reusable operation.
+
+   function Negotiate_TLS
+     (Set     : not null access Flyology.Operations.Completion_Set'Class;
+      Item    : not null access Session;
+      Timeout : Duration := 30.0) return Startup_Operation;
+   --  Send SSLRequest and receive the one-byte acceptance response. Finish
+   --  leaves Item in TLS_Negotiated; upgrade the same transport before
+   --  calling Startup.
+
+   procedure Negotiate_TLS
+     (Item      : not null access Session;
+      Timeout   : Duration := 30.0;
+      Operation : in out Startup_Operation)
+     with Pre =>
+       not Flyology.Operations.Is_Active (Operation)
+       and then not Flyology.Operations.Is_Terminal (Operation);
+   --  Start or restart SSLRequest negotiation.
+
+   procedure Finish (Operation : in out Startup_Operation);
+   --  Consume a terminal startup stage and raise its retained familiar error.
 
    procedure Startup_TLS
      (Item             : in out Session;
@@ -115,6 +189,27 @@ package Flyology.Postgres.Client is
    --  @param SQL One or more SQL statements encoded as a Query message.
    --  @param Timeout Maximum time allowed for the write.
 
+   function Send_Query
+     (Set     : not null access Flyology.Operations.Completion_Set'Class;
+      Item    : not null access Session;
+      SQL     : String;
+      Timeout : Duration := 30.0) return Send_Operation;
+   --  Start a simple-query send without waiting.
+
+   procedure Send_Query
+     (Item      : not null access Session;
+      SQL       : String;
+      Timeout   : Duration := 30.0;
+      Operation : in out Send_Operation)
+     with Pre =>
+       not Flyology.Operations.Is_Active (Operation)
+       and then not Flyology.Operations.Is_Terminal (Operation);
+   --  Start or restart a simple-query send in a reusable operation.
+
+   procedure Finish (Operation : in out Send_Operation);
+   --  Consume a terminal send and raise any retained familiar transport or
+   --  protocol exception.
+
    procedure Send_Cancel_Request
      (Item                 : Session;
       Cancellation_Channel : in out Transports.Transport'Class;
@@ -143,6 +238,21 @@ package Flyology.Postgres.Client is
    --  @param Item Session in Simple_Query_Active or Awaiting_Ready state.
    --  @param Timeout Maximum time allowed for the complete event.
    --  @return Next typed simple-query event.
+
+   function Receive_Query_Event
+     (Set     : not null access Flyology.Operations.Completion_Set'Class;
+      Item    : not null access Session;
+      Timeout : Duration := 30.0) return Receive_Operation;
+   --  Start receiving one owned simple-query event without waiting.
+
+   procedure Receive_Query_Event
+     (Item      : not null access Session;
+      Timeout   : Duration := 30.0;
+      Operation : in out Receive_Operation)
+     with Pre =>
+       not Flyology.Operations.Is_Active (Operation)
+       and then not Flyology.Operations.Is_Terminal (Operation);
+   --  Start or restart one simple-query event receive.
 
    procedure Prepare_Statement
      (Item            : in out Session;
@@ -197,6 +307,25 @@ package Flyology.Postgres.Client is
    --  @param Portal_Name Bound portal to execute.
    --  @param Maximum_Rows Zero for all rows, otherwise a suspension limit.
    --  @param Timeout Maximum time allowed for the write.
+
+   function Execute_Portal
+     (Set          : not null access Flyology.Operations.Completion_Set'Class;
+      Item         : not null access Session;
+      Portal_Name  : String;
+      Maximum_Rows : Protocol.Row_Limit := 0;
+      Timeout      : Duration := 30.0) return Send_Operation;
+   --  Start a portal execute send without waiting.
+
+   procedure Execute_Portal
+     (Item         : not null access Session;
+      Portal_Name  : String;
+      Maximum_Rows : Protocol.Row_Limit := 0;
+      Timeout      : Duration := 30.0;
+      Operation    : in out Send_Operation)
+     with Pre =>
+       not Flyology.Operations.Is_Active (Operation)
+       and then not Flyology.Operations.Is_Terminal (Operation);
+   --  Start or restart a portal execute send.
    procedure Resume_Portal
       (Item         : in out Session;
       Portal_Name  : String;
@@ -283,6 +412,27 @@ package Flyology.Postgres.Client is
    --  @param Timeout Maximum time allowed for the complete event.
    --  @return Next typed event, updating Item's protocol state.
 
+   function Receive_Extended_Event
+     (Set     : not null access Flyology.Operations.Completion_Set'Class;
+      Item    : not null access Session;
+      Timeout : Duration := 30.0) return Receive_Operation;
+   --  Start receiving one owned extended-query event without waiting.
+
+   procedure Receive_Extended_Event
+     (Item      : not null access Session;
+      Timeout   : Duration := 30.0;
+      Operation : in out Receive_Operation)
+     with Pre =>
+       not Flyology.Operations.Is_Active (Operation)
+       and then not Flyology.Operations.Is_Terminal (Operation);
+   --  Start or restart one extended-query event receive.
+
+   procedure Finish
+     (Operation : in out Receive_Operation;
+      Event     : out Protocol.Backend_Message);
+   --  Consume a terminal receive, transferring its retained owned event or
+   --  raising its retained familiar exception.
+
    subtype Copy_Event is Protocol.Backend_Message;
    --  Typed backend event produced while COPY is active or completing.
    procedure Send_Copy_Data
@@ -348,6 +498,103 @@ package Flyology.Postgres.Client is
    --  @return SQLSTATE field, or an empty string when absent.
 
 private
+   type Byte_Array_Access is access Protocol.Byte_Array;
+   type Session_Access is access all Session;
+
+   type Buffer_Owner is new Ada.Finalization.Limited_Controlled with record
+      Value : Byte_Array_Access;
+   end record;
+
+   overriding procedure Finalize (Item : in out Buffer_Owner);
+
+   type Send_Kind is (Simple_Query_Send, Portal_Execute_Send);
+   type Transfer_Phase is
+     (Transfer_Idle,
+      Acquiring_Transport,
+      Transferring_Data,
+      Reading_Tag,
+      Reading_Length,
+      Reading_Body,
+      Reading_TLS_Response);
+
+   type Client_Operation is
+     abstract new Flyology.Operations.Operation with record
+      Item : Session_Access;
+   end record;
+
+   type Send_Operation is new Client_Operation with record
+      Buffer  : Buffer_Owner;
+      Cursor  : Protocol.Byte_Offset := 1;
+      Kind    : Send_Kind := Simple_Query_Send;
+      Phase   : Transfer_Phase := Transfer_Idle;
+      Timeout : Duration := 30.0;
+      Failure : Ada.Exceptions.Exception_Occurrence;
+   end record;
+
+   type Receive_Kind is (Simple_Query_Receive, Extended_Query_Receive);
+
+   type Receive_Operation is new Client_Operation with record
+      Buffer       : Buffer_Owner;
+      Tag          : Protocol.Byte_Array (1 .. 1);
+      Length_Data  : Protocol.Byte_Array (1 .. 4);
+      Cursor       : Protocol.Byte_Offset := 1;
+      Phase        : Transfer_Phase := Transfer_Idle;
+      Kind         : Receive_Kind := Simple_Query_Receive;
+      Sync_Pending : Boolean := False;
+      Timeout      : Duration := 30.0;
+      Result       : Protocol.Backend_Message;
+      Failure      : Ada.Exceptions.Exception_Occurrence;
+   end record;
+
+   type Startup_Kind is (TLS_Negotiation_Stage, Authentication_Stage);
+   type Startup_SASL_Phase is
+     (No_SASL, Awaiting_Continue, Awaiting_Final, Final_Verified);
+
+   type Startup_Operation is new Client_Operation with record
+      Buffer       : Buffer_Owner;
+      Tag          : Protocol.Byte_Array (1 .. 1);
+      Length_Data  : Protocol.Byte_Array (1 .. 4);
+      TLS_Response : Protocol.Byte_Array (1 .. 1);
+      Cursor       : Protocol.Byte_Offset := 1;
+      Phase        : Transfer_Phase := Transfer_Idle;
+      Kind         : Startup_Kind := Authentication_Stage;
+      SASL_Phase   : Startup_SASL_Phase := No_SASL;
+      User         : Ada.Strings.Unbounded.Unbounded_String;
+      Database     : Ada.Strings.Unbounded.Unbounded_String;
+      Password     : Ada.Strings.Unbounded.Unbounded_String;
+      Application  : Ada.Strings.Unbounded.Unbounded_String;
+      Nonce        : Ada.Strings.Unbounded.Unbounded_String;
+      Bare_First   : Ada.Strings.Unbounded.Unbounded_String;
+      Expected_Server_Signature : Flyology.Postgres.SCRAM.Digest :=
+        (others => 0);
+      Authentication_Ok : Boolean := False;
+      Replication_Mode : Protocol.Replication_Connection_Mode :=
+        Protocol.Normal_Connection;
+      Timeout : Duration := 30.0;
+      Failure : Ada.Exceptions.Exception_Occurrence;
+   end record;
+
+   overriding procedure Drive
+     (Item  : in out Send_Operation;
+      Event : Flyology.Operations.Driver_Event);
+
+   overriding procedure Request_Cancellation
+     (Item : in out Send_Operation);
+
+   overriding procedure Drive
+     (Item  : in out Receive_Operation;
+      Event : Flyology.Operations.Driver_Event);
+
+   overriding procedure Request_Cancellation
+     (Item : in out Receive_Operation);
+
+   overriding procedure Drive
+     (Item  : in out Startup_Operation;
+      Event : Flyology.Operations.Driver_Event);
+
+   overriding procedure Request_Cancellation
+     (Item : in out Startup_Operation);
+
    type Copy_Origin is (No_Copy, Simple_Copy, Extended_Copy);
 
    type Session
