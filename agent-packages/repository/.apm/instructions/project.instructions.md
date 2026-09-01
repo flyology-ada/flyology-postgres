@@ -4,6 +4,12 @@ description: Preserve Flyology Postgres's project-specific repository rules and 
 
 # Repository agent instructions
 
+## GNATdoc
+
+Keep GNATdoc entity comments after their declarations and pass
+`--style=gnat` explicitly. This repository-specific trailing convention
+overrides the shared leading default.
+
 ## Website documentation
 
 Use the `flyology-website-content` skill for hand-written Guide, Architecture,
