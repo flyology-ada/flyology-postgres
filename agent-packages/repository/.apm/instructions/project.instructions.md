@@ -6,10 +6,10 @@ description: Preserve Flyology Postgres's project-specific repository rules and 
 
 ## Website documentation
 
-Hand-written Guide, Architecture, and Journal pages follow
-`website/AGENTS.md`. Link the first explanatory mention of each public
-Flyology Postgres API entity on a page to its verified generated GNATdoc unit
-or declaration entry.
+Use the `flyology-website-content` skill for hand-written Guide, Architecture,
+and Journal pages. Link the first explanatory mention of each public Flyology
+Postgres API entity on a page to its verified generated GNATdoc unit or
+declaration entry.
 
 ## Releases
 
