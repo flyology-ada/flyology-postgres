@@ -3,10 +3,15 @@ set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repository_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
-probe_root=$repository_root/.tool-probes/dea2890
-tool=$probe_root/install/bin/flyology-tla
-toolchain=$probe_root/toolchain
-work_root=$probe_root/conformance
+formal_build_root=$repository_root/build/formal-tla
+managed_tool=$formal_build_root/install/bin/flyology-tla
+managed_toolchain_helper=$formal_build_root/install/share/toolchain.sh
+managed_provisioning_receipt=$formal_build_root/install/flyology-tla-provisioning
+tool=${FLYOLOGY_TLA_TOOL:-$managed_tool}
+toolchain=${FLYOLOGY_TLA_TOOLCHAIN:-$formal_build_root/toolchain}
+work_root=${FLYOLOGY_TLA_WORK_ROOT:-$formal_build_root/work}
+work_root_marker=$work_root/.flyology-postgres-conformance-work-root
+work_root_identity='flyology-postgres formal conformance work root v1'
 model=$repository_root/formal/tla/PgoutputProducer.tla
 configuration=$repository_root/formal/tla/PgoutputProducer_Replay.cfg
 fixed_configuration=$repository_root/formal/tla/PgoutputProducer.cfg
@@ -51,6 +56,138 @@ require_directory()
   }
 }
 
+require_absolute_path()
+{
+  case "$2" in
+    /*) ;;
+    *)
+      printf '%s\n' "$1 must be an absolute path: $2" >&2
+      exit 1
+      ;;
+  esac
+}
+
+fail()
+{
+  printf '%s\n' "$1" >&2
+  exit 1
+}
+
+sha256_file()
+{
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | awk '{print $1}'
+  else
+    fail 'sha256sum or shasum is required'
+  fi
+}
+
+verify_managed_tool_install()
+{
+  test "$tool" = "$managed_tool" || return 0
+  test -f "$managed_tool" && test ! -L "$managed_tool" ||
+    fail "missing managed flyology-tla executable: $managed_tool"
+  test -f "$managed_toolchain_helper" &&
+    test ! -L "$managed_toolchain_helper" ||
+    fail "missing managed toolchain helper: $managed_toolchain_helper"
+  test -f "$managed_provisioning_receipt" &&
+    test ! -L "$managed_provisioning_receipt" ||
+    fail "missing managed provisioning receipt: $managed_provisioning_receipt"
+  test "$(sed -n '1p' "$managed_provisioning_receipt")" = \
+    'format=flyology-postgres-formal-provisioning/2' ||
+    fail "invalid managed provisioning receipt: $managed_provisioning_receipt"
+  expected_tool_sha256=$(sed -n '4s/^tool_sha256=//p' \
+    "$managed_provisioning_receipt")
+  expected_helper_sha256=$(sed -n \
+    '5s/^toolchain_helper_sha256=//p' "$managed_provisioning_receipt")
+  test "$expected_tool_sha256" = "$(sha256_file "$managed_tool")" ||
+    fail 'managed flyology-tla executable fails content verification'
+  test "$expected_helper_sha256" = \
+    "$(sha256_file "$managed_toolchain_helper")" ||
+    fail 'managed toolchain helper fails content verification'
+  test "$(wc -l <"$managed_provisioning_receipt" | tr -d ' ')" -eq 5 ||
+    fail "invalid managed provisioning receipt: $managed_provisioning_receipt"
+}
+
+validate_work_root_path()
+{
+  require_absolute_path FLYOLOGY_TLA_WORK_ROOT "$work_root"
+  case "$work_root" in
+    /|*/|*//*|*/./*|*/../*|*/.|*/..)
+      fail "FLYOLOGY_TLA_WORK_ROOT is not a canonical dedicated path: $work_root"
+      ;;
+  esac
+  case "$work_root" in
+    *'
+'*) fail 'FLYOLOGY_TLA_WORK_ROOT must not contain a line break' ;;
+  esac
+  test "$work_root" != "$repository_root" ||
+    fail 'FLYOLOGY_TLA_WORK_ROOT must not be the repository root'
+
+  path_component=$work_root
+  while [ "$path_component" != / ]; do
+    test ! -L "$path_component" ||
+      fail "FLYOLOGY_TLA_WORK_ROOT crosses a symbolic link: $path_component"
+    path_component=${path_component%/*}
+    test -n "$path_component" || path_component=/
+  done
+
+  work_parent=${work_root%/*}
+  test -n "$work_parent" || work_parent=/
+  test "$work_parent" != / ||
+    fail 'FLYOLOGY_TLA_WORK_ROOT must not be a direct child of /'
+  require_directory "$work_parent"
+}
+
+require_owned_work_root()
+{
+  validate_work_root_path
+  require_directory "$work_root"
+  test ! -L "$work_root_marker" ||
+    fail "work-root ownership marker is a symbolic link: $work_root_marker"
+  require_file "$work_root_marker"
+  test "$(cat "$work_root_marker")" = "$work_root_identity" ||
+    fail "work root is not owned by this runner: $work_root"
+}
+
+prepare_work_root()
+{
+  validate_work_root_path
+  if [ -e "$work_root" ] || [ -L "$work_root" ]; then
+    require_owned_work_root
+  else
+    mkdir "$work_root"
+    printf '%s\n' "$work_root_identity" >"$work_root_marker"
+    require_owned_work_root
+  fi
+}
+
+require_contained_work_path()
+{
+  case "$1" in
+    "$work_root"/*) ;;
+    *) fail "work path escapes the owned root: $1" ;;
+  esac
+}
+
+prepare_empty_work_directory()
+{
+  require_owned_work_root
+  require_contained_work_path "$1"
+  test ! -L "$1" || fail "refusing symbolic-link work directory: $1"
+  rm -rf -- "$1"
+  mkdir "$1"
+}
+
+require_safe_work_file()
+{
+  require_owned_work_root
+  require_contained_work_path "$1"
+  test ! -L "$1" || fail "refusing symbolic-link work file: $1"
+}
+
 print_paths()
 {
   printf '%s\n' \
@@ -72,11 +209,16 @@ preflight()
 {
   phase=$1
   print_paths "$phase"
+  test "${FLYOLOGY_TLA_TOOLCHAIN_SCRIPT+x}" != x ||
+    fail 'FLYOLOGY_TLA_TOOLCHAIN_SCRIPT is not accepted by the runner'
+  require_absolute_path FLYOLOGY_TLA_TOOL "$tool"
+  require_absolute_path FLYOLOGY_TLA_TOOLCHAIN "$toolchain"
   require_file "$tool"
   require_file "$toolchain/receipt.json"
   require_file "$model"
   require_file "$configuration"
-  require_directory "$work_root"
+  validate_work_root_path
+  verify_managed_tool_install
 
   case "$phase" in
     model)
@@ -86,6 +228,7 @@ preflight()
       require_file "$issue58_configuration"
       ;;
     verify-model-output)
+      require_owned_work_root
       require_file "$model_work/fixed.log"
       require_file "$model_work/issue56.log"
       require_file "$model_work/issue57.log"
@@ -97,12 +240,12 @@ preflight()
       require_file "$proof"
       ;;
     normalize)
+      require_owned_work_root
       require_file "$raw_trace"
       require_directory "$trace_dir"
       ;;
     generate)
       require_directory "$generated_dir"
-      require_directory "$generated_check"
       ;;
     replay)
       require_file "$trace"
@@ -116,7 +259,6 @@ preflight()
       require_file "$proof"
       require_directory "$trace_dir"
       require_directory "$generated_dir"
-      require_directory "$generated_check"
       require_file "$replay"
       ;;
     *) usage ;;
@@ -163,9 +305,9 @@ run_expected_tlc_failure()
 model_check()
 {
   preflight model
+  prepare_work_root
   load_toolchain
-  rm -rf -- "$model_work"
-  mkdir -p "$model_work"
+  prepare_empty_work_directory "$model_work"
 
   "$FLYOLOGY_TLA_JAVA" -cp "$FLYOLOGY_TLA_TLC_JAR" tla2sany.SANY \
     "$model" >"$model_work/sany.log" 2>&1
@@ -216,9 +358,10 @@ verify_model_output()
 prove()
 {
   preflight proof
+  prepare_work_root
   load_toolchain
-  rm -rf -- "$proof_work"
-  mkdir -p "$proof_work/cache"
+  prepare_empty_work_directory "$proof_work"
+  mkdir "$proof_work/cache"
 
   "$FLYOLOGY_TLA_JAVA" -cp "$FLYOLOGY_TLA_TLC_JAR" tla2sany.SANY \
     "$proof" >"$proof_work/sany.log" 2>&1
@@ -230,6 +373,8 @@ prove()
 normalize()
 {
   preflight normalize
+  prepare_work_root
+  require_safe_work_file "$normalized_check"
   load_toolchain
   "$tool" trace normalize \
     "$raw_trace" "$trace" "$model" --config "$configuration" \
@@ -244,6 +389,8 @@ normalize()
 generate()
 {
   preflight generate
+  prepare_work_root
+  prepare_empty_work_directory "$generated_check"
   load_toolchain
   "$tool" ada generate "$model" --config "$configuration" \
     --package Pgoutput_Producer_Model --output "$generated_dir"
@@ -266,11 +413,17 @@ generate()
 replay_trace()
 {
   preflight replay
+  prepare_work_root
+  require_safe_work_file "$work_root/replay.log"
   "$replay" "$trace" >"$work_root/replay.log"
   grep -Fxq 'conformant: 19 modeled steps' "$work_root/replay.log"
 }
 
-command=${1:-all}
+if [ "$#" -eq 0 ]; then
+  set -- all
+fi
+
+command=$1
 case "$command" in
   preflight)
     preflight "${2:-all}"

@@ -50,6 +50,50 @@ action observation fields are adapter-owned history used to compare every
 modeled transition. The adapter receives only materialized inputs; expected
 outcomes and states remain trace-oracle data.
 
+## Reproduce the campaign
+
+Provision the command-line harness and its formal toolchain from the exact
+`flyology_tla` Git revision pinned by `tests/alire.toml`:
+
+```sh
+./formal/tla/provision-conformance.sh
+```
+
+The provisioner uses a fresh, one-use checkout of that immutable revision and
+requires its tracked, untracked, and ignored state to be pristine before the
+install. It records SHA-256 digests for both the installed executable and its
+toolchain helper and verifies both before any toolchain command. The
+provisioner and runner reject `FLYOLOGY_TLA_TOOLCHAIN_SCRIPT`, so an ambient
+override cannot replace the authenticated helper. The harness, TLA+ Tools,
+TLAPS, and Java remain beneath the repository's ignored `build/` tree.
+Provisioning uses only the install and toolchain commands published by the
+pinned revision. Git, Alire, and the pinned harness's supported platform tools
+are required.
+
+Build the Ada replay executable, run the runner regression, and execute the
+complete campaign:
+
+```sh
+cd tests
+alr -n build
+cd ..
+./formal/tla/test-check-conformance.sh
+./formal/tla/test-provision-conformance.sh
+./formal/tla/check-conformance.sh all
+git status --short
+```
+
+The runner also accepts an already provisioned harness through
+`FLYOLOGY_TLA_TOOL` and `FLYOLOGY_TLA_TOOLCHAIN`. Set
+`FLYOLOGY_TLA_WORK_ROOT` when its default ignored
+`build/formal-tla/work` directory is unsuitable. Supply a canonical absolute
+path for a dedicated leaf whose parent already exists and whose path contains
+no symbolic links. Do not create the leaf: the runner creates it with an
+ownership marker and rejects an existing unmanaged directory. Recursive
+cleanup is restricted to validated children of that owned root. The runner
+regenerates the canonical trace and Ada sources in their tracked locations and
+verifies them against independently generated copies.
+
 ## Campaign artifacts
 
 - `PgoutputProducer.cfg` exhausts the approved bounded state graph.
