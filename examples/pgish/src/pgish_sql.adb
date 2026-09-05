@@ -429,6 +429,9 @@ package body Pgish_SQL is
                  Make_Text
                    (Column_Name (Value.Lexpr.Value), Maximum_Name_Length);
                if Value.Kind.Value = AST.A_Expr_Kind_Aexpr_Like then
+                  if Name = "!~~" then
+                     raise Syntax_Error with "NOT LIKE is not supported";
+                  end if;
                   Item.Operator := Like_Match;
                   Item.Value :=
                     Make_Text
