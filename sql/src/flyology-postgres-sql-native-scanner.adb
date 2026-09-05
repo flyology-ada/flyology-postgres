@@ -31,6 +31,7 @@ package body Flyology.Postgres.SQL.Native.Scanner is
    is
    begin
       Self.Last_Error_Position := Position;
+      Self.Last_Error_Positioned := True;
       Self.Last_Error_Add_Context := Add_Context;
       Self.Last_Error_Context :=
         (if Add_Context
@@ -40,6 +41,15 @@ package body Flyology.Postgres.SQL.Native.Scanner is
          else Null_Unbounded_String);
       raise Scanner_Error with Message;
    end Fail;
+
+   procedure Fail_Unpositioned (Self : in out Lexer; Message : String) is
+   begin
+      Self.Last_Error_Position := 0;
+      Self.Last_Error_Positioned := False;
+      Self.Last_Error_Add_Context := False;
+      Self.Last_Error_Context := Null_Unbounded_String;
+      raise Scanner_Error with Message;
+   end Fail_Unpositioned;
 
    function Lowercase (Value : String) return String is
       Result : String := Value;
@@ -170,8 +180,10 @@ package body Flyology.Postgres.SQL.Native.Scanner is
       Self.Previous_String_Condition := Initial_Condition;
       Self.Token_Location := 0;
       Self.Last_Error_Position := 0;
+      Self.Last_Error_Positioned := True;
       Self.Last_Error_Add_Context := True;
       Self.Last_Error_Context := Null_Unbounded_String;
+      Self.Saw_Non_ASCII := False;
       Self.Comment_Depth := 0;
       Self.First_Surrogate := 0;
       Self.Initial_Token := Initial_Token;
@@ -246,13 +258,109 @@ package body Flyology.Postgres.SQL.Native.Scanner is
            (if Profile.Unescape_Vertical_Tab then Character'Val (11) else Value),
          when others => Value);
 
+   procedure Verify_UTF8 (Self : in out Lexer) is
+      Text  : constant String := To_String (Self.Literal);
+      Index : Natural := Text'First;
+
+      function Byte_At (Position : Positive) return Natural is
+        (Character'Pos (Text (Position)));
+
+      function Is_Continuation (Value : Natural) return Boolean is
+        (Value in 16#80# .. 16#BF#);
+
+      function Nominal_Length (Value : Natural) return Positive is
+        (if Value < 16#80# then 1
+         elsif Value in 16#C0# .. 16#DF# then 2
+         elsif Value in 16#E0# .. 16#EF# then 3
+         elsif Value in 16#F0# .. 16#F7# then 4
+         else 1);
+
+      procedure Invalid_Encoding (Position : Positive) is
+         Hex_Digits : constant String := "0123456789abcdef";
+         Count  : constant Positive :=
+           Positive'Min
+             (Nominal_Length (Byte_At (Position)), Text'Last - Position + 1);
+         Last   : constant Natural := Position + Count - 1;
+         Message : Unbounded_String :=
+           To_Unbounded_String ("invalid byte sequence for encoding ""UTF8"": ");
+      begin
+         for Item in Position .. Last loop
+            declare
+               Value : constant Natural := Byte_At (Item);
+            begin
+               if Item > Position then
+                  Append (Message, ' ');
+               end if;
+               Append (Message, "0x");
+               Append (Message, Hex_Digits (Hex_Digits'First + Value / 16));
+               Append (Message, Hex_Digits (Hex_Digits'First + Value mod 16));
+            end;
+         end loop;
+         Fail_Unpositioned (Self, To_String (Message));
+      end Invalid_Encoding;
+   begin
+      while Index <= Text'Last loop
+         declare
+            First  : constant Natural := Byte_At (Index);
+            Length : Positive := 1;
+         begin
+            if First = 0 then
+               Invalid_Encoding (Index);
+            elsif First < 16#80# then
+               Length := 1;
+            elsif First in 16#C2# .. 16#DF# then
+               Length := 2;
+            elsif First in 16#E0# .. 16#EF# then
+               Length := 3;
+            elsif First in 16#F0# .. 16#F4# then
+               Length := 4;
+            else
+               Invalid_Encoding (Index);
+            end if;
+
+            if Index + Length - 1 > Text'Last then
+               Invalid_Encoding (Index);
+            end if;
+            if Length >= 2 then
+               declare
+                  Second : constant Natural := Byte_At (Index + 1);
+               begin
+                  if not Is_Continuation (Second)
+                    or else (First = 16#E0# and then Second < 16#A0#)
+                    or else (First = 16#ED# and then Second > 16#9F#)
+                    or else (First = 16#F0# and then Second < 16#90#)
+                    or else (First = 16#F4# and then Second > 16#8F#)
+                  then
+                     Invalid_Encoding (Index);
+                  end if;
+               end;
+            end if;
+            if Length >= 3
+              and then not Is_Continuation (Byte_At (Index + 2))
+            then
+               Invalid_Encoding (Index);
+            end if;
+            if Length = 4
+              and then not Is_Continuation (Byte_At (Index + 3))
+            then
+               Invalid_Encoding (Index);
+            end if;
+            Index := Index + Length;
+         end;
+      end loop;
+   end Verify_UTF8;
+
    procedure Finish_Quoted
      (Self : in out Lexer; Token : out Integer; Value : out Builders.Dynamic_Value) is
    begin
       case Self.Previous_String_Condition is
          when XB_Condition => Token := Token_Bconst;
          when XH_Condition => Token := Token_Xconst;
-         when XQ_Condition | XE_Condition => Token := Token_Sconst;
+         when XQ_Condition | XE_Condition =>
+            if Self.Saw_Non_ASCII then
+               Verify_UTF8 (Self);
+            end if;
+            Token := Token_Sconst;
          when XUS_Condition => Token := Token_Usconst;
          when others =>
             Fail (Self, Self.Token_Location, "unhandled quoted string state");
@@ -368,6 +476,9 @@ package body Flyology.Postgres.SQL.Native.Scanner is
                     Tables.Unicode_String_Start =>
                   Self.Token_Location := First;
                   Self.Literal := Null_Unbounded_String;
+                  if Rule.Kind in Tables.Quote_Start | Tables.Escape_Start then
+                     Self.Saw_Non_ASCII := False;
+                  end if;
                   Lexical_DFA.Set_Start_Condition
                     (Self.Engine,
                      (if Rule.Kind = Tables.Quote_Start then
@@ -429,7 +540,17 @@ package body Flyology.Postgres.SQL.Native.Scanner is
                   if Text (Text'First + 1) = ''' and then not Self.Backslash_Quote then
                      Fail (Self, First, "unsafe use of backslash quote in a string literal");
                   end if;
-                  Append (Self.Literal, Unescaped_Character (Text (Text'First + 1)));
+                  declare
+                     Item : constant Character :=
+                       Unescaped_Character (Text (Text'First + 1));
+                  begin
+                     Append (Self.Literal, Item);
+                     if Item = Character'Val (0)
+                       or else Character'Pos (Item) >= 16#80#
+                     then
+                        Self.Saw_Non_ASCII := True;
+                     end if;
+                  end;
                when Tables.Octal_Escape =>
                   declare
                      Code : constant Natural :=
@@ -437,10 +558,10 @@ package body Flyology.Postgres.SQL.Native.Scanner is
                          (Based_Value (Text (Text'First + 1 .. Text'Last), 8) mod
                             256);
                   begin
-                     if Code = 0 then
-                        Fail (Self, First, "invalid zero byte in string literal");
-                     end if;
                      Append (Self.Literal, Character'Val (Code));
+                     if Code = 0 or else Code >= 16#80# then
+                        Self.Saw_Non_ASCII := True;
+                     end if;
                   end;
                when Tables.Hex_Escape =>
                   declare
@@ -449,10 +570,10 @@ package body Flyology.Postgres.SQL.Native.Scanner is
                          (Based_Value (Text (Text'First + 2 .. Text'Last), 16) mod
                             256);
                   begin
-                     if Code = 0 then
-                        Fail (Self, First, "invalid zero byte in string literal");
-                     end if;
                      Append (Self.Literal, Character'Val (Code));
+                     if Code = 0 or else Code >= 16#80# then
+                        Self.Saw_Non_ASCII := True;
+                     end if;
                   end;
                when Tables.Escape_Trailing => Append (Self.Literal, Text);
                when Tables.Dollar_Start =>
@@ -823,10 +944,12 @@ package body Flyology.Postgres.SQL.Native.Scanner is
 
    procedure Error_Context
      (Self        : Lexer;
+      Positioned  : out Boolean;
       Add_Context : out Boolean;
       Text        : out Ada.Strings.Unbounded.Unbounded_String)
    is
    begin
+      Positioned := Self.Last_Error_Positioned;
       Add_Context := Self.Last_Error_Add_Context;
       Text := Self.Last_Error_Context;
    end Error_Context;

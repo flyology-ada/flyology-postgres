@@ -40,6 +40,7 @@ package Flyology.Postgres.SQL.Native.Scanner is
    function Error_Position (Self : Lexer) return Natural;
    procedure Error_Context
      (Self        : Lexer;
+      Positioned  : out Boolean;
       Add_Context : out Boolean;
       Text        : out Ada.Strings.Unbounded.Unbounded_String);
    function Token_Text (Self : Lexer) return String;
@@ -55,8 +56,10 @@ private
       Previous_String_Condition   : Positive := 1;
       Token_Location              : Natural := 0;
       Last_Error_Position         : Natural := 0;
+      Last_Error_Positioned       : Boolean := True;
       Last_Error_Add_Context      : Boolean := True;
       Last_Error_Context          : Unbounded_String;
+      Saw_Non_ASCII               : Boolean := False;
       Comment_Depth               : Natural := 0;
       First_Surrogate             : Natural := 0;
       Initial_Token               : Natural := 0;

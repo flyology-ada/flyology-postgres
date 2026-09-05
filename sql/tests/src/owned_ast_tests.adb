@@ -628,6 +628,10 @@ package body Owned_AST_Tests is
       Compare_Common ("SELECT $12345678901, 1");
       Compare_Common ("SELECT E'\UFFFFFFFF'");
       Compare_Common ("SELECT E'\U7FFFFFFF'");
+      Compare_Common ("SELECT E'\377'");
+      Compare_Common ("SELECT E'\xC3'");
+      Compare_Common ("SELECT E'\000'");
+      Compare_Common ("SELECT E'\303\251'");
       Compare_Common ("SELECT E'wrong: \U002FFFFF'");
       Compare_16 ("SELECT 1x, 2");
       Compare_17 ("SELECT 1x, 2");
