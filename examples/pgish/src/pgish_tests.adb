@@ -191,6 +191,46 @@ begin
    Catalog.Execute
      (Context, Session,
       SQL.Parse
+        ("SELECT ordinal_position FROM information_schema.columns " &
+         "WHERE table_name = 'flyology_runtime_groups' " &
+         "ORDER BY ordinal_position"),
+      Result);
+   Check
+     (Result.Row_Count = 16,
+      "flyology_runtime_groups reports sixteen columns");
+   Check
+     (Result.Row_Count >= 2
+      and then SQL.Image (Result.Rows (2).Values (1).Value) = "2",
+      "ascending integer order places 2 second");
+   Check
+     (Result.Row_Count = 16
+      and then SQL.Image (Result.Rows (16).Values (1).Value) = "16",
+      "ascending integer order places 16 last");
+   Catalog.Execute
+     (Context, Session,
+      SQL.Parse
+        ("SELECT ordinal_position FROM information_schema.columns " &
+         "WHERE table_name = 'flyology_runtime_groups' " &
+         "ORDER BY ordinal_position DESC"),
+      Result);
+   Check
+     (Result.Row_Count > 0
+      and then SQL.Image (Result.Rows (1).Values (1).Value) = "16",
+      "descending integer order places 16 first");
+   Catalog.Execute
+     (Context, Session,
+      SQL.Parse
+        ("SELECT ordinal_position FROM information_schema.columns " &
+         "WHERE table_name = 'flyology_runtime_groups' " &
+         "AND ordinal_position > 9"),
+      Result);
+   Check
+     (Result.Row_Count = 7,
+      "integer WHERE comparison yields seven rows above 9");
+
+   Catalog.Execute
+     (Context, Session,
+      SQL.Parse
         ("SELECT name, unit FROM flyology_settings " &
          "WHERE unit IS NULL ORDER BY name LIMIT 4"),
       Result);
