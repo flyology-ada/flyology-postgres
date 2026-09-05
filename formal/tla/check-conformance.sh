@@ -3,10 +3,10 @@ set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repository_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
-probe_root=$repository_root/.tool-probes/dea2890
-tool=$probe_root/install/bin/flyology-tla
-toolchain=$probe_root/toolchain
-work_root=$probe_root/conformance
+formal_build_root=$repository_root/build/formal-tla
+tool=${FLYOLOGY_TLA_TOOL:-$formal_build_root/install/bin/flyology-tla}
+toolchain=${FLYOLOGY_TLA_TOOLCHAIN:-$formal_build_root/toolchain}
+work_root=${FLYOLOGY_TLA_WORK_ROOT:-$formal_build_root/work}
 model=$repository_root/formal/tla/PgoutputProducer.tla
 configuration=$repository_root/formal/tla/PgoutputProducer_Replay.cfg
 fixed_configuration=$repository_root/formal/tla/PgoutputProducer.cfg
@@ -51,6 +51,22 @@ require_directory()
   }
 }
 
+require_absolute_path()
+{
+  case "$2" in
+    /*) ;;
+    *)
+      printf '%s\n' "$1 must be an absolute path: $2" >&2
+      exit 1
+      ;;
+  esac
+}
+
+prepare_work_root()
+{
+  mkdir -p "$work_root"
+}
+
 print_paths()
 {
   printf '%s\n' \
@@ -72,6 +88,9 @@ preflight()
 {
   phase=$1
   print_paths "$phase"
+  require_absolute_path FLYOLOGY_TLA_TOOL "$tool"
+  require_absolute_path FLYOLOGY_TLA_TOOLCHAIN "$toolchain"
+  require_absolute_path FLYOLOGY_TLA_WORK_ROOT "$work_root"
   require_file "$tool"
   require_file "$toolchain/receipt.json"
   require_file "$model"
@@ -162,6 +181,7 @@ run_expected_tlc_failure()
 
 model_check()
 {
+  prepare_work_root
   preflight model
   load_toolchain
   rm -rf -- "$model_work"
@@ -215,6 +235,7 @@ verify_model_output()
 
 prove()
 {
+  prepare_work_root
   preflight proof
   load_toolchain
   rm -rf -- "$proof_work"
@@ -229,6 +250,7 @@ prove()
 
 normalize()
 {
+  prepare_work_root
   preflight normalize
   load_toolchain
   "$tool" trace normalize \
@@ -243,6 +265,8 @@ normalize()
 
 generate()
 {
+  prepare_work_root
+  mkdir -p "$generated_check"
   preflight generate
   load_toolchain
   "$tool" ada generate "$model" --config "$configuration" \
@@ -265,12 +289,17 @@ generate()
 
 replay_trace()
 {
+  prepare_work_root
   preflight replay
   "$replay" "$trace" >"$work_root/replay.log"
   grep -Fxq 'conformant: 19 modeled steps' "$work_root/replay.log"
 }
 
-command=${1:-all}
+if [ "$#" -eq 0 ]; then
+  set -- all
+fi
+
+command=$1
 case "$command" in
   preflight)
     preflight "${2:-all}"
