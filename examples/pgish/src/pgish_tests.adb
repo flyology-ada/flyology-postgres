@@ -86,6 +86,10 @@ begin
          and then Query.Predicates (6).Operator = SQL.Greater_Or_Equal,
          "all supported comparison operators lower from A_Expr");
    end;
+   Reject
+     ("SELECT name FROM flyology_settings " &
+      "WHERE name NOT LIKE 'maximum%'",
+      "NOT LIKE remains outside the pgish subset");
    declare
       Query : constant SQL.Query := SQL.Parse
         ("SELECT '' AS empty_value, 0 AS zero_value;");
