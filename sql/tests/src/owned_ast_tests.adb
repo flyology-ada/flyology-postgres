@@ -618,6 +618,8 @@ package body Owned_AST_Tests is
          & "SELECT q.id FROM q JOIN audit a ON q.id = a.id WHERE q.id > 1");
       Compare_Common ("SELECT E'line\n', U&'d\0061t\+000061'");
       Compare_Common ("SELECT E'\401'");
+      Compare_Common ("SELECT $12345678901, 1");
+      Compare_Common ("SELECT E'a\vb'");
       Compare_Common ("INSERT INTO t (a, b) VALUES (1, 'x') RETURNING a");
       Compare_Common ("UPDATE t SET a = a + 1 WHERE b IS NOT NULL RETURNING *");
       Compare_Common ("DELETE FROM t USING u WHERE t.id = u.id RETURNING t.id");
@@ -653,6 +655,13 @@ package body Owned_AST_Tests is
       begin
          AST_18.Parse ("SELECT E'\401'", Tree);
          Assert (Tree.Valid, "V18 direct AST accepts a truncated octal escape");
+      end;
+
+      declare
+         Tree : AST_18.Owned_Syntax_Tree;
+      begin
+         AST_18.Parse ("SELECT $12345678901, 1", Tree);
+         Assert (not Tree.Valid, "V18 direct AST retains its parameter-number bound");
       end;
 
       declare

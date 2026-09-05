@@ -17,6 +17,7 @@ package body Flyology.Postgres.SQL.Native.Version_V17 is
      (Lexical_DFA       => Version_DFA,
       Actions           => Generated.Scanner_Actions,
       Keywords          => Generated.Keywords,
+      Profile           => Generated.Profile,
       Token_Ident       => Generated.Token_Ident,
       Token_Uident      => Generated.Token_Uident,
       Token_Fconst      => Generated.Token_Fconst,

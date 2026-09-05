@@ -520,6 +520,10 @@ package Flyology.Postgres.SQL.Native.Generated_V16 is
    Grammar_SHA256 : constant String := "9b4f446df6c663a1716acff311f755ecbca5b2057e58f878cbfc119291efb4ad";
    Scanner_SHA256 : constant String := "663acee84acb0a85de74866b94d6db67b9cbea690f82d72ca36690ddfa0cd6c2";
 
+   Profile : constant Scanner_Profile :=
+     (Unescape_Vertical_Tab => False,
+      Parameter_Numbers     => Signed_Low_32_Bits);
+
    Yytranslate : constant Integer_Array (0 .. 758) :=
      (
       0, 2, 2, 2, 2, 2, 2, 2, 2, 2,

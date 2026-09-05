@@ -7,6 +7,7 @@ package body Flyology.Postgres.SQL.Native.Scanner is
    use type Interfaces.Unsigned_8;
    use type Interfaces.Integer_64;
    use type Builders.Value_Kind;
+   use type Tables.Parameter_Number_Mode;
    use type Tables.Scanner_Action_Kind;
 
    Initial_Condition : constant := 1;
@@ -75,6 +76,19 @@ package body Flyology.Postgres.SQL.Native.Scanner is
       end loop;
       return Result;
    end Based_Value;
+
+   function Narrow_Signed_32
+     (Value : Interfaces.Integer_64) return Interfaces.Integer_64
+   is
+      Modulus : constant Interfaces.Integer_64 :=
+        Interfaces.Integer_64 (Interfaces.Unsigned_32'Modulus);
+      Low : constant Interfaces.Integer_64 := Value mod Modulus;
+   begin
+      return
+        (if Low <= Interfaces.Integer_64 (Interfaces.Integer_32'Last)
+         then Low
+         else Low - Modulus);
+   end Narrow_Signed_32;
 
    procedure Add_Unicode
      (Self : in out Lexer; Code : Natural; Position : Natural)
@@ -201,6 +215,8 @@ package body Flyology.Postgres.SQL.Native.Scanner is
          when 'n' => Character'Val (10),
          when 'r' => Character'Val (13),
          when 't' => Character'Val (9),
+         when 'v' =>
+           (if Profile.Unescape_Vertical_Tab then Character'Val (11) else Value),
          when others => Value);
 
    procedure Finish_Quoted
@@ -513,11 +529,22 @@ package body Flyology.Postgres.SQL.Native.Scanner is
                      Number : Interfaces.Integer_64 := 0;
                   begin
                      for Index in Text'First + 1 .. Text'Last loop
-                        Number := Number * 10 + Interfaces.Integer_64
-                          (Character'Pos (Text (Index)) - Character'Pos ('0'));
-                        if Number > Interfaces.Integer_64 (Interfaces.Integer_32'Last) then
-                           Fail (Self, First, "parameter number too large");
-                        end if;
+                        declare
+                           Digit : constant Interfaces.Integer_64 :=
+                             Interfaces.Integer_64
+                               (Character'Pos (Text (Index)) - Character'Pos ('0'));
+                        begin
+                           Number := Number * 10 + Digit;
+                           if Profile.Parameter_Numbers =
+                             Tables.Signed_Low_32_Bits
+                           then
+                              Number := Narrow_Signed_32 (Number);
+                           elsif Number >
+                             Interfaces.Integer_64 (Interfaces.Integer_32'Last)
+                           then
+                              Fail (Self, First, "parameter number too large");
+                           end if;
+                        end;
                      end loop;
                      Token := Token_Param;
                      Value := Builders.Number (Number);

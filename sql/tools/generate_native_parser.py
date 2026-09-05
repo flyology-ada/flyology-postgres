@@ -132,6 +132,69 @@ def scanner_case_bodies(source: str) -> dict[int, str]:
     }
 
 
+def braced_body(source: str, opening: int) -> str:
+    depth = 0
+    for index in range(opening, len(source)):
+        if source[index] == "{":
+            depth += 1
+        elif source[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return source[opening + 1:index]
+    raise ValueError("unterminated braced body")
+
+
+def c_function_body(source: str, name: str) -> str:
+    match = re.search(
+        rf"\b{re.escape(name)}\s*\([^;]*?\)\s*\{{",
+        source,
+        re.DOTALL,
+    )
+    if not match:
+        raise ValueError(f"C function {name} was not found")
+    return braced_body(source, match.end() - 1)
+
+
+def scanner_rule_body(source: str, name: str) -> str:
+    match = re.search(rf"^\{{{re.escape(name)}\}}[^\n]*\{{", source, re.MULTILINE)
+    if not match:
+        raise ValueError(f"scanner rule {name} was not found")
+    return braced_body(source, match.end() - 1)
+
+
+def has_vertical_tab_escape(source: str) -> bool:
+    body = c_function_body(source, "unescape_single_char")
+    if re.search(r"case\s+'v'\s*:", body) is None:
+        return False
+    if re.search(r"case\s+'v'\s*:\s*return\s+'\\v'\s*;", body) is not None:
+        return True
+    raise ValueError("unknown vertical-tab escape form")
+
+
+def parameter_number_mode(body: str) -> str:
+    uses_atol = re.search(r"\batol\s*\(", body) is not None
+    uses_checked_conversion = "pg_strtoint32_safe" in body
+    if uses_atol == uses_checked_conversion:
+        raise ValueError("unknown or ambiguous parameter-number conversion")
+    return "Signed_Low_32_Bits" if uses_atol else "Checked_Signed_32_Bits"
+
+
+def scanner_profile(scanner_c: str, scanner_l: str) -> tuple[bool, str]:
+    vertical_tab = has_vertical_tab_escape(scanner_c)
+    source_vertical_tab = has_vertical_tab_escape(scanner_l)
+    if vertical_tab != source_vertical_tab:
+        raise ValueError("scan.c and scan.l disagree on vertical-tab escapes")
+
+    actions = scanner_case_bodies(scanner_c)
+    if 56 not in actions:
+        raise ValueError("parameter scanner action was not found")
+    parameter_mode = parameter_number_mode(actions[56])
+    source_parameter_mode = parameter_number_mode(scanner_rule_body(scanner_l, "param"))
+    if parameter_mode != source_parameter_mode:
+        raise ValueError("scan.c and scan.l disagree on parameter-number conversion")
+    return vertical_tab, parameter_mode
+
+
 def scanner_actions(source: str, token_values: dict[str, int]) -> list[tuple[str, int]]:
     count = scanner_rule_count(source)
     if count < 56:
@@ -310,6 +373,7 @@ def generate(
 ) -> str:
     parser_source = parser_c.read_text()
     scanner_source = scanner_c.read_text()
+    scanner_l_source = scanner_l.read_text()
     token_rows = tokens(parser_source)
     token_values = dict(token_rows)
     keywords = keyword_rows(kwlist.read_text(), token_values)
@@ -318,6 +382,7 @@ def generate(
     transitions = scanner_transitions(scanner_source)
     starts = scanner_starts(scanner_source)
     actions = scanner_actions(scanner_source, token_values)
+    vertical_tab, parameter_mode = scanner_profile(scanner_source, scanner_l_source)
     reduction_actions = grammar_action_count(parser_source)
 
     if len(arrays["yyr1"]) != constants["YYNRULES"] + 1:
@@ -343,6 +408,11 @@ def generate(
         f"   Keyword_Count : constant := {len(keywords)};",
         f"   Grammar_SHA256 : constant String := {ada_string(sha256(grammar_y))};",
         f"   Scanner_SHA256 : constant String := {ada_string(sha256(scanner_l))};",
+        "",
+        "   Profile : constant Scanner_Profile :=",
+        "     (Unescape_Vertical_Tab => "
+        f"{'True' if vertical_tab else 'False'},",
+        f"      Parameter_Numbers     => {parameter_mode});",
         "",
     ])
     for name in PARSER_ARRAYS:
@@ -409,6 +479,7 @@ package body Flyology.Postgres.SQL.Native.Version_V{major} is
      (Lexical_DFA       => Version_DFA,
       Actions           => Generated.Scanner_Actions,
       Keywords          => Generated.Keywords,
+      Profile           => Generated.Profile,
       Token_Ident       => Generated.Token_Ident,
       Token_Uident      => Generated.Token_Uident,
       Token_Fconst      => Generated.Token_Fconst,
