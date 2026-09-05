@@ -193,6 +193,36 @@ begin
    Check (Result.Row_Count = 2, "NULL predicates preserve NULL semantics");
    Check (Result.Rows (1).Values (2).Is_Null, "NULL differs from empty text");
 
+   declare
+      procedure Check_Like (Pattern : String) is
+      begin
+         begin
+            Catalog.Execute
+              (Context, Session,
+               SQL.Parse
+                 ("SELECT name FROM flyology_settings WHERE name LIKE '" &
+                  Pattern & "'"),
+               Result);
+            Check
+              (Result.Row_Count = 6,
+               "LIKE '" & Pattern & "' matches every non-NULL name");
+         exception
+            when Error : others =>
+               Check
+                 (False,
+                  "LIKE '" & Pattern & "' does not raise " &
+                  Ada.Exceptions.Exception_Name (Error));
+         end;
+      end Check_Like;
+   begin
+      Catalog.Execute
+        (Context, Session,
+         SQL.Parse ("SELECT name FROM flyology_settings"), Result);
+      Check (Result.Row_Count = 6, "flyology_settings has six named rows");
+      Check_Like ("%");
+      Check_Like ("%%");
+   end;
+
    Catalog.Execute
      (Context, Session,
       SQL.Parse

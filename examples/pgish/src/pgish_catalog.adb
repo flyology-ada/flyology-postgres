@@ -453,7 +453,8 @@ package body Pgish_Catalog is
       then
          raise Unsupported_Error with "LIKE supports only leading/trailing percent wildcards";
       elsif Leading and Trailing then
-         return Ada.Strings.Fixed.Index (Value, Needle) /= 0;
+         return Needle'Length = 0
+           or else Ada.Strings.Fixed.Index (Value, Needle) /= 0;
       elsif Leading then
          return Needle'Length <= Value'Length
            and then Value (Value'Last - Needle'Length + 1 .. Value'Last) = Needle;
