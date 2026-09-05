@@ -1,3 +1,5 @@
+private with Ada.Containers.Vectors;
+
 package Flyology.Postgres.Replication.Logical.Producer is
    --  Stateful server-side pgoutput encoder. It validates transaction
    --  ordering before delegating wire encoding to Logical.Encode and restores
@@ -10,7 +12,8 @@ package Flyology.Postgres.Replication.Logical.Producer is
    --  @enum Idle No transaction is open.
    --  @enum Regular_Transaction Begin was emitted without streaming.
    --  @enum Stream_Segment A streamed transaction segment is open.
-   --  @enum Stream_Paused A streamed transaction is between segments.
+   --  @enum Stream_Paused One or more streamed transactions are between
+   --     segments, with no transaction currently emitting.
    --  @enum Preparing_Transaction BeginPrepare was emitted.
 
    type Encoder is private;
@@ -51,7 +54,8 @@ package Flyology.Postgres.Replication.Logical.Producer is
    --  @param Item Producer to inspect.
    --  @return Current transaction state.
    function Transaction (Item : Encoder) return Transaction_Id;
-   --  Inspect the active or paused streamed transaction identifier.
+   --  Inspect the active transaction identifier, or the most recently paused
+   --  streamed transaction when no transaction is currently emitting.
    --  @param Item Producer to inspect.
    --  @return Current XID, or zero while Idle.
    function Last_WAL_End (Item : Encoder) return LSN;
@@ -60,12 +64,16 @@ package Flyology.Postgres.Replication.Logical.Producer is
    --  @return Monotonic end LSN, or zero after configuration or Reset.
 
 private
+   package Transaction_Vectors is new Ada.Containers.Vectors
+     (Index_Type => Positive, Element_Type => Transaction_Id);
+
    type Encoder is record
-      Version      : Protocol_Version := 1;
-      Mode         : Streaming_Mode := Disabled;
-      Current      : Transaction_State := Idle;
-      XID          : Transaction_Id := 0;
-      Last_End     : LSN := 0;
+      Version       : Protocol_Version := 1;
+      Mode          : Streaming_Mode := Disabled;
+      Current       : Transaction_State := Idle;
+      XID           : Transaction_Id := 0;
+      Paused_XIDs   : Transaction_Vectors.Vector;
+      Last_End      : LSN := 0;
       Is_Configured : Boolean := False;
    end record;
 
