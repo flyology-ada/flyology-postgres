@@ -124,14 +124,18 @@ package body Flyology.Postgres.SQL.Native.Engine is
            Lexical_Scanner.Scanner_Error'Identity
          then
             declare
-               Offset      : constant Natural := Lexer.Error_Position - 1;
+               Positioned  : Boolean;
                Add_Context : Boolean;
                Context     : Ada.Strings.Unbounded.Unbounded_String;
             begin
-               Lexer.Error_Context (Add_Context, Context);
-               Report_Error
-                 (Error, Offset, Add_Context,
-                  Ada.Strings.Unbounded.To_String (Context));
+               Lexer.Error_Context (Positioned, Add_Context, Context);
+               if Positioned then
+                  Report_Error
+                    (Error, Lexer.Error_Position - 1, Add_Context,
+                     Ada.Strings.Unbounded.To_String (Context));
+               else
+                  Report_Unpositioned_Error (Error);
+               end if;
             end;
          elsif Ada.Exceptions.Exception_Identity (Error) =
            Semantics.Scanner_Parser_Error'Identity
