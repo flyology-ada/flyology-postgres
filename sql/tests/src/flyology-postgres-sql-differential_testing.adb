@@ -49,6 +49,10 @@ package body Flyology.Postgres.SQL.Differential_Testing is
       Check ("SELECT E'\401'");
       Check ("SELECT $12345678901, 1", Last => PostgreSQL_17);
       Check ("SELECT E'a\vb'");
+      Check ("SELECT -'abc'");
+      Check ("SELECT -B'101'");
+      Check ("SELECT -1");
+      Check ("SELECT -1.5");
       Check
         ("WITH recent AS (SELECT id FROM events WHERE created_at > $1) " &
          "SELECT r.id + 1 FROM recent r JOIN accounts a ON a.id = r.id " &
