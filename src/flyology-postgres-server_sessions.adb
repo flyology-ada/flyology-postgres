@@ -148,12 +148,12 @@ package body Flyology.Postgres.Server_Sessions is
    end Send_Authentication_SASL_Final;
 
    procedure Send_Negotiate_Protocol
-     (Item         : in out Session;
-      Latest_Minor : Protocol.UInt32;
-      Timeout      : Duration) is
+     (Item           : in out Session;
+      Latest_Version : Protocol.UInt32;
+      Timeout        : Duration) is
       Contents : Flyology.Bytes.Unbounded_Bytes;
    begin
-      Protocol.Append_U32 (Contents, Latest_Minor);
+      Protocol.Append_U32 (Contents, Latest_Version);
       Protocol.Append_U32 (Contents, 0);
       Send_Built (Item, 'v', Contents, Timeout);
    end Send_Negotiate_Protocol;
