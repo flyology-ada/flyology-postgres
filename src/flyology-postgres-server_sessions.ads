@@ -83,12 +83,12 @@ package Flyology.Postgres.Server_Sessions is
    --  @param Data Exact SCRAM server-final text.
    --  @param Timeout Maximum time allowed for the response.
    procedure Send_Negotiate_Protocol
-     (Item         : in out Session;
-      Latest_Minor : Protocol.UInt32;
-      Timeout      : Duration);
-   --  Report the newest supported protocol minor version.
+     (Item           : in out Session;
+      Latest_Version : Protocol.UInt32;
+      Timeout        : Duration);
+   --  Report the newest supported protocol version.
    --  @param Item Starting session to write.
-   --  @param Latest_Minor Highest supported minor version.
+   --  @param Latest_Version Packed version word, major << 16 or minor.
    --  @param Timeout Maximum time allowed for the response.
    procedure Send_Parameter_Status
      (Item    : in out Session;

@@ -445,7 +445,9 @@ package body Flyology.Postgres.Server is
 
          if Startup.Protocol_Minor > 2 then
             Server_Sessions.Send_Negotiate_Protocol
-              (Client, Latest_Minor => 2, Timeout => Write_Timeout);
+              (Client,
+               Latest_Version => 16#0003_0002#,
+               Timeout        => Write_Timeout);
          end if;
 
          if not Admit (Context.Application.all, Client, Startup) then

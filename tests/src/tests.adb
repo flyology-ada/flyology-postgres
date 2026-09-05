@@ -1112,6 +1112,39 @@ procedure Tests is
       end;
    end Test_Copy_Protocol;
 
+   procedure Test_Negotiate_Protocol_Version is
+      Channel : aliased Memory_Transport;
+      Session : Server_Sessions.Session (Channel'Access);
+      Expected_Frame : constant Protocol.Byte_Array (1 .. 13) :=
+        (1  => Protocol.Byte (Character'Pos ('v')),
+         2  => 0,
+         3  => 0,
+         4  => 0,
+         5  => 12,
+         6  => 0,
+         7  => 3,
+         8  => 0,
+         9  => 2,
+         10 => 0,
+         11 => 0,
+         12 => 0,
+         13 => 0);
+   begin
+      Server_Sessions.Send_Negotiate_Protocol
+        (Session, Latest_Version => 16#0003_0002#, Timeout => 1.0);
+      declare
+         Output : constant Protocol.Byte_Array :=
+           Flyology.Bytes.To_Array (Channel.Output);
+      begin
+         Assert
+           (Output'Length = Expected_Frame'Length,
+            "NegotiateProtocolVersion has the documented frame size");
+         Assert
+           (Output = Expected_Frame,
+            "NegotiateProtocolVersion carries the complete protocol version");
+      end;
+   end Test_Negotiate_Protocol_Version;
+
    procedure Test_Copy_Client_State is
       Channel : aliased Memory_Transport;
       Session : Client.Session (Channel'Access);
@@ -2656,6 +2689,7 @@ begin
    Test_Extended_Frontend_Messages;
    Test_Extended_Backend_Messages;
    Test_Copy_Protocol;
+   Test_Negotiate_Protocol_Version;
    Test_Copy_Client_State;
    Test_Base_Backup_Client_State;
    Test_Extended_Client_State;
