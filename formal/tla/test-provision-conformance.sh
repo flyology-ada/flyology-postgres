@@ -49,6 +49,7 @@ while [ "$#" -gt 0 ]; do
 done
 test -n "$prefix"
 mkdir -p "$prefix/bin"
+mkdir -p "$prefix/share"
 cat >"$prefix/bin/flyology-tla" <<'TOOL'
 #!/bin/sh
 set -eu
@@ -63,6 +64,8 @@ else
 fi
 TOOL
 chmod +x "$prefix/bin/flyology-tla"
+printf '%s\n' '#!/bin/sh' 'exit 0' >"$prefix/share/toolchain.sh"
+chmod +x "$prefix/share/toolchain.sh"
 EOF
 chmod +x "$fake_bin/alr"
 
@@ -102,11 +105,57 @@ grep -Fxq "revision=$revision" "$receipt"
 tool=$positive/build/formal-tla/install/bin/flyology-tla
 expected_tool_sha256=$(sha256_file "$tool")
 grep -Fxq "tool_sha256=$expected_tool_sha256" "$receipt"
+helper=$positive/build/formal-tla/install/share/toolchain.sh
+expected_helper_sha256=$(sha256_file "$helper")
+grep -Fxq "toolchain_helper_sha256=$expected_helper_sha256" "$receipt"
 PATH=$fake_bin:$PATH "$positive/formal/tla/provision-conformance.sh"
 
+helper_tampered=$test_root/helper-tampered
+create_fixture "$helper_tampered"
+PATH=$fake_bin:$PATH \
+  "$helper_tampered/formal/tla/provision-conformance.sh"
+helper=$helper_tampered/build/formal-tla/install/share/toolchain.sh
+printf '%s\n' tampered >>"$helper"
+expect_rejected "$helper_tampered" "$test_root/tampered-helper.log"
+grep -Fq 'managed toolchain helper fails content verification' \
+  "$test_root/tampered-helper.log"
+test ! -e "$helper_tampered/build/formal-tla/source"
+
+tool_tampered=$test_root/tool-tampered
+create_fixture "$tool_tampered"
+PATH=$fake_bin:$PATH "$tool_tampered/formal/tla/provision-conformance.sh"
+tool=$tool_tampered/build/formal-tla/install/bin/flyology-tla
 printf '%s\n' tampered >>"$tool"
-expect_rejected "$positive" "$test_root/tampered-install.log"
-test ! -e "$positive/build/formal-tla/source"
+expect_rejected "$tool_tampered" "$test_root/tampered-install.log"
+test ! -e "$tool_tampered/build/formal-tla/source"
+
+override=$test_root/override
+create_fixture "$override"
+set +e
+FLYOLOGY_TLA_TOOLCHAIN_SCRIPT=$override/untrusted-toolchain.sh \
+PATH=$fake_bin:$PATH \
+  "$override/formal/tla/provision-conformance.sh" \
+  >"$test_root/toolchain-override.log" 2>&1
+override_status=$?
+set -e
+test "$override_status" -ne 0
+grep -Fq 'FLYOLOGY_TLA_TOOLCHAIN_SCRIPT is not accepted' \
+  "$test_root/toolchain-override.log"
+test ! -e "$override/build"
+
+empty_override=$test_root/empty-override
+create_fixture "$empty_override"
+set +e
+FLYOLOGY_TLA_TOOLCHAIN_SCRIPT= \
+PATH=$fake_bin:$PATH \
+  "$empty_override/formal/tla/provision-conformance.sh" \
+  >"$test_root/empty-toolchain-override.log" 2>&1
+empty_override_status=$?
+set -e
+test "$empty_override_status" -ne 0
+grep -Fq 'FLYOLOGY_TLA_TOOLCHAIN_SCRIPT is not accepted' \
+  "$test_root/empty-toolchain-override.log"
+test ! -e "$empty_override/build"
 
 dirty=$test_root/dirty
 create_fixture "$dirty"

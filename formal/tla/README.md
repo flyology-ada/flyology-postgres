@@ -61,11 +61,14 @@ Provision the command-line harness and its formal toolchain from the exact
 
 The provisioner uses a fresh, one-use checkout of that immutable revision and
 requires its tracked, untracked, and ignored state to be pristine before the
-install. It records the installed executable's SHA-256 and verifies that
-content on reuse. The harness, TLA+ Tools, TLAPS, and Java remain beneath the
-repository's ignored `build/` tree. Provisioning uses only the install and
-toolchain commands published by the pinned revision. Git, Alire, and the
-pinned harness's supported platform tools are required.
+install. It records SHA-256 digests for both the installed executable and its
+toolchain helper and verifies both before any toolchain command. The
+provisioner and runner reject `FLYOLOGY_TLA_TOOLCHAIN_SCRIPT`, so an ambient
+override cannot replace the authenticated helper. The harness, TLA+ Tools,
+TLAPS, and Java remain beneath the repository's ignored `build/` tree.
+Provisioning uses only the install and toolchain commands published by the
+pinned revision. Git, Alire, and the pinned harness's supported platform tools
+are required.
 
 Build the Ada replay executable, run the runner regression, and execute the
 complete campaign:

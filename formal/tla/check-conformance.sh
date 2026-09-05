@@ -4,7 +4,10 @@ set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repository_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
 formal_build_root=$repository_root/build/formal-tla
-tool=${FLYOLOGY_TLA_TOOL:-$formal_build_root/install/bin/flyology-tla}
+managed_tool=$formal_build_root/install/bin/flyology-tla
+managed_toolchain_helper=$formal_build_root/install/share/toolchain.sh
+managed_provisioning_receipt=$formal_build_root/install/flyology-tla-provisioning
+tool=${FLYOLOGY_TLA_TOOL:-$managed_tool}
 toolchain=${FLYOLOGY_TLA_TOOLCHAIN:-$formal_build_root/toolchain}
 work_root=${FLYOLOGY_TLA_WORK_ROOT:-$formal_build_root/work}
 work_root_marker=$work_root/.flyology-postgres-conformance-work-root
@@ -68,6 +71,44 @@ fail()
 {
   printf '%s\n' "$1" >&2
   exit 1
+}
+
+sha256_file()
+{
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | awk '{print $1}'
+  else
+    fail 'sha256sum or shasum is required'
+  fi
+}
+
+verify_managed_tool_install()
+{
+  test "$tool" = "$managed_tool" || return 0
+  test -f "$managed_tool" && test ! -L "$managed_tool" ||
+    fail "missing managed flyology-tla executable: $managed_tool"
+  test -f "$managed_toolchain_helper" &&
+    test ! -L "$managed_toolchain_helper" ||
+    fail "missing managed toolchain helper: $managed_toolchain_helper"
+  test -f "$managed_provisioning_receipt" &&
+    test ! -L "$managed_provisioning_receipt" ||
+    fail "missing managed provisioning receipt: $managed_provisioning_receipt"
+  test "$(sed -n '1p' "$managed_provisioning_receipt")" = \
+    'format=flyology-postgres-formal-provisioning/2' ||
+    fail "invalid managed provisioning receipt: $managed_provisioning_receipt"
+  expected_tool_sha256=$(sed -n '4s/^tool_sha256=//p' \
+    "$managed_provisioning_receipt")
+  expected_helper_sha256=$(sed -n \
+    '5s/^toolchain_helper_sha256=//p' "$managed_provisioning_receipt")
+  test "$expected_tool_sha256" = "$(sha256_file "$managed_tool")" ||
+    fail 'managed flyology-tla executable fails content verification'
+  test "$expected_helper_sha256" = \
+    "$(sha256_file "$managed_toolchain_helper")" ||
+    fail 'managed toolchain helper fails content verification'
+  test "$(wc -l <"$managed_provisioning_receipt" | tr -d ' ')" -eq 5 ||
+    fail "invalid managed provisioning receipt: $managed_provisioning_receipt"
 }
 
 validate_work_root_path()
@@ -168,6 +209,8 @@ preflight()
 {
   phase=$1
   print_paths "$phase"
+  test "${FLYOLOGY_TLA_TOOLCHAIN_SCRIPT+x}" != x ||
+    fail 'FLYOLOGY_TLA_TOOLCHAIN_SCRIPT is not accepted by the runner'
   require_absolute_path FLYOLOGY_TLA_TOOL "$tool"
   require_absolute_path FLYOLOGY_TLA_TOOLCHAIN "$toolchain"
   require_file "$tool"
@@ -175,6 +218,7 @@ preflight()
   require_file "$model"
   require_file "$configuration"
   validate_work_root_path
+  verify_managed_tool_install
 
   case "$phase" in
     model)
