@@ -626,6 +626,13 @@ package body Owned_AST_Tests is
       Compare_Common ("SELECT E'line\n', U&'d\0061t\+000061'");
       Compare_Common ("SELECT E'\401'");
       Compare_Common ("SELECT $12345678901, 1");
+      Compare_Common ("SELECT E'wrong: \U002FFFFF'");
+      Compare_16 ("SELECT 1x, 2");
+      Compare_17 ("SELECT 1x, 2");
+      Compare_18 ("SELECT 1x, 2");
+      Compare_Common ("SELECT U&'\061'");
+      Compare_Common ("SELECT """"");
+      Compare_Common ("SELECT * FROM U&'t' UESCAPE '!'");
       Compare_Common ("SELECT E'a\vb'");
       Compare_Common ("SELECT -'abc'");
       Compare_Common ("SELECT -B'101'");
@@ -727,6 +734,60 @@ package body Owned_AST_Tests is
          Assert (T18.Diagnostic_Position = 63,
                  "V18 JSON helper preserves its explicit position");
       end;
+
+      declare
+         Quote : constant Character := Character'Val (34);
+         T14   : AST_14.Owned_Syntax_Tree;
+         T16   : AST_16.Owned_Syntax_Tree;
+         T18   : AST_18.Owned_Syntax_Tree;
+      begin
+         AST_14.Parse ("SELECT E'wrong: \U002FFFFF'", T14);
+         Assert
+           (To_String (T14.Diagnostic_Message) =
+              "invalid Unicode escape value at or near " & Quote &
+              "\U002FFFFF" & Quote
+            and then T14.Diagnostic_Position = 17,
+            "owned scanner diagnostic quotes only the Unicode escape token");
+
+         AST_14.Parse ("SELECT U&'\061'", T14);
+         Assert
+           (To_String (T14.Diagnostic_Message) = "invalid Unicode escape"
+            and then T14.Diagnostic_Position = 11,
+            "owned Unicode decoding diagnostic suppresses scanner context");
+
+         AST_14.Parse ("SELECT """"", T14);
+         Assert
+           (To_String (T14.Diagnostic_Message) =
+              "zero-length delimited identifier at or near " &
+              Quote & Quote & Quote & Quote
+            and then T14.Diagnostic_Position = 8,
+            "owned empty identifier diagnostic uses its opening quote");
+
+         AST_14.Parse ("SELECT * FROM U&'t' UESCAPE '!'", T14);
+         Assert
+           (To_String (T14.Diagnostic_Message) =
+              "syntax error at or near " & Quote &
+              "U&'t' UESCAPE '!'" & Quote
+            and then T14.Diagnostic_Position = 15,
+            "owned UESCAPE syntax diagnostic preserves the restored span");
+
+         AST_16.Parse ("SELECT 1x, 2", T16);
+         Assert
+           (To_String (T16.Diagnostic_Message) =
+              "trailing junk after numeric literal at or near " & Quote &
+              "1x" & Quote
+            and then T16.Diagnostic_Position = 8,
+            "owned numeric diagnostic quotes only the matched token");
+
+         AST_18.Parse ("SELECT $12345678901, 1", T18);
+         Assert
+           (To_String (T18.Diagnostic_Message) =
+              "parameter number too large at or near " & Quote &
+              "$12345678901" & Quote
+            and then T18.Diagnostic_Position = 8,
+            "owned parameter diagnostic quotes only the matched token");
+      end;
+
       Compare_15 (Merge_SQL);
       Compare_16 (Merge_SQL);
       Compare_17 (Merge_SQL);

@@ -23,9 +23,21 @@ package body Flyology.Postgres.SQL.Native.Scanner is
    XUS_Condition     : constant := 21;
    XEU_Condition     : constant := 23;
 
-   procedure Fail (Self : in out Lexer; Position : Natural; Message : String) is
+   procedure Fail
+     (Self        : in out Lexer;
+      Position    : Natural;
+      Message     : String;
+      Add_Context : Boolean := True)
+   is
    begin
       Self.Last_Error_Position := Position;
+      Self.Last_Error_Add_Context := Add_Context;
+      Self.Last_Error_Context :=
+        (if Add_Context
+         then To_Unbounded_String
+           (Lexical_DFA.Slice
+              (Self.Engine, Position, Lexical_DFA.Position (Self.Engine)))
+         else Null_Unbounded_String);
       raise Scanner_Error with Message;
    end Fail;
 
@@ -91,7 +103,10 @@ package body Flyology.Postgres.SQL.Native.Scanner is
    end Narrow_Signed_32;
 
    procedure Add_Unicode
-     (Self : in out Lexer; Code : Natural; Position : Natural)
+     (Self        : in out Lexer;
+      Code        : Natural;
+      Position    : Natural;
+      Add_Context : Boolean := True)
    is
       procedure Add_Byte (Value : Natural) is
       begin
@@ -101,7 +116,7 @@ package body Flyology.Postgres.SQL.Native.Scanner is
       if Code = 0 or else Code > 16#10_FFFF#
         or else Code in 16#D800# .. 16#DFFF#
       then
-         Fail (Self, Position, "invalid Unicode escape value");
+         Fail (Self, Position, "invalid Unicode escape value", Add_Context);
       elsif Code <= 16#7F# then
          Add_Byte (Code);
       elsif Code <= 16#7FF# then
@@ -145,6 +160,8 @@ package body Flyology.Postgres.SQL.Native.Scanner is
       Self.Previous_String_Condition := Initial_Condition;
       Self.Token_Location := 0;
       Self.Last_Error_Position := 0;
+      Self.Last_Error_Add_Context := True;
+      Self.Last_Error_Context := Null_Unbounded_String;
       Self.Comment_Depth := 0;
       Self.First_Surrogate := 0;
       Self.Initial_Token := Initial_Token;
@@ -448,7 +465,9 @@ package body Flyology.Postgres.SQL.Native.Scanner is
                when Tables.Identifier_Stop | Tables.Unicode_Identifier_Stop =>
                   Lexical_DFA.Set_Start_Condition (Self.Engine, Initial_Condition);
                   if Length (Self.Literal) = 0 then
-                     Fail (Self, First, "zero-length delimited identifier");
+                     Fail
+                       (Self, Self.Token_Location,
+                        "zero-length delimited identifier");
                   end if;
                   Token :=
                     (if Rule.Kind = Tables.Identifier_Stop then Token_Ident else Token_Uident);
@@ -600,7 +619,9 @@ package body Flyology.Postgres.SQL.Native.Scanner is
          Saved : constant Unbounded_String := Self.Literal;
       begin
          Self.Literal := Result;
-         Add_Unicode (Self, Code, Position + Index - Text'First + 3);
+         Add_Unicode
+           (Self, Code, Position + Index - Text'First + 3,
+            Add_Context => False);
          Result := Self.Literal;
          Self.Literal := Saved;
       end Add_Result_Unicode;
@@ -608,15 +629,17 @@ package body Flyology.Postgres.SQL.Native.Scanner is
       while Index <= Text'Last loop
          if Text (Index) /= Escape then
             if First /= 0 then
-               Fail (Self, Position + Index - Text'First + 3,
-                     "invalid Unicode surrogate pair");
+               Fail
+                 (Self, Position + Index - Text'First + 3,
+                  "invalid Unicode surrogate pair", Add_Context => False);
             end if;
             Append (Result, Text (Index));
             Index := Index + 1;
          elsif Index < Text'Last and then Text (Index + 1) = Escape then
             if First /= 0 then
-               Fail (Self, Position + Index - Text'First + 3,
-                     "invalid Unicode surrogate pair");
+               Fail
+                 (Self, Position + Index - Text'First + 3,
+                  "invalid Unicode surrogate pair", Add_Context => False);
             end if;
             Append (Result, Escape);
             Index := Index + 2;
@@ -628,18 +651,24 @@ package body Flyology.Postgres.SQL.Native.Scanner is
                Code  : Natural;
             begin
                if Start + Count - 1 > Text'Last then
-                  Fail (Self, Position + Index - Text'First + 3, "invalid Unicode escape");
+                  Fail
+                    (Self, Position + Index - Text'First + 3,
+                     "invalid Unicode escape", Add_Context => False);
                end if;
                begin
                   Code := Based_Value (Text (Start .. Start + Count - 1), 16);
                exception
                   when Constraint_Error =>
-                     Fail (Self, Position + Index - Text'First + 3, "invalid Unicode escape");
+                     Fail
+                       (Self, Position + Index - Text'First + 3,
+                        "invalid Unicode escape", Add_Context => False);
                end;
                if First /= 0 then
                   if Code not in 16#DC00# .. 16#DFFF# then
-                     Fail (Self, Position + Index - Text'First + 3,
-                           "invalid Unicode surrogate pair");
+                     Fail
+                       (Self, Position + Index - Text'First + 3,
+                        "invalid Unicode surrogate pair",
+                        Add_Context => False);
                   end if;
                   Add_Result_Unicode
                     (16#1_0000# + (First - 16#D800#) * 1_024 + Code - 16#DC00#);
@@ -647,8 +676,9 @@ package body Flyology.Postgres.SQL.Native.Scanner is
                elsif Code in 16#D800# .. 16#DBFF# then
                   First := Code;
                elsif Code in 16#DC00# .. 16#DFFF# then
-                  Fail (Self, Position + Index - Text'First + 3,
-                        "invalid Unicode surrogate pair");
+                  Fail
+                    (Self, Position + Index - Text'First + 3,
+                     "invalid Unicode surrogate pair", Add_Context => False);
                else
                   Add_Result_Unicode (Code);
                end if;
@@ -657,7 +687,9 @@ package body Flyology.Postgres.SQL.Native.Scanner is
          end if;
       end loop;
       if First /= 0 then
-         Fail (Self, Position + Text'Length + 3, "invalid Unicode surrogate pair");
+         Fail
+           (Self, Position + Text'Length + 3,
+            "invalid Unicode surrogate pair", Add_Context => False);
       end if;
       return To_String (Result);
    end Unicode_Decode;
@@ -749,6 +781,10 @@ package body Flyology.Postgres.SQL.Native.Scanner is
                   Fail (Self, Natural (Next_Loc), "invalid Unicode escape character");
                end if;
                Self.Lookahead_Token := -1;
+               Self.Current_Text := To_Unbounded_String
+                 (Lexical_DFA.Slice
+                    (Self.Engine, Natural (Location),
+                     Lexical_DFA.Position (Self.Engine)));
             end if;
             Value := Builders.Text
               (Unicode_Decode (Self, To_String (Value.Text_Data), Escape, Natural (Location)));
@@ -765,6 +801,16 @@ package body Flyology.Postgres.SQL.Native.Scanner is
 
    function Error_Position (Self : Lexer) return Natural is
      (Self.Last_Error_Position + 1);
+
+   procedure Error_Context
+     (Self        : Lexer;
+      Add_Context : out Boolean;
+      Text        : out Ada.Strings.Unbounded.Unbounded_String)
+   is
+   begin
+      Add_Context := Self.Last_Error_Add_Context;
+      Text := Self.Last_Error_Context;
+   end Error_Context;
 
    function Token_Text (Self : Lexer) return String is
      (To_String (Self.Current_Text));
