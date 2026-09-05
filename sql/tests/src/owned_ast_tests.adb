@@ -626,6 +626,8 @@ package body Owned_AST_Tests is
       Compare_Common ("SELECT E'line\n', U&'d\0061t\+000061'");
       Compare_Common ("SELECT E'\401'");
       Compare_Common ("SELECT $12345678901, 1");
+      Compare_Common ("SELECT E'\UFFFFFFFF'");
+      Compare_Common ("SELECT E'\U7FFFFFFF'");
       Compare_Common ("SELECT E'wrong: \U002FFFFF'");
       Compare_16 ("SELECT 1x, 2");
       Compare_17 ("SELECT 1x, 2");

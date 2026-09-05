@@ -80,11 +80,15 @@ package body Flyology.Postgres.SQL.Native.Scanner is
       raise Constraint_Error with "invalid hexadecimal digit";
    end Hex_Value;
 
-   function Based_Value (Value : String; Base : Positive) return Natural is
-      Result : Natural := 0;
+   function Based_Value
+     (Value : String; Base : Positive) return Interfaces.Integer_64
+   is
+      Result : Interfaces.Integer_64 := 0;
    begin
       for Item of Value loop
-         Result := Result * Base + Hex_Value (Item);
+         Result :=
+           Result * Interfaces.Integer_64 (Base) +
+           Interfaces.Integer_64 (Hex_Value (Item));
       end loop;
       return Result;
    end Based_Value;
@@ -104,7 +108,7 @@ package body Flyology.Postgres.SQL.Native.Scanner is
 
    procedure Add_Unicode
      (Self        : in out Lexer;
-      Code        : Natural;
+      Code        : Interfaces.Integer_64;
       Position    : Natural;
       Add_Context : Boolean := True)
    is
@@ -117,20 +121,26 @@ package body Flyology.Postgres.SQL.Native.Scanner is
         or else Code in 16#D800# .. 16#DFFF#
       then
          Fail (Self, Position, "invalid Unicode escape value", Add_Context);
-      elsif Code <= 16#7F# then
-         Add_Byte (Code);
-      elsif Code <= 16#7FF# then
-         Add_Byte (16#C0# + Code / 64);
-         Add_Byte (16#80# + Code mod 64);
-      elsif Code <= 16#FFFF# then
-         Add_Byte (16#E0# + Code / 4_096);
-         Add_Byte (16#80# + (Code / 64) mod 64);
-         Add_Byte (16#80# + Code mod 64);
       else
-         Add_Byte (16#F0# + Code / 262_144);
-         Add_Byte (16#80# + (Code / 4_096) mod 64);
-         Add_Byte (16#80# + (Code / 64) mod 64);
-         Add_Byte (16#80# + Code mod 64);
+         declare
+            Value : constant Natural := Natural (Code);
+         begin
+            if Value <= 16#7F# then
+               Add_Byte (Value);
+            elsif Value <= 16#7FF# then
+               Add_Byte (16#C0# + Value / 64);
+               Add_Byte (16#80# + Value mod 64);
+            elsif Value <= 16#FFFF# then
+               Add_Byte (16#E0# + Value / 4_096);
+               Add_Byte (16#80# + (Value / 64) mod 64);
+               Add_Byte (16#80# + Value mod 64);
+            else
+               Add_Byte (16#F0# + Value / 262_144);
+               Add_Byte (16#80# + (Value / 4_096) mod 64);
+               Add_Byte (16#80# + (Value / 64) mod 64);
+               Add_Byte (16#80# + Value mod 64);
+            end if;
+         end;
       end if;
    end Add_Unicode;
 
@@ -381,10 +391,11 @@ package body Flyology.Postgres.SQL.Native.Scanner is
                when Tables.Literal_Add => Append (Self.Literal, Text);
                when Tables.Unicode_Escape =>
                   declare
-                     Code : constant Natural := Based_Value (Text (Text'First + 2 .. Text'Last), 16);
+                     Code : constant Interfaces.Integer_64 :=
+                       Based_Value (Text (Text'First + 2 .. Text'Last), 16);
                   begin
                      if Code in 16#D800# .. 16#DBFF# then
-                        Self.First_Surrogate := Code;
+                        Self.First_Surrogate := Natural (Code);
                         Lexical_DFA.Set_Start_Condition (Self.Engine, XEU_Condition);
                      elsif Code in 16#DC00# .. 16#DFFF# then
                         Fail (Self, First, "invalid Unicode surrogate pair");
@@ -394,14 +405,17 @@ package body Flyology.Postgres.SQL.Native.Scanner is
                   end;
                when Tables.Unicode_Surrogate =>
                   declare
-                     Second : constant Natural := Based_Value (Text (Text'First + 2 .. Text'Last), 16);
+                     Second : constant Interfaces.Integer_64 :=
+                       Based_Value (Text (Text'First + 2 .. Text'Last), 16);
                   begin
                      if Second not in 16#DC00# .. 16#DFFF# then
                         Fail (Self, First, "invalid Unicode surrogate pair");
                      end if;
                      Add_Unicode
                        (Self,
-                        16#1_0000# + (Self.First_Surrogate - 16#D800#) * 1_024 +
+                        16#1_0000# +
+                          (Interfaces.Integer_64 (Self.First_Surrogate) - 16#D800#) *
+                            1_024 +
                           Second - 16#DC00#,
                         First);
                      Self.First_Surrogate := 0;
@@ -419,7 +433,9 @@ package body Flyology.Postgres.SQL.Native.Scanner is
                when Tables.Octal_Escape =>
                   declare
                      Code : constant Natural :=
-                       Based_Value (Text (Text'First + 1 .. Text'Last), 8) mod 256;
+                       Natural
+                         (Based_Value (Text (Text'First + 1 .. Text'Last), 8) mod
+                            256);
                   begin
                      if Code = 0 then
                         Fail (Self, First, "invalid zero byte in string literal");
@@ -428,7 +444,10 @@ package body Flyology.Postgres.SQL.Native.Scanner is
                   end;
                when Tables.Hex_Escape =>
                   declare
-                     Code : constant Natural := Based_Value (Text (Text'First + 2 .. Text'Last), 16);
+                     Code : constant Natural :=
+                       Natural
+                         (Based_Value (Text (Text'First + 2 .. Text'Last), 16) mod
+                            256);
                   begin
                      if Code = 0 then
                         Fail (Self, First, "invalid zero byte in string literal");
@@ -613,9 +632,9 @@ package body Flyology.Postgres.SQL.Native.Scanner is
    is
       Result : Unbounded_String;
       Index  : Natural := Text'First;
-      First  : Natural := 0;
+      First  : Interfaces.Integer_64 := 0;
 
-      procedure Add_Result_Unicode (Code : Natural) is
+      procedure Add_Result_Unicode (Code : Interfaces.Integer_64) is
          Saved : constant Unbounded_String := Self.Literal;
       begin
          Self.Literal := Result;
@@ -648,7 +667,7 @@ package body Flyology.Postgres.SQL.Native.Scanner is
                Plus  : constant Boolean := Index < Text'Last and then Text (Index + 1) = '+';
                Count : constant Positive := (if Plus then 6 else 4);
                Start : constant Natural := Index + (if Plus then 2 else 1);
-               Code  : Natural;
+               Code  : Interfaces.Integer_64;
             begin
                if Start + Count - 1 > Text'Last then
                   Fail

@@ -83,6 +83,7 @@ package body Flyology.Postgres.SQL.Differential_Testing is
       Check ("SELECT E'\401'");
       Check ("SELECT $12345678901, 1", Last => PostgreSQL_17);
       Check ("SELECT E'a\vb'");
+      Check ("SELECT E'\U7FFFFFFF'");
       Check ("SELECT -'abc'");
       Check ("SELECT -B'101'");
       Check ("SELECT -1");
@@ -120,6 +121,7 @@ package body Flyology.Postgres.SQL.Differential_Testing is
       Check ("SELECT 'e', 'x");
       Check (NUL_Case);
       for Version in Major_Version loop
+         Compare_Diagnostic ("SELECT E'\UFFFFFFFF'", Version);
          Compare_Diagnostic ("SELECT E'wrong: \U002FFFFF'", Version);
          Compare_Diagnostic ("SELECT U&'\061'", Version);
          Compare_Diagnostic ("SELECT """"", Version);
@@ -146,6 +148,7 @@ package body Flyology.Postgres.SQL.Differential_Testing is
          Diagnostic_Failures'Image &
            " grammar diagnostic comparisons differ from the C oracle");
       Check ("SELECT 1 LIMIT 1, 2");
+      Check ("SELECT E'\UFFFFFFFF'");
       Check ("SELECT E'wrong: \U002FFFFF'");
       Check ("SELECT 1x, 2", PostgreSQL_16);
       Check ("SELECT U&'\061'");
