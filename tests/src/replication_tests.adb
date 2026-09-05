@@ -288,8 +288,41 @@ package body Replication_Tests is
       begin
          Assert
            (Replication.Snapshot (Item) = Replication.No_Snapshot
-            and then Replication.Two_Phase (Item),
+            and then Replication.Two_Phase (Item)
+            and then not Replication.Failover (Item),
             "primary-side decoding exposes two-phase slot creation");
+      end;
+
+      declare
+         Item : constant Replication.Command := Replication.Decode_Command
+           (Query
+              ("CREATE_REPLICATION_SLOT ""sub_slot"" LOGICAL pgoutput"
+               & " (TWO_PHASE, SNAPSHOT 'nothing')"));
+      begin
+         Assert
+           (Replication.Kind (Item) =
+              Replication.Create_Logical_Slot_Command
+            and then Replication.Two_Phase (Item)
+            and then not Replication.Failover (Item)
+            and then Replication.Snapshot (Item) =
+              Replication.No_Snapshot,
+            "a bare TWO_PHASE option means true");
+      end;
+
+      declare
+         Item : constant Replication.Command := Replication.Decode_Command
+           (Query
+              ("CREATE_REPLICATION_SLOT ""sub_slot"" LOGICAL pgoutput"
+               & " (FAILOVER, SNAPSHOT 'nothing')"));
+      begin
+         Assert
+           (Replication.Kind (Item) =
+              Replication.Create_Logical_Slot_Command
+            and then not Replication.Two_Phase (Item)
+            and then Replication.Failover (Item)
+            and then Replication.Snapshot (Item) =
+              Replication.No_Snapshot,
+            "a bare FAILOVER option means true");
       end;
 
       declare
@@ -426,7 +459,10 @@ package body Replication_Tests is
          & " (proto_version '4' trailing)");
       Assert_Command_Rejected
         ("CREATE_REPLICATION_SLOT sync_slot LOGICAL pgoutput"
-         & " (TWO_PHASE)");
+         & " (TWO_PHASE, TWO_PHASE 'false')");
+      Assert_Command_Rejected
+        ("CREATE_REPLICATION_SLOT sync_slot LOGICAL pgoutput"
+         & " (FAILOVER, FAILOVER 'false')");
       Assert_Command_Rejected
         ("CREATE_REPLICATION_SLOT sync_slot LOGICAL pgoutput"
          & " (SNAPSHOT 'use', SNAPSHOT 'nothing')");

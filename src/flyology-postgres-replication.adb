@@ -496,6 +496,23 @@ package body Flyology.Postgres.Replication is
             "a replication timeline must be positive");
          Result.Timeline_Present := True;
       end Set_Timeline;
+
+      function Boolean_Option
+        (Item : Logical_Option; Name : String) return Boolean is
+         Choice : constant String :=
+           Ada.Characters.Handling.To_Lower (Option_Value (Item));
+      begin
+         if not Option_Has_Value (Item) then
+            return True;
+         elsif Choice in "true" | "on" | "1" then
+            return True;
+         elsif Choice in "false" | "off" | "0" then
+            return False;
+         else
+            raise Protocol.Protocol_Error with
+              "invalid replication slot " & Name & " value";
+         end if;
+      end Boolean_Option;
    begin
       if Is_Keyword (First, "IDENTIFY_SYSTEM") then
          Result.Message_Kind := Identify_System_Command;
@@ -556,6 +573,7 @@ package body Flyology.Postgres.Replication is
                  Parse_Options (Text (Cursor .. Text'Last));
                Snapshot_Seen : Boolean := False;
                Two_Phase_Seen : Boolean := False;
+               Failover_Seen : Boolean := False;
             begin
                for Item of Values loop
                   if Ada.Characters.Handling.To_Lower
@@ -591,23 +609,17 @@ package body Flyology.Postgres.Replication is
                        (not Two_Phase_Seen,
                         "duplicate replication slot TWO_PHASE option");
                      Two_Phase_Seen := True;
+                     Result.Two_Phase_Value :=
+                       Boolean_Option (Item, "two-phase");
+                  elsif Ada.Characters.Handling.To_Lower
+                    (Option_Name (Item)) = "failover"
+                  then
                      Require
-                       (Option_Has_Value (Item),
-                        "TWO_PHASE requires a value");
-                     declare
-                        Choice : constant String :=
-                          Ada.Characters.Handling.To_Lower
-                            (Option_Value (Item));
-                     begin
-                        if Choice in "true" | "on" | "1" then
-                           Result.Two_Phase_Value := True;
-                        elsif Choice in "false" | "off" | "0" then
-                           Result.Two_Phase_Value := False;
-                        else
-                           raise Protocol.Protocol_Error with
-                             "invalid replication slot two-phase value";
-                        end if;
-                     end;
+                       (not Failover_Seen,
+                        "duplicate replication slot FAILOVER option");
+                     Failover_Seen := True;
+                     Result.Failover_Value :=
+                       Boolean_Option (Item, "failover");
                   else
                      raise Protocol.Protocol_Error with
                        "unsupported logical slot option " & Option_Name (Item);
@@ -754,6 +766,14 @@ package body Flyology.Postgres.Replication is
          "replication command does not contain a two-phase option");
       return Item.Two_Phase_Value;
    end Two_Phase;
+
+   function Failover (Item : Command) return Boolean is
+   begin
+      Require
+        (Item.Message_Kind = Create_Logical_Slot_Command,
+         "replication command does not contain a failover option");
+      return Item.Failover_Value;
+   end Failover;
 
    function Wait (Item : Command) return Boolean is
    begin

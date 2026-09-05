@@ -200,6 +200,12 @@ package Flyology.Postgres.Replication is
    --  @param Item CREATE_REPLICATION_SLOT command.
    --  @return True when prepared transactions are decoded by the slot.
    --  @exception Protocol.Protocol_Error Item is another command kind.
+   function Failover (Item : Command) return Boolean;
+   --  Test whether CREATE_REPLICATION_SLOT requested a failover slot.
+   --  @param Item CREATE_REPLICATION_SLOT command.
+   --  @return True when the command requests synchronization to failover
+   --  standbys.
+   --  @exception Protocol.Protocol_Error Item is another command kind.
    function Wait (Item : Command) return Boolean;
    --  Test whether DROP_REPLICATION_SLOT included WAIT.
    --  @param Item DROP_REPLICATION_SLOT command.
@@ -411,6 +417,7 @@ private
       Timeline_Present : Boolean := False;
       Snapshot_Value   : Snapshot_Action := Export_Snapshot;
       Two_Phase_Value  : Boolean := False;
+      Failover_Value   : Boolean := False;
       Wait_Value       : Boolean := False;
       Options_Data     : Flyology.Bytes.Unbounded_Bytes;
    end record;

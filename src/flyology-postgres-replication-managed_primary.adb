@@ -349,6 +349,9 @@ package body Flyology.Postgres.Replication.Managed_Primary is
                Require
                  (not Replication.Two_Phase (Command),
                   "managed logical primary does not retain prepared state");
+               Require
+                 (not Replication.Failover (Command),
+                  "managed logical primary does not support failover slots");
                Stores.Create
                  (Item.Slots.all,
                   Replication.Slot_Name (Command),
