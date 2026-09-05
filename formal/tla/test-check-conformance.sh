@@ -17,14 +17,17 @@ cleanup
 
 mkdir -p \
   "$fixture/formal/tla/traces" \
+  "$fixture/proof" \
   "$fixture/support/toolchain" \
   "$fixture/tests/bin" \
   "$fixture/tests/generated/tla"
 cp "$script_dir/check-conformance.sh" "$fixture/formal/tla/"
 : >"$fixture/formal/tla/PgoutputProducer.tla"
+: >"$fixture/formal/tla/PgoutputProducerProof.tla"
 : >"$fixture/formal/tla/PgoutputProducer_Replay.cfg"
 : >"$fixture/formal/tla/traces/pgoutput_producer.trace.json"
 : >"$fixture/support/toolchain/receipt.json"
+printf '%s\n' keep >"$fixture/proof/keep"
 
 cat >"$fixture/support/flyology-tla" <<'EOF'
 #!/bin/sh
@@ -84,6 +87,7 @@ git -C "$fixture" config user.email formal-runner-test@example.invalid
 git -C "$fixture" config user.name 'Formal runner test'
 git -C "$fixture" add .
 git -C "$fixture" commit -qm 'fixture'
+mkdir "$fixture/build"
 
 FLYOLOGY_TLA_TOOL=$fixture/support/flyology-tla \
 FLYOLOGY_TLA_TOOLCHAIN=$fixture/support/toolchain \
@@ -103,4 +107,46 @@ grep -Fxq 'conformant: 19 modeled steps' \
 test -f \
   "$fixture/build/formal-tla/generated-check/pgoutput_producer_model.adb"
 test ! -e "$fixture/.tool-probes"
+
+expect_rejected()
+{
+  rejected_root=$1
+  rejected_log=$2
+  set +e
+  (
+    cd "$fixture"
+    FLYOLOGY_TLA_TOOL=$fixture/support/flyology-tla \
+    FLYOLOGY_TLA_TOOLCHAIN=$fixture/support/toolchain \
+    FLYOLOGY_TLA_WORK_ROOT=$rejected_root \
+      "$fixture/formal/tla/check-conformance.sh" proof
+  ) >"$rejected_log" 2>&1
+  rejected_status=$?
+  set -e
+  test "$rejected_status" -ne 0
+}
+
+expect_rejected relative-work "$test_root/relative.log"
+test ! -e "$fixture/relative-work"
+
+expect_rejected "$fixture" "$test_root/repository-root.log"
+grep -Fxq keep "$fixture/proof/keep"
+
+mkdir -p "$test_root/unmanaged/proof"
+printf '%s\n' keep >"$test_root/unmanaged/proof/keep"
+expect_rejected "$test_root/unmanaged" "$test_root/unmanaged.log"
+grep -Fxq keep "$test_root/unmanaged/proof/keep"
+
+mkdir "$test_root/outside"
+ln -s "$test_root/outside" "$test_root/link"
+expect_rejected "$test_root/link/work" "$test_root/symlink.log"
+test ! -e "$test_root/outside/work"
+
+rm -rf -- "$fixture/build/formal-tla/proof"
+ln -s "$test_root/outside" "$fixture/build/formal-tla/proof"
+expect_rejected \
+  "$fixture/build/formal-tla" "$test_root/owned-child-symlink.log"
+test ! -e "$test_root/outside/cache"
+
+test -f \
+  "$fixture/build/formal-tla/.flyology-postgres-conformance-work-root"
 test -z "$(git -C "$fixture" status --porcelain=v1)"
