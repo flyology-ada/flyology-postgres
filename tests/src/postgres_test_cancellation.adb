@@ -115,7 +115,8 @@ procedure Postgres_Test_Cancellation is
 
    procedure Send_Raw_Cancel
      (Process_Id : Protocol.UInt32;
-      Secret     : Protocol.Byte_Array) is
+      Secret     : Protocol.Byte_Array;
+      Use_TLS    : Boolean := True) is
       Socket  : aliased Sockets.Socket_Type;
       Channel : aliased Transports.TLS_Socket_Transport (Socket'Access);
       Reply   : Protocol.Byte_Array (1 .. 1);
@@ -123,13 +124,15 @@ procedure Postgres_Test_Cancellation is
    begin
       Sockets.Create_Socket (Socket);
       Sockets.Connect (Socket, Server, Timeout => 5.0);
-      Framing.Write_Packet
-        (Channel, Protocol.Encode_SSL_Request, Timeout => 5.0);
-      Channel.Receive_Exactly (Reply, Timeout => 5.0);
-      Check
-        (Reply (Reply'First) = Protocol.Byte (Character'Pos ('S')),
-         "cancellation connection TLS was refused");
-      Channel.Upgrade_TLS (Backend, Server_Name, Timeout => 5.0);
+      if Use_TLS then
+         Framing.Write_Packet
+           (Channel, Protocol.Encode_SSL_Request, Timeout => 5.0);
+         Channel.Receive_Exactly (Reply, Timeout => 5.0);
+         Check
+           (Reply (Reply'First) = Protocol.Byte (Character'Pos ('S')),
+            "cancellation connection TLS was refused");
+         Channel.Upgrade_TLS (Backend, Server_Name, Timeout => 5.0);
+      end if;
       Framing.Write_Packet
         (Channel,
          Protocol.Encode_Cancel_Request (Process_Id, Secret),
@@ -140,7 +143,11 @@ procedure Postgres_Test_Cancellation is
          when Flyology.IO.Device_Error | TLS.TLS_Error =>
             Closed_Silently := True;
       end;
-      Check (Closed_Silently, "CancelRequest did not close silently");
+      Check
+        (Closed_Silently,
+         (if Use_TLS
+          then "CancelRequest did not close silently"
+          else "plaintext CancelRequest did not close silently"));
    exception
       when others =>
          if Sockets.Is_Open (Socket) then
@@ -252,8 +259,10 @@ begin
             Client.Backend_Secret_Key (Session));
       end;
       Expect_Still_Running (Session);
-      Client_Sockets.Cancel_TLS
-        (Session, Server, Backend, Server_Name, Timeout => 5.0);
+      Send_Raw_Cancel
+        (Client.Backend_Process_Id (Session),
+         Client.Backend_Secret_Key (Session),
+         Use_TLS => False);
       Drain_Cancellation (Session);
       Client.Send_Command
         (Session, Protocol.Make_Empty_Message ('X'), Timeout => 5.0);

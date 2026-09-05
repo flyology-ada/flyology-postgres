@@ -403,6 +403,12 @@ package body Flyology.Postgres.Server is
          Initial := Server_Sessions.Read_Initial (Client, Startup_Timeout);
       end loop;
 
+      if Protocol.Kind (Initial) = Protocol.Cancel_Request then
+         Context.Router.Route
+           (Protocol.Process_Id (Initial), Protocol.Secret_Key (Initial));
+         return;
+      end if;
+
       if Context.TLS_Mode = TLS_Required and then not TLS_Active then
          Server_Sessions.Send_Error
            (Client,
@@ -413,11 +419,7 @@ package body Flyology.Postgres.Server is
          return;
       end if;
 
-      if Protocol.Kind (Initial) = Protocol.Cancel_Request then
-         Context.Router.Route
-           (Protocol.Process_Id (Initial), Protocol.Secret_Key (Initial));
-         return;
-      elsif Protocol.Kind (Initial) /= Protocol.Startup then
+      if Protocol.Kind (Initial) /= Protocol.Startup then
          Server_Sessions.Send_Error
            (Client,
             Message   => "unsupported initial Postgres request",
