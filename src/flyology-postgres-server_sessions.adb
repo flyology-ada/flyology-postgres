@@ -71,7 +71,16 @@ package body Flyology.Postgres.Server_Sessions is
      (Item : in out Session; Timeout : Duration)
       return Protocol.Frontend_Copy_Message is
    begin
-      return Protocol.Decode_Frontend_Copy (Read_Command (Item, Timeout));
+      loop
+         declare
+            Command : constant Protocol.Message := Read_Command (Item, Timeout);
+         begin
+            if Protocol.Kind (Command) not in Protocol.Flush | Protocol.Sync
+            then
+               return Protocol.Decode_Frontend_Copy (Command);
+            end if;
+         end;
+      end loop;
    end Read_Copy_Command;
 
    procedure Send

@@ -143,6 +143,17 @@ PGPASSWORD=flyology-secret \
   -q \
   -c "\\copy flyology_sink from '$copy_input' with (format text)"
 
+extended_copy_input="$run_root/extended-copy-input.sql"
+printf 'copy flyology_sink from stdin \\bind \\g\none\t\n\\N\ttwo\n\\.\n' \
+  > "$extended_copy_input"
+
+PGPASSWORD=flyology-secret \
+  "$postgres_prefix/bin/psql" \
+  "$psql_connection" \
+  -v ON_ERROR_STOP=1 \
+  -q \
+  -f "$extended_copy_input"
+
 PGPASSWORD=flyology-secret \
   "$postgres_prefix/bin/psql" \
   "$psql_connection" \
