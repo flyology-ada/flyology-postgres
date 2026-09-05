@@ -268,35 +268,61 @@ package body Flyology.Postgres.SQL.Native.Semantics is
          end;
       elsif Name = "psprintf" then
          declare
-            Format : constant String := Text_Of (Argument (1));
+            Format        : constant String := Text_Of (Argument (1));
+            Rendered      : Unbounded_String;
+            Index         : Natural := Format'First;
+            Next_Argument : Positive := 2;
+
+            function Integer_Text (Value : Builders.Dynamic_Value) return String
+            is
+               Image : constant String :=
+                 Interfaces.Integer_64'Image (Integer_Of (Value));
+            begin
+               return Image
+                 ((if Image (Image'First) = ' ' then Image'First + 1
+                   else Image'First) .. Image'Last);
+            end Integer_Text;
+
+            procedure Append_Argument (Specifier : Character) is
+            begin
+               if Next_Argument > Arguments'Length then
+                  raise Program_Error with
+                    "missing generated psprintf argument for " & Format;
+               end if;
+               case Specifier is
+                  when 's' =>
+                     Append (Rendered, Text_Of (Argument (Next_Argument)));
+                  when 'd' =>
+                     Append
+                       (Rendered, Integer_Text (Argument (Next_Argument)));
+                  when others =>
+                     raise Program_Error with
+                       "unsupported generated psprintf format " & Format;
+               end case;
+               Next_Argument := Next_Argument + 1;
+            end Append_Argument;
          begin
-            if Format = "-%s" then
-               return Builders.Text ("-" & Text_Of (Argument (2)));
-            elsif Format = "%s.%s" then
-               return Builders.Text
-                 (Text_Of (Argument (2)) & "." & Text_Of (Argument (3)));
-            elsif Format = "$%d" then
-               declare
-                  Image : constant String :=
-                    Interfaces.Integer_64'Image (Integer_Of (Argument (2)));
-               begin
-                  return Builders.Text
-                    ("$" & Image ((if Image (Image'First) = ' ' then
-                                      Image'First + 1
-                                   else Image'First) .. Image'Last));
-               end;
-            elsif Format = "%d" then
-               declare
-                  Image : constant String :=
-                    Interfaces.Integer_64'Image (Integer_Of (Argument (2)));
-               begin
-                  return Builders.Text
-                    (Image ((if Image (Image'First) = ' ' then
-                               Image'First + 1
-                            else Image'First) .. Image'Last));
-               end;
+            while Index <= Format'Last loop
+               if Format (Index) /= '%' then
+                  Append (Rendered, Format (Index));
+               else
+                  Index := Index + 1;
+                  if Index > Format'Last then
+                     raise Program_Error with
+                       "unsupported generated psprintf format " & Format;
+                  elsif Format (Index) = '%' then
+                     Append (Rendered, '%');
+                  else
+                     Append_Argument (Format (Index));
+                  end if;
+               end if;
+               Index := Index + 1;
+            end loop;
+            if Next_Argument <= Arguments'Length then
+               raise Program_Error with
+                 "extra generated psprintf arguments for " & Format;
             end if;
-            raise Program_Error with "unsupported generated psprintf format " & Format;
+            return Builders.Text (To_String (Rendered));
          end;
       elsif Name in "makeString" | "makeFloat" | "makeInteger" | "makeBoolean" then
          declare

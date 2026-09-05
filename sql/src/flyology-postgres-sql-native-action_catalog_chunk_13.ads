@@ -11,6 +11,7 @@ private package Flyology.Postgres.SQL.Native.Action_Catalog_Chunk_13 is
       Locations    : Builders.Location_Array;
       Result       : in out Builders.Dynamic_Value;
       Location     : in out Integer;
+      Error_Location : not null access Integer;
       Parse_Result : in out Builders.Dynamic_Value;
       Callback     : Action_Catalog.Invoke_Access);
 

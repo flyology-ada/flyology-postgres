@@ -8,6 +8,9 @@ package body Flyology.Postgres.SQL.Native is
       Remaining : Natural := Byte_Offset;
       Result    : Natural := 1;
    begin
+      if Byte_Offset = Natural'Last then
+         return 0;
+      end if;
       while Remaining > 0 loop
          declare
             Byte : constant Natural := Character'Pos (Text (Index));

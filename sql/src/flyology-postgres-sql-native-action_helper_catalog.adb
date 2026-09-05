@@ -9,20 +9,21 @@ package body Flyology.Postgres.SQL.Native.Action_Helper_Catalog is
      (Helper    : Helper_Id;
       Build     : not null access Builders.Builder;
       Arguments : Builders.Semantic_Array;
+      Error_Location : not null access Integer;
       Callback  : Action_Catalog.Invoke_Access)
       return Builders.Dynamic_Value
    is
    begin
       case Helper is
-         when 16#0102DB7C96A96BD2# .. 16#3EBBC8785C838600# =>
+         when 16#00D7C03E3579056C# .. 16#58F534FEC49E6611# =>
             return Action_Helper_Catalog_Chunk_01.Execute
-              (Helper, Build, Arguments, Callback);
-         when 16#3EBBC8785C838601# .. 16#8910C65420BCA6C5# =>
+              (Helper, Build, Arguments, Error_Location, Callback);
+         when 16#58F534FEC49E6612# .. 16#A93B53E85E865527# =>
             return Action_Helper_Catalog_Chunk_02.Execute
-              (Helper, Build, Arguments, Callback);
-         when 16#8910C65420BCA6C6# .. 16#FA2F42DFC007F35C# =>
+              (Helper, Build, Arguments, Error_Location, Callback);
+         when 16#A93B53E85E865528# .. 16#FB2C494001178506# =>
             return Action_Helper_Catalog_Chunk_03.Execute
-              (Helper, Build, Arguments, Callback);
+              (Helper, Build, Arguments, Error_Location, Callback);
          when others => return Builders.No_Value;
       end case;
    end Execute;

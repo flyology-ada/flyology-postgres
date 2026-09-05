@@ -11,6 +11,7 @@ private package Flyology.Postgres.SQL.Native.Action_Helper_Catalog is
      (Helper    : Helper_Id;
       Build     : not null access Builders.Builder;
       Arguments : Builders.Semantic_Array;
+      Error_Location : not null access Integer;
       Callback  : Action_Catalog.Invoke_Access) return Builders.Dynamic_Value;
 
 end Flyology.Postgres.SQL.Native.Action_Helper_Catalog;

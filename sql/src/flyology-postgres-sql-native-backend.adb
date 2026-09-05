@@ -22,7 +22,7 @@ package body Flyology.Postgres.SQL.Native.Backend is
          Result.Parse_Error :=
            (Text     => Failure,
             Position =>
-              (if Text'Length = 0
+              (if Text'Length = 0 or else Error_Offset = Natural'Last
                then 0
                else Native.Character_Position (Text, Error_Offset)));
          return;

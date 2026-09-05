@@ -6,183 +6,185 @@ package body Flyology.Postgres.SQL.Native.Actions_V18_Support is
 
    function Invoke
      (Build : not null access Builders.Builder; Name : String;
-      Arguments : Builders.Semantic_Array) return Builders.Dynamic_Value
+      Arguments : Builders.Semantic_Array;
+      Error_Location : not null access Integer)
+      return Builders.Dynamic_Value
    is
    begin
       if Name = "SplitColQualList" then
          return Action_Helper_Catalog.Execute
-           (16#34915482E5F5E1D0#, Build, Arguments, Invoke'Access);
+           (16#3B50634FB563E089#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "SystemFuncName" then
          return Action_Helper_Catalog.Execute
-           (16#C7FCD1F523EC0D3A#, Build, Arguments, Invoke'Access);
+           (16#C7FCD1F523EC0D3A#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "SystemTypeName" then
          return Action_Helper_Catalog.Execute
-           (16#A643245B22B3DBB0#, Build, Arguments, Invoke'Access);
+           (16#A643245B22B3DBB0#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "TableFuncTypeName" then
          return Action_Helper_Catalog.Execute
-           (16#D13641D1795AD382#, Build, Arguments, Invoke'Access);
+           (16#D13641D1795AD382#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "check_func_name" then
          return Action_Helper_Catalog.Execute
-           (16#27D949CDD45FD683#, Build, Arguments, Invoke'Access);
+           (16#27D949CDD45FD683#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "check_indirection" then
          return Action_Helper_Catalog.Execute
-           (16#5EC15A33C3C72FAB#, Build, Arguments, Invoke'Access);
+           (16#5EC15A33C3C72FAB#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "check_qualified_name" then
          return Action_Helper_Catalog.Execute
-           (16#D0BC376FAB9E3137#, Build, Arguments, Invoke'Access);
+           (16#D0BC376FAB9E3137#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "extractAggrArgTypes" then
          return Action_Helper_Catalog.Execute
-           (16#9C3D6FE7C8960AAB#, Build, Arguments, Invoke'Access);
+           (16#9C3D6FE7C8960AAB#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "extractArgTypes" then
          return Action_Helper_Catalog.Execute
-           (16#6C898ACAEB92FE01#, Build, Arguments, Invoke'Access);
+           (16#6C898ACAEB92FE01#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "insertSelectOptions" then
          return Action_Helper_Catalog.Execute
-           (16#373F8CA923ABAC09#, Build, Arguments, Invoke'Access);
+           (16#B6BCAF8E8390A5FF#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeAArrayExpr" then
          return Action_Helper_Catalog.Execute
-           (16#711EB4A3A8568B2B#, Build, Arguments, Invoke'Access);
+           (16#711EB4A3A8568B2B#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeAConst" then
          return Action_Helper_Catalog.Execute
-           (16#F8D53620755B0E05#, Build, Arguments, Invoke'Access);
+           (16#F8D53620755B0E05#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeAndExpr" then
          return Action_Helper_Catalog.Execute
-           (16#4F347BA5438337CD#, Build, Arguments, Invoke'Access);
+           (16#4F347BA5438337CD#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeBitStringConst" then
          return Action_Helper_Catalog.Execute
-           (16#DBBCFC76AB5A8498#, Build, Arguments, Invoke'Access);
+           (16#DBBCFC76AB5A8498#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeBoolAConst" then
          return Action_Helper_Catalog.Execute
-           (16#55BBE3855EB8D925#, Build, Arguments, Invoke'Access);
+           (16#55BBE3855EB8D925#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeColumnRef" then
          return Action_Helper_Catalog.Execute
-           (16#BA657157CC1E813F#, Build, Arguments, Invoke'Access);
+           (16#BA657157CC1E813F#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeFloatConst" then
          return Action_Helper_Catalog.Execute
-           (16#269DC44D8B9D52A2#, Build, Arguments, Invoke'Access);
+           (16#269DC44D8B9D52A2#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeIntConst" then
          return Action_Helper_Catalog.Execute
-           (16#9426EA8047118D4D#, Build, Arguments, Invoke'Access);
+           (16#9426EA8047118D4D#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeNotExpr" then
          return Action_Helper_Catalog.Execute
-           (16#091D5CBCCD040968#, Build, Arguments, Invoke'Access);
+           (16#091D5CBCCD040968#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeNullAConst" then
          return Action_Helper_Catalog.Execute
-           (16#904322BAC0DADA84#, Build, Arguments, Invoke'Access);
+           (16#904322BAC0DADA84#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeOrExpr" then
          return Action_Helper_Catalog.Execute
-           (16#275512D936553B7D#, Build, Arguments, Invoke'Access);
+           (16#275512D936553B7D#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeOrderedSetArgs" then
          return Action_Helper_Catalog.Execute
-           (16#748E4BE641F63D90#, Build, Arguments, Invoke'Access);
+           (16#CD84E7586ADE50F4#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeParamRef" then
          return Action_Helper_Catalog.Execute
-           (16#811171889542DB23#, Build, Arguments, Invoke'Access);
+           (16#811171889542DB23#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeParamRefCast" then
          return Action_Helper_Catalog.Execute
-           (16#2887DB8AA85898C5#, Build, Arguments, Invoke'Access);
+           (16#2887DB8AA85898C5#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeRangeVarFromAnyName" then
          return Action_Helper_Catalog.Execute
-           (16#A93B53E85E865527#, Build, Arguments, Invoke'Access);
+           (16#A93B53E85E865527#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeRangeVarFromQualifiedName" then
          return Action_Helper_Catalog.Execute
-           (16#8910C65420BCA6C5#, Build, Arguments, Invoke'Access);
+           (16#8910C65420BCA6C5#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeRawStmt" then
          return Action_Helper_Catalog.Execute
-           (16#93792A469B7A3121#, Build, Arguments, Invoke'Access);
+           (16#93792A469B7A3121#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeRecursiveViewSelect" then
          return Action_Helper_Catalog.Execute
-           (16#087D0E3D5813A37A#, Build, Arguments, Invoke'Access);
+           (16#087D0E3D5813A37A#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeRoleSpec" then
          return Action_Helper_Catalog.Execute
-           (16#C5C52660A9D5380F#, Build, Arguments, Invoke'Access);
+           (16#C5C52660A9D5380F#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeSQLValueFunction" then
          return Action_Helper_Catalog.Execute
-           (16#D5AD1747C097ACEE#, Build, Arguments, Invoke'Access);
+           (16#D5AD1747C097ACEE#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeSetOp" then
          return Action_Helper_Catalog.Execute
-           (16#68D312CB35519B74#, Build, Arguments, Invoke'Access);
+           (16#68D312CB35519B74#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeStringConstCast" then
          return Action_Helper_Catalog.Execute
-           (16#55F9455A76949A6A#, Build, Arguments, Invoke'Access);
+           (16#55F9455A76949A6A#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeTypeCast" then
          return Action_Helper_Catalog.Execute
-           (16#B080137DA499522F#, Build, Arguments, Invoke'Access);
+           (16#B080137DA499522F#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeXmlExpr" then
          return Action_Helper_Catalog.Execute
-           (16#6BBB31B226558CCB#, Build, Arguments, Invoke'Access);
+           (16#6BBB31B226558CCB#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "mergeTableFuncParameters" then
          return Action_Helper_Catalog.Execute
-           (16#9310AA8BCD20CB67#, Build, Arguments, Invoke'Access);
+           (16#9E4E4AB00E35987A#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "parsePartitionStrategy" then
          return Action_Helper_Catalog.Execute
-           (16#1465613F7E7C33A9#, Build, Arguments, Invoke'Access);
+           (16#E68712A081F2FE8C#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "preprocess_pubobj_list" then
          return Action_Helper_Catalog.Execute
-           (16#57C3CF5C19420845#, Build, Arguments, Invoke'Access);
+           (16#CA541EB2A8ED57F1#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "processCASbits" then
          return Action_Helper_Catalog.Execute
-           (16#3EBBC8785C838600#, Build, Arguments, Invoke'Access);
+           (16#35B3519C9E86792F#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "updateRawStmtEnd" then
          return Action_Helper_Catalog.Execute
-           (16#5134E6CCB055FF9F#, Build, Arguments, Invoke'Access);
+           (16#5134E6CCB055FF9F#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeA_Expr" then
          return Action_Helper_Catalog.Execute
-           (16#64F996DCDC8969A3#, Build, Arguments, Invoke'Access);
+           (16#64F996DCDC8969A3#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeAlias" then
          return Action_Helper_Catalog.Execute
-           (16#617582D2B7884EC0#, Build, Arguments, Invoke'Access);
+           (16#617582D2B7884EC0#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeBoolExpr" then
          return Action_Helper_Catalog.Execute
-           (16#020198BB5473D9AF#, Build, Arguments, Invoke'Access);
+           (16#020198BB5473D9AF#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeDefElem" then
          return Action_Helper_Catalog.Execute
-           (16#BEC913BB37E0E54C#, Build, Arguments, Invoke'Access);
+           (16#BEC913BB37E0E54C#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeDefElemExtended" then
          return Action_Helper_Catalog.Execute
-           (16#1CDEB892F05D979A#, Build, Arguments, Invoke'Access);
+           (16#1CDEB892F05D979A#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeFuncCall" then
          return Action_Helper_Catalog.Execute
-           (16#22FFAFE0374CABC0#, Build, Arguments, Invoke'Access);
+           (16#22FFAFE0374CABC0#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeGroupingSet" then
          return Action_Helper_Catalog.Execute
-           (16#0905CEAF06766F09#, Build, Arguments, Invoke'Access);
+           (16#0905CEAF06766F09#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeJsonBehavior" then
          return Action_Helper_Catalog.Execute
-           (16#C2632FC17CEDE046#, Build, Arguments, Invoke'Access);
+           (16#C2632FC17CEDE046#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeJsonFormat" then
          return Action_Helper_Catalog.Execute
-           (16#184B2C2B80265EDF#, Build, Arguments, Invoke'Access);
+           (16#184B2C2B80265EDF#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeJsonIsPredicate" then
          return Action_Helper_Catalog.Execute
-           (16#0276711F513B2E09#, Build, Arguments, Invoke'Access);
+           (16#0276711F513B2E09#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeJsonKeyValue" then
          return Action_Helper_Catalog.Execute
-           (16#63D6AAEA64E329FB#, Build, Arguments, Invoke'Access);
+           (16#63D6AAEA64E329FB#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeJsonTablePathSpec" then
          return Action_Helper_Catalog.Execute
-           (16#1DE71A4CD21FEC46#, Build, Arguments, Invoke'Access);
+           (16#1DE71A4CD21FEC46#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeJsonValueExpr" then
          return Action_Helper_Catalog.Execute
-           (16#B110EB2ED020AFC4#, Build, Arguments, Invoke'Access);
+           (16#B110EB2ED020AFC4#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeRangeVar" then
          return Action_Helper_Catalog.Execute
-           (16#34C55F502B33A2DB#, Build, Arguments, Invoke'Access);
+           (16#34C55F502B33A2DB#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeSimpleA_Expr" then
          return Action_Helper_Catalog.Execute
-           (16#8FDA236164A87DAF#, Build, Arguments, Invoke'Access);
+           (16#8FDA236164A87DAF#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeStringConst" then
          return Action_Helper_Catalog.Execute
-           (16#9E2F834071D644E5#, Build, Arguments, Invoke'Access);
+           (16#9E2F834071D644E5#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeTypeName" then
          return Action_Helper_Catalog.Execute
-           (16#23454D5FC9E7CBB8#, Build, Arguments, Invoke'Access);
+           (16#23454D5FC9E7CBB8#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeTypeNameFromNameList" then
          return Action_Helper_Catalog.Execute
-           (16#B619383CD3A8D9A3#, Build, Arguments, Invoke'Access);
+           (16#B619383CD3A8D9A3#, Build, Arguments, Error_Location, Invoke'Access);
       elsif Name = "makeVacuumRelation" then
          return Action_Helper_Catalog.Execute
-           (16#9C5F2C4BED0F2D60#, Build, Arguments, Invoke'Access);
+           (16#9C5F2C4BED0F2D60#, Build, Arguments, Error_Location, Invoke'Access);
       else
          return Semantics.Invoke (Build, Name, Arguments);
       end if;

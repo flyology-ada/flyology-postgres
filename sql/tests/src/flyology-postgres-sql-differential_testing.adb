@@ -13,6 +13,33 @@ package body Flyology.Postgres.SQL.Differential_Testing is
       Scanner_Case : constant String := "SELECT '" & E_Acute & "', 'x";
       NUL_Case : constant String :=
         E_Acute & Character'Val (0) & "SELECT 2";
+      Diagnostic_Failures : Natural := 0;
+
+      procedure Compare_Diagnostic
+        (Text : String; Version : Major_Version)
+      is
+         Native_Tree : Syntax_Tree;
+         C_Tree      : Syntax_Tree;
+      begin
+         Parse (Text, Version, Native_Tree);
+         C_Oracle.Parse (Text, Version, C_Tree);
+         if Message (Error (Native_Tree)) /= Message (Error (C_Tree)) then
+            Ada.Text_IO.Put_Line
+              (Version'Image & " " & Text & " message: native [" &
+               Message (Error (Native_Tree)) & "] C [" &
+               Message (Error (C_Tree)) & "]");
+            Diagnostic_Failures := Diagnostic_Failures + 1;
+         end if;
+         if Cursor_Position (Error (Native_Tree)) /=
+           Cursor_Position (Error (C_Tree))
+         then
+            Ada.Text_IO.Put_Line
+              (Version'Image & " " & Text & " cursor: native" &
+               Cursor_Position (Error (Native_Tree))'Image & " C" &
+               Cursor_Position (Error (C_Tree))'Image);
+            Diagnostic_Failures := Diagnostic_Failures + 1;
+         end if;
+      end Compare_Diagnostic;
 
       procedure Check
         (Text : String;
@@ -92,6 +119,26 @@ package body Flyology.Postgres.SQL.Differential_Testing is
       Check ("SELECT 'e', 1 1");
       Check ("SELECT 'e', 'x");
       Check (NUL_Case);
+      for Version in Major_Version loop
+         Compare_Diagnostic ("SELECT 1 LIMIT 1, 2", Version);
+         Compare_Diagnostic
+           ("CREATE TABLE t (a int, CHECK (a > 0) DEFERRABLE)", Version);
+         Compare_Diagnostic ("CREATE ROLE r WITH foo", Version);
+         if Version >= PostgreSQL_16 then
+            Compare_Diagnostic
+              ("SELECT JSON_OBJECT('a': 1 RETURNING text FORMAT JSON " &
+               "ENCODING foo)", Version);
+         end if;
+      end loop;
+      Assert
+        (Diagnostic_Failures = 0,
+         Diagnostic_Failures'Image &
+           " grammar diagnostic comparisons differ from the C oracle");
+      Check ("SELECT 1 LIMIT 1, 2");
+      Check ("CREATE TABLE t (a int, CHECK (a > 0) DEFERRABLE)");
+      Check ("CREATE ROLE r WITH foo");
+      Check
+        ("SELECT JSON_OBJECT('a': 1 RETURNING text FORMAT JSON ENCODING foo)");
       for Version in Major_Version loop
          declare
             Tree : Syntax_Tree;

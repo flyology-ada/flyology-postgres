@@ -23,53 +23,54 @@ package body Flyology.Postgres.SQL.Native.Action_Catalog is
       Locations    : Builders.Location_Array;
       Result       : in out Builders.Dynamic_Value;
       Location     : in out Integer;
+      Error_Location : not null access Integer;
       Parse_Result : in out Builders.Dynamic_Value;
       Callback     : Invoke_Access)
    is
    begin
       case Action is
-         when 16#00367A0DA10E3493# .. 16#133598079116310B# =>
+         when 16#00367A0DA10E3493# .. 16#12CE7C4F7EABE589# =>
             Action_Catalog_Chunk_01.Reduce
-              (Action, Build, Values, Locations, Result, Location, Parse_Result, Callback);
-         when 16#133598079116310C# .. 16#23D86BEE367E33C1# =>
+              (Action, Build, Values, Locations, Result, Location, Error_Location, Parse_Result, Callback);
+         when 16#12CE7C4F7EABE58A# .. 16#238432DAEB361B65# =>
             Action_Catalog_Chunk_02.Reduce
-              (Action, Build, Values, Locations, Result, Location, Parse_Result, Callback);
-         when 16#23D86BEE367E33C2# .. 16#367724ABA8BD4999# =>
+              (Action, Build, Values, Locations, Result, Location, Error_Location, Parse_Result, Callback);
+         when 16#238432DAEB361B66# .. 16#3330895D65D52862# =>
             Action_Catalog_Chunk_03.Reduce
-              (Action, Build, Values, Locations, Result, Location, Parse_Result, Callback);
-         when 16#367724ABA8BD499A# .. 16#4A7741179DCAA93C# =>
+              (Action, Build, Values, Locations, Result, Location, Error_Location, Parse_Result, Callback);
+         when 16#3330895D65D52863# .. 16#47859EDA2ED0C1B9# =>
             Action_Catalog_Chunk_04.Reduce
-              (Action, Build, Values, Locations, Result, Location, Parse_Result, Callback);
-         when 16#4A7741179DCAA93D# .. 16#5BF46CD9B0364C01# =>
+              (Action, Build, Values, Locations, Result, Location, Error_Location, Parse_Result, Callback);
+         when 16#47859EDA2ED0C1BA# .. 16#58258EAF35EDC1DF# =>
             Action_Catalog_Chunk_05.Reduce
-              (Action, Build, Values, Locations, Result, Location, Parse_Result, Callback);
-         when 16#5BF46CD9B0364C02# .. 16#6DBD27FCDF5E6C70# =>
+              (Action, Build, Values, Locations, Result, Location, Error_Location, Parse_Result, Callback);
+         when 16#58258EAF35EDC1E0# .. 16#6C14CCBFE31289DC# =>
             Action_Catalog_Chunk_06.Reduce
-              (Action, Build, Values, Locations, Result, Location, Parse_Result, Callback);
-         when 16#6DBD27FCDF5E6C71# .. 16#7C8C829ED1716529# =>
+              (Action, Build, Values, Locations, Result, Location, Error_Location, Parse_Result, Callback);
+         when 16#6C14CCBFE31289DD# .. 16#7BD9949D8A35C367# =>
             Action_Catalog_Chunk_07.Reduce
-              (Action, Build, Values, Locations, Result, Location, Parse_Result, Callback);
-         when 16#7C8C829ED171652A# .. 16#9027BC76F56FBB5B# =>
+              (Action, Build, Values, Locations, Result, Location, Error_Location, Parse_Result, Callback);
+         when 16#7BD9949D8A35C368# .. 16#8EBFC8593A0BC1F1# =>
             Action_Catalog_Chunk_08.Reduce
-              (Action, Build, Values, Locations, Result, Location, Parse_Result, Callback);
-         when 16#9027BC76F56FBB5C# .. 16#A3D03B5232ED3BB9# =>
+              (Action, Build, Values, Locations, Result, Location, Error_Location, Parse_Result, Callback);
+         when 16#8EBFC8593A0BC1F2# .. 16#A58B13F7073A1F5B# =>
             Action_Catalog_Chunk_09.Reduce
-              (Action, Build, Values, Locations, Result, Location, Parse_Result, Callback);
-         when 16#A3D03B5232ED3BBA# .. 16#B8F1694019A173A6# =>
+              (Action, Build, Values, Locations, Result, Location, Error_Location, Parse_Result, Callback);
+         when 16#A58B13F7073A1F5C# .. 16#B972EC28A36A7C84# =>
             Action_Catalog_Chunk_10.Reduce
-              (Action, Build, Values, Locations, Result, Location, Parse_Result, Callback);
-         when 16#B8F1694019A173A7# .. 16#CA5FC8A2D0A96A25# =>
+              (Action, Build, Values, Locations, Result, Location, Error_Location, Parse_Result, Callback);
+         when 16#B972EC28A36A7C85# .. 16#CA5FC8A2D0A96A25# =>
             Action_Catalog_Chunk_11.Reduce
-              (Action, Build, Values, Locations, Result, Location, Parse_Result, Callback);
-         when 16#CA5FC8A2D0A96A26# .. 16#DE68C86C15F961F7# =>
+              (Action, Build, Values, Locations, Result, Location, Error_Location, Parse_Result, Callback);
+         when 16#CA5FC8A2D0A96A26# .. 16#DCE527DBB798C015# =>
             Action_Catalog_Chunk_12.Reduce
-              (Action, Build, Values, Locations, Result, Location, Parse_Result, Callback);
-         when 16#DE68C86C15F961F8# .. 16#F06825866288C6C4# =>
+              (Action, Build, Values, Locations, Result, Location, Error_Location, Parse_Result, Callback);
+         when 16#DCE527DBB798C016# .. 16#EFD0612791C5D92A# =>
             Action_Catalog_Chunk_13.Reduce
-              (Action, Build, Values, Locations, Result, Location, Parse_Result, Callback);
-         when 16#F06825866288C6C5# .. 16#FFEBE1697A4255BB# =>
+              (Action, Build, Values, Locations, Result, Location, Error_Location, Parse_Result, Callback);
+         when 16#EFD0612791C5D92B# .. 16#FFEBE1697A4255BB# =>
             Action_Catalog_Chunk_14.Reduce
-              (Action, Build, Values, Locations, Result, Location, Parse_Result, Callback);
+              (Action, Build, Values, Locations, Result, Location, Error_Location, Parse_Result, Callback);
          when others => null;
       end case;
    end Reduce;
