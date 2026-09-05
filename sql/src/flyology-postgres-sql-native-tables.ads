@@ -72,4 +72,13 @@ package Flyology.Postgres.SQL.Native.Tables is
    end record;
    type Scanner_Action_Array is array (Positive range <>) of Scanner_Action;
 
+   type Parameter_Number_Mode is
+     (Signed_Low_32_Bits,
+      Checked_Signed_32_Bits);
+
+   type Scanner_Profile is record
+      Unescape_Vertical_Tab : Boolean;
+      Parameter_Numbers     : Parameter_Number_Mode;
+   end record;
+
 end Flyology.Postgres.SQL.Native.Tables;

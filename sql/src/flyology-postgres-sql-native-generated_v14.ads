@@ -504,6 +504,10 @@ package Flyology.Postgres.SQL.Native.Generated_V14 is
    Grammar_SHA256 : constant String := "e6825f4ca29a3fae6ebfe028f740ade2f20fd742e698cfa2318198194ac89b35";
    Scanner_SHA256 : constant String := "2fe5f5be5e29bc00e36a1f292399cfc1bd4d86b61584fcd46ec6ad8a6f04ea5e";
 
+   Profile : constant Scanner_Profile :=
+     (Unescape_Vertical_Tab => False,
+      Parameter_Numbers     => Signed_Low_32_Bits);
+
    Yytranslate : constant Integer_Array (0 .. 742) :=
      (
       0, 2, 2, 2, 2, 2, 2, 2, 2, 2,

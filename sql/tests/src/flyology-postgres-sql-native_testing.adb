@@ -27,6 +27,7 @@ package body Flyology.Postgres.SQL.Native_Testing is
      (Lexical_DFA       => V18_DFA,
       Actions           => Native.Generated_V18.Scanner_Actions,
       Keywords          => Native.Generated_V18.Keywords,
+      Profile           => Native.Generated_V18.Profile,
       Token_Ident       => Native.Generated_V18.Token_Ident,
       Token_Uident      => Native.Generated_V18.Token_Uident,
       Token_Fconst      => Native.Generated_V18.Token_Fconst,

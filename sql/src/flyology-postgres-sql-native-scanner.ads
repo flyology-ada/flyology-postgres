@@ -7,6 +7,7 @@ generic
    with package Lexical_DFA is new Flyology.Postgres.SQL.Native.DFA (<>);
    Actions  : Tables.Scanner_Action_Array;
    Keywords : Tables.Keyword_Array;
+   Profile  : Tables.Scanner_Profile;
    Token_Ident, Token_Uident, Token_Fconst, Token_Sconst : Positive;
    Token_Usconst, Token_Bconst, Token_Xconst, Token_Op : Positive;
    Token_Iconst, Token_Param, Token_Sql_Comment, Token_C_Comment : Positive;

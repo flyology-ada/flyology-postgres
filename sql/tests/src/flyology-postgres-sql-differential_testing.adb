@@ -47,6 +47,8 @@ package body Flyology.Postgres.SQL.Differential_Testing is
       Check ("SELECT $$dollar 'quoted' ; text$$");
       Check ("SELECT E'line\n', U&'d\0061t\+000061'");
       Check ("SELECT E'\401'");
+      Check ("SELECT $12345678901, 1", Last => PostgreSQL_17);
+      Check ("SELECT E'a\vb'");
       Check
         ("WITH recent AS (SELECT id FROM events WHERE created_at > $1) " &
          "SELECT r.id + 1 FROM recent r JOIN accounts a ON a.id = r.id " &
