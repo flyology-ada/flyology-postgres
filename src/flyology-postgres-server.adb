@@ -368,10 +368,10 @@ package body Flyology.Postgres.Server is
       Client  : in out Server_Sessions.Session;
       Connection : in out Flyology.IO.Connections.Connection;
       Cancellation : not null access Flyology.Cancellation.Token) is
-      Initial : Protocol.Initial_Request :=
-        Server_Sessions.Read_Initial (Client, Startup_Timeout);
+      Initial : Protocol.Initial_Request;
       TLS_Active : Boolean := False;
    begin
+      Initial := Server_Sessions.Read_Initial (Client, Startup_Timeout);
       for Attempt in 1 .. 2 loop
          pragma Unreferenced (Attempt);
          case Protocol.Kind (Initial) is

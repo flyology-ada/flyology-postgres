@@ -246,7 +246,8 @@ procedure Postgres_Test_Server is
       Lookup_SCRAM_Verifier => Lookup_SCRAM_Verifier,
       Handle          => Handle,
       Authentication  => Flyology.Postgres.SCRAM_SHA_256,
-      Handler_Model   => Flyology.Lightweight_Task);
+      Handler_Model   => Flyology.Lightweight_Task,
+      Startup_Timeout => 1.0);
 
    function Port return Sockets.Port is
    begin
