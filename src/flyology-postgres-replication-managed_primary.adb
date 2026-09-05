@@ -341,6 +341,9 @@ package body Flyology.Postgres.Replication.Managed_Primary is
                Result   : Stores.Create_Result;
             begin
                Require
+                 (not Command.Temporary_Value,
+                  "managed primary does not support temporary logical slots");
+               Require
                  (Replication.Plugin (Command) = "pgoutput",
                   "managed logical primary only supports pgoutput slots");
                Require
@@ -372,6 +375,9 @@ package body Flyology.Postgres.Replication.Managed_Primary is
                   Timeout => Item.Operation_Timeout);
                Apply_Retention (Item);
             end;
+         when Create_Physical_Slot_Command =>
+            raise Protocol.Protocol_Error with
+              "managed primary does not support physical slot creation";
          when Drop_Replication_Slot_Command =>
             declare
                Dropped  : Boolean;

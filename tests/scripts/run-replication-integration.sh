@@ -986,12 +986,85 @@ SQL
   printf '%s\n' "PostgreSQL $major real standby passed"
 }
 
+run_physical_slot_rejection () {
+  major=$1
+  managed_slot_port=$((port + 7))
+  managed_slot_root="$version_root/managed-slot-rejection"
+  managed_slot_store="$managed_slot_root/store"
+  managed_slot_wal="$managed_slot_root/wal"
+  managed_slot_receive="$managed_slot_root/receive"
+  managed_slot_log="$version_root/managed-slot-rejection.log"
+  physical_create_log="$version_root/physical-slot-create.log"
+
+  mkdir -p \
+    "$managed_slot_store" "$managed_slot_wal" "$managed_slot_receive"
+  POSTGRES_REPLICATION_SERVER_PORT=$managed_slot_port \
+  POSTGRES_DURABLE_STORE_DIR=$managed_slot_store \
+  POSTGRES_PRIMARY_SYSTEM_ID=1 \
+  POSTGRES_PRIMARY_FIRST_LSN=0/0 \
+  POSTGRES_PRIMARY_END_LSN=0/0 \
+  POSTGRES_PRIMARY_FORK_LSN=0/0 \
+  POSTGRES_PRIMARY_WAL_DIR=$managed_slot_wal \
+  POSTGRES_TLS_CERT_FILE=$server_cert \
+  POSTGRES_TLS_KEY_FILE=$server_key \
+    "$tests_root/bin/postgres_test_managed_physical_primary" \
+    >"$managed_slot_log" 2>&1 &
+  managed_primary_pid=$!
+  attempt=0
+  until grep -q '^ready timeline=' "$managed_slot_log"; do
+    attempt=$((attempt + 1))
+    if ! kill -0 "$managed_primary_pid" >/dev/null 2>&1; then
+      cat "$managed_slot_log" >&2
+      printf '%s\n' "managed physical primary exited early" >&2
+      return 1
+    fi
+    if [ "$attempt" -ge 100 ]; then
+      cat "$managed_slot_log" >&2
+      printf '%s\n' "managed physical primary did not become ready" >&2
+      return 1
+    fi
+    sleep 0.05
+  done
+
+  physical_conninfo="host=localhost hostaddr=127.0.0.1"
+  physical_conninfo="$physical_conninfo port=$managed_slot_port"
+  physical_conninfo="$physical_conninfo user=flyology dbname=postgres"
+  physical_conninfo="$physical_conninfo sslmode=verify-full sslrootcert=$ca_cert"
+  if PGPASSWORD=flyology-secret "$postgres_prefix/bin/pg_receivewal" \
+    --dbname="$physical_conninfo" \
+    --directory="$managed_slot_receive" \
+    --slot="issue62_physical_$major" --create-slot \
+    >"$physical_create_log" 2>&1
+  then
+    printf '%s\n' "managed primary unexpectedly created a physical slot" >&2
+    return 1
+  fi
+  if ! grep -q 'managed primary does not support physical slot creation' \
+    "$physical_create_log"
+  then
+    cat "$physical_create_log" >&2
+    printf '%s\n' "physical slot creation reached the wrong rejection" >&2
+    return 1
+  fi
+
+  kill "$managed_primary_pid" >/dev/null 2>&1 || true
+  wait "$managed_primary_pid" >/dev/null 2>&1 || true
+  managed_primary_pid=
+  printf '%s\n' "PostgreSQL $major physical slot rejection passed"
+}
+
 run_logical_primary () {
   major=$1
   logical_primary_port=$((port + 4))
   logical_primary_log="$version_root/logical-primary.log"
   logical_primary_output="$version_root/logical-primary.pgoutput"
   logical_primary_marker="managed-pgoutput-$major"
+  temporary_logical_log="$version_root/temporary-logical-slot.log"
+  issue_slot="issue62_logical_$major"
+  logical_conninfo="host=127.0.0.1 port=$logical_primary_port"
+  logical_conninfo="$logical_conninfo user=flyology dbname=postgres"
+  logical_conninfo="$logical_conninfo sslmode=disable"
+  logical_replication_conninfo="$logical_conninfo replication=database"
 
   POSTGRES_LOGICAL_PRIMARY_PORT=$logical_primary_port \
   POSTGRES_LOGICAL_PRIMARY_MARKER=$logical_primary_marker \
@@ -1013,6 +1086,42 @@ run_logical_primary () {
     fi
     sleep 0.05
   done
+
+  if [ "$major" -eq 14 ]; then
+    logical_create_options=NOEXPORT_SNAPSHOT
+  else
+    logical_create_options="(SNAPSHOT 'nothing')"
+  fi
+  temporary_logical_command="CREATE_REPLICATION_SLOT $issue_slot"
+  temporary_logical_command="$temporary_logical_command TEMPORARY LOGICAL"
+  temporary_logical_command="$temporary_logical_command pgoutput"
+  temporary_logical_command="$temporary_logical_command $logical_create_options"
+  logical_create_command="CREATE_REPLICATION_SLOT $issue_slot LOGICAL"
+  logical_create_command="$logical_create_command pgoutput"
+  logical_create_command="$logical_create_command $logical_create_options"
+  if "$postgres_prefix/bin/psql" \
+    "$logical_replication_conninfo" \
+    -v ON_ERROR_STOP=1 -qAtc "$temporary_logical_command" \
+    >"$temporary_logical_log" 2>&1
+  then
+    printf '%s\n' "managed primary unexpectedly created a temporary slot" >&2
+    return 1
+  fi
+  if ! grep -q 'managed primary does not support temporary logical slots' \
+    "$temporary_logical_log"
+  then
+    cat "$temporary_logical_log" >&2
+    printf '%s\n' "temporary logical slot reached the wrong rejection" >&2
+    return 1
+  fi
+  "$postgres_prefix/bin/psql" \
+    "$logical_replication_conninfo" \
+    -v ON_ERROR_STOP=1 -qAtc "$logical_create_command" \
+    >/dev/null
+  "$postgres_prefix/bin/psql" \
+    "$logical_replication_conninfo" \
+    -v ON_ERROR_STOP=1 -qAtc \
+    "DROP_REPLICATION_SLOT $issue_slot" >/dev/null
 
   if ! "$postgres_prefix/bin/pg_recvlogical" \
     --no-loop --start --endpos=0/140 \
@@ -1369,6 +1478,7 @@ SQL
       >/dev/null
   fi
 
+  run_physical_slot_rejection "$major"
   run_real_standby "$major"
   run_logical_primary "$major"
   if [ "$major" -eq 18 ]; then

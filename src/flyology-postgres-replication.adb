@@ -534,99 +534,156 @@ package body Flyology.Postgres.Replication is
          Set_Timeline;
          Expect_End (Text, Cursor);
       elsif Is_Keyword (First, "CREATE_REPLICATION_SLOT") then
-         Result.Message_Kind := Create_Logical_Slot_Command;
          declare
             Name : constant String := Next_Identifier (Text, Cursor);
          begin
             Require (Is_Slot_Name (Name), "invalid replication slot name");
             Result.Slot_Data := Flyology.Bytes.From_Byte_String (Name);
          end;
-         Expect_Keyword (Text, Cursor, "LOGICAL");
          declare
-            Output_Plugin : constant String := Next_Identifier (Text, Cursor);
+            Slot_Kind : Ada.Strings.Unbounded.Unbounded_String :=
+              Ada.Strings.Unbounded.To_Unbounded_String
+                (Next_Token (Text, Cursor));
          begin
-            Require
-              (Is_Option_Name (Output_Plugin),
-               "invalid logical output plugin name");
-            Result.Plugin_Data :=
-              Flyology.Bytes.From_Byte_String (Output_Plugin);
-         end;
-         if More and then Text (Cursor) /= '(' then
-            declare
-               Legacy : constant String := Next_Token (Text, Cursor);
-            begin
-               if Is_Keyword (Legacy, "EXPORT_SNAPSHOT") then
-                  Result.Snapshot_Value := Export_Snapshot;
-               elsif Is_Keyword (Legacy, "NOEXPORT_SNAPSHOT") then
-                  Result.Snapshot_Value := No_Snapshot;
-               elsif Is_Keyword (Legacy, "USE_SNAPSHOT") then
-                  Result.Snapshot_Value := Use_Snapshot;
-               else
-                  raise Protocol.Protocol_Error with
-                    "invalid legacy replication slot snapshot action";
-               end if;
-               Expect_End (Text, Cursor);
-            end;
-         elsif More then
-            declare
-               Values : constant Logical_Option_Array :=
-                 Parse_Options (Text (Cursor .. Text'Last));
-               Snapshot_Seen : Boolean := False;
-               Two_Phase_Seen : Boolean := False;
-               Failover_Seen : Boolean := False;
-            begin
-               for Item of Values loop
-                  if Ada.Characters.Handling.To_Lower
-                    (Option_Name (Item)) = "snapshot"
-                  then
+            if Is_Keyword
+              (Ada.Strings.Unbounded.To_String (Slot_Kind), "TEMPORARY")
+            then
+               Result.Temporary_Value := True;
+               Slot_Kind := Ada.Strings.Unbounded.To_Unbounded_String
+                 (Next_Token (Text, Cursor));
+            end if;
+
+            if Is_Keyword
+              (Ada.Strings.Unbounded.To_String (Slot_Kind), "PHYSICAL")
+            then
+               Result.Message_Kind := Create_Physical_Slot_Command;
+               if More and then Text (Cursor) /= '(' then
+                  Expect_Keyword (Text, Cursor, "RESERVE_WAL");
+                  Result.Reserve_WAL_Value := True;
+                  Expect_End (Text, Cursor);
+               elsif More then
+                  declare
+                     Values : constant Logical_Option_Array :=
+                       Parse_Options (Text (Cursor .. Text'Last));
+                     Reserve_WAL_Seen : Boolean := False;
+                  begin
                      Require
-                       (not Snapshot_Seen,
-                        "duplicate replication slot SNAPSHOT option");
-                     Snapshot_Seen := True;
-                     Require
-                       (Option_Has_Value (Item),
-                        "SNAPSHOT requires a value");
-                     declare
-                        Choice : constant String :=
-                          Ada.Characters.Handling.To_Lower
-                            (Option_Value (Item));
-                     begin
-                        if Choice = "export" then
-                           Result.Snapshot_Value := Export_Snapshot;
-                        elsif Choice = "nothing" then
-                           Result.Snapshot_Value := No_Snapshot;
-                        elsif Choice = "use" then
-                           Result.Snapshot_Value := Use_Snapshot;
+                       (Values'Length > 0,
+                        "physical replication slot options cannot be empty");
+                     for Item of Values loop
+                        if Ada.Characters.Handling.To_Lower
+                          (Option_Name (Item)) = "reserve_wal"
+                        then
+                           Require
+                             (not Reserve_WAL_Seen,
+                              "duplicate replication slot RESERVE_WAL option");
+                           Reserve_WAL_Seen := True;
+                           Result.Reserve_WAL_Value :=
+                             Boolean_Option (Item, "reserve-WAL");
                         else
                            raise Protocol.Protocol_Error with
-                             "invalid replication slot snapshot action";
+                             "unsupported physical slot option "
+                             & Option_Name (Item);
                         end if;
-                     end;
-                  elsif Ada.Characters.Handling.To_Lower
-                    (Option_Name (Item)) = "two_phase"
-                  then
-                     Require
-                       (not Two_Phase_Seen,
-                        "duplicate replication slot TWO_PHASE option");
-                     Two_Phase_Seen := True;
-                     Result.Two_Phase_Value :=
-                       Boolean_Option (Item, "two-phase");
-                  elsif Ada.Characters.Handling.To_Lower
-                    (Option_Name (Item)) = "failover"
-                  then
-                     Require
-                       (not Failover_Seen,
-                        "duplicate replication slot FAILOVER option");
-                     Failover_Seen := True;
-                     Result.Failover_Value :=
-                       Boolean_Option (Item, "failover");
-                  else
-                     raise Protocol.Protocol_Error with
-                       "unsupported logical slot option " & Option_Name (Item);
-                  end if;
-               end loop;
-            end;
-         end if;
+                     end loop;
+                  end;
+               end if;
+            elsif Is_Keyword
+              (Ada.Strings.Unbounded.To_String (Slot_Kind), "LOGICAL")
+            then
+               Result.Message_Kind := Create_Logical_Slot_Command;
+               declare
+                  Output_Plugin : constant String :=
+                    Next_Identifier (Text, Cursor);
+               begin
+                  Require
+                    (Is_Option_Name (Output_Plugin),
+                     "invalid logical output plugin name");
+                  Result.Plugin_Data :=
+                    Flyology.Bytes.From_Byte_String (Output_Plugin);
+               end;
+               if More and then Text (Cursor) /= '(' then
+                  declare
+                     Legacy : constant String := Next_Token (Text, Cursor);
+                  begin
+                     if Is_Keyword (Legacy, "EXPORT_SNAPSHOT") then
+                        Result.Snapshot_Value := Export_Snapshot;
+                     elsif Is_Keyword (Legacy, "NOEXPORT_SNAPSHOT") then
+                        Result.Snapshot_Value := No_Snapshot;
+                     elsif Is_Keyword (Legacy, "USE_SNAPSHOT") then
+                        Result.Snapshot_Value := Use_Snapshot;
+                     else
+                        raise Protocol.Protocol_Error with
+                          "invalid legacy replication slot snapshot action";
+                     end if;
+                     Expect_End (Text, Cursor);
+                  end;
+               elsif More then
+                  declare
+                     Values : constant Logical_Option_Array :=
+                       Parse_Options (Text (Cursor .. Text'Last));
+                     Snapshot_Seen : Boolean := False;
+                     Two_Phase_Seen : Boolean := False;
+                     Failover_Seen : Boolean := False;
+                  begin
+                     for Item of Values loop
+                        if Ada.Characters.Handling.To_Lower
+                          (Option_Name (Item)) = "snapshot"
+                        then
+                           Require
+                             (not Snapshot_Seen,
+                              "duplicate replication slot SNAPSHOT option");
+                           Snapshot_Seen := True;
+                           Require
+                             (Option_Has_Value (Item),
+                              "SNAPSHOT requires a value");
+                           declare
+                              Choice : constant String :=
+                                Ada.Characters.Handling.To_Lower
+                                  (Option_Value (Item));
+                           begin
+                              if Choice = "export" then
+                                 Result.Snapshot_Value := Export_Snapshot;
+                              elsif Choice = "nothing" then
+                                 Result.Snapshot_Value := No_Snapshot;
+                              elsif Choice = "use" then
+                                 Result.Snapshot_Value := Use_Snapshot;
+                              else
+                                 raise Protocol.Protocol_Error with
+                                   "invalid replication slot snapshot action";
+                              end if;
+                           end;
+                        elsif Ada.Characters.Handling.To_Lower
+                          (Option_Name (Item)) = "two_phase"
+                        then
+                           Require
+                             (not Two_Phase_Seen,
+                              "duplicate replication slot TWO_PHASE option");
+                           Two_Phase_Seen := True;
+                           Result.Two_Phase_Value :=
+                             Boolean_Option (Item, "two-phase");
+                        elsif Ada.Characters.Handling.To_Lower
+                          (Option_Name (Item)) = "failover"
+                        then
+                           Require
+                             (not Failover_Seen,
+                              "duplicate replication slot FAILOVER option");
+                           Failover_Seen := True;
+                           Result.Failover_Value :=
+                             Boolean_Option (Item, "failover");
+                        else
+                           raise Protocol.Protocol_Error with
+                             "unsupported logical slot option "
+                             & Option_Name (Item);
+                        end if;
+                     end loop;
+                  end;
+               end if;
+            else
+               raise Protocol.Protocol_Error with
+                 "expected PHYSICAL or LOGICAL in replication command";
+            end if;
+         end;
       elsif Is_Keyword (First, "DROP_REPLICATION_SLOT") then
          Result.Message_Kind := Drop_Replication_Slot_Command;
          declare
@@ -737,8 +794,8 @@ package body Flyology.Postgres.Replication is
    begin
       Require
         (Item.Message_Kind in Create_Logical_Slot_Command |
-           Drop_Replication_Slot_Command | Start_Physical_Command |
-           Start_Logical_Command,
+           Create_Physical_Slot_Command | Drop_Replication_Slot_Command |
+           Start_Physical_Command | Start_Logical_Command,
          "replication command does not contain a slot");
       return Flyology.Bytes.To_Byte_String (Item.Slot_Data);
    end Slot_Name;
@@ -774,6 +831,14 @@ package body Flyology.Postgres.Replication is
          "replication command does not contain a failover option");
       return Item.Failover_Value;
    end Failover;
+
+   function Reserve_WAL (Item : Command) return Boolean is
+   begin
+      Require
+        (Item.Message_Kind = Create_Physical_Slot_Command,
+         "replication command does not contain a reserve-WAL option");
+      return Item.Reserve_WAL_Value;
+   end Reserve_WAL;
 
    function Wait (Item : Command) return Boolean is
    begin
