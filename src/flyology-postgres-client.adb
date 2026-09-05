@@ -94,6 +94,9 @@ package body Flyology.Postgres.Client is
       end if;
    end Require_No_Pipelined_Copy;
 
+   function Has_Pending_Synchronization (Item : Session) return Boolean is
+     (Item.Pending_Syncs > 0);
+
    procedure Complete_Synchronization
      (Item : in out Session; Strict : Boolean) is
       --  Retire the oldest outstanding Sync when its ReadyForQuery arrives.
@@ -1520,7 +1523,7 @@ package body Flyology.Postgres.Client is
       end case;
       Clear (Operation.Buffer);
       Operation.Kind := Kind;
-      Operation.Sync_Pending := Item.Current_State = Awaiting_Ready;
+      Operation.Sync_Pending := Has_Pending_Synchronization (Item.all);
       Operation.Phase := Transfer_Idle;
       Operation.Timeout := Timeout;
       Flyology.Operations.Drivers.Start (Operation);
@@ -2223,7 +2226,8 @@ package body Flyology.Postgres.Client is
      (Item : in out Session; Timeout : Duration := 30.0)
       return Extended_Query_Event is
       Response     : Protocol.Backend_Message;
-      Sync_Pending : constant Boolean := Item.Pending_Syncs > 0;
+      Sync_Pending : constant Boolean :=
+        Has_Pending_Synchronization (Item);
    begin
       if Item.Current_State = Recovery_Required then
          raise Program_Error with

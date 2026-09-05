@@ -1715,6 +1715,9 @@ procedure Tests is
    end Test_Extended_Client_State;
 
    procedure Test_Pipelined_Client_State is
+      type Receive_Path is (Synchronous_Path, Scoped_Path);
+      type Earlier_Response is (Earlier_Error, Earlier_Portal_Suspended);
+
       Channel : aliased Memory_Transport;
       Session : Client.Session (Channel'Access);
       Copy_Channel : aliased Memory_Transport;
@@ -1781,6 +1784,108 @@ procedure Tests is
          Client.Execute_Portal (Session, Name, Timeout => 1.0);
          Client.Synchronize (Session, Timeout => 1.0);
       end Write_Batch;
+
+      procedure Check_Open_Batch_Parity
+        (Path : Receive_Path; Response : Earlier_Response) is
+         Test_Channel : aliased Memory_Transport;
+         Test_Session : aliased Client.Session (Test_Channel'Access);
+         Test_Authentication : Flyology.Bytes.Unbounded_Bytes;
+
+         function Receive_Next return Protocol.Backend_Message_Kind is
+         begin
+            case Path is
+               when Synchronous_Path =>
+                  return Protocol.Response_Kind
+                    (Client.Receive_Extended_Event
+                       (Test_Session, Timeout => 1.0));
+               when Scoped_Path =>
+                  declare
+                     Set : aliased Operations.Completion_Set (Capacity => 1);
+                     Event : Protocol.Backend_Message;
+                     Receive : Client.Receive_Operation :=
+                       Client.Receive_Extended_Event
+                         (Set'Access,
+                          Test_Session'Access,
+                          Timeout => 1.0);
+                  begin
+                     Operations.Wait_All (Set);
+                     Client.Finish (Receive, Event);
+                     return Protocol.Response_Kind (Event);
+                  end;
+            end case;
+         end Receive_Next;
+
+         function Execute_Is_Accepted return Boolean is
+         begin
+            Client.Execute_Portal
+              (Test_Session, "second", Timeout => 1.0);
+            return True;
+         exception
+            when Program_Error =>
+               return False;
+         end Execute_Is_Accepted;
+      begin
+         Protocol.Append_U32 (Test_Authentication, 0);
+         Queue
+           (Test_Channel,
+            Protocol.Make_Message
+              ('R', Flyology.Bytes.To_Array (Test_Authentication)));
+         Queue (Test_Channel, Protocol.Make_Message ('Z', Ready_Payload));
+         Client.Startup
+           (Test_Session, User => "parity-test", Timeout => 1.0);
+
+         Client.Enter_Pipeline_Mode (Test_Session);
+         Client.Prepare_Statement
+           (Test_Session, "first", "select 1", Timeout => 1.0);
+         Client.Bind_Portal
+           (Test_Session, "first", "first", Timeout => 1.0);
+         Client.Execute_Portal
+           (Test_Session, "first", Maximum_Rows => 1, Timeout => 1.0);
+         Client.Synchronize (Test_Session, Timeout => 1.0);
+         Client.Prepare_Statement
+           (Test_Session, "second", "select 1", Timeout => 1.0);
+         Client.Bind_Portal
+           (Test_Session, "second", "second", Timeout => 1.0);
+
+         case Response is
+            when Earlier_Error =>
+               Queue (Test_Channel, Protocol.Make_Message ('E', Failure));
+            when Earlier_Portal_Suspended =>
+               Queue (Test_Channel, Protocol.Make_Empty_Message ('s'));
+         end case;
+         Queue (Test_Channel, Protocol.Make_Message ('Z', Ready_Payload));
+
+         Assert
+           (Receive_Next =
+              (case Response is
+                  when Earlier_Error => Protocol.Error_Response,
+                  when Earlier_Portal_Suspended =>
+                    Protocol.Portal_Suspended_Response)
+            and then Client.State (Test_Session) =
+              Client.Extended_Query_Active
+            and then Client.Pending_Synchronizations (Test_Session) = 1,
+            Path'Image & Response'Image
+            & " from an earlier batch leaves the open batch active");
+         Assert
+           (Execute_Is_Accepted,
+            Path'Image & Response'Image
+            & " from an earlier batch preserves the open batch's portal");
+         Assert
+           (Receive_Next = Protocol.Ready_For_Query_Response
+            and then Client.State (Test_Session) =
+              Client.Extended_Query_Active
+            and then Client.Pending_Synchronizations (Test_Session) = 0,
+            Path'Image & Response'Image
+            & " allows the earlier batch's ReadyForQuery to be consumed");
+
+         Client.Synchronize (Test_Session, Timeout => 1.0);
+         Queue (Test_Channel, Protocol.Make_Message ('Z', Ready_Payload));
+         Assert
+           (Receive_Next = Protocol.Ready_For_Query_Response
+            and then Client.Is_Ready (Test_Session),
+            Path'Image & Response'Image
+            & " leaves the open batch able to complete normally");
+      end Check_Open_Batch_Parity;
    begin
       Protocol.Append_U32 (Authentication, 0);
       Queue
@@ -2023,6 +2128,12 @@ procedure Tests is
          and then not Client.In_Pipeline_Mode (Copy_Session)
          and then Client.Pending_Synchronizations (Copy_Session) = 0,
          "a pipelined COPY response closes the session it arrives on");
+
+      for Path in Receive_Path loop
+         for Response in Earlier_Response loop
+            Check_Open_Batch_Parity (Path, Response);
+         end loop;
+      end loop;
    end Test_Pipelined_Client_State;
 
    function Decode_Is_Rejected
