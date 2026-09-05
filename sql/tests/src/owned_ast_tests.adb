@@ -617,6 +617,7 @@ package body Owned_AST_Tests is
         ("WITH q AS (SELECT id FROM events) "
          & "SELECT q.id FROM q JOIN audit a ON q.id = a.id WHERE q.id > 1");
       Compare_Common ("SELECT E'line\n', U&'d\0061t\+000061'");
+      Compare_Common ("SELECT E'\401'");
       Compare_Common ("INSERT INTO t (a, b) VALUES (1, 'x') RETURNING a");
       Compare_Common ("UPDATE t SET a = a + 1 WHERE b IS NOT NULL RETURNING *");
       Compare_Common ("DELETE FROM t USING u WHERE t.id = u.id RETURNING t.id");
@@ -646,6 +647,13 @@ package body Owned_AST_Tests is
       Compare_16 (Merge_SQL);
       Compare_17 (Merge_SQL);
       Compare_18 (Merge_SQL);
+
+      declare
+         Tree : AST_18.Owned_Syntax_Tree;
+      begin
+         AST_18.Parse ("SELECT E'\401'", Tree);
+         Assert (Tree.Valid, "V18 direct AST accepts a truncated octal escape");
+      end;
 
       declare
          Baseline, Direct : AST_15.Owned_Syntax_Tree;

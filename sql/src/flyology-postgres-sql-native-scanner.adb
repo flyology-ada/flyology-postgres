@@ -385,7 +385,8 @@ package body Flyology.Postgres.SQL.Native.Scanner is
                   Append (Self.Literal, Unescaped_Character (Text (Text'First + 1)));
                when Tables.Octal_Escape =>
                   declare
-                     Code : constant Natural := Based_Value (Text (Text'First + 1 .. Text'Last), 8);
+                     Code : constant Natural :=
+                       Based_Value (Text (Text'First + 1 .. Text'Last), 8) mod 256;
                   begin
                      if Code = 0 then
                         Fail (Self, First, "invalid zero byte in string literal");
