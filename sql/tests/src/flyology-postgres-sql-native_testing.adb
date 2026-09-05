@@ -74,6 +74,7 @@ package body Flyology.Postgres.SQL.Native_Testing is
         (1 => 0);
       Reduction_Result : Native.Builders.Dynamic_Value := Native.Builders.No_Value;
       Reduction_Location : Integer := 0;
+      Error_Location : aliased Integer := -1;
       Parse_Result : Native.Builders.Dynamic_Value := Native.Builders.No_Value;
       Scan   : V18_DFA.Scanner;
       Action : Positive;
@@ -105,7 +106,8 @@ package body Flyology.Postgres.SQL.Native_Testing is
          "generated semantic helper dispatch constructs typed nodes");
       Native.Actions_V18.Reduce
         (Build, 137, Reduction_Values, Reduction_Locations,
-         Reduction_Result, Reduction_Location, Parse_Result);
+         Reduction_Result, Reduction_Location, Error_Location'Access,
+         Parse_Result);
       Assert
         (Native.Semantics.Text_Of (Reduction_Result) = "identifier",
          "generated reduction actions preserve semantic values");

@@ -5,6 +5,8 @@ private package Flyology.Postgres.SQL.Native.Actions_V14_Support is
 
    function Invoke
      (Build : not null access Builders.Builder; Name : String;
-      Arguments : Builders.Semantic_Array) return Builders.Dynamic_Value;
+      Arguments : Builders.Semantic_Array;
+      Error_Location : not null access Integer)
+      return Builders.Dynamic_Value;
 
 end Flyology.Postgres.SQL.Native.Actions_V14_Support;

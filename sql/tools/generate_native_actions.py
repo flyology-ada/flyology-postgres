@@ -135,9 +135,10 @@ def point_offset(point: dict) -> tuple[int, int] | None:
 
 
 class Emitter:
-    def __init__(self, source: str, enums: dict[str, int]):
+    def __init__(self, source: str, enums: dict[str, int], major: int):
         self.source = source
         self.enums = enums
+        self.major = major
         self.locals: dict[str, int] = {}
         self.local_names: dict[str, int] = {}
         self.unsupported = Counter()
@@ -603,8 +604,37 @@ class Emitter:
                 if item.get("kind") == "CallExpr" and referenced_name(children(item)[0]) == "errmsg"
             ]
             if messages and len(children(messages[0])) > 1:
-                message = self.expression(children(messages[0])[1])
-                return [f"{indent}raise Semantics.Parser_Error with Semantics.Text_Of ({message});"]
+                arguments = [
+                    self.expression(item) for item in children(messages[0])[1:]
+                ]
+                message = arguments[0]
+                if len(arguments) > 1:
+                    message = (
+                        'Invoke (Build, "psprintf", '
+                        f"{self.arguments(arguments)})"
+                    )
+                positions = [
+                    item for item in walk(node)
+                    if item.get("kind") == "CallExpr"
+                    and referenced_name(children(item)[0])
+                    in {"parser_errposition", "scanner_errposition"}
+                ]
+                #  The pinned PostgreSQL 14 through 17 C oracles do not
+                #  preserve parser_errposition from grammar helper functions.
+                #  PostgreSQL 18 does, while direct reduction actions preserve
+                #  it in every supported major.
+                positioned = positions and (
+                    not self.in_generated_helper or self.major >= 18
+                )
+                if positioned and len(children(positions[0])) > 1:
+                    position = self.expression(children(positions[0])[1])
+                    return [
+                        f"{indent}Error_Location.all := Integer (Semantics.Integer_Of ({position}));",
+                        f"{indent}raise Action_Catalog.Positioned_Error with Semantics.Text_Of ({message});",
+                    ]
+                return [
+                    f"{indent}raise Action_Catalog.Unpositioned_Error with Semantics.Text_Of ({message});"
+                ]
             if self.text(node).lstrip().startswith("elog"):
                 return [f'{indent}raise Semantics.Parser_Error with "internal parser error";']
             self.unsupported_item("do-statement", node)
@@ -916,6 +946,7 @@ package Flyology.Postgres.SQL.Native.Actions_V{major} is
       Locations    : Builders.Location_Array;
       Result       : in out Builders.Dynamic_Value;
       Location     : in out Integer;
+      Error_Location : not null access Integer;
       Parse_Result : in out Builders.Dynamic_Value);
 
 end Flyology.Postgres.SQL.Native.Actions_V{major};
@@ -930,6 +961,7 @@ def reduce_parameters() -> list[str]:
         "      Locations    : Builders.Location_Array;",
         "      Result       : in out Builders.Dynamic_Value;",
         "      Location     : in out Integer;",
+        "      Error_Location : not null access Integer;",
         "      Parse_Result : in out Builders.Dynamic_Value)",
     ]
 
@@ -1057,7 +1089,7 @@ def helper_case(emitter: Emitter, index: int, helper: dict) -> str:
 
 def compile_version(major: int, vendor: Path) -> Version_Model:
     root, source = clang_ast(vendor)
-    emitter = Emitter(source, enum_values(root))
+    emitter = Emitter(source, enum_values(root), major)
     switch = semantic_switch(root)
     cases = reduction_cases(switch)
     helpers = local_helper_functions(root, switch)
@@ -1066,7 +1098,7 @@ def compile_version(major: int, vendor: Path) -> Version_Model:
     external_helpers = selected_definitions(
         external_root, called_functions([switch, *helpers])
     )
-    external_emitter = Emitter(external_source, enum_values(external_root))
+    external_emitter = Emitter(external_source, enum_values(external_root), major)
     external_emitter.loop_counter = 1_000
     helper_entries = [(helper, emitter) for helper in helpers]
     helper_entries.extend((helper, external_emitter) for helper in external_helpers)
@@ -1116,7 +1148,9 @@ def callback_declaration(indent: str = "   ") -> list[str]:
     return [
         f"{indent}type Invoke_Access is not null access function",
         f"{indent}  (Build : not null access Builders.Builder; Name : String;",
-        f"{indent}   Arguments : Builders.Semantic_Array) return Builders.Dynamic_Value;",
+        f"{indent}   Arguments : Builders.Semantic_Array;",
+        f"{indent}   Error_Location : not null access Integer)",
+        f"{indent}   return Builders.Dynamic_Value;",
     ]
 
 
@@ -1130,6 +1164,7 @@ def catalog_parameters(
         "      Locations    : Builders.Location_Array;",
         "      Result       : in out Builders.Dynamic_Value;",
         "      Location     : in out Integer;",
+        "      Error_Location : not null access Integer;",
         "      Parse_Result : in out Builders.Dynamic_Value;",
         f"      Callback     : {callback_type})",
     ]
@@ -1178,7 +1213,7 @@ def generate_action_chunk(
         "         Arguments : Builders.Semantic_Array) return Builders.Dynamic_Value",
         "      is",
         "      begin",
-        "         return Callback.all (Build, Name, Arguments);",
+        "         return Callback.all (Build, Name, Arguments, Error_Location);",
         "      end Version_Invoke;",
         "   begin",
         "      case Action is",
@@ -1210,6 +1245,9 @@ def generate_action_catalog(bodies: dict[int, str]) -> dict[str, str]:
         "with Flyology.Postgres.SQL.Native.Builders;",
         "",
         f"private package {unit} is",
+        "",
+        "   Positioned_Error : exception;",
+        "   Unpositioned_Error : exception;",
         "",
         "   subtype Action_Id is Interfaces.Unsigned_64;",
         "   No_Action : constant Action_Id := 0;",
@@ -1246,7 +1284,7 @@ def generate_action_catalog(bodies: dict[int, str]) -> dict[str, str]:
         body_lines.extend([
             f"         when {ada_identifier(lower)} .. {ada_identifier(upper)} =>",
             f"            Action_Catalog_Chunk_{number:02}.Reduce",
-            "              (Action, Build, Values, Locations, Result, Location, Parse_Result, Callback);",
+            "              (Action, Build, Values, Locations, Result, Location, Error_Location, Parse_Result, Callback);",
         ])
         lower = upper + 1
     body_lines.extend([
@@ -1274,6 +1312,7 @@ def helper_parameters(id_type: str) -> list[str]:
         f"     (Helper    : {id_type};",
         "      Build     : not null access Builders.Builder;",
         "      Arguments : Builders.Semantic_Array;",
+        "      Error_Location : not null access Integer;",
         "      Callback  : Action_Catalog.Invoke_Access)",
     ]
 
@@ -1318,7 +1357,7 @@ def generate_helper_chunk(
         "         Arguments : Builders.Semantic_Array) return Builders.Dynamic_Value",
         "      is",
         "      begin",
-        "         return Callback.all (Build, Name, Arguments);",
+        "         return Callback.all (Build, Name, Arguments, Error_Location);",
         "      end Version_Invoke;",
         "   begin",
         "      case Helper is",
@@ -1386,7 +1425,7 @@ def generate_helper_catalog(bodies: dict[int, str]) -> dict[str, str]:
         body_lines.extend([
             f"         when {ada_identifier(lower)} .. {ada_identifier(upper)} =>",
             f"            return Action_Helper_Catalog_Chunk_{number:02}.Execute",
-            "              (Helper, Build, Arguments, Callback);",
+            "              (Helper, Build, Arguments, Error_Location, Callback);",
         ])
         lower = upper + 1
     body_lines.extend([
@@ -1443,7 +1482,7 @@ def generate_version_files(model: Version_Model) -> dict[str, str]:
         "         begin",
         "            if Action /= Action_Catalog.No_Action then",
         "               Action_Catalog.Reduce",
-        f"                 (Action, Build, Values, Locations, Result, Location, Parse_Result, Actions_V{major}_Support.Invoke'Access);",
+        f"                 (Action, Build, Values, Locations, Result, Location, Error_Location, Parse_Result, Actions_V{major}_Support.Invoke'Access);",
         "            end if;",
         "         end;",
         "      end if;",
@@ -1462,7 +1501,9 @@ def generate_version_files(model: Version_Model) -> dict[str, str]:
         "",
         "   function Invoke",
         "     (Build : not null access Builders.Builder; Name : String;",
-        "      Arguments : Builders.Semantic_Array) return Builders.Dynamic_Value;",
+        "      Arguments : Builders.Semantic_Array;",
+        "      Error_Location : not null access Integer)",
+        "      return Builders.Dynamic_Value;",
         "",
         f"end {support};",
         "",
@@ -1476,7 +1517,9 @@ def generate_version_files(model: Version_Model) -> dict[str, str]:
         "",
         "   function Invoke",
         "     (Build : not null access Builders.Builder; Name : String;",
-        "      Arguments : Builders.Semantic_Array) return Builders.Dynamic_Value",
+        "      Arguments : Builders.Semantic_Array;",
+        "      Error_Location : not null access Integer)",
+        "      return Builders.Dynamic_Value",
         "   is",
         "   begin",
     ]
@@ -1485,7 +1528,7 @@ def generate_version_files(model: Version_Model) -> dict[str, str]:
         support_body.extend([
             f'      {keyword} Name = "{name}" then',
             "         return Action_Helper_Catalog.Execute",
-            f"           ({ada_identifier(body_identifier(body))}, Build, Arguments, Invoke'Access);",
+            f"           ({ada_identifier(body_identifier(body))}, Build, Arguments, Error_Location, Invoke'Access);",
         ])
     if model.helpers:
         support_body.extend([

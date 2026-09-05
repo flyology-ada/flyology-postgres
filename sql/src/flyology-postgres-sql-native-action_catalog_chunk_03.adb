@@ -15,6 +15,7 @@ package body Flyology.Postgres.SQL.Native.Action_Catalog_Chunk_03 is
       Locations    : Builders.Location_Array;
       Result       : in out Builders.Dynamic_Value;
       Location     : in out Integer;
+      Error_Location : not null access Integer;
       Parse_Result : in out Builders.Dynamic_Value;
       Callback     : Action_Catalog.Invoke_Access)
    is
@@ -26,10 +27,35 @@ package body Flyology.Postgres.SQL.Native.Action_Catalog_Chunk_03 is
          Arguments : Builders.Semantic_Array) return Builders.Dynamic_Value
       is
       begin
-         return Callback.all (Build, Name, Arguments);
+         return Callback.all (Build, Name, Arguments, Error_Location);
       end Version_Invoke;
    begin
       case Action is
+         when 16#23962A32FD306945# =>
+            declare
+               Locals : Builders.Semantic_Array (1 .. 1) :=
+                 (others => Builders.No_Value);
+            begin
+               Locals (1) := Build_Access.New_Object ("AlterTableCmd");
+               Build_Access.Set_Field (Locals (1), "subtype", Builders.Number (13));
+               Build_Access.Set_Field (Locals (1), "name", Values (3));
+               Build_Access.Set_Field (Locals (1), "def", Version_Invoke (Build_Access, "makeString", (1 => Values
+                  (5))));
+               Result := Locals (1);
+            end;
+         when 16#23D86BEE367E33C1# =>
+            declare
+               Locals : Builders.Semantic_Array (1 .. 1) :=
+                 (others => Builders.No_Value);
+            begin
+               Locals (1) := Build_Access.New_Object ("GrantRoleStmt");
+               Build_Access.Set_Field (Locals (1), "is_grant", Builders.Number (1));
+               Build_Access.Set_Field (Locals (1), "granted_roles", Values (2));
+               Build_Access.Set_Field (Locals (1), "grantee_roles", Values (4));
+               Build_Access.Set_Field (Locals (1), "opt", Builders.No_Value);
+               Build_Access.Set_Field (Locals (1), "grantor", Values (5));
+               Result := Locals (1);
+            end;
          when 16#23E90AEEE5EBE0DF# =>
                Result := Version_Invoke (Build_Access, "makeGroupingSet", (1 => Builders.Number (2), 2 => Values (3),
                   3 => Builders.Number (Interfaces.Integer_64 (Locations (1)))));
@@ -218,6 +244,24 @@ package body Flyology.Postgres.SQL.Native.Action_Catalog_Chunk_03 is
                Build_Access.Set_Field (Values (4), "skipData", Semantics.Unary ("!", Values (9)));
                Result := Locals (1);
             end;
+         when 16#26C365451D1A9793# =>
+            declare
+               Locals : Builders.Semantic_Array (1 .. 1) :=
+                 (others => Builders.No_Value);
+            begin
+               Locals (1) := Build_Access.New_Object ("CreateSchemaStmt");
+               Build_Access.Set_Field (Locals (1), "schemaname", Values (6));
+               Build_Access.Set_Field (Locals (1), "authrole", Builders.No_Value);
+               if Semantics.Truth (Semantics.Binary ("!=", Values (7), Builders.No_Value)) then
+                  Error_Location.all := Integer (Semantics.Integer_Of (Builders.Number (Interfaces.Integer_64
+                     (Locations (7)))));
+                  raise Action_Catalog.Positioned_Error with Semantics.Text_Of (Builders.Text
+                     ("CREATE SCHEMA IF NOT EXISTS cannot include schema elements"));
+               end if;
+               Build_Access.Set_Field (Locals (1), "schemaElts", Values (7));
+               Build_Access.Set_Field (Locals (1), "if_not_exists", Builders.Number (1));
+               Result := Locals (1);
+            end;
          when 16#26DB3D02085F0FBF# =>
                Result := Version_Invoke (Build_Access, "makeDefElem", (1 => Builders.Text ("transaction_read_only"), 2
                   => Version_Invoke (Build_Access, "makeIntConst", (1 => Builders.Number (0), 2 => Builders.Number
@@ -298,6 +342,12 @@ package body Flyology.Postgres.SQL.Native.Action_Catalog_Chunk_03 is
                Build_Access.Set_Field (Locals (1), "concurrent", Builders.Number (0));
                Result := Locals (1);
             end;
+         when 16#284BF6503AA4E1B3# =>
+               Error_Location.all := Integer (Semantics.Integer_Of (Builders.Number (Interfaces.Integer_64 (Locations
+                  (1)))));
+               raise Action_Catalog.Positioned_Error with Semantics.Text_Of (Builders.Text
+                  ("MATCH PARTIAL not yet implemented"));
+               Result := Builders.Number (112);
          when 16#2862F0B0B27DA233# =>
                Result := Build_Access.New_Object ("PublicationObjSpec");
                Build_Access.Set_Field (Result, "pubobjtype", Builders.Number (3));
@@ -383,44 +433,34 @@ package body Flyology.Postgres.SQL.Native.Action_Catalog_Chunk_03 is
             end;
          when 16#295A97BB9333F262# =>
                Result := Builders.Number (36);
+         when 16#297833419FEBBD1A# =>
+            declare
+               Locals : Builders.Semantic_Array (1 .. 1) :=
+                 (others => Builders.No_Value);
+            begin
+               Locals (1) := Build_Access.New_Object ("ViewStmt");
+               Build_Access.Set_Field (Locals (1), "view", Values (5));
+               Build_Access.Set_Field (Build_Access.Field (Locals (1), "view"), "relpersistence", Values (2));
+               Build_Access.Set_Field (Locals (1), "aliases", Values (7));
+               Build_Access.Set_Field (Locals (1), "query", Version_Invoke (Build_Access, "makeRecursiveViewSelect",
+                  (1 => Build_Access.Field (Build_Access.Field (Locals (1), "view"), "relname"), 2 =>
+                  Build_Access.Field (Locals (1), "aliases"), 3 => Values (11))));
+               Build_Access.Set_Field (Locals (1), "replace", Builders.Number (0));
+               Build_Access.Set_Field (Locals (1), "options", Values (9));
+               Build_Access.Set_Field (Locals (1), "withCheckOption", Values (12));
+               if Semantics.Truth (Semantics.Binary ("!=", Build_Access.Field (Locals (1), "withCheckOption"),
+                  Builders.Number (0))) then
+                  Error_Location.all := Integer (Semantics.Integer_Of (Builders.Number (Interfaces.Integer_64
+                     (Locations (12)))));
+                  raise Action_Catalog.Positioned_Error with Semantics.Text_Of (Builders.Text
+                     ("WITH CHECK OPTION not supported on recursive views"));
+               end if;
+               Result := Locals (1);
+            end;
          when 16#297A32A2B51DBA21# =>
                Result := Version_Invoke (Build_Access, "makeSimpleA_Expr", (1 => Builders.Number (0), 2 =>
                   Builders.Text ("="), 3 => Values (1), 4 => Values (3), 5 => Builders.Number (Interfaces.Integer_64
                   (Locations (2)))));
-         when 16#29916B346FDA757E# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 3) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Values (2);
-               Locals (2) := Values (4);
-               Locals (3) := Build_Access.Field (Locals (1), "frameOptions");
-               Locals (3) := Semantics.Binary ("|", Locals (3), Semantics.Binary ("<<", Build_Access.Field (Locals
-                  (2), "frameOptions"), Builders.Number (1)));
-               Locals (3) := Semantics.Binary ("|", Locals (3), Builders.Number (16));
-               if Semantics.Truth (Semantics.Binary ("&", Locals (3), Builders.Number (128))) then
-                  raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                     ("frame start cannot be UNBOUNDED FOLLOWING"));
-               end if;
-               if Semantics.Truth (Semantics.Binary ("&", Locals (3), Builders.Number (64))) then
-                  raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                     ("frame end cannot be UNBOUNDED PRECEDING"));
-               end if;
-               if Semantics.Truth (Semantics.Binary ("&&", Semantics.Binary ("&", Locals (3), Builders.Number (512)),
-                  Semantics.Binary ("&", Locals (3), Builders.Number (4096)))) then
-                  raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                     ("frame starting from current row cannot have preceding rows"));
-               end if;
-               if Semantics.Truth (Semantics.Binary ("&&", Semantics.Binary ("&", Locals (3), Builders.Number (8192)),
-                  Semantics.Binary ("&", Locals (3), Semantics.Binary ("|", Builders.Number (4096), Builders.Number
-                  (1024))))) then
-                  raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                     ("frame starting from following row cannot have preceding rows"));
-               end if;
-               Build_Access.Set_Field (Locals (1), "frameOptions", Locals (3));
-               Build_Access.Set_Field (Locals (1), "endOffset", Build_Access.Field (Locals (2), "startOffset"));
-               Result := Locals (1);
-            end;
          when 16#29995FDC5486C53E# =>
                Result := Builders.Number (98);
          when 16#29E6AD0118D8E0F3# =>
@@ -578,6 +618,139 @@ package body Flyology.Postgres.SQL.Native.Action_Catalog_Chunk_03 is
                Build_Access.Set_Field (Locals (1), "relation", Values (3));
                Build_Access.Set_Field (Locals (1), "newschema", Values (6));
                Build_Access.Set_Field (Locals (1), "missing_ok", Builders.Number (0));
+               Result := Locals (1);
+            end;
+         when 16#2B65670C29EA52A4# =>
+               if Semantics.Truth (Semantics.Binary ("==", Version_Invoke (Build_Access, "strcmp", (1 => Values (1), 2
+                  => Builders.Text ("superuser"))), Builders.Number (0))) then
+                  Result := Version_Invoke (Build_Access, "makeDefElem", (1 => Builders.Text ("superuser"), 2 =>
+                     Version_Invoke (Build_Access, "makeInteger", (1 => Builders.Number (1))), 3 => Builders.Number
+                     (Interfaces.Integer_64 (Locations (1)))));
+               else
+                  if Semantics.Truth (Semantics.Binary ("==", Version_Invoke (Build_Access, "strcmp", (1 => Values
+                     (1), 2 => Builders.Text ("nosuperuser"))), Builders.Number (0))) then
+                     Result := Version_Invoke (Build_Access, "makeDefElem", (1 => Builders.Text ("superuser"), 2 =>
+                        Version_Invoke (Build_Access, "makeInteger", (1 => Builders.Number (0))), 3 => Builders.Number
+                        (Interfaces.Integer_64 (Locations (1)))));
+                  else
+                     if Semantics.Truth (Semantics.Binary ("==", Version_Invoke (Build_Access, "strcmp", (1 => Values
+                        (1), 2 => Builders.Text ("createrole"))), Builders.Number (0))) then
+                        Result := Version_Invoke (Build_Access, "makeDefElem", (1 => Builders.Text ("createrole"), 2
+                           => Version_Invoke (Build_Access, "makeInteger", (1 => Builders.Number (1))), 3 =>
+                           Builders.Number (Interfaces.Integer_64 (Locations (1)))));
+                     else
+                        if Semantics.Truth (Semantics.Binary ("==", Version_Invoke (Build_Access, "strcmp", (1 =>
+                           Values (1), 2 => Builders.Text ("nocreaterole"))), Builders.Number (0))) then
+                           Result := Version_Invoke (Build_Access, "makeDefElem", (1 => Builders.Text ("createrole"),
+                              2 => Version_Invoke (Build_Access, "makeInteger", (1 => Builders.Number (0))), 3 =>
+                              Builders.Number (Interfaces.Integer_64 (Locations (1)))));
+                        else
+                           if Semantics.Truth (Semantics.Binary ("==", Version_Invoke (Build_Access, "strcmp", (1 =>
+                              Values (1), 2 => Builders.Text ("replication"))), Builders.Number (0))) then
+                              Result := Version_Invoke (Build_Access, "makeDefElem", (1 => Builders.Text
+                                 ("isreplication"), 2 => Version_Invoke (Build_Access, "makeInteger", (1 =>
+                                 Builders.Number (1))), 3 => Builders.Number (Interfaces.Integer_64 (Locations
+                                 (1)))));
+                           else
+                              if Semantics.Truth (Semantics.Binary ("==", Version_Invoke (Build_Access, "strcmp", (1
+                                 => Values (1), 2 => Builders.Text ("noreplication"))), Builders.Number (0))) then
+                                 Result := Version_Invoke (Build_Access, "makeDefElem", (1 => Builders.Text
+                                    ("isreplication"), 2 => Version_Invoke (Build_Access, "makeInteger", (1 =>
+                                    Builders.Number (0))), 3 => Builders.Number (Interfaces.Integer_64 (Locations
+                                    (1)))));
+                              else
+                                 if Semantics.Truth (Semantics.Binary ("==", Version_Invoke (Build_Access, "strcmp",
+                                    (1 => Values (1), 2 => Builders.Text ("createdb"))), Builders.Number (0))) then
+                                    Result := Version_Invoke (Build_Access, "makeDefElem", (1 => Builders.Text
+                                       ("createdb"), 2 => Version_Invoke (Build_Access, "makeInteger", (1 =>
+                                       Builders.Number (1))), 3 => Builders.Number (Interfaces.Integer_64 (Locations
+                                       (1)))));
+                                 else
+                                    if Semantics.Truth (Semantics.Binary ("==", Version_Invoke (Build_Access,
+                                       "strcmp", (1 => Values (1), 2 => Builders.Text ("nocreatedb"))),
+                                       Builders.Number (0))) then
+                                       Result := Version_Invoke (Build_Access, "makeDefElem", (1 => Builders.Text
+                                          ("createdb"), 2 => Version_Invoke (Build_Access, "makeInteger", (1 =>
+                                          Builders.Number (0))), 3 => Builders.Number (Interfaces.Integer_64
+                                          (Locations (1)))));
+                                    else
+                                       if Semantics.Truth (Semantics.Binary ("==", Version_Invoke (Build_Access,
+                                          "strcmp", (1 => Values (1), 2 => Builders.Text ("login"))), Builders.Number
+                                          (0))) then
+                                          Result := Version_Invoke (Build_Access, "makeDefElem", (1 => Builders.Text
+                                             ("canlogin"), 2 => Version_Invoke (Build_Access, "makeInteger", (1 =>
+                                             Builders.Number (1))), 3 => Builders.Number (Interfaces.Integer_64
+                                             (Locations (1)))));
+                                       else
+                                          if Semantics.Truth (Semantics.Binary ("==", Version_Invoke (Build_Access,
+                                             "strcmp", (1 => Values (1), 2 => Builders.Text ("nologin"))),
+                                             Builders.Number (0))) then
+                                             Result := Version_Invoke (Build_Access, "makeDefElem", (1 =>
+                                                Builders.Text ("canlogin"), 2 => Version_Invoke (Build_Access,
+                                                "makeInteger", (1 => Builders.Number (0))), 3 => Builders.Number
+                                                (Interfaces.Integer_64 (Locations (1)))));
+                                          else
+                                             if Semantics.Truth (Semantics.Binary ("==", Version_Invoke (Build_Access,
+                                                "strcmp", (1 => Values (1), 2 => Builders.Text ("bypassrls"))),
+                                                Builders.Number (0))) then
+                                                Result := Version_Invoke (Build_Access, "makeDefElem", (1 =>
+                                                   Builders.Text ("bypassrls"), 2 => Version_Invoke (Build_Access,
+                                                   "makeInteger", (1 => Builders.Number (1))), 3 => Builders.Number
+                                                   (Interfaces.Integer_64 (Locations (1)))));
+                                             else
+                                                if Semantics.Truth (Semantics.Binary ("==", Version_Invoke
+                                                   (Build_Access, "strcmp", (1 => Values (1), 2 => Builders.Text
+                                                   ("nobypassrls"))), Builders.Number (0))) then
+                                                   Result := Version_Invoke (Build_Access, "makeDefElem", (1 =>
+                                                      Builders.Text ("bypassrls"), 2 => Version_Invoke (Build_Access,
+                                                      "makeInteger", (1 => Builders.Number (0))), 3 => Builders.Number
+                                                      (Interfaces.Integer_64 (Locations (1)))));
+                                                else
+                                                   if Semantics.Truth (Semantics.Binary ("==", Version_Invoke
+                                                      (Build_Access, "strcmp", (1 => Values (1), 2 => Builders.Text
+                                                      ("noinherit"))), Builders.Number (0))) then
+                                                      Result := Version_Invoke (Build_Access, "makeDefElem", (1 =>
+                                                         Builders.Text ("inherit"), 2 => Version_Invoke (Build_Access,
+                                                         "makeInteger", (1 => Builders.Number (0))), 3 =>
+                                                         Builders.Number (Interfaces.Integer_64 (Locations (1)))));
+                                                   else
+                                                      Error_Location.all := Integer (Semantics.Integer_Of
+                                                         (Builders.Number (Interfaces.Integer_64 (Locations (1)))));
+                                                      raise Action_Catalog.Positioned_Error with Semantics.Text_Of
+                                                         (Version_Invoke (Build_Access, "psprintf", (1 =>
+                                                         Builders.Text ("unrecognized role option ""%s"""), 2 =>
+                                                         Values (1))));
+                                                   end if;
+                                                end if;
+                                             end if;
+                                          end if;
+                                       end if;
+                                    end if;
+                                 end if;
+                              end if;
+                           end if;
+                        end if;
+                     end if;
+                  end if;
+               end if;
+         when 16#2B7E90B4A844DA2E# =>
+            declare
+               Locals : Builders.Semantic_Array (1 .. 1) :=
+                 (others => Builders.No_Value);
+            begin
+               Locals (1) := Build_Access.New_Object ("AlterTableCmd");
+               if Semantics.Truth (Semantics.Binary ("||", Semantics.Binary ("<=", Values (3), Builders.Number (0)),
+                  Semantics.Binary (">", Values (3), Builders.Number (32767)))) then
+                  Error_Location.all := Integer (Semantics.Integer_Of (Builders.Number (Interfaces.Integer_64
+                     (Locations (3)))));
+                  raise Action_Catalog.Positioned_Error with Semantics.Text_Of (Version_Invoke (Build_Access,
+                     "psprintf", (1 => Builders.Text ("column number must be in range from 1 to %d"), 2 =>
+                     Builders.Number (32767))));
+               end if;
+               Build_Access.Set_Field (Locals (1), "subtype", Builders.Number (8));
+               Build_Access.Set_Field (Locals (1), "num", Values (3));
+               Build_Access.Set_Field (Locals (1), "def", Version_Invoke (Build_Access, "makeInteger", (1 => Values
+                  (6))));
                Result := Locals (1);
             end;
          when 16#2B94BA1E6A4B2E3E# =>
@@ -1016,45 +1189,6 @@ package body Flyology.Postgres.SQL.Native.Action_Catalog_Chunk_03 is
                Build_Access.Set_Field (Locals (1), "args_unspecified", Builders.Number (1));
                Result := Locals (1);
             end;
-         when 16#30492EAFC6E01858# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 2) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Build_Access.New_Object ("AlterTableCmd");
-               Locals (2) := Build_Access.New_Object ("ATAlterConstraint");
-               Build_Access.Set_Field (Locals (1), "subtype", Builders.Number (19));
-               Build_Access.Set_Field (Locals (1), "def", Locals (2));
-               Build_Access.Set_Field (Locals (2), "conname", Values (3));
-               if Semantics.Truth (Semantics.Binary ("&", Values (4), Semantics.Binary ("|", Builders.Number (64),
-                  Builders.Number (128)))) then
-                  Build_Access.Set_Field (Locals (2), "alterEnforceability", Builders.Number (1));
-               end if;
-               if Semantics.Truth (Semantics.Binary ("&", Values (4), Semantics.Binary ("|", Semantics.Binary ("|",
-                  Semantics.Binary ("|", Builders.Number (2), Builders.Number (1)), Builders.Number (8)),
-                  Builders.Number (4)))) then
-                  Build_Access.Set_Field (Locals (2), "alterDeferrability", Builders.Number (1));
-               end if;
-               if Semantics.Truth (Semantics.Binary ("&", Values (4), Builders.Number (32))) then
-                  Build_Access.Set_Field (Locals (2), "alterInheritability", Builders.Number (1));
-               end if;
-               if Semantics.Truth (Semantics.Binary ("&", Values (4), Builders.Number (16))) then
-                  raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                     ("constraints cannot be altered to be NOT VALID"));
-               end if;
-               declare
-                  Ignored : constant Builders.Dynamic_Value :=
-                    Version_Invoke (Build_Access, "processCASbits", (1 => Values (4), 2 => Builders.Number
-                       (Interfaces.Integer_64 (Locations (4))), 3 => Builders.Text ("FOREIGN KEY"), 4 =>
-                       Builders.Field_Reference (Locals (2), "deferrable"), 5 => Builders.Field_Reference (Locals (2),
-                       "initdeferred"), 6 => Builders.Field_Reference (Locals (2), "is_enforced"), 7 =>
-                       Builders.No_Value, 8 => Builders.Field_Reference (Locals (2), "noinherit"), 9 =>
-                       Builders.No_Value));
-               begin
-                  null;
-               end;
-               Result := Locals (1);
-            end;
          when 16#3051B28B6C7C9E59# =>
             declare
                Locals : Builders.Semantic_Array (1 .. 1) :=
@@ -1194,6 +1328,46 @@ package body Flyology.Postgres.SQL.Native.Action_Catalog_Chunk_03 is
                Result := Version_Invoke (Build_Access, "makeSimpleA_Expr", (1 => Builders.Number (3), 2 =>
                   Builders.Text ("="), 3 => Values (1), 4 => Values (5), 5 => Builders.Number (Interfaces.Integer_64
                   (Locations (2)))));
+         when 16#32FC86A03C622B67# =>
+            declare
+               Locals : Builders.Semantic_Array (1 .. 1) :=
+                 (others => Builders.No_Value);
+            begin
+               Locals (1) := Build_Access.New_Object ("CreateTrigStmt");
+               Build_Access.Set_Field (Locals (1), "replace", Values (2));
+               if Semantics.Truth (Build_Access.Field (Locals (1), "replace")) then
+                  Error_Location.all := Integer (Semantics.Integer_Of (Builders.Number (Interfaces.Integer_64
+                     (Locations (1)))));
+                  raise Action_Catalog.Positioned_Error with Semantics.Text_Of (Builders.Text
+                     ("CREATE OR REPLACE CONSTRAINT TRIGGER is not supported"));
+               end if;
+               Build_Access.Set_Field (Locals (1), "isconstraint", Builders.Number (1));
+               Build_Access.Set_Field (Locals (1), "trigname", Values (5));
+               Build_Access.Set_Field (Locals (1), "relation", Values (9));
+               Build_Access.Set_Field (Locals (1), "funcname", Values (18));
+               Build_Access.Set_Field (Locals (1), "args", Values (20));
+               Build_Access.Set_Field (Locals (1), "row", Builders.Number (1));
+               Build_Access.Set_Field (Locals (1), "timing", Builders.Number (0));
+               Build_Access.Set_Field (Locals (1), "events", Build_Access.Field (Build_Access.Cell_Element
+                  (Version_Invoke (Build_Access, "list_nth_cell", (1 => Values (7), 2 => Builders.Number (0)))),
+                  "ival"));
+               Build_Access.Set_Field (Locals (1), "columns", Build_Access.Cell_Element (Version_Invoke (Build_Access,
+                  "list_nth_cell", (1 => Values (7), 2 => Builders.Number (1)))));
+               Build_Access.Set_Field (Locals (1), "whenClause", Values (15));
+               Build_Access.Set_Field (Locals (1), "transitionRels", Builders.No_Value);
+               declare
+                  Ignored : constant Builders.Dynamic_Value :=
+                    Version_Invoke (Build_Access, "processCASbits", (1 => Values (11), 2 => Builders.Number
+                       (Interfaces.Integer_64 (Locations (11))), 3 => Builders.Text ("TRIGGER"), 4 =>
+                       Builders.Field_Reference (Locals (1), "deferrable"), 5 => Builders.Field_Reference (Locals (1),
+                       "initdeferred"), 6 => Builders.No_Value, 7 => Builders.No_Value, 8 => Builders.No_Value, 9 =>
+                       Builders.No_Value));
+               begin
+                  null;
+               end;
+               Build_Access.Set_Field (Locals (1), "constrrel", Values (10));
+               Result := Locals (1);
+            end;
          when 16#3303448EB66B5238# =>
             declare
                Locals : Builders.Semantic_Array (1 .. 1) :=
@@ -1228,156 +1402,6 @@ package body Flyology.Postgres.SQL.Native.Action_Catalog_Chunk_03 is
                Result := Version_Invoke (Build_Access, "makeDefElem", (1 => Builders.Text ("cycle"), 2 =>
                   Version_Invoke (Build_Access, "makeInteger", (1 => Builders.Number (0))), 3 => Builders.Number
                   (Interfaces.Integer_64 (Locations (1)))));
-         when 16#33886949C14B5119# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 1) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Build_Access.New_Object ("ReindexStmt");
-               Build_Access.Set_Field (Locals (1), "kind", Values (3));
-               Build_Access.Set_Field (Locals (1), "relation", Values (5));
-               Build_Access.Set_Field (Locals (1), "name", Builders.No_Value);
-               Build_Access.Set_Field (Locals (1), "params", Values (2));
-               if Semantics.Truth (Values (4)) then
-                  Build_Access.Set_Field (Locals (1), "params", Version_Invoke (Build_Access, "lappend", (1 =>
-                     Build_Access.Field (Locals (1), "params"), 2 => Version_Invoke (Build_Access, "makeDefElem", (1
-                     => Builders.Text ("concurrently"), 2 => Builders.No_Value, 3 => Builders.Number
-                     (Interfaces.Integer_64 (Locations (4))))))));
-               end if;
-               Result := Locals (1);
-            end;
-         when 16#33AECA5C06694F8D# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 1) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Build_Access.New_Object ("AlterExtensionStmt");
-               Build_Access.Set_Field (Locals (1), "extname", Values (3));
-               Build_Access.Set_Field (Locals (1), "options", Values (5));
-               Result := Locals (1);
-            end;
-         when 16#33E9E12F23AA83AC# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 1) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Build_Access.New_Object ("AlterTableCmd");
-               Build_Access.Set_Field (Locals (1), "subtype", Builders.Number (53));
-               Build_Access.Set_Field (Locals (1), "def", Values (2));
-               Result := Locals (1);
-            end;
-         when 16#346A06C7B1203203# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 2) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Build_Access.New_Object ("AlterTableCmd");
-               Locals (2) := Build_Access.New_Object ("PartitionCmd");
-               Build_Access.Set_Field (Locals (1), "subtype", Builders.Number (64));
-               Build_Access.Set_Field (Locals (2), "name", Values (3));
-               Build_Access.Set_Field (Locals (2), "bound", Builders.No_Value);
-               Build_Access.Set_Field (Locals (2), "concurrent", Values (4));
-               Build_Access.Set_Field (Locals (1), "def", Locals (2));
-               Result := Locals (1);
-            end;
-         when 16#347E3CF1C24C55D4# =>
-               Result := Version_Invoke (Build_Access, "list_make2_impl", (1 => Builders.Number (1), 2 => Values (1),
-                  3 => Values (5)));
-         when 16#34B44EA8FDCFA65B# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 1) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Build_Access.New_Object ("__PrivTarget");
-               Build_Access.Set_Field (Locals (1), "targtype", Builders.Number (0));
-               Build_Access.Set_Field (Locals (1), "objtype", Builders.Number (27));
-               Build_Access.Set_Field (Locals (1), "objs", Values (2));
-               Result := Locals (1);
-            end;
-         when 16#34DEFC4CC9336534# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 1) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Build_Access.New_Object ("ColumnDef");
-               Build_Access.Set_Field (Locals (1), "colname", Values (1));
-               Build_Access.Set_Field (Locals (1), "typeName", Builders.No_Value);
-               Build_Access.Set_Field (Locals (1), "inhcount", Builders.Number (0));
-               Build_Access.Set_Field (Locals (1), "is_local", Builders.Number (1));
-               Build_Access.Set_Field (Locals (1), "is_not_null", Builders.Number (0));
-               Build_Access.Set_Field (Locals (1), "is_from_type", Builders.Number (0));
-               Build_Access.Set_Field (Locals (1), "storage", Builders.Number (0));
-               Build_Access.Set_Field (Locals (1), "raw_default", Builders.No_Value);
-               Build_Access.Set_Field (Locals (1), "cooked_default", Builders.No_Value);
-               Build_Access.Set_Field (Locals (1), "collOid", Builders.Number (0));
-               declare
-                  Ignored : constant Builders.Dynamic_Value :=
-                    Version_Invoke (Build_Access, "SplitColQualList", (1 => Values (4), 2 => Builders.Field_Reference
-                       (Locals (1), "constraints"), 3 => Builders.Field_Reference (Locals (1), "collClause"), 4 =>
-                       Builders.No_Value));
-               begin
-                  null;
-               end;
-               Build_Access.Set_Field (Locals (1), "location", Builders.Number (Interfaces.Integer_64 (Locations
-                  (1))));
-               Result := Locals (1);
-            end;
-         when 16#34EB02B2E0AB0116# =>
-               Result := Builders.Number (21);
-         when 16#358A199A5AB2520A# =>
-               Result := Builders.Number (17);
-         when 16#35A29CC7A98AB465# =>
-               Result := Build_Access.New_Object ("Alias");
-               Build_Access.Set_Field (Result, "aliasname", Values (2));
-         when 16#35AB0AD0FF4FCE6E# =>
-               Result := Values (4);
-               Build_Access.Set_Field (Result, "relpersistence", Builders.Number (116));
-         when 16#35AEF0FC7F2D486A# =>
-               Result := Version_Invoke (Build_Access, "makeFloatConst", (1 => Values (1), 2 => Builders.Number
-                  (Interfaces.Integer_64 (Locations (1)))));
-         when 16#35D533DD9D45F439# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 1) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Build_Access.New_Object ("DropStmt");
-               Build_Access.Set_Field (Locals (1), "removeType", Values (2));
-               Build_Access.Set_Field (Locals (1), "missing_ok", Builders.Number (1));
-               Build_Access.Set_Field (Locals (1), "objects", Values (5));
-               Build_Access.Set_Field (Locals (1), "behavior", Values (6));
-               Build_Access.Set_Field (Locals (1), "concurrent", Builders.Number (0));
-               Result := Locals (1);
-            end;
-         when 16#35D66B6DC357B794# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 1) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Build_Access.New_Object ("RenameStmt");
-               Build_Access.Set_Field (Locals (1), "renameType", Builders.Number (48));
-               Build_Access.Set_Field (Locals (1), "object", Values (5));
-               Build_Access.Set_Field (Locals (1), "newname", Values (8));
-               Build_Access.Set_Field (Locals (1), "missing_ok", Builders.Number (0));
-               Result := Locals (1);
-            end;
-         when 16#360FC3887E9AE318# =>
-               Result := Version_Invoke (Build_Access, "makeSimpleA_Expr", (1 => Builders.Number (4), 2 =>
-                  Builders.Text ("="), 3 => Values (1), 4 => Values (6), 5 => Builders.Number (Interfaces.Integer_64
-                  (Locations (2)))));
-         when 16#364CD751D5F80B52# =>
-               Result := Version_Invoke (Build_Access, "list_make1_impl", (1 => Builders.Number (1), 2 =>
-                  Version_Invoke (Build_Access, "makeIntConst", (1 => Semantics.Binary ("<<", Builders.Number (1),
-                  Builders.Number (10)), 2 => Builders.Number (Interfaces.Integer_64 (Locations (1)))))));
-         when 16#364F19DD14BC0562# =>
-               Result := Version_Invoke (Build_Access, "makeSimpleA_Expr", (1 => Builders.Number (0), 2 =>
-                  Builders.Text ("+"), 3 => Values (1), 4 => Values (3), 5 => Builders.Number (Interfaces.Integer_64
-                  (Locations (2)))));
-         when 16#3650B73382F3B42E# =>
-               Result := Version_Invoke (Build_Access, "lappend", (1 => Values (1), 2 => Values (3)));
-         when 16#367724ABA8BD4999# =>
-               Result := Version_Invoke (Build_Access, "list_make2_impl", (1 => Builders.Number (231), 2 =>
-                  Version_Invoke (Build_Access, "makeInteger", (1 => Semantics.Binary ("<<", Builders.Number (1),
-                  Builders.Number (4)))), 3 => Builders.No_Value));
          when others => null;
       end case;
    end Reduce;

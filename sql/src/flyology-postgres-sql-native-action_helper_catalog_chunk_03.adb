@@ -12,6 +12,7 @@ package body Flyology.Postgres.SQL.Native.Action_Helper_Catalog_Chunk_03 is
      (Helper    : Action_Helper_Catalog.Helper_Id;
       Build     : not null access Builders.Builder;
       Arguments : Builders.Semantic_Array;
+      Error_Location : not null access Integer;
       Callback  : Action_Catalog.Invoke_Access)
       return Builders.Dynamic_Value
    is
@@ -20,269 +21,10 @@ package body Flyology.Postgres.SQL.Native.Action_Helper_Catalog_Chunk_03 is
          Arguments : Builders.Semantic_Array) return Builders.Dynamic_Value
       is
       begin
-         return Callback.all (Build, Name, Arguments);
+         return Callback.all (Build, Name, Arguments, Error_Location);
       end Version_Invoke;
    begin
       case Helper is
-         when 16#893F607ED338F875# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 8) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Arguments (Arguments'First + 0);
-               Locals (2) := Arguments (Arguments'First + 1);
-               Locals (3) := Arguments (Arguments'First + 2);
-               Locals (4) := Arguments (Arguments'First + 3);
-               Locals (5) := Arguments (Arguments'First + 4);
-               Locals (6) := Arguments (Arguments'First + 5);
-               Locals (7) := Arguments (Arguments'First + 6);
-               Locals (8) := Arguments (Arguments'First + 7);
-               if Semantics.Truth (Locals (4)) then
-                  Build.Assign (Locals (4), Builders.Number (0));
-               end if;
-               if Semantics.Truth (Locals (5)) then
-                  Build.Assign (Locals (5), Builders.Number (0));
-               end if;
-               if Semantics.Truth (Locals (6)) then
-                  Build.Assign (Locals (6), Builders.Number (0));
-               end if;
-               if Semantics.Truth (Semantics.Binary ("&", Locals (1), Semantics.Binary ("|", Builders.Number (2),
-                  Builders.Number (8)))) then
-                  if Semantics.Truth (Locals (4)) then
-                     Build.Assign (Locals (4), Builders.Number (1));
-                  else
-                     raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                        ("%s constraints cannot be marked DEFERRABLE"));
-                  end if;
-               end if;
-               if Semantics.Truth (Semantics.Binary ("&", Locals (1), Builders.Number (8))) then
-                  if Semantics.Truth (Locals (5)) then
-                     Build.Assign (Locals (5), Builders.Number (1));
-                  else
-                     raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                        ("%s constraints cannot be marked DEFERRABLE"));
-                  end if;
-               end if;
-               if Semantics.Truth (Semantics.Binary ("&", Locals (1), Builders.Number (16))) then
-                  if Semantics.Truth (Locals (6)) then
-                     Build.Assign (Locals (6), Builders.Number (1));
-                  else
-                     raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                        ("%s constraints cannot be marked NOT VALID"));
-                  end if;
-               end if;
-               if Semantics.Truth (Semantics.Binary ("&", Locals (1), Builders.Number (32))) then
-                  if Semantics.Truth (Locals (7)) then
-                     Build.Assign (Locals (7), Builders.Number (1));
-                  else
-                     raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                        ("%s constraints cannot be marked NO INHERIT"));
-                  end if;
-               end if;
-               return Builders.No_Value;
-            end;
-         when 16#8DA04820C722108A# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 3) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Arguments (Arguments'First + 0);
-               Locals (2) := Arguments (Arguments'First + 1);
-               Locals (3) := Build.New_Object ("A_Const");
-               Build.Set_Field (Locals (3), "val.boolval.type", Builders.Number (443));
-               Build.Set_Field (Locals (3), "val.boolval.boolval", Locals (1));
-               Build.Set_Field (Locals (3), "location", Locals (2));
-               return Locals (3);
-               return Builders.No_Value;
-            end;
-         when 16#8FB7C64EF63ACBF9# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 3) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Arguments (Arguments'First + 0);
-               Locals (2) := Arguments (Arguments'First + 1);
-               Locals (3) := Build.New_Object ("A_Const");
-               Build.Set_Field (Locals (3), "val.bsval.type", Builders.Number (464));
-               Build.Set_Field (Locals (3), "val.bsval.bsval", Locals (1));
-               Build.Set_Field (Locals (3), "location", Locals (2));
-               return Locals (3);
-               return Builders.No_Value;
-            end;
-         when 16#8FDA236164A87DAF# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 6) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Arguments (Arguments'First + 0);
-               Locals (2) := Arguments (Arguments'First + 1);
-               Locals (3) := Arguments (Arguments'First + 2);
-               Locals (4) := Arguments (Arguments'First + 3);
-               Locals (5) := Arguments (Arguments'First + 4);
-               Locals (6) := Build.New_Object ("A_Expr");
-               Build.Set_Field (Locals (6), "kind", Locals (1));
-               Build.Set_Field (Locals (6), "name", Version_Invoke (Build, "list_make1_impl", (1 => Builders.Number
-                  (1), 2 => Version_Invoke (Build, "makeString", (1 => Locals (2))))));
-               Build.Set_Field (Locals (6), "lexpr", Locals (3));
-               Build.Set_Field (Locals (6), "rexpr", Locals (4));
-               Build.Set_Field (Locals (6), "location", Locals (5));
-               return Locals (6);
-               return Builders.No_Value;
-            end;
-         when 16#904322BAC0DADA84# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 2) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Arguments (Arguments'First + 0);
-               Locals (2) := Build.New_Object ("A_Const");
-               Build.Set_Field (Locals (2), "isnull", Builders.Number (1));
-               Build.Set_Field (Locals (2), "location", Locals (1));
-               return Locals (2);
-               return Builders.No_Value;
-            end;
-         when 16#9310AA8BCD20CB67# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 6) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Arguments (Arguments'First + 0);
-               Locals (2) := Arguments (Arguments'First + 1);
-               Locals (3) := Arguments (Arguments'First + 2);
-               declare
-                  Loop_List : constant Builders.Dynamic_Value := Locals (1);
-               begin
-                  for Loop_Index in 1 .. Build.Length (Loop_List) loop
-                     Locals (4) := Build.Cell (Loop_List, Loop_Index);
-                     Locals (6) := Build.Cell_Element (Locals (4));
-                     if Semantics.Truth (Semantics.Binary ("&&", Semantics.Binary ("&&", Semantics.Binary ("!=",
-                        Build.Field (Locals (6), "mode"), Builders.Number (100)), Semantics.Binary ("!=", Build.Field
-                        (Locals (6), "mode"), Builders.Number (105))), Semantics.Binary ("!=", Build.Field (Locals
-                        (6), "mode"), Builders.Number (118)))) then
-                        raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                           ("OUT and INOUT arguments aren't allowed in TABLE functions"));
-                     end if;
-                     <<Continue_Loop_H9310AA8BCD20CB67_1>>
-                     null;
-                  end loop;
-               end;
-               return Version_Invoke (Build, "list_concat", (1 => Locals (1), 2 => Locals (2)));
-               return Builders.No_Value;
-            end;
-         when 16#93792A469B7A3121# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 3) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Arguments (Arguments'First + 0);
-               Locals (2) := Arguments (Arguments'First + 1);
-               Locals (3) := Build.New_Object ("RawStmt");
-               Build.Set_Field (Locals (3), "stmt", Locals (1));
-               Build.Set_Field (Locals (3), "stmt_location", Locals (2));
-               Build.Set_Field (Locals (3), "stmt_len", Builders.Number (0));
-               return Locals (3);
-               return Builders.No_Value;
-            end;
-         when 16#9426EA8047118D4D# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 3) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Arguments (Arguments'First + 0);
-               Locals (2) := Arguments (Arguments'First + 1);
-               Locals (3) := Build.New_Object ("A_Const");
-               Build.Set_Field (Locals (3), "val.ival.type", Builders.Number (465));
-               Build.Set_Field (Locals (3), "val.ival.ival", Locals (1));
-               Build.Set_Field (Locals (3), "location", Locals (2));
-               return Locals (3);
-               return Builders.No_Value;
-            end;
-         when 16#9C3D6FE7C8960AAB# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 1) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Arguments (Arguments'First + 0);
-               return Version_Invoke (Build, "extractArgTypes", (1 => Build.Cell_Element (Version_Invoke (Build,
-                  "list_nth_cell", (1 => Locals (1), 2 => Builders.Number (0))))));
-               return Builders.No_Value;
-            end;
-         when 16#9C5F2C4BED0F2D60# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 4) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Arguments (Arguments'First + 0);
-               Locals (2) := Arguments (Arguments'First + 1);
-               Locals (3) := Arguments (Arguments'First + 2);
-               Locals (4) := Build.New_Object ("VacuumRelation");
-               Build.Set_Field (Locals (4), "relation", Locals (1));
-               Build.Set_Field (Locals (4), "oid", Locals (2));
-               Build.Set_Field (Locals (4), "va_cols", Locals (3));
-               return Locals (4);
-               return Builders.No_Value;
-            end;
-         when 16#9E2F834071D644E5# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 3) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Arguments (Arguments'First + 0);
-               Locals (2) := Arguments (Arguments'First + 1);
-               Locals (3) := Build.New_Object ("A_Const");
-               Build.Set_Field (Locals (3), "val.sval.type", Builders.Number (468));
-               Build.Set_Field (Locals (3), "val.sval.sval", Locals (1));
-               Build.Set_Field (Locals (3), "location", Locals (2));
-               return Locals (3);
-               return Builders.No_Value;
-            end;
-         when 16#A643245B22B3DBB0# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 1) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Arguments (Arguments'First + 0);
-               return Version_Invoke (Build, "makeTypeNameFromNameList", (1 => Version_Invoke (Build,
-                  "list_make2_impl", (1 => Builders.Number (1), 2 => Version_Invoke (Build, "makeString", (1 =>
-                  Builders.Text ("pg_catalog"))), 3 => Version_Invoke (Build, "makeString", (1 => Locals (1)))))));
-               return Builders.No_Value;
-            end;
-         when 16#A93B53E85E865527# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 4) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Arguments (Arguments'First + 0);
-               Locals (2) := Arguments (Arguments'First + 1);
-               Locals (3) := Arguments (Arguments'First + 2);
-               Locals (4) := Build.New_Object ("RangeVar");
-               case Build.Length (Locals (1)) is
-                  when 1 =>
-                     Build.Set_Field (Locals (4), "catalogname", Builders.No_Value);
-                     Build.Set_Field (Locals (4), "schemaname", Builders.No_Value);
-                     Build.Set_Field (Locals (4), "relname",
-                       Build.Field (Build.Element (Locals (1), 1), "sval"));
-                  when 2 =>
-                     Build.Set_Field (Locals (4), "catalogname", Builders.No_Value);
-                     Build.Set_Field (Locals (4), "schemaname",
-                       Build.Field (Build.Element (Locals (1), 1), "sval"));
-                     Build.Set_Field (Locals (4), "relname",
-                       Build.Field (Build.Element (Locals (1), 2), "sval"));
-                  when 3 =>
-                     Build.Set_Field (Locals (4), "catalogname",
-                       Build.Field (Build.Element (Locals (1), 1), "sval"));
-                     Build.Set_Field (Locals (4), "schemaname",
-                       Build.Field (Build.Element (Locals (1), 2), "sval"));
-                     Build.Set_Field (Locals (4), "relname",
-                       Build.Field (Build.Element (Locals (1), 3), "sval"));
-                  when others =>
-                     raise Semantics.Parser_Error with "improper qualified name";
-               end case;
-               Build.Set_Field (Locals (4), "relpersistence", Builders.Number (112));
-               Build.Set_Field (Locals (4), "location", Locals (2));
-               return Locals (4);
-               return Builders.No_Value;
-            end;
          when 16#B080137DA499522F# =>
             declare
                Locals : Builders.Semantic_Array (1 .. 4) :=
@@ -313,83 +55,6 @@ package body Flyology.Postgres.SQL.Native.Action_Helper_Catalog_Chunk_03 is
                return Locals (4);
                return Builders.No_Value;
             end;
-         when 16#B3D035B51CF24790# =>
-            declare
-               Locals : Builders.Semantic_Array (1 .. 7) :=
-                 (others => Builders.No_Value);
-            begin
-               Locals (1) := Arguments (Arguments'First + 0);
-               Locals (2) := Arguments (Arguments'First + 1);
-               Locals (5) := Builders.Number (3);
-               if Semantics.Truth (Semantics.Unary ("!", Locals (1))) then
-                  return Builders.No_Value;
-               end if;
-               Locals (4) := Build.Cell_Element (Version_Invoke (Build, "list_nth_cell", (1 => Locals (1), 2 =>
-                  Builders.Number (0))));
-               if Semantics.Truth (Semantics.Binary ("==", Build.Field (Locals (4), "pubobjtype"), Builders.Number
-                  (3))) then
-                  raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                     ("invalid publication object list"));
-               end if;
-               declare
-                  Loop_List : constant Builders.Dynamic_Value := Locals (1);
-               begin
-                  for Loop_Index in 1 .. Build.Length (Loop_List) loop
-                     Locals (3) := Build.Cell (Loop_List, Loop_Index);
-                     Locals (4) := Build.Cell_Element (Locals (3));
-                     if Semantics.Truth (Semantics.Binary ("==", Build.Field (Locals (4), "pubobjtype"),
-                        Builders.Number (3))) then
-                        Build.Set_Field (Locals (4), "pubobjtype", Locals (5));
-                     end if;
-                     if Semantics.Truth (Semantics.Binary ("==", Build.Field (Locals (4), "pubobjtype"),
-                        Builders.Number (0))) then
-                        if Semantics.Truth (Semantics.Binary ("&&", Semantics.Unary ("!", Build.Field (Locals (4),
-                           "name")), Semantics.Unary ("!", Build.Field (Locals (4), "pubtable")))) then
-                           raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                              ("invalid table name at or near"));
-                        end if;
-                        if Semantics.Truth (Build.Field (Locals (4), "name")) then
-                           Locals (7) := Build.New_Object ("PublicationTable");
-                           Build.Set_Field (Locals (7), "relation", Version_Invoke (Build, "makeRangeVar", (1 =>
-                              Builders.No_Value, 2 => Build.Field (Locals (4), "name"), 3 => Build.Field (Locals (4),
-                              "location"))));
-                           Build.Set_Field (Locals (4), "pubtable", Locals (7));
-                           Build.Set_Field (Locals (4), "name", Builders.No_Value);
-                        end if;
-                     else
-                        if Semantics.Truth (Semantics.Binary ("||", Semantics.Binary ("==", Build.Field (Locals (4),
-                           "pubobjtype"), Builders.Number (1)), Semantics.Binary ("==", Build.Field (Locals (4),
-                           "pubobjtype"), Builders.Number (2)))) then
-                           if Semantics.Truth (Semantics.Binary ("&&", Build.Field (Locals (4), "pubtable"),
-                              Build.Field (Build.Field (Locals (4), "pubtable"), "whereClause"))) then
-                              raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                                 ("WHERE clause not allowed for schema"));
-                           end if;
-                           if Semantics.Truth (Semantics.Binary ("&&", Build.Field (Locals (4), "pubtable"),
-                              Build.Field (Build.Field (Locals (4), "pubtable"), "columns"))) then
-                              raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                                 ("column specification not allowed for schema"));
-                           end if;
-                           if Semantics.Truth (Build.Field (Locals (4), "name")) then
-                              Build.Set_Field (Locals (4), "pubobjtype", Builders.Number (1));
-                           else
-                              if Semantics.Truth (Semantics.Binary ("&&", Semantics.Unary ("!", Build.Field (Locals
-                                 (4), "name")), Semantics.Unary ("!", Build.Field (Locals (4), "pubtable")))) then
-                                 Build.Set_Field (Locals (4), "pubobjtype", Builders.Number (2));
-                              else
-                                 raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                                    ("invalid schema name at or near"));
-                              end if;
-                           end if;
-                        end if;
-                     end if;
-                     Locals (5) := Build.Field (Locals (4), "pubobjtype");
-                     <<Continue_Loop_HB3D035B51CF24790_1>>
-                     null;
-                  end loop;
-               end;
-               return Builders.No_Value;
-            end;
          when 16#B619383CD3A8D9A3# =>
             declare
                Locals : Builders.Semantic_Array (1 .. 2) :=
@@ -402,6 +67,86 @@ package body Flyology.Postgres.SQL.Native.Action_Helper_Catalog_Chunk_03 is
                Build.Set_Field (Locals (2), "typemod", Semantics.Unary ("-", Builders.Number (1)));
                Build.Set_Field (Locals (2), "location", Semantics.Unary ("-", Builders.Number (1)));
                return Locals (2);
+               return Builders.No_Value;
+            end;
+         when 16#B6BCAF8E8390A5FF# =>
+            declare
+               Locals : Builders.Semantic_Array (1 .. 9) :=
+                 (others => Builders.No_Value);
+            begin
+               Locals (1) := Arguments (Arguments'First + 0);
+               Locals (2) := Arguments (Arguments'First + 1);
+               Locals (3) := Arguments (Arguments'First + 2);
+               Locals (4) := Arguments (Arguments'First + 3);
+               Locals (5) := Arguments (Arguments'First + 4);
+               Locals (6) := Arguments (Arguments'First + 5);
+               if Semantics.Truth (Locals (2)) then
+                  if Semantics.Truth (Build.Field (Locals (1), "sortClause")) then
+                     Error_Location.all := Integer (Semantics.Integer_Of (Version_Invoke (Build, "exprLocation", (1 =>
+                        Locals (2)))));
+                     raise Action_Catalog.Positioned_Error with Semantics.Text_Of (Builders.Text
+                        ("multiple ORDER BY clauses not allowed"));
+                  end if;
+                  Build.Set_Field (Locals (1), "sortClause", Locals (2));
+               end if;
+               Build.Set_Field (Locals (1), "lockingClause", Version_Invoke (Build, "list_concat", (1 => Build.Field
+                  (Locals (1), "lockingClause"), 2 => Locals (3))));
+               if Semantics.Truth (Semantics.Binary ("&&", Locals (4), Build.Field (Locals (4), "limitOffset"))) then
+                  if Semantics.Truth (Build.Field (Locals (1), "limitOffset")) then
+                     Error_Location.all := Integer (Semantics.Integer_Of (Build.Field (Locals (4), "offsetLoc")));
+                     raise Action_Catalog.Positioned_Error with Semantics.Text_Of (Builders.Text
+                        ("multiple OFFSET clauses not allowed"));
+                  end if;
+                  Build.Set_Field (Locals (1), "limitOffset", Build.Field (Locals (4), "limitOffset"));
+               end if;
+               if Semantics.Truth (Semantics.Binary ("&&", Locals (4), Build.Field (Locals (4), "limitCount"))) then
+                  if Semantics.Truth (Build.Field (Locals (1), "limitCount")) then
+                     Error_Location.all := Integer (Semantics.Integer_Of (Build.Field (Locals (4), "countLoc")));
+                     raise Action_Catalog.Positioned_Error with Semantics.Text_Of (Builders.Text
+                        ("multiple LIMIT clauses not allowed"));
+                  end if;
+                  Build.Set_Field (Locals (1), "limitCount", Build.Field (Locals (4), "limitCount"));
+               end if;
+               if Semantics.Truth (Locals (4)) then
+                  if Semantics.Truth (Semantics.Binary ("&&", Semantics.Unary ("!", Build.Field (Locals (1),
+                     "sortClause")), Semantics.Binary ("==", Build.Field (Locals (4), "limitOption"), Builders.Number
+                     (2)))) then
+                     Error_Location.all := Integer (Semantics.Integer_Of (Build.Field (Locals (4), "optionLoc")));
+                     raise Action_Catalog.Positioned_Error with Semantics.Text_Of (Builders.Text
+                        ("WITH TIES cannot be specified without ORDER BY clause"));
+                  end if;
+                  if Semantics.Truth (Semantics.Binary ("&&", Semantics.Binary ("==", Build.Field (Locals (4),
+                     "limitOption"), Builders.Number (2)), Build.Field (Locals (1), "lockingClause"))) then
+                     declare
+                        Loop_List : constant Builders.Dynamic_Value := Build.Field (Locals (1), "lockingClause");
+                     begin
+                        for Loop_Index in 1 .. Build.Length (Loop_List) loop
+                           Locals (7) := Build.Cell (Loop_List, Loop_Index);
+                           Locals (9) := Build.Cell_Element (Locals (7));
+                           if Semantics.Truth (Semantics.Binary ("==", Build.Field (Locals (9), "waitPolicy"),
+                              Builders.Number (1))) then
+                              Error_Location.all := Integer (Semantics.Integer_Of (Build.Field (Locals (4),
+                                 "optionLoc")));
+                              raise Action_Catalog.Positioned_Error with Semantics.Text_Of (Version_Invoke (Build,
+                                 "psprintf", (1 => Builders.Text ("%s and %s options cannot be used together"), 2 =>
+                                 Builders.Text ("SKIP LOCKED"), 3 => Builders.Text ("WITH TIES"))));
+                           end if;
+                           <<Continue_Loop_HB6BCAF8E8390A5FF_1>>
+                           null;
+                        end loop;
+                     end;
+                  end if;
+                  Build.Set_Field (Locals (1), "limitOption", Build.Field (Locals (4), "limitOption"));
+               end if;
+               if Semantics.Truth (Locals (5)) then
+                  if Semantics.Truth (Build.Field (Locals (1), "withClause")) then
+                     Error_Location.all := Integer (Semantics.Integer_Of (Version_Invoke (Build, "exprLocation", (1 =>
+                        Locals (5)))));
+                     raise Action_Catalog.Positioned_Error with Semantics.Text_Of (Builders.Text
+                        ("multiple WITH clauses not allowed"));
+                  end if;
+                  Build.Set_Field (Locals (1), "withClause", Locals (5));
+               end if;
                return Builders.No_Value;
             end;
          when 16#BA53488BFF80CDFE# =>
@@ -558,6 +303,199 @@ package body Flyology.Postgres.SQL.Native.Action_Helper_Catalog_Chunk_03 is
                return Version_Invoke (Build, "list_make2_impl", (1 => Builders.Number (1), 2 => Version_Invoke (Build,
                   "makeString", (1 => Builders.Text ("pg_catalog"))), 3 => Version_Invoke (Build, "makeString", (1 =>
                   Locals (1)))));
+               return Builders.No_Value;
+            end;
+         when 16#CA541EB2A8ED57F1# =>
+            declare
+               Locals : Builders.Semantic_Array (1 .. 7) :=
+                 (others => Builders.No_Value);
+            begin
+               Locals (1) := Arguments (Arguments'First + 0);
+               Locals (2) := Arguments (Arguments'First + 1);
+               Locals (5) := Builders.Number (3);
+               if Semantics.Truth (Semantics.Unary ("!", Locals (1))) then
+                  return Builders.No_Value;
+               end if;
+               Locals (4) := Build.Cell_Element (Version_Invoke (Build, "list_nth_cell", (1 => Locals (1), 2 =>
+                  Builders.Number (0))));
+               if Semantics.Truth (Semantics.Binary ("==", Build.Field (Locals (4), "pubobjtype"), Builders.Number
+                  (3))) then
+                  Error_Location.all := Integer (Semantics.Integer_Of (Build.Field (Locals (4), "location")));
+                  raise Action_Catalog.Positioned_Error with Semantics.Text_Of (Builders.Text
+                     ("invalid publication object list"));
+               end if;
+               declare
+                  Loop_List : constant Builders.Dynamic_Value := Locals (1);
+               begin
+                  for Loop_Index in 1 .. Build.Length (Loop_List) loop
+                     Locals (3) := Build.Cell (Loop_List, Loop_Index);
+                     Locals (4) := Build.Cell_Element (Locals (3));
+                     if Semantics.Truth (Semantics.Binary ("==", Build.Field (Locals (4), "pubobjtype"),
+                        Builders.Number (3))) then
+                        Build.Set_Field (Locals (4), "pubobjtype", Locals (5));
+                     end if;
+                     if Semantics.Truth (Semantics.Binary ("==", Build.Field (Locals (4), "pubobjtype"),
+                        Builders.Number (0))) then
+                        if Semantics.Truth (Semantics.Binary ("&&", Semantics.Unary ("!", Build.Field (Locals (4),
+                           "name")), Semantics.Unary ("!", Build.Field (Locals (4), "pubtable")))) then
+                           Error_Location.all := Integer (Semantics.Integer_Of (Build.Field (Locals (4),
+                              "location")));
+                           raise Action_Catalog.Positioned_Error with Semantics.Text_Of (Builders.Text
+                              ("invalid table name"));
+                        end if;
+                        if Semantics.Truth (Build.Field (Locals (4), "name")) then
+                           Locals (7) := Build.New_Object ("PublicationTable");
+                           Build.Set_Field (Locals (7), "relation", Version_Invoke (Build, "makeRangeVar", (1 =>
+                              Builders.No_Value, 2 => Build.Field (Locals (4), "name"), 3 => Build.Field (Locals (4),
+                              "location"))));
+                           Build.Set_Field (Locals (4), "pubtable", Locals (7));
+                           Build.Set_Field (Locals (4), "name", Builders.No_Value);
+                        end if;
+                     else
+                        if Semantics.Truth (Semantics.Binary ("||", Semantics.Binary ("==", Build.Field (Locals (4),
+                           "pubobjtype"), Builders.Number (1)), Semantics.Binary ("==", Build.Field (Locals (4),
+                           "pubobjtype"), Builders.Number (2)))) then
+                           if Semantics.Truth (Semantics.Binary ("&&", Build.Field (Locals (4), "pubtable"),
+                              Build.Field (Build.Field (Locals (4), "pubtable"), "whereClause"))) then
+                              Error_Location.all := Integer (Semantics.Integer_Of (Build.Field (Locals (4),
+                                 "location")));
+                              raise Action_Catalog.Positioned_Error with Semantics.Text_Of (Builders.Text
+                                 ("WHERE clause not allowed for schema"));
+                           end if;
+                           if Semantics.Truth (Semantics.Binary ("&&", Build.Field (Locals (4), "pubtable"),
+                              Build.Field (Build.Field (Locals (4), "pubtable"), "columns"))) then
+                              Error_Location.all := Integer (Semantics.Integer_Of (Build.Field (Locals (4),
+                                 "location")));
+                              raise Action_Catalog.Positioned_Error with Semantics.Text_Of (Builders.Text
+                                 ("column specification not allowed for schema"));
+                           end if;
+                           if Semantics.Truth (Build.Field (Locals (4), "name")) then
+                              Build.Set_Field (Locals (4), "pubobjtype", Builders.Number (1));
+                           else
+                              if Semantics.Truth (Semantics.Binary ("&&", Semantics.Unary ("!", Build.Field (Locals
+                                 (4), "name")), Semantics.Unary ("!", Build.Field (Locals (4), "pubtable")))) then
+                                 Build.Set_Field (Locals (4), "pubobjtype", Builders.Number (2));
+                              else
+                                 Error_Location.all := Integer (Semantics.Integer_Of (Build.Field (Locals (4),
+                                    "location")));
+                                 raise Action_Catalog.Positioned_Error with Semantics.Text_Of (Builders.Text
+                                    ("invalid schema name"));
+                              end if;
+                           end if;
+                        end if;
+                     end if;
+                     Locals (5) := Build.Field (Locals (4), "pubobjtype");
+                     <<Continue_Loop_HCA541EB2A8ED57F1_1>>
+                     null;
+                  end loop;
+               end;
+               return Builders.No_Value;
+            end;
+         when 16#CA8FEADAF0951646# =>
+            declare
+               Locals : Builders.Semantic_Array (1 .. 7) :=
+                 (others => Builders.No_Value);
+            begin
+               Locals (1) := Arguments (Arguments'First + 0);
+               Locals (2) := Arguments (Arguments'First + 1);
+               Locals (5) := Builders.Number (3);
+               if Semantics.Truth (Semantics.Unary ("!", Locals (1))) then
+                  return Builders.No_Value;
+               end if;
+               Locals (4) := Build.Cell_Element (Version_Invoke (Build, "list_nth_cell", (1 => Locals (1), 2 =>
+                  Builders.Number (0))));
+               if Semantics.Truth (Semantics.Binary ("==", Build.Field (Locals (4), "pubobjtype"), Builders.Number
+                  (3))) then
+                  raise Action_Catalog.Unpositioned_Error with Semantics.Text_Of (Builders.Text
+                     ("invalid publication object list"));
+               end if;
+               declare
+                  Loop_List : constant Builders.Dynamic_Value := Locals (1);
+               begin
+                  for Loop_Index in 1 .. Build.Length (Loop_List) loop
+                     Locals (3) := Build.Cell (Loop_List, Loop_Index);
+                     Locals (4) := Build.Cell_Element (Locals (3));
+                     if Semantics.Truth (Semantics.Binary ("==", Build.Field (Locals (4), "pubobjtype"),
+                        Builders.Number (3))) then
+                        Build.Set_Field (Locals (4), "pubobjtype", Locals (5));
+                     end if;
+                     if Semantics.Truth (Semantics.Binary ("==", Build.Field (Locals (4), "pubobjtype"),
+                        Builders.Number (0))) then
+                        if Semantics.Truth (Semantics.Binary ("&&", Semantics.Unary ("!", Build.Field (Locals (4),
+                           "name")), Semantics.Unary ("!", Build.Field (Locals (4), "pubtable")))) then
+                           raise Action_Catalog.Unpositioned_Error with Semantics.Text_Of (Builders.Text
+                              ("invalid table name at or near"));
+                        end if;
+                        if Semantics.Truth (Build.Field (Locals (4), "name")) then
+                           Locals (7) := Build.New_Object ("PublicationTable");
+                           Build.Set_Field (Locals (7), "relation", Version_Invoke (Build, "makeRangeVar", (1 =>
+                              Builders.No_Value, 2 => Build.Field (Locals (4), "name"), 3 => Build.Field (Locals (4),
+                              "location"))));
+                           Build.Set_Field (Locals (4), "pubtable", Locals (7));
+                           Build.Set_Field (Locals (4), "name", Builders.No_Value);
+                        end if;
+                     else
+                        if Semantics.Truth (Semantics.Binary ("||", Semantics.Binary ("==", Build.Field (Locals (4),
+                           "pubobjtype"), Builders.Number (1)), Semantics.Binary ("==", Build.Field (Locals (4),
+                           "pubobjtype"), Builders.Number (2)))) then
+                           if Semantics.Truth (Semantics.Binary ("&&", Build.Field (Locals (4), "pubtable"),
+                              Build.Field (Build.Field (Locals (4), "pubtable"), "whereClause"))) then
+                              raise Action_Catalog.Unpositioned_Error with Semantics.Text_Of (Builders.Text
+                                 ("WHERE clause not allowed for schema"));
+                           end if;
+                           if Semantics.Truth (Semantics.Binary ("&&", Build.Field (Locals (4), "pubtable"),
+                              Build.Field (Build.Field (Locals (4), "pubtable"), "columns"))) then
+                              raise Action_Catalog.Unpositioned_Error with Semantics.Text_Of (Builders.Text
+                                 ("column specification not allowed for schema"));
+                           end if;
+                           if Semantics.Truth (Build.Field (Locals (4), "name")) then
+                              Build.Set_Field (Locals (4), "pubobjtype", Builders.Number (1));
+                           else
+                              if Semantics.Truth (Semantics.Binary ("&&", Semantics.Unary ("!", Build.Field (Locals
+                                 (4), "name")), Semantics.Unary ("!", Build.Field (Locals (4), "pubtable")))) then
+                                 Build.Set_Field (Locals (4), "pubobjtype", Builders.Number (2));
+                              else
+                                 raise Action_Catalog.Unpositioned_Error with Semantics.Text_Of (Builders.Text
+                                    ("invalid schema name at or near"));
+                              end if;
+                           end if;
+                        end if;
+                     end if;
+                     Locals (5) := Build.Field (Locals (4), "pubobjtype");
+                     <<Continue_Loop_HCA8FEADAF0951646_1>>
+                     null;
+                  end loop;
+               end;
+               return Builders.No_Value;
+            end;
+         when 16#CD84E7586ADE50F4# =>
+            declare
+               Locals : Builders.Semantic_Array (1 .. 6) :=
+                 (others => Builders.No_Value);
+            begin
+               Locals (1) := Arguments (Arguments'First + 0);
+               Locals (2) := Arguments (Arguments'First + 1);
+               Locals (3) := Arguments (Arguments'First + 2);
+               Locals (4) := Build.Cell_Element (Version_Invoke (Build, "list_last_cell", (1 => Locals (1))));
+               if Semantics.Truth (Semantics.Binary ("==", Build.Field (Locals (4), "mode"), Builders.Number (118)))
+                  then
+                  Locals (6) := Build.Cell_Element (Version_Invoke (Build, "list_nth_cell", (1 => Locals (2), 2 =>
+                     Builders.Number (0))));
+                  if Semantics.Truth (Semantics.Binary ("||", Semantics.Binary ("||", Semantics.Binary ("!=",
+                     Version_Invoke (Build, "list_length", (1 => Locals (2))), Builders.Number (1)), Semantics.Binary
+                     ("!=", Build.Field (Locals (6), "mode"), Builders.Number (118))), Semantics.Unary ("!",
+                     Version_Invoke (Build, "equal", (1 => Build.Field (Locals (4), "argType"), 2 => Build.Field
+                     (Locals (6), "argType")))))) then
+                     Error_Location.all := Integer (Semantics.Integer_Of (Build.Field (Locals (6), "location")));
+                     raise Action_Catalog.Positioned_Error with Semantics.Text_Of (Builders.Text
+                        ("an ordered-set aggregate with a VARIADIC direct argument must have one VARIADIC aggregated argument of the same data type"));
+                  end if;
+                  Locals (2) := Builders.No_Value;
+               end if;
+               Locals (5) := Version_Invoke (Build, "makeInteger", (1 => Version_Invoke (Build, "list_length", (1 =>
+                  Locals (1)))));
+               return Version_Invoke (Build, "list_make2_impl", (1 => Builders.Number (1), 2 => Version_Invoke (Build,
+                  "list_concat", (1 => Locals (1), 2 => Locals (2))), 3 => Locals (5)));
                return Builders.No_Value;
             end;
          when 16#CDC5A6C215F492A3# =>
@@ -758,6 +696,112 @@ package body Flyology.Postgres.SQL.Native.Action_Helper_Catalog_Chunk_03 is
                return Locals (4);
                return Builders.No_Value;
             end;
+         when 16#E68712A081F2FE8C# =>
+            declare
+               Locals : Builders.Semantic_Array (1 .. 3) :=
+                 (others => Builders.No_Value);
+            begin
+               Locals (1) := Arguments (Arguments'First + 0);
+               Locals (2) := Arguments (Arguments'First + 1);
+               Locals (3) := Arguments (Arguments'First + 2);
+               if Semantics.Truth (Semantics.Binary ("==", Version_Invoke (Build, "pg_strcasecmp", (1 => Locals (1), 2
+                  => Builders.Text ("list"))), Builders.Number (0))) then
+                  return Builders.Number (108);
+               else
+                  if Semantics.Truth (Semantics.Binary ("==", Version_Invoke (Build, "pg_strcasecmp", (1 => Locals
+                     (1), 2 => Builders.Text ("range"))), Builders.Number (0))) then
+                     return Builders.Number (114);
+                  else
+                     if Semantics.Truth (Semantics.Binary ("==", Version_Invoke (Build, "pg_strcasecmp", (1 => Locals
+                        (1), 2 => Builders.Text ("hash"))), Builders.Number (0))) then
+                        return Builders.Number (104);
+                     end if;
+                  end if;
+               end if;
+               Error_Location.all := Integer (Semantics.Integer_Of (Locals (2)));
+               raise Action_Catalog.Positioned_Error with Semantics.Text_Of (Version_Invoke (Build, "psprintf", (1 =>
+                  Builders.Text ("unrecognized partitioning strategy ""%s"""), 2 => Locals (1))));
+               return Builders.Number (108);
+               return Builders.No_Value;
+            end;
+         when 16#E927FD53E81BA269# =>
+            declare
+               Locals : Builders.Semantic_Array (1 .. 8) :=
+                 (others => Builders.No_Value);
+            begin
+               Locals (1) := Arguments (Arguments'First + 0);
+               Locals (2) := Arguments (Arguments'First + 1);
+               Locals (3) := Arguments (Arguments'First + 2);
+               Locals (4) := Arguments (Arguments'First + 3);
+               Build.Assign (Locals (3), Builders.No_Value);
+               declare
+                  Loop_List : constant Builders.Dynamic_Value := Locals (1);
+               begin
+                  for Loop_Index in 1 .. Build.Length (Loop_List) loop
+                     Locals (5) := Build.Cell (Loop_List, Loop_Index);
+                     Locals (7) := Build.Cell_Element (Locals (5));
+                     if Semantics.Truth (Semantics.Node_Is (Build, Locals (7), "Constraint")) then
+                        goto Continue_Loop_HE927FD53E81BA269_1;
+                     end if;
+                     if Semantics.Truth (Semantics.Node_Is (Build, Locals (7), "CollateClause")) then
+                        Locals (8) := Locals (7);
+                        if Semantics.Truth (Build.Dereference (Locals (3))) then
+                           raise Action_Catalog.Unpositioned_Error with Semantics.Text_Of (Builders.Text
+                              ("multiple COLLATE clauses not allowed"));
+                        end if;
+                        Build.Assign (Locals (3), Locals (8));
+                     else
+                        raise Semantics.Parser_Error with "internal parser error";
+                     end if;
+                     Locals (1) := Semantics.Binary (",", Semantics.Unary ("--", Build.Field (Locals (5), "i")),
+                        Semantics.Set_Field (Build, Locals (5), "l", Version_Invoke (Build, "list_delete_cell", (1 =>
+                        Locals (1), 2 => Locals (5)))));
+                     <<Continue_Loop_HE927FD53E81BA269_1>>
+                     null;
+                  end loop;
+               end;
+               Build.Assign (Locals (2), Locals (1));
+               return Builders.No_Value;
+            end;
+         when 16#F6A23DAA9B7409AC# =>
+            declare
+               Locals : Builders.Semantic_Array (1 .. 8) :=
+                 (others => Builders.No_Value);
+            begin
+               Locals (1) := Arguments (Arguments'First + 0);
+               Locals (2) := Arguments (Arguments'First + 1);
+               Locals (3) := Arguments (Arguments'First + 2);
+               Locals (4) := Arguments (Arguments'First + 3);
+               Build.Assign (Locals (3), Builders.No_Value);
+               declare
+                  Loop_List : constant Builders.Dynamic_Value := Locals (1);
+               begin
+                  for Loop_Index in 1 .. Build.Length (Loop_List) loop
+                     Locals (5) := Build.Cell (Loop_List, Loop_Index);
+                     Locals (7) := Build.Cell_Element (Locals (5));
+                     if Semantics.Truth (Semantics.Node_Is (Build, Locals (7), "Constraint")) then
+                        goto Continue_Loop_HF6A23DAA9B7409AC_1;
+                     end if;
+                     if Semantics.Truth (Semantics.Node_Is (Build, Locals (7), "CollateClause")) then
+                        Locals (8) := Locals (7);
+                        if Semantics.Truth (Build.Dereference (Locals (3))) then
+                           raise Action_Catalog.Unpositioned_Error with Semantics.Text_Of (Builders.Text
+                              ("multiple COLLATE clauses not allowed"));
+                        end if;
+                        Build.Assign (Locals (3), Locals (8));
+                     else
+                        raise Semantics.Parser_Error with "internal parser error";
+                     end if;
+                     Locals (1) := Semantics.Set_Field (Build, Locals (5), "l", Version_Invoke (Build,
+                        "list_delete_nth_cell", (1 => Locals (1), 2 => Semantics.Unary ("--", Build.Field (Locals (5),
+                        "i")))));
+                     <<Continue_Loop_HF6A23DAA9B7409AC_1>>
+                     null;
+                  end loop;
+               end;
+               Build.Assign (Locals (2), Locals (1));
+               return Builders.No_Value;
+            end;
          when 16#F8D53620755B0E05# =>
             declare
                Locals : Builders.Semantic_Array (1 .. 3) :=
@@ -777,43 +821,27 @@ package body Flyology.Postgres.SQL.Native.Action_Helper_Catalog_Chunk_03 is
                return Locals (3);
                return Builders.No_Value;
             end;
-         when 16#FA2F42DFC007F35C# =>
+         when 16#FB2C494001178506# =>
             declare
-               Locals : Builders.Semantic_Array (1 .. 8) :=
+               Locals : Builders.Semantic_Array (1 .. 1) :=
                  (others => Builders.No_Value);
             begin
                Locals (1) := Arguments (Arguments'First + 0);
-               Locals (2) := Arguments (Arguments'First + 1);
-               Locals (3) := Arguments (Arguments'First + 2);
-               Locals (4) := Arguments (Arguments'First + 3);
-               Build.Assign (Locals (3), Builders.No_Value);
-               declare
-                  Loop_List : constant Builders.Dynamic_Value := Locals (1);
-               begin
-                  for Loop_Index in 1 .. Build.Length (Loop_List) loop
-                     Locals (5) := Build.Cell (Loop_List, Loop_Index);
-                     Locals (7) := Build.Cell_Element (Locals (5));
-                     if Semantics.Truth (Semantics.Node_Is (Build, Locals (7), "Constraint")) then
-                        goto Continue_Loop_HFA2F42DFC007F35C_1;
-                     end if;
-                     if Semantics.Truth (Semantics.Node_Is (Build, Locals (7), "CollateClause")) then
-                        Locals (8) := Locals (7);
-                        if Semantics.Truth (Build.Dereference (Locals (3))) then
-                           raise Semantics.Parser_Error with Semantics.Text_Of (Builders.Text
-                              ("multiple COLLATE clauses not allowed"));
-                        end if;
-                        Build.Assign (Locals (3), Locals (8));
-                     else
-                        raise Semantics.Parser_Error with "internal parser error";
-                     end if;
-                     Locals (1) := Semantics.Binary (",", Semantics.Unary ("--", Build.Field (Locals (5), "i")),
-                        Semantics.Set_Field (Build, Locals (5), "l", Version_Invoke (Build, "list_delete_cell", (1 =>
-                        Locals (1), 2 => Locals (5)))));
-                     <<Continue_Loop_HFA2F42DFC007F35C_1>>
-                     null;
-                  end loop;
-               end;
-               Build.Assign (Locals (2), Locals (1));
+               if Semantics.Truth (Semantics.Unary ("!", Version_Invoke (Build, "pg_strcasecmp", (1 => Locals (1), 2
+                  => Builders.Text ("utf8"))))) then
+                  return Builders.Number (1);
+               end if;
+               if Semantics.Truth (Semantics.Unary ("!", Version_Invoke (Build, "pg_strcasecmp", (1 => Locals (1), 2
+                  => Builders.Text ("utf16"))))) then
+                  return Builders.Number (2);
+               end if;
+               if Semantics.Truth (Semantics.Unary ("!", Version_Invoke (Build, "pg_strcasecmp", (1 => Locals (1), 2
+                  => Builders.Text ("utf32"))))) then
+                  return Builders.Number (3);
+               end if;
+               raise Action_Catalog.Unpositioned_Error with Semantics.Text_Of (Version_Invoke (Build, "psprintf", (1
+                  => Builders.Text ("unrecognized JSON encoding: %s"), 2 => Locals (1))));
+               return Builders.Number (0);
                return Builders.No_Value;
             end;
          when others => return Builders.No_Value;

@@ -1,4 +1,5 @@
 with Ada.Exceptions;
+with Flyology.Postgres.SQL.Native.Action_Catalog;
 with Flyology.Postgres.SQL.Native.LALR;
 with Flyology.Postgres.SQL.Native.Semantics;
 
@@ -20,6 +21,7 @@ package body Flyology.Postgres.SQL.Native.Engine is
       Parse_Result  : Builders.Dynamic_Value := Builders.No_Value;
       Failed_At     : Natural := 0;
       Failed_At_Set : Boolean := False;
+      Action_Failed_At : aliased Integer := -1;
       Last_Location : Natural := 0;
 
       procedure Report_Error
@@ -46,6 +48,17 @@ package body Flyology.Postgres.SQL.Native.Engine is
          Success := False;
       end Report_Error;
 
+      procedure Report_Unpositioned_Error
+        (Error : Ada.Exceptions.Exception_Occurrence)
+      is
+      begin
+         Error_Offset := Natural'Last;
+         Error_Message := Ada.Strings.Unbounded.To_Unbounded_String
+           (Ada.Exceptions.Exception_Message (Error));
+         Result := Builders.No_Value;
+         Success := False;
+      end Report_Unpositioned_Error;
+
       procedure Next_Token
         (External_Token : out Integer;
          Value          : out Builders.Dynamic_Value;
@@ -64,7 +77,8 @@ package body Flyology.Postgres.SQL.Native.Engine is
          Location  : in out Integer) is
       begin
          Semantic_Reduce
-           (Build, Rule, Values, Locations, Value, Location, Parse_Result);
+           (Build, Rule, Values, Locations, Value, Location,
+            Action_Failed_At'Access, Parse_Result);
       end Reduce;
 
       procedure Syntax_Error (Location : Integer; External_Token : Integer) is
@@ -125,6 +139,18 @@ package body Flyology.Postgres.SQL.Native.Engine is
                (if Failed_At_Set then Failed_At else Last_Location),
                True,
                Lexer.Token_Text);
+         elsif Ada.Exceptions.Exception_Identity (Error) =
+           Action_Catalog.Positioned_Error'Identity
+         then
+            if Action_Failed_At >= 0 then
+               Report_Error (Error, Natural (Action_Failed_At), False);
+            else
+               Report_Unpositioned_Error (Error);
+            end if;
+         elsif Ada.Exceptions.Exception_Identity (Error) =
+           Action_Catalog.Unpositioned_Error'Identity
+         then
+            Report_Unpositioned_Error (Error);
          else
             Report_Error (Error, Last_Location, False);
          end if;

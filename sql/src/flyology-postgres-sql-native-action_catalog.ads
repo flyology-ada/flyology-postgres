@@ -4,12 +4,17 @@ with Flyology.Postgres.SQL.Native.Builders;
 
 private package Flyology.Postgres.SQL.Native.Action_Catalog is
 
+   Positioned_Error : exception;
+   Unpositioned_Error : exception;
+
    subtype Action_Id is Interfaces.Unsigned_64;
    No_Action : constant Action_Id := 0;
 
    type Invoke_Access is not null access function
      (Build : not null access Builders.Builder; Name : String;
-      Arguments : Builders.Semantic_Array) return Builders.Dynamic_Value;
+      Arguments : Builders.Semantic_Array;
+      Error_Location : not null access Integer)
+      return Builders.Dynamic_Value;
 
    procedure Reduce
      (Action       : Action_Id;
@@ -18,6 +23,7 @@ private package Flyology.Postgres.SQL.Native.Action_Catalog is
       Locations    : Builders.Location_Array;
       Result       : in out Builders.Dynamic_Value;
       Location     : in out Integer;
+      Error_Location : not null access Integer;
       Parse_Result : in out Builders.Dynamic_Value;
       Callback     : Invoke_Access);
 

@@ -661,6 +661,12 @@ package body Owned_AST_Tests is
       Compare_Common ("SELECT 'e', 1 1");
       Compare_Common ("SELECT 'e', 'x");
       Compare_Common (NUL_Case);
+      Compare_Common ("SELECT 1 LIMIT 1, 2");
+      Compare_Common
+        ("CREATE TABLE t (a int, CHECK (a > 0) DEFERRABLE)");
+      Compare_Common ("CREATE ROLE r WITH foo");
+      Compare_Common
+        ("SELECT JSON_OBJECT('a': 1 RETURNING text FORMAT JSON ENCODING foo)");
       declare
          T14 : AST_14.Owned_Syntax_Tree;
          T15 : AST_15.Owned_Syntax_Tree;
@@ -683,6 +689,43 @@ package body Owned_AST_Tests is
                  "V17 embedded NUL diagnostic uses a character position");
          Assert (T18.Diagnostic_Position = 2,
                  "V18 embedded NUL diagnostic uses a character position");
+
+         AST_14.Parse
+           ("CREATE TABLE t (a int, CHECK (a > 0) DEFERRABLE)", T14);
+         AST_15.Parse
+           ("CREATE TABLE t (a int, CHECK (a > 0) DEFERRABLE)", T15);
+         AST_16.Parse
+           ("CREATE TABLE t (a int, CHECK (a > 0) DEFERRABLE)", T16);
+         AST_17.Parse
+           ("CREATE TABLE t (a int, CHECK (a > 0) DEFERRABLE)", T17);
+         AST_18.Parse
+           ("CREATE TABLE t (a int, CHECK (a > 0) DEFERRABLE)", T18);
+         Assert (T14.Diagnostic_Position = 0,
+                 "V14 unpositioned grammar diagnostic uses cursor zero");
+         Assert (T15.Diagnostic_Position = 0,
+                 "V15 unpositioned grammar diagnostic uses cursor zero");
+         Assert (T16.Diagnostic_Position = 0,
+                 "V16 unpositioned grammar diagnostic uses cursor zero");
+         Assert (T17.Diagnostic_Position = 0,
+                 "V17 unpositioned grammar diagnostic uses cursor zero");
+         Assert (T18.Diagnostic_Position = 38,
+                 "V18 grammar helper preserves its explicit position");
+
+         AST_16.Parse
+           ("SELECT JSON_OBJECT('a': 1 RETURNING text FORMAT JSON " &
+            "ENCODING foo)", T16);
+         AST_17.Parse
+           ("SELECT JSON_OBJECT('a': 1 RETURNING text FORMAT JSON " &
+            "ENCODING foo)", T17);
+         AST_18.Parse
+           ("SELECT JSON_OBJECT('a': 1 RETURNING text FORMAT JSON " &
+            "ENCODING foo)", T18);
+         Assert (T16.Diagnostic_Position = 0,
+                 "V16 unpositioned JSON diagnostic uses cursor zero");
+         Assert (T17.Diagnostic_Position = 0,
+                 "V17 unpositioned JSON diagnostic uses cursor zero");
+         Assert (T18.Diagnostic_Position = 63,
+                 "V18 JSON helper preserves its explicit position");
       end;
       Compare_15 (Merge_SQL);
       Compare_16 (Merge_SQL);
