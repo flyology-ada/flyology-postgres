@@ -120,6 +120,17 @@ package body Flyology.Postgres.SQL.Differential_Testing is
       Check ("SELECT 'e', 'x");
       Check (NUL_Case);
       for Version in Major_Version loop
+         Compare_Diagnostic ("SELECT E'wrong: \U002FFFFF'", Version);
+         Compare_Diagnostic ("SELECT U&'\061'", Version);
+         Compare_Diagnostic ("SELECT """"", Version);
+         Compare_Diagnostic
+           ("SELECT * FROM U&'t' UESCAPE '!'", Version);
+         if Version = PostgreSQL_18 then
+            Compare_Diagnostic ("SELECT $12345678901, 1", Version);
+         end if;
+         if Version >= PostgreSQL_16 then
+            Compare_Diagnostic ("SELECT 1x, 2", Version);
+         end if;
          Compare_Diagnostic ("SELECT 1 LIMIT 1, 2", Version);
          Compare_Diagnostic
            ("CREATE TABLE t (a int, CHECK (a > 0) DEFERRABLE)", Version);
@@ -135,6 +146,11 @@ package body Flyology.Postgres.SQL.Differential_Testing is
          Diagnostic_Failures'Image &
            " grammar diagnostic comparisons differ from the C oracle");
       Check ("SELECT 1 LIMIT 1, 2");
+      Check ("SELECT E'wrong: \U002FFFFF'");
+      Check ("SELECT 1x, 2", PostgreSQL_16);
+      Check ("SELECT U&'\061'");
+      Check ("SELECT """"");
+      Check ("SELECT * FROM U&'t' UESCAPE '!'");
       Check ("CREATE TABLE t (a int, CHECK (a > 0) DEFERRABLE)");
       Check ("CREATE ROLE r WITH foo");
       Check
