@@ -143,7 +143,8 @@ package Flyology.Postgres.Replication is
       Upload_Manifest_Command,
       Base_Backup_Command,
       Start_Physical_Command,
-      Start_Logical_Command);
+      Start_Logical_Command,
+      Create_Physical_Slot_Command);
    --  Replication-mode simple-query command classification.
    --  @enum Identify_System_Command IDENTIFY_SYSTEM.
    --  @enum Show_Command SHOW parameter.
@@ -154,6 +155,7 @@ package Flyology.Postgres.Replication is
    --  @enum Base_Backup_Command BASE_BACKUP.
    --  @enum Start_Physical_Command Physical START_REPLICATION.
    --  @enum Start_Logical_Command Logical START_REPLICATION SLOT.
+   --  @enum Create_Physical_Slot_Command CREATE_REPLICATION_SLOT PHYSICAL.
 
    type Command is private;
    --  Validated decoded replication-mode command with owned source message.
@@ -186,25 +188,31 @@ package Flyology.Postgres.Replication is
    --  @return Slot name, possibly empty for physical streaming.
    --  @exception Protocol.Protocol_Error Item has no slot field.
    function Plugin (Item : Command) return String;
-   --  Return the plugin named by CREATE_REPLICATION_SLOT.
-   --  @param Item CREATE_REPLICATION_SLOT command.
+   --  Return the plugin named by CREATE_REPLICATION_SLOT LOGICAL.
+   --  @param Item CREATE_REPLICATION_SLOT LOGICAL command.
    --  @return Output plugin name.
    --  @exception Protocol.Protocol_Error Item is another command kind.
    function Snapshot (Item : Command) return Snapshot_Action;
-   --  Return the snapshot policy named by CREATE_REPLICATION_SLOT.
-   --  @param Item CREATE_REPLICATION_SLOT command.
+   --  Return the snapshot policy named by CREATE_REPLICATION_SLOT LOGICAL.
+   --  @param Item CREATE_REPLICATION_SLOT LOGICAL command.
    --  @return Requested snapshot policy.
    --  @exception Protocol.Protocol_Error Item is another command kind.
    function Two_Phase (Item : Command) return Boolean;
-   --  Test whether CREATE_REPLICATION_SLOT enabled two-phase decoding.
-   --  @param Item CREATE_REPLICATION_SLOT command.
+   --  Test whether CREATE_REPLICATION_SLOT LOGICAL enabled two-phase decoding.
+   --  @param Item CREATE_REPLICATION_SLOT LOGICAL command.
    --  @return True when prepared transactions are decoded by the slot.
    --  @exception Protocol.Protocol_Error Item is another command kind.
    function Failover (Item : Command) return Boolean;
-   --  Test whether CREATE_REPLICATION_SLOT requested a failover slot.
-   --  @param Item CREATE_REPLICATION_SLOT command.
+   --  Test whether CREATE_REPLICATION_SLOT LOGICAL requested a failover slot.
+   --  @param Item CREATE_REPLICATION_SLOT LOGICAL command.
    --  @return True when the command requests synchronization to failover
    --  standbys.
+   --  @exception Protocol.Protocol_Error Item is another command kind.
+   function Reserve_WAL (Item : Command) return Boolean;
+   --  Test whether CREATE_REPLICATION_SLOT PHYSICAL requested immediate WAL
+   --  reservation.
+   --  @param Item CREATE_REPLICATION_SLOT PHYSICAL command.
+   --  @return True when the command included RESERVE_WAL with a true value.
    --  @exception Protocol.Protocol_Error Item is another command kind.
    function Wait (Item : Command) return Boolean;
    --  Test whether DROP_REPLICATION_SLOT included WAIT.
@@ -407,19 +415,21 @@ private
    end record;
 
    type Command is record
-      Message_Kind     : Command_Kind := Identify_System_Command;
-      Raw              : Protocol.Message;
-      Parameter_Data   : Flyology.Bytes.Unbounded_Bytes;
-      Slot_Data        : Flyology.Bytes.Unbounded_Bytes;
-      Plugin_Data      : Flyology.Bytes.Unbounded_Bytes;
-      Start_Position   : LSN := 0;
-      Timeline_Value   : UInt32 := 0;
-      Timeline_Present : Boolean := False;
-      Snapshot_Value   : Snapshot_Action := Export_Snapshot;
-      Two_Phase_Value  : Boolean := False;
-      Failover_Value   : Boolean := False;
-      Wait_Value       : Boolean := False;
-      Options_Data     : Flyology.Bytes.Unbounded_Bytes;
+      Message_Kind      : Command_Kind := Identify_System_Command;
+      Raw               : Protocol.Message;
+      Parameter_Data    : Flyology.Bytes.Unbounded_Bytes;
+      Slot_Data         : Flyology.Bytes.Unbounded_Bytes;
+      Plugin_Data       : Flyology.Bytes.Unbounded_Bytes;
+      Start_Position    : LSN := 0;
+      Timeline_Value    : UInt32 := 0;
+      Timeline_Present  : Boolean := False;
+      Snapshot_Value    : Snapshot_Action := Export_Snapshot;
+      Two_Phase_Value   : Boolean := False;
+      Failover_Value    : Boolean := False;
+      Temporary_Value   : Boolean := False;
+      Reserve_WAL_Value : Boolean := False;
+      Wait_Value        : Boolean := False;
+      Options_Data      : Flyology.Bytes.Unbounded_Bytes;
    end record;
 
 end Flyology.Postgres.Replication;

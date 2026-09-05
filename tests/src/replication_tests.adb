@@ -282,6 +282,72 @@ package body Replication_Tests is
 
       declare
          Item : constant Replication.Command := Replication.Decode_Command
+           (Query
+              ("CREATE_REPLICATION_SLOT ""pg_basebackup_1234"""
+               & " TEMPORARY PHYSICAL (RESERVE_WAL)"));
+      begin
+         Assert
+           (Replication.Kind (Item) =
+              Replication.Create_Physical_Slot_Command
+            and then Replication.Slot_Name (Item) = "pg_basebackup_1234"
+            and then Replication.Reserve_WAL (Item),
+            "temporary physical slot creation exposes WAL reservation");
+      end;
+
+      declare
+         Item : constant Replication.Command := Replication.Decode_Command
+           (Query ("CREATE_REPLICATION_SLOT wal_archive PHYSICAL"));
+      begin
+         Assert
+           (Replication.Kind (Item) =
+              Replication.Create_Physical_Slot_Command
+            and then Replication.Slot_Name (Item) = "wal_archive"
+            and then not Replication.Reserve_WAL (Item),
+            "physical slot creation defaults to no WAL reservation");
+      end;
+
+      declare
+         Item : constant Replication.Command := Replication.Decode_Command
+           (Query
+              ("CREATE_REPLICATION_SLOT wal_archive PHYSICAL RESERVE_WAL"));
+      begin
+         Assert
+           (Replication.Reserve_WAL (Item),
+            "legacy physical slot creation accepts RESERVE_WAL");
+      end;
+
+      declare
+         Item : constant Replication.Command := Replication.Decode_Command
+           (Query
+              ("CREATE_REPLICATION_SLOT ""sub_slot"" TEMPORARY LOGICAL"
+               & " pgoutput (SNAPSHOT 'nothing')"));
+         Rejected : Boolean := False;
+      begin
+         Assert
+           (Replication.Kind (Item) =
+              Replication.Create_Logical_Slot_Command
+            and then Replication.Slot_Name (Item) = "sub_slot"
+            and then Replication.Plugin (Item) = "pgoutput"
+            and then Replication.Snapshot (Item) = Replication.No_Snapshot,
+            "temporary logical slot creation preserves logical fields");
+         begin
+            declare
+               Ignored : constant Boolean := Replication.Reserve_WAL (Item);
+               pragma Unreferenced (Ignored);
+            begin
+               null;
+            end;
+         exception
+            when Protocol.Protocol_Error =>
+               Rejected := True;
+         end;
+         Assert
+           (Rejected,
+            "WAL reservation is only exposed for physical slot creation");
+      end;
+
+      declare
+         Item : constant Replication.Command := Replication.Decode_Command
            (Replication.Create_Logical_Slot
               ("prepared_slot", Snapshot => Replication.No_Snapshot,
                Two_Phase => True));
@@ -466,6 +532,13 @@ package body Replication_Tests is
       Assert_Command_Rejected
         ("CREATE_REPLICATION_SLOT sync_slot LOGICAL pgoutput"
          & " (SNAPSHOT 'use', SNAPSHOT 'nothing')");
+      Assert_Command_Rejected
+        ("CREATE_REPLICATION_SLOT sync_slot PHYSICAL"
+         & " (RESERVE_WAL, RESERVE_WAL 'false')");
+      Assert_Command_Rejected
+        ("CREATE_REPLICATION_SLOT sync_slot PHYSICAL ()");
+      Assert_Command_Rejected
+        ("CREATE_REPLICATION_SLOT sync_slot PHYSICAL (SNAPSHOT 'nothing')");
       Check_Startup (Protocol.Physical_Replication_Connection);
       Check_Startup (Protocol.Logical_Replication_Connection);
    end Test_Commands_And_LSN;
