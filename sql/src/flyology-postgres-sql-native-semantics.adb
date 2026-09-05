@@ -336,6 +336,8 @@ package body Flyology.Postgres.SQL.Native.Semantics is
               Build.Field (Item, "val.ival.ival");
             Float_14 : constant Builders.Dynamic_Value :=
               Build.Field (Item, "val.val.str");
+            Float_14_Tag : constant Builders.Dynamic_Value :=
+              Build.Field (Item, "val.type");
             Float_15 : constant Builders.Dynamic_Value :=
               Build.Field (Item, "val.fval.fval");
          begin
@@ -351,7 +353,12 @@ package body Flyology.Postgres.SQL.Native.Semantics is
                   Build.Set_Field
                     (Item, "val.ival.ival", Unary ("-", Integer_15));
                   return Item;
-               elsif Float_14.Kind = Builders.Text_Value then
+               --  PostgreSQL 14 nodes.h assigns 227 to T_Float; gram.y folds
+               --  only that tag in doNegate.
+               elsif Float_14.Kind = Builders.Text_Value
+                 and then Float_14_Tag.Kind = Builders.Integer_Value
+                 and then Float_14_Tag.Integer_Data = 227
+               then
                   Build.Set_Field (Item, "val.val.str", Negated (Float_14));
                   return Item;
                elsif Float_15.Kind = Builders.Text_Value then

@@ -620,6 +620,10 @@ package body Owned_AST_Tests is
       Compare_Common ("SELECT E'\401'");
       Compare_Common ("SELECT $12345678901, 1");
       Compare_Common ("SELECT E'a\vb'");
+      Compare_Common ("SELECT -'abc'");
+      Compare_Common ("SELECT -B'101'");
+      Compare_Common ("SELECT -1");
+      Compare_Common ("SELECT -1.5");
       Compare_Common ("INSERT INTO t (a, b) VALUES (1, 'x') RETURNING a");
       Compare_Common ("UPDATE t SET a = a + 1 WHERE b IS NOT NULL RETURNING *");
       Compare_Common ("DELETE FROM t USING u WHERE t.id = u.id RETURNING t.id");
