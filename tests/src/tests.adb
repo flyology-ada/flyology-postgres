@@ -1,3 +1,4 @@
+with Ada.Real_Time;
 with Ada.Streams;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Text_IO;
@@ -11,6 +12,7 @@ with Flyology.IO.TLS.OpenSSL;
 with Flyology.Operations;
 with Flyology.Operations.Drivers;
 with Flyology.Postgres.Client;
+with Flyology.Postgres.Framing;
 with Flyology.Postgres.Protocol;
 with Flyology.Postgres.Replication.Base_Backups;
 with Flyology.Postgres.Replication.Base_Backups.Server_Sessions;
@@ -26,6 +28,7 @@ procedure Tests is
    package Protocol renames Flyology.Postgres.Protocol;
    package SCRAM_Core renames Flyology.Postgres.SCRAM_Core;
    package Client renames Flyology.Postgres.Client;
+   package Framing renames Flyology.Postgres.Framing;
    package Base_Backups renames
      Flyology.Postgres.Replication.Base_Backups;
    package Backup_Sessions renames
@@ -53,6 +56,7 @@ procedure Tests is
    use type Base_Backups.Event_Kind;
    use type Interfaces.Unsigned_64;
    use type Ada.Streams.Stream_Element_Array;
+   use type Ada.Real_Time.Time;
 
    type Memory_Transport is
      limited new Transports.TLS_Upgradable_Transport
@@ -61,9 +65,10 @@ procedure Tests is
          Output       : Flyology.Bytes.Unbounded_Bytes;
          Next         : Natural := 1;
          Engaged      : Boolean := False;
-         Blocked      : Boolean := False;
-         Fail_Receive : Boolean := False;
-         Chunk        : Positive := 1;
+         Blocked        : Boolean := False;
+         Fail_Receive   : Boolean := False;
+         Chunk          : Positive := 1;
+         Stall_Per_Read : Duration := 0.0;
    end record;
 
    overriding procedure Receive_Exactly
@@ -122,12 +127,19 @@ procedure Tests is
       Data    : out Ada.Streams.Stream_Element_Array;
       Timeout : Duration;
       On_Wait : access Transports.Wait_Observer'Class := null) is
-      pragma Unreferenced (Timeout);
       pragma Unreferenced (On_Wait);
-      --  Buffered input is always available, so this transport never waits.
+      --  Buffered input is available after any configured synthetic stall.
       Available : constant Protocol.Byte_Array :=
         Flyology.Bytes.To_Array (Item.Input);
    begin
+      if Item.Stall_Per_Read > 0.0 then
+         if Timeout >= 0.0 and then Timeout < Item.Stall_Per_Read then
+            delay Timeout;
+            raise Flyology.IO.Timeout_Error with
+              "synthetic transport receive deadline expired";
+         end if;
+         delay Item.Stall_Per_Read;
+      end if;
       if Item.Next > Available'Length + 1
         or else Data'Length > Available'Length - Item.Next + 1
       then
@@ -369,6 +381,70 @@ procedure Tests is
             "typed message length includes its own field");
       end;
    end Test_Message;
+
+   procedure Test_Framing_Deadline is
+      Message_Timeout : constant Duration := 0.30;
+      Stall_Per_Read  : constant Duration := 0.25;
+      Tolerance       : constant Duration := 0.10;
+      Ready           : constant Protocol.Message :=
+        Protocol.Make_Message
+          ('Z', (1 => Protocol.Byte (Character'Pos ('I'))));
+      Control         : Memory_Transport;
+      Large_Control   : Memory_Transport;
+      Channel         : Memory_Transport;
+      Started         : Ada.Real_Time.Time;
+      Elapsed         : Duration;
+      Timed_Out       : Boolean := False;
+      Other_Error     : Boolean := False;
+   begin
+      Queue (Control, Ready);
+      declare
+         Result : constant Protocol.Message :=
+           Framing.Read_Message (Control, Message_Timeout);
+      begin
+         Assert
+           (Protocol.Code (Result) = 'Z',
+            "an immediately available frame is read successfully");
+      end;
+
+      Queue (Large_Control, Ready);
+      declare
+         Result : constant Protocol.Message :=
+           Framing.Read_Message (Large_Control, Duration'Last);
+      begin
+         Assert
+           (Protocol.Code (Result) = 'Z',
+            "a large bounded timeout does not overflow before reading");
+      end;
+
+      Queue (Channel, Ready);
+      Channel.Stall_Per_Read := Stall_Per_Read;
+      Started := Ada.Real_Time.Clock;
+      begin
+         declare
+            Result : constant Protocol.Message :=
+              Framing.Read_Message (Channel, Message_Timeout);
+         begin
+            Assert
+              (Protocol.Code (Result) = 'Z',
+               "a completed stalled frame keeps its message tag");
+         end;
+      exception
+         when Flyology.IO.Timeout_Error =>
+            Timed_Out := True;
+         when others =>
+            Other_Error := True;
+      end;
+      Elapsed :=
+        Ada.Real_Time.To_Duration (Ada.Real_Time.Clock - Started);
+
+      Assert
+        (not Other_Error,
+         "a stalled frame raises no unrelated exception");
+      Assert
+        (Timed_Out or else Elapsed <= Message_Timeout + Tolerance,
+         "one deadline bounds all transport reads for a typed frame");
+   end Test_Framing_Deadline;
 
    procedure Test_All_Frontend_Commands is
       type Case_Item is record
@@ -2695,6 +2771,7 @@ begin
    Test_SSL_Request;
    Test_TLS_Refusal_Is_Terminal;
    Test_Message;
+   Test_Framing_Deadline;
    Test_All_Frontend_Commands;
    Test_Malformed_String;
    Test_Proved_Wire_Core;
