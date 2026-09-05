@@ -599,6 +599,13 @@ package body Owned_AST_Tests is
          Compare_18 (Text);
       end Compare_Common;
 
+      E_Acute : constant String :=
+        Character'Val (16#C3#) & Character'Val (16#A9#);
+      Syntax_Case : constant String := "SELECT '" & E_Acute & "', 1 1";
+      Scanner_Case : constant String := "SELECT '" & E_Acute & "', 'x";
+      NUL_Case : constant String :=
+        E_Acute & Character'Val (0) & "SELECT 2";
+
       Merge_SQL : constant String :=
         "MERGE INTO inventory AS i USING changes AS c ON i.id = c.id "
         & "WHEN MATCHED THEN UPDATE SET quantity = c.quantity "
@@ -649,6 +656,34 @@ package body Owned_AST_Tests is
       Compare_Common ("CREATE TABLE (");
       Compare_Common ("SELECT foo.*.bar FROM foo");
       Compare_Common ("SELECT 1" & Character'Val (0) & "SELECT 2");
+      Compare_Common (Syntax_Case);
+      Compare_Common (Scanner_Case);
+      Compare_Common ("SELECT 'e', 1 1");
+      Compare_Common ("SELECT 'e', 'x");
+      Compare_Common (NUL_Case);
+      declare
+         T14 : AST_14.Owned_Syntax_Tree;
+         T15 : AST_15.Owned_Syntax_Tree;
+         T16 : AST_16.Owned_Syntax_Tree;
+         T17 : AST_17.Owned_Syntax_Tree;
+         T18 : AST_18.Owned_Syntax_Tree;
+      begin
+         AST_14.Parse (NUL_Case, T14);
+         AST_15.Parse (NUL_Case, T15);
+         AST_16.Parse (NUL_Case, T16);
+         AST_17.Parse (NUL_Case, T17);
+         AST_18.Parse (NUL_Case, T18);
+         Assert (T14.Diagnostic_Position = 2,
+                 "V14 embedded NUL diagnostic uses a character position");
+         Assert (T15.Diagnostic_Position = 2,
+                 "V15 embedded NUL diagnostic uses a character position");
+         Assert (T16.Diagnostic_Position = 2,
+                 "V16 embedded NUL diagnostic uses a character position");
+         Assert (T17.Diagnostic_Position = 2,
+                 "V17 embedded NUL diagnostic uses a character position");
+         Assert (T18.Diagnostic_Position = 2,
+                 "V18 embedded NUL diagnostic uses a character position");
+      end;
       Compare_15 (Merge_SQL);
       Compare_16 (Merge_SQL);
       Compare_17 (Merge_SQL);

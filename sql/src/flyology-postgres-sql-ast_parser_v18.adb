@@ -4,6 +4,7 @@ with Ada.Strings.Unbounded;
 with Interfaces;
 with Flyology.Postgres.SQL.AST.V18;
 with Flyology.Postgres.SQL.AST_Ownership_V18;
+with Flyology.Postgres.SQL.Native;
 with Flyology.Postgres.SQL.Native.Builders;
 with Flyology.Postgres.SQL.Native.Version_V18;
 
@@ -20735,7 +20736,8 @@ begin
          Result.Diagnostic_Message :=
            Ada.Strings.Unbounded.To_Unbounded_String
              ("SQL input contains an embedded NUL byte");
-         Result.Diagnostic_Position := Index - SQL'First + 1;
+         Result.Diagnostic_Position :=
+           Native.Character_Position (SQL, Index - SQL'First);
          return;
       end if;
    end loop;
@@ -20746,7 +20748,9 @@ begin
    if not Success then
       Result.Diagnostic_Message := Failure;
       Result.Diagnostic_Position :=
-        (if SQL'Length = 0 then 0 else Error_Offset + 1);
+        (if SQL'Length = 0
+         then 0
+         else Native.Character_Position (SQL, Error_Offset));
       return;
    end if;
    Result.Root := Convert_Native_Root (Build, Native_Root);

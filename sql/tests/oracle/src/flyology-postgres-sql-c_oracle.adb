@@ -9,6 +9,7 @@ with Flyology.Postgres.SQL.Decoder_V15;
 with Flyology.Postgres.SQL.Decoder_V16;
 with Flyology.Postgres.SQL.Decoder_V17;
 with Flyology.Postgres.SQL.Decoder_V18;
+with Flyology.Postgres.SQL.Native;
 
 package body Flyology.Postgres.SQL.C_Oracle is
 
@@ -50,7 +51,8 @@ package body Flyology.Postgres.SQL.C_Oracle is
          if SQL (Index) = Character'Val (0) then
             Result.Parse_Error :=
               (Text => To_Unbounded_String ("SQL input contains an embedded NUL byte"),
-               Position => Index - SQL'First + 1);
+               Position =>
+                 Native.Character_Position (SQL, Index - SQL'First));
             return;
          end if;
       end loop;

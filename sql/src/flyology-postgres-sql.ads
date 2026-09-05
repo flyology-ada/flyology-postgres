@@ -30,6 +30,8 @@ package Flyology.Postgres.SQL is
 
    function Message (Item : Diagnostic) return String;
    function Cursor_Position (Item : Diagnostic) return Natural;
+   --  The 1-based UTF-8 character position reported by PostgreSQL, or zero
+   --  when no position is available.
 
    type Syntax_Tree is tagged limited private;
 
