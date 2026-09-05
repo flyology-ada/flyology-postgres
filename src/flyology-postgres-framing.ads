@@ -6,6 +6,10 @@ package Flyology.Postgres.Framing is
    function Read_Initial
      (Channel : in out Transports.Transport'Class;
       Timeout : Duration) return Protocol.Initial_Request;
+   --  Read one initial packet under a single deadline.
+   --  @param Channel Transport to read.
+   --  @param Timeout Maximum time allowed for the whole packet.
+   --  @return Decoded startup, SSL, GSS, or cancellation request.
 
    function Read_Message
      (Channel : in out Transports.Transport'Class;
