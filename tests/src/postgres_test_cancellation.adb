@@ -46,6 +46,73 @@ procedure Postgres_Test_Cancellation is
       end if;
    end Check;
 
+   procedure Close (Socket : in out Sockets.Socket_Type) is
+   begin
+      if Sockets.Is_Open (Socket) then
+         Sockets.Close_Socket (Socket);
+      end if;
+   end Close;
+
+   procedure Check_Startup is
+      Socket  : aliased Sockets.Socket_Type;
+      Channel : aliased Transports.TLS_Socket_Transport (Socket'Access);
+      Session : Client.Session (Channel'Access);
+   begin
+      Sockets.Create_Socket (Socket);
+      Sockets.Connect (Socket, Server, Timeout => 5.0);
+      Client.Startup_TLS
+        (Session,
+         Backend,
+         Server_Name => Server_Name,
+         User        => "flyology",
+         Database    => "postgres",
+         Password    => "flyology-secret",
+         Timeout     => 5.0);
+      Client.Send_Command
+        (Session, Protocol.Make_Empty_Message ('X'), Timeout => 5.0);
+      Close (Socket);
+   exception
+      when others =>
+         Close (Socket);
+         raise;
+   end Check_Startup;
+
+   procedure Check_Startup_Resilience is
+      HTTP_Request : constant Protocol.Byte_Array :=
+        Flyology.Bytes.To_Array
+          (Flyology.Bytes.From_Byte_String
+             ("GET / HTTP/1.0" & ASCII.CR & ASCII.LF
+              & ASCII.CR & ASCII.LF));
+
+      procedure Probe
+        (Label : String;
+         Send_HTTP : Boolean := False;
+         Stay_Silent : Boolean := False) is
+         Socket : Sockets.Socket_Type;
+      begin
+         Sockets.Create_Socket (Socket);
+         Sockets.Connect (Socket, Server, Timeout => 5.0);
+         if Send_HTTP then
+            Sockets.Send_All (Socket, HTTP_Request, Timeout => 5.0);
+         elsif Stay_Silent then
+            delay 1.2;
+         end if;
+         Close (Socket);
+         delay 0.2;
+         Check_Startup;
+      exception
+         when others =>
+            Close (Socket);
+            raise Program_Error with
+              "server stopped after " & Label & " startup probe";
+      end Probe;
+   begin
+      Check_Startup;
+      Probe ("an early close");
+      Probe ("a silent client", Stay_Silent => True);
+      Probe ("an HTTP request", Send_HTTP => True);
+   end Check_Startup_Resilience;
+
    procedure Send_Raw_Cancel
      (Process_Id : Protocol.UInt32;
       Secret     : Protocol.Byte_Array) is
@@ -143,6 +210,8 @@ begin
       CA_File => Ada.Environment_Variables.Value ("POSTGRES_TLS_CA_FILE"),
       Library_Directory => Ada.Environment_Variables.Value
         ("FLYOLOGY_OPENSSL_LIBRARY_DIR", ""));
+
+   Check_Startup_Resilience;
 
    --  Incorrect credentials must be indistinguishable on their separate
    --  connections and must leave the current handler running.
