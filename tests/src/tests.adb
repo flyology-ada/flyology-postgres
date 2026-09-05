@@ -1082,6 +1082,7 @@ procedure Tests is
          Channel : aliased Memory_Transport;
          Session : Server_Sessions.Session (Channel'Access);
       begin
+         Queue (Channel, Protocol.Make_Flush_Message);
          Queue (Channel, Protocol.Make_Copy_Data_Message (Chunk));
          declare
             Command : constant Protocol.Frontend_Copy_Message :=
@@ -1089,7 +1090,23 @@ procedure Tests is
          begin
             Assert
               (Protocol.Copy_Bytes (Command) = Chunk,
-               "server COPY dispatch returns one chunk at a time");
+               "server COPY dispatch ignores Flush before one data chunk");
+         end;
+      end;
+
+      declare
+         Channel : aliased Memory_Transport;
+         Session : Server_Sessions.Session (Channel'Access);
+      begin
+         Queue (Channel, Protocol.Make_Sync_Message);
+         Queue (Channel, Protocol.Make_Copy_Data_Message (Chunk));
+         declare
+            Command : constant Protocol.Frontend_Copy_Message :=
+              Server_Sessions.Read_Copy_Command (Session, 1.0);
+         begin
+            Assert
+              (Protocol.Copy_Bytes (Command) = Chunk,
+               "server COPY dispatch ignores Sync before one data chunk");
          end;
          Server_Sessions.Send_Copy_Out_Response
            (Session,

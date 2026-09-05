@@ -76,6 +76,58 @@ procedure Postgres_Test_Server is
       Command : Protocol.Message) is
       pragma Unreferenced (State);
       Timeout : constant Duration := 5.0;
+
+      procedure Read_Expected (Expected : Protocol.Frontend_Kind) is
+         Next : constant Protocol.Message :=
+           Sessions.Read_Command (Client, Timeout);
+      begin
+         if Protocol.Kind (Next) /= Expected then
+            raise Protocol.Protocol_Error with
+              "test extended COPY expected " & Expected'Image;
+         end if;
+         Ada.Text_IO.Put_Line ("frontend " & Expected'Image);
+         Ada.Text_IO.Flush;
+      end Read_Expected;
+
+      procedure Copy_From_Stdin is
+         Chunks : Natural := 0;
+         Done   : Boolean := False;
+         Failed : Boolean := False;
+      begin
+         Sessions.Send_Copy_In_Response
+           (Client,
+            Overall_Format => Protocol.Text_Format,
+            Column_Formats =>
+              (Protocol.Text_Format, Protocol.Text_Format),
+            Timeout => Timeout);
+         while not Done loop
+            declare
+               Copy_Command : constant Protocol.Frontend_Copy_Message :=
+                 Sessions.Read_Copy_Command (Client, Timeout);
+            begin
+               case Protocol.Copy_Kind (Copy_Command) is
+                  when Protocol.Frontend_Copy_Data =>
+                     Chunks := Chunks + 1;
+                  when Protocol.Frontend_Copy_Done =>
+                     Done := True;
+                  when Protocol.Frontend_Copy_Fail =>
+                     Done := True;
+                     Failed := True;
+               end case;
+            end;
+         end loop;
+         Ada.Text_IO.Put_Line ("frontend COPY chunks" & Chunks'Image);
+         Ada.Text_IO.Flush;
+         if Failed then
+            Sessions.Send_Error
+              (Client,
+               "client aborted COPY",
+               SQL_State => "57014",
+               Timeout => Timeout);
+         else
+            Sessions.Send_Command_Complete (Client, "COPY 2", Timeout);
+         end if;
+      end Copy_From_Stdin;
    begin
       if Protocol.Kind (Command) in Protocol.Parse |
          Protocol.Bind |
@@ -136,48 +188,7 @@ procedure Postgres_Test_Server is
                   Sessions.Send_Command_Complete
                     (Client, "COPY 2", Timeout);
                elsif Is_Copy (SQL, "from stdin") then
-                  Sessions.Send_Copy_In_Response
-                    (Client,
-                     Overall_Format => Protocol.Text_Format,
-                     Column_Formats =>
-                       (Protocol.Text_Format, Protocol.Text_Format),
-                     Timeout => Timeout);
-                  declare
-                     Chunks : Natural := 0;
-                     Done   : Boolean := False;
-                     Failed : Boolean := False;
-                  begin
-                     while not Done loop
-                        declare
-                           Copy_Command : constant
-                             Protocol.Frontend_Copy_Message :=
-                               Sessions.Read_Copy_Command (Client, Timeout);
-                        begin
-                           case Protocol.Copy_Kind (Copy_Command) is
-                              when Protocol.Frontend_Copy_Data =>
-                                 Chunks := Chunks + 1;
-                              when Protocol.Frontend_Copy_Done =>
-                                 Done := True;
-                              when Protocol.Frontend_Copy_Fail =>
-                                 Done := True;
-                                 Failed := True;
-                           end case;
-                        end;
-                     end loop;
-                     Ada.Text_IO.Put_Line
-                       ("frontend COPY chunks" & Chunks'Image);
-                     Ada.Text_IO.Flush;
-                     if Failed then
-                        Sessions.Send_Error
-                          (Client,
-                           "client aborted COPY",
-                           SQL_State => "57014",
-                           Timeout => Timeout);
-                     else
-                        Sessions.Send_Command_Complete
-                          (Client, "COPY 2", Timeout);
-                     end if;
-                  end;
+                  Copy_From_Stdin;
                elsif Is_Select (SQL) then
                   Sessions.Send_Row_Description
                     (Client,
@@ -212,7 +223,27 @@ procedure Postgres_Test_Server is
             end;
 
          when Protocol.Parse =>
-            Sessions.Send_Parse_Complete (Client, Timeout);
+            declare
+               Contents       : constant Protocol.Byte_Array :=
+                 Protocol.Payload (Command);
+               Cursor         : Protocol.Byte_Offset := Contents'First;
+               Statement_Name : constant String :=
+                 Protocol.Read_C_String (Contents, Cursor);
+               SQL            : constant String :=
+                 Protocol.Read_C_String (Contents, Cursor);
+            begin
+               Sessions.Send_Parse_Complete (Client, Timeout);
+               if Statement_Name'Length = 0
+                 and then Is_Copy (SQL, "from stdin")
+               then
+                  Read_Expected (Protocol.Bind);
+                  Sessions.Send_Bind_Complete (Client, Timeout);
+                  Read_Expected (Protocol.Describe);
+                  Sessions.Send_No_Data (Client, Timeout);
+                  Read_Expected (Protocol.Execute);
+                  Copy_From_Stdin;
+               end if;
+            end;
 
          when Protocol.Bind =>
             Sessions.Send_Bind_Complete (Client, Timeout);

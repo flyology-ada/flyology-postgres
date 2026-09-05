@@ -26,10 +26,12 @@ package Flyology.Postgres.Server_Sessions is
    function Read_Copy_Command
      (Item : in out Session; Timeout : Duration)
       return Protocol.Frontend_Copy_Message;
-   --  Read and classify one frontend message during COPY.
+   --  Read the next frontend COPY event, ignoring Flush and Sync messages.
    --  @param Item Server session in COPY mode.
    --  @param Timeout Maximum time allowed for the complete message.
-   --  @return CopyData, CopyDone, CopyFail, Flush, Sync, or Terminate event.
+   --  @return CopyData, CopyDone, or CopyFail event.
+   --  @exception Protocol_Error The next non-ignored message is not a COPY
+   --  event or is malformed.
 
    procedure Send
      (Item    : in out Session;
