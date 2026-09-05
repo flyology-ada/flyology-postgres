@@ -19,6 +19,7 @@ server_request="$tls_dir/server.csr"
 server_cert="$tls_dir/server-cert.pem"
 server_extensions="$tls_dir/server-ext.cnf"
 server_pid=
+psql_pid=
 postgres_started=false
 
 cleanup () {
@@ -29,6 +30,10 @@ cleanup () {
   if [ -n "$server_pid" ]; then
     kill "$server_pid" >/dev/null 2>&1 || true
     wait "$server_pid" >/dev/null 2>&1 || true
+  fi
+  if [ -n "$psql_pid" ]; then
+    kill "$psql_pid" >/dev/null 2>&1 || true
+    wait "$psql_pid" >/dev/null 2>&1 || true
   fi
   rm -rf -- "$run_root"
 }
@@ -153,6 +158,55 @@ fi
 
 if ! grep -q '^frontend COPY chunks' "$server_log"; then
   echo "psql COPY FROM did not reach the Flyology server helper" >&2
+  cat "$server_log" >&2
+  exit 1
+fi
+
+psql_cancel_output="$run_root/psql-cancel.out"
+PGPASSWORD=flyology-secret \
+  "$postgres_prefix/bin/psql" \
+  "$psql_connection" \
+  -v ON_ERROR_STOP=1 \
+  -q \
+  -c 'select pg_sleep(30)' \
+  >"$psql_cancel_output" 2>&1 &
+psql_pid=$!
+
+attempt=0
+while ! grep -q '^frontend QUERY sleep$' "$server_log"; do
+  attempt=$((attempt + 1))
+  if [ "$attempt" -ge 100 ]; then
+    echo "psql did not start the cancellable query" >&2
+    cat "$psql_cancel_output" >&2
+    cat "$server_log" >&2
+    exit 1
+  fi
+  sleep 0.05
+done
+
+kill -INT "$psql_pid"
+attempt=0
+while kill -0 "$psql_pid" >/dev/null 2>&1; do
+  attempt=$((attempt + 1))
+  if [ "$attempt" -ge 100 ]; then
+    echo "psql Ctrl-C did not stop the running query" >&2
+    cat "$psql_cancel_output" >&2
+    cat "$server_log" >&2
+    exit 1
+  fi
+  sleep 0.05
+done
+
+if wait "$psql_pid"; then
+  psql_status=0
+else
+  psql_status=$?
+fi
+psql_pid=
+if [ "$psql_status" -eq 0 ] ||
+   ! grep -q 'canceling statement due to user request' "$psql_cancel_output"; then
+  echo "psql Ctrl-C did not report query cancellation" >&2
+  cat "$psql_cancel_output" >&2
   cat "$server_log" >&2
   exit 1
 fi

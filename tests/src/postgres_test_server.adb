@@ -101,6 +101,8 @@ procedure Postgres_Test_Server is
                elsif Ada.Characters.Handling.To_Lower (Trimmed) =
                  "select pg_sleep(30)"
                then
+                  Ada.Text_IO.Put_Line ("frontend QUERY sleep");
+                  Ada.Text_IO.Flush;
                   for Attempt in 1 .. 3_000 loop
                      pragma Unreferenced (Attempt);
                      if Sessions.Cancellation_Requested (Client) then
