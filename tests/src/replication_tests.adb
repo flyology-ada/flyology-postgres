@@ -1382,6 +1382,48 @@ package body Replication_Tests is
       begin
          Assert (Data'Length > 0, "pgoutput producer emits message bytes");
       end Emit;
+
+      procedure Assert_Producer_Rejected
+        (Message : Logical.Message;
+         Start, Finish : Logical.LSN;
+         Description : String) is
+         Previous_State : constant Producer.Transaction_State :=
+           Producer.State (Encoder);
+         Previous_XID : constant Logical.Transaction_Id :=
+           Producer.Transaction (Encoder);
+         Previous_End : constant Logical.LSN :=
+           Producer.Last_WAL_End (Encoder);
+         Was_Rejected : Boolean := False;
+      begin
+         begin
+            declare
+               Ignored : constant Logical.Byte_Array :=
+                 Producer.Emit (Encoder, Message, Start, Finish);
+               pragma Unreferenced (Ignored);
+            begin
+               null;
+            end;
+         exception
+            when Protocol.Protocol_Error =>
+               Was_Rejected := True;
+         end;
+         Assert (Was_Rejected, Description);
+         Assert
+           (Producer.State (Encoder) = Previous_State
+            and then Producer.Transaction (Encoder) = Previous_XID
+            and then Producer.Last_WAL_End (Encoder) = Previous_End,
+            Description & " without changing producer state");
+      end Assert_Producer_Rejected;
+
+      function Logical_Message
+        (Transactional : Boolean := False;
+         XID : Logical.Transaction_Id := 0) return Logical.Message is
+        (Logical.Make_Logical_Decoding_Message
+           (Message_LSN   => 16#0102_0304#,
+            Prefix        => "flyology",
+            Content       => (1, 2, 3, 4),
+            Transactional => Transactional,
+            Xid           => XID));
    begin
       Producer.Configure (Encoder, Version => 1);
       Emit (Logical.Make_Begin (101, 0, 10), 100, 101);
@@ -1410,10 +1452,102 @@ package body Replication_Tests is
         (Producer.State (Encoder) = Producer.Idle,
          "streamed pgoutput production commits the paused XID");
 
+      Producer.Configure
+        (Encoder, Version => 2, Streaming => Logical.In_Progress);
+      Emit (Logical.Make_Stream_Start (20, True), 200, 201);
+      Emit (Logical.Make_Origin (201, "origin"), 201, 202);
+
+      Producer.Configure
+        (Encoder, Version => 2, Streaming => Logical.In_Progress);
+      Emit (Logical.Make_Stream_Start (20, True), 200, 201);
+      Assert_Producer_Rejected
+        (Logical.Make_Insert (42, Tuple), 201, 202,
+         "stream segments reject row changes without their XID");
+      Assert_Producer_Rejected
+        (Logical_Message (Transactional => True), 201, 202,
+         "stream segments reject transactional messages without their XID");
+      Emit (Logical.Make_Insert (42, Tuple, Xid => 20), 201, 202);
+      Emit (Logical.Make_Stream_Stop, 202, 203);
+      Emit (Logical.Make_Stream_Abort (Xid => 20, Subxid => 21), 203, 204);
+      Assert
+        (Producer.State (Encoder) = Producer.Stream_Paused
+         and then Producer.Transaction (Encoder) = 20,
+         "subtransaction abort preserves its paused top-level transaction");
+      Assert_Producer_Rejected
+        (Logical.Make_Stream_Prepare
+           (Prepare_LSN => 204,
+            End_LSN     => 205,
+            Prepare_At => 0,
+            Xid         => 20,
+            GID         => "unsupported"),
+         204,
+         205,
+         "failed stream preparation restores the complete paused set");
+      Emit (Logical.Make_Stream_Start (20, False), 204, 205);
+      Emit (Logical.Make_Stream_Stop, 205, 206);
+
+      Emit (Logical.Make_Begin (207, 0, 30), 206, 207);
+      Emit (Logical.Make_Commit (207, 208, 0), 207, 208);
+      Assert
+        (Producer.State (Encoder) = Producer.Stream_Paused
+         and then Producer.Transaction (Encoder) = 20,
+         "regular transactions may run between streamed segments");
+
+      Emit (Logical.Make_Stream_Start (40, True), 208, 209);
+      Emit (Logical.Make_Stream_Stop, 209, 210);
+      Assert
+        (Producer.State (Encoder) = Producer.Stream_Paused
+         and then Producer.Transaction (Encoder) = 40,
+         "a second stream may pause and becomes the reported transaction");
+      declare
+         Data : constant Logical.Byte_Array :=
+           Producer.Emit (Encoder, Logical_Message, 210, 211);
+         Item : constant Logical.Message :=
+           Logical.Decode
+             (Data,
+              Version   => 2,
+              Streaming => Logical.In_Progress);
+      begin
+         Assert
+           (Logical.Kind (Item) = Logical.Logical_Decoding_Message
+            and then not Logical.Is_Transactional (Item)
+            and then Logical.Prefix (Item) = "flyology"
+            and then Logical.Content (Item) =
+              Logical.Byte_Array'(1, 2, 3, 4),
+            "nontransactional messages are emitted between stream segments");
+      end;
+      Emit (Logical.Make_Stream_Commit (40, 211, 212, 0), 211, 212);
+      Assert
+        (Producer.State (Encoder) = Producer.Stream_Paused
+         and then Producer.Transaction (Encoder) = 20,
+         "stream completion restores the most recently remaining paused XID");
+      Emit (Logical.Make_Stream_Commit (20, 212, 213, 0), 212, 213);
+      Assert
+        (Producer.State (Encoder) = Producer.Idle
+         and then Producer.Transaction (Encoder) = 0,
+         "completing every paused stream returns the producer to idle");
+
+      Producer.Configure (Encoder, Version => 1);
+      declare
+         Data : constant Logical.Byte_Array :=
+           Producer.Emit (Encoder, Logical_Message, 300, 301);
+         Item : constant Logical.Message :=
+           Logical.Decode (Data, Version => 1);
+      begin
+         Assert
+           (Logical.Kind (Item) = Logical.Logical_Decoding_Message
+            and then not Logical.Is_Transactional (Item)
+            and then Logical.Message_LSN (Item) = 16#0102_0304#,
+            "nontransactional logical messages are emitted while idle");
+      end;
+      Assert_Producer_Rejected
+        (Logical_Message (Transactional => True), 301, 302,
+         "transactional logical messages remain invalid while idle");
+
       begin
          declare
             Ignored : constant Logical.Byte_Array := Producer.Emit
-              (Encoder, Logical.Make_Insert (42, Tuple), 204, 205);
+              (Encoder, Logical.Make_Insert (42, Tuple), 301, 302);
             pragma Unreferenced (Ignored);
          begin
             null;

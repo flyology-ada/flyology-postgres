@@ -9,7 +9,7 @@ licenses = "MIT OR Apache-2.0"
 website = "https://github.com/flyology-ada/flyology-postgres"
 tags = ["testing", "postgres", "protocol"]
 
-executables = ["tests", "postgres_test_server", "postgres_test_client", "postgres_test_cancellation", "postgres_test_replication", "postgres_test_replication_server", "postgres_test_logical_primary", "postgres_test_durable_store", "postgres_test_managed_physical_primary"]
+executables = ["tests", "postgres_test_server", "postgres_test_client", "postgres_test_cancellation", "postgres_test_replication", "postgres_test_replication_server", "postgres_test_logical_primary", "postgres_test_durable_store", "postgres_test_managed_physical_primary", "flyology-postgres-replication-logical-producer-conformance"]
 
 [[depends-on]]
 flyology_postgres = "*"
@@ -19,6 +19,12 @@ flyology_postgres = { path = ".." }
 
 [[depends-on]]
 aunit = "^26.0.0"
+
+[[depends-on]]
+flyology_tla = "=0.1.0-dev"
+
+[[pins]]
+flyology_tla = { url = "https://github.com/flyology-ada/tla.git", commit = "dea289018a3eef2ac2aeab7a5ee8bc4e287fe231" }
 
 [[actions]]
 type = "test"
