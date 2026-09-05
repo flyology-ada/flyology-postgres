@@ -97,7 +97,7 @@ procedure SQL_Tests is
       Assert (not Views.Is_Valid (NUL_Tree), "embedded NUL input is rejected");
       Assert
         (Views.Cursor_Position (Views.Error (NUL_Tree)) = 9,
-         "embedded NUL diagnostic identifies the byte position");
+         "embedded NUL diagnostic identifies the character position");
    end Test_Protobuf_Corpus;
 
    procedure Test_Version_Layers is

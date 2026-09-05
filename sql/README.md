@@ -325,6 +325,10 @@ the data. These units and their native libraries are compiled by
 `tests/sql_oracle.gpr`, not by production `sql.gpr`. The test action also checks
 the production archive for oracle, protobuf-decoder, and C-wrapper symbols.
 
+As in the pinned PostgreSQL parser sources, SQL text is interpreted as UTF-8
+when converting a diagnostic's internal byte offset to its public, 1-based
+character position.
+
 ## Catalog types
 
 `Flyology.Postgres.Types` provides version-dispatched lookup by OID or catalog

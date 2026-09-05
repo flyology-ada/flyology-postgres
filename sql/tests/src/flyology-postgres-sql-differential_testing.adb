@@ -7,6 +7,13 @@ with Flyology.Postgres.SQL.Internals;
 package body Flyology.Postgres.SQL.Differential_Testing is
 
    procedure Run is
+      E_Acute : constant String :=
+        Character'Val (16#C3#) & Character'Val (16#A9#);
+      Syntax_Case : constant String := "SELECT '" & E_Acute & "', 1 1";
+      Scanner_Case : constant String := "SELECT '" & E_Acute & "', 'x";
+      NUL_Case : constant String :=
+        E_Acute & Character'Val (0) & "SELECT 2";
+
       procedure Check
         (Text : String;
          First : Major_Version := Major_Version'First;
@@ -80,6 +87,22 @@ package body Flyology.Postgres.SQL.Differential_Testing is
       Check ("CREATE TABLE (");
       Check ("SELECT foo.*.bar FROM foo");
       Check ("SELECT 1" & Character'Val (0) & "SELECT 2");
+      Check (Syntax_Case);
+      Check (Scanner_Case);
+      Check ("SELECT 'e', 1 1");
+      Check ("SELECT 'e', 'x");
+      Check (NUL_Case);
+      for Version in Major_Version loop
+         declare
+            Tree : Syntax_Tree;
+         begin
+            Parse (NUL_Case, Version, Tree);
+            Assert
+              (Cursor_Position (Error (Tree)) = 2,
+               "native NUL diagnostic character position agrees for " &
+                 Version'Image);
+         end;
+      end loop;
    end Run;
 
 end Flyology.Postgres.SQL.Differential_Testing;

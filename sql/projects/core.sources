@@ -59,6 +59,7 @@ flyology-postgres-sql-native-schema.ads
 flyology-postgres-sql-native-semantics.adb
 flyology-postgres-sql-native-semantics.ads
 flyology-postgres-sql-native-tables.ads
+flyology-postgres-sql-native.adb
 flyology-postgres-sql-native.ads
 flyology-postgres-sql-views.adb
 flyology-postgres-sql-views.ads
