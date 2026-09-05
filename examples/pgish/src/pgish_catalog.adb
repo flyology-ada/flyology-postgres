@@ -624,9 +624,19 @@ package body Pgish_Catalog is
    procedure Sort (Result : in out Result_Set; Column : String; Descending : Boolean) is
       Index : constant Natural := Find_Column (Result, Column);
       function Before (Left, Right : Cell) return Boolean is
+         Left_Number  : Long_Long_Integer;
+         Right_Number : Long_Long_Integer;
       begin
          if Left.Is_Null then return Descending and then not Right.Is_Null;
          elsif Right.Is_Null then return not Descending;
+         elsif Result.Columns (Index).Type_Oid in 20 | 23
+           and then Numeric (SQL.Image (Left.Value), Left_Number)
+           and then Numeric (SQL.Image (Right.Value), Right_Number)
+         then
+            return
+              (if Descending
+               then Left_Number > Right_Number
+               else Left_Number < Right_Number);
          elsif Descending then return SQL.Image (Left.Value) > SQL.Image (Right.Value);
          else return SQL.Image (Left.Value) < SQL.Image (Right.Value);
          end if;
