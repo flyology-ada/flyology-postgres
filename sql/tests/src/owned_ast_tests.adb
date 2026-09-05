@@ -605,6 +605,8 @@ package body Owned_AST_Tests is
       Scanner_Case : constant String := "SELECT '" & E_Acute & "', 'x";
       NUL_Case : constant String :=
         E_Acute & Character'Val (0) & "SELECT 2";
+      Raw_VT_Uescape : constant String :=
+        "SELECT U&'a' UESCAPE E'" & Character'Val (11) & "'";
 
       Merge_SQL : constant String :=
         "MERGE INTO inventory AS i USING changes AS c ON i.id = c.id "
@@ -632,6 +634,9 @@ package body Owned_AST_Tests is
       Compare_Common ("SELECT E'\xC3'");
       Compare_Common ("SELECT E'\000'");
       Compare_Common ("SELECT E'\303\251'");
+      Compare_Common ("SELECT U&'a' UESCAPE E'\f'");
+      Compare_Common ("SELECT U&'a' UESCAPE E'\v'");
+      Compare_Common (Raw_VT_Uescape);
       Compare_Common ("SELECT E'wrong: \U002FFFFF'");
       Compare_16 ("SELECT 1x, 2");
       Compare_17 ("SELECT 1x, 2");

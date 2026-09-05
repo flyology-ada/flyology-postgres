@@ -916,7 +916,11 @@ package body Flyology.Postgres.SQL.Native.Scanner is
                end if;
                Escape := Element (Next_Value.Text_Data, 1);
                if Escape in '0' .. '9' | 'a' .. 'f' | 'A' .. 'F' | '+' | ''' | '"' |
-                 ' ' | Character'Val (9) | Character'Val (10) | Character'Val (13)
+                 ' ' | Character'Val (9) | Character'Val (10) |
+                 Character'Val (12) | Character'Val (13)
+                 or else
+                   (Profile.Unescape_Vertical_Tab
+                    and then Escape = Character'Val (11))
                then
                   Fail (Self, Natural (Next_Loc), "invalid Unicode escape character");
                end if;
