@@ -87,8 +87,12 @@ package Flyology.Postgres.Server is
    --  @exception Constraint_Error Policy is TLS_Disabled.
 
    procedure Request_Shutdown (Item : in out Server);
-   --  Request listener shutdown and cancellation of active connection work.
-   --  This operation is idempotent and may be called from another task.
+   --  Request a stop to new connection admission. Active handlers drain until
+   --  they complete or the Drain_Timeout of Serve or Serve_TLS expires; on
+   --  expiry, remaining handlers are asked to cancel. With the default
+   --  infinite drain, Serve or Serve_TLS may wait indefinitely for handlers
+   --  to finish. This operation is idempotent and may be called from another
+   --  task.
    --  @param Item Running server to stop.
 
 private
