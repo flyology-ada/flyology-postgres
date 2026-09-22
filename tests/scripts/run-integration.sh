@@ -83,6 +83,23 @@ POSTGRES_TLS_SERVER_NAME=localhost \
 "$postgres_prefix/bin/pg_ctl" -D "$data_dir" -m fast -w stop >/dev/null
 postgres_started=false
 
+for invalid_mock_secret in missing zero; do
+  invalid_log="$run_root/invalid-mock-$invalid_mock_secret.log"
+  if POSTGRES_TEST_PORT=$server_port \
+    POSTGRES_TLS_CERT_FILE=$server_cert \
+    POSTGRES_TLS_KEY_FILE=$server_key \
+    POSTGRES_TEST_INVALID_SCRAM_MOCK_SECRET=$invalid_mock_secret \
+      "$tests_root/bin/postgres_test_server" >"$invalid_log" 2>&1; then
+    echo "Flyology SCRAM server accepted $invalid_mock_secret mock secret" >&2
+    exit 1
+  fi
+  if ! grep -q 'requires a nonzero persistent mock secret' "$invalid_log"; then
+    echo "Flyology SCRAM server failed for an unexpected reason" >&2
+    cat "$invalid_log" >&2
+    exit 1
+  fi
+done
+
 POSTGRES_TEST_PORT=$server_port \
 POSTGRES_TLS_CERT_FILE=$server_cert \
 POSTGRES_TLS_KEY_FILE=$server_key \
@@ -101,6 +118,8 @@ while ! grep -q '^ready$' "$server_log"; do
 done
 
 psql_connection="host=localhost hostaddr=127.0.0.1 port=$server_port user=flyology dbname=postgres sslmode=verify-full sslrootcert=$ca_cert"
+
+python3 "$script_dir/check-scram-mock.py" "$server_port"
 
 if PGPASSWORD=flyology-secret \
   "$postgres_prefix/bin/psql" \
@@ -251,12 +270,11 @@ if PGPASSWORD=wrong-password \
   exit 1
 fi
 
-#  The dummy input is intentionally non-secret. Using it here makes the client
-#  proof valid for the static dummy verifier; the server must still reject the
-#  unknown startup user after verification.
-if PGPASSWORD='Flyology invalid SCRAM credential' \
+#  The callback returns this role's mock verifier and separately classifies it
+#  as ineligible. A valid proof for the mock must still be rejected.
+if PGPASSWORD='Flyology classified mock credential' \
   "$postgres_prefix/bin/psql" \
-  "host=localhost hostaddr=127.0.0.1 port=$server_port user=unknown-flyology-user dbname=postgres sslmode=verify-full sslrootcert=$ca_cert" \
+  "host=localhost hostaddr=127.0.0.1 port=$server_port user=classified-mock dbname=postgres sslmode=verify-full sslrootcert=$ca_cert" \
   -Atc 'select 1' >/dev/null 2>&1; then
   echo "Flyology Postgres test server accepted an unknown user" >&2
   exit 1

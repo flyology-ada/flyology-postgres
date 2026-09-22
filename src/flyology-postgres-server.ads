@@ -5,6 +5,7 @@ with Flyology.IO.Sockets;
 with Flyology.IO.Structured_Servers;
 with Flyology.IO.TLS;
 with Flyology.Postgres.Protocol;
+with Flyology.Postgres.SCRAM;
 with Flyology.Postgres.Server_Sessions;
 with System.Multiprocessors;
 
@@ -37,6 +38,29 @@ generic
    Command_Timeout : Duration := Flyology.IO.Infinite;
    Write_Timeout   : Duration := 30.0;
 
+   with procedure Provide_SCRAM_Mock_Secret
+     (Context  : in out Handler_Context;
+      Secret   : in out Flyology.Postgres.SCRAM.Digest;
+      Provided : in out Boolean) is null;
+   --  Supply the persistent cluster secret used to disguise absent roles.
+   --  SCRAM servers require a nonzero unpredictable value shared by all
+   --  processes in the cluster and retained across restarts. Other
+   --  authentication methods do not call this procedure. Mock challenges use
+   --  SCRAM.Minimum_Iterations; real verifiers with another iteration count
+   --  remain distinguishable by that count. Secret and Provided initially
+   --  contain zero and False; a SCRAM Serve raises Program_Error unless the
+   --  procedure replaces them with a nonzero secret and True.
+
+   with procedure Classify_SCRAM_Verifier
+     (Context        : in out Handler_Context;
+      Startup        : Protocol.Startup_Information;
+      Verifier       : String;
+      Has_Credential : in out Boolean) is null;
+   --  Optionally downgrade a nonempty verifier to a mock credential. Setting
+   --  Has_Credential to True never makes an empty verifier authenticatable.
+   --  Verifier is the exact Lookup_SCRAM_Verifier result, and Has_Credential
+   --  is initially True exactly when that result is nonempty.
+
 package Flyology.Postgres.Server is
    --  Concurrent PostgreSQL protocol server parameterized by application
    --  authentication and command handling.
@@ -51,6 +75,10 @@ package Flyology.Postgres.Server is
    --  @formal Startup_Timeout Per-message timeout before authentication.
    --  @formal Command_Timeout Maximum time to read a frontend command.
    --  @formal Write_Timeout Maximum time to write a backend response.
+   --  @formal Provide_SCRAM_Mock_Secret Supply persistent cluster entropy for
+   --     role-specific mock challenges. Required only for SCRAM servers.
+   --  @formal Classify_SCRAM_Verifier Optionally classify a returned verifier
+   --     as a mock that must never authenticate its startup role.
 
    type Server (Capacity : Positive) is limited private;
    --  Server instance with bounded cancellation-routing capacity.
@@ -142,12 +170,15 @@ private
    type Handler_Context_Access is access all Handler_Context;
    type Registry_Access is access all Registry;
    type TLS_Provider_Access is access all Flyology.IO.TLS.Provider'Class;
+   type SCRAM_Mock_Secret_Access is access constant
+     Flyology.Postgres.SCRAM.Digest;
 
    type Internal_Context is limited record
       Application : Handler_Context_Access;
       Router      : Registry_Access;
       TLS_Backend : TLS_Provider_Access := null;
       TLS_Mode    : TLS_Policy := TLS_Disabled;
+      SCRAM_Mock_Secret : SCRAM_Mock_Secret_Access := null;
    end record;
 
    procedure Process_Connection
