@@ -16,6 +16,8 @@ with Flyology.Postgres.Framing;
 with Flyology.Postgres.Protocol;
 with Flyology.Postgres.Replication.Base_Backups;
 with Flyology.Postgres.Replication.Base_Backups.Server_Sessions;
+with Flyology.Postgres.Replication;
+with Flyology.Postgres.Replication.Server_Sessions;
 with Flyology.Postgres.SCRAM;
 with Flyology.Postgres.SCRAM_Core;
 with Flyology.Postgres.Server_Sessions;
@@ -33,6 +35,9 @@ procedure Tests is
      Flyology.Postgres.Replication.Base_Backups;
    package Backup_Sessions renames
      Flyology.Postgres.Replication.Base_Backups.Server_Sessions;
+   package Replication renames Flyology.Postgres.Replication;
+   package Replication_Sessions renames
+     Flyology.Postgres.Replication.Server_Sessions;
    package Server_Sessions renames Flyology.Postgres.Server_Sessions;
    package Transports renames Flyology.Postgres.Transports;
    package Operations renames Flyology.Operations;
@@ -54,6 +59,7 @@ procedure Tests is
    use type Client.Operation_State;
    use type Operations.Terminal_Outcome;
    use type Base_Backups.Event_Kind;
+   use type Replication.Stream_Message_Kind;
    use type Interfaces.Unsigned_64;
    use type Ada.Streams.Stream_Element_Array;
    use type Ada.Real_Time.Time;
@@ -1204,6 +1210,67 @@ procedure Tests is
          end;
       end;
    end Test_Copy_Protocol;
+
+   procedure Test_Replication_Copy_Done is
+   begin
+      declare
+         Channel : aliased Memory_Transport;
+         Session : Server_Sessions.Session (Channel'Access);
+         Done    : Boolean := False;
+      begin
+         Queue
+           (Channel,
+            Replication.Make_Standby_Status_Update
+              (Received_LSN => 103, Flushed_LSN => 103,
+               Applied_LSN => 103, Sent_At => 0));
+         Queue (Channel, Protocol.Make_Copy_Done_Message);
+         Assert
+           (Replication.Kind
+              (Replication_Sessions.Read_Standby_Message (Session, 1.0)) =
+              Replication.Standby_Status_Update,
+            "standby status is decoded before CopyDone");
+         begin
+            declare
+               Ignored : constant Replication.Stream_Message :=
+                 Replication_Sessions.Read_Standby_Message (Session, 1.0);
+               pragma Unreferenced (Ignored);
+            begin
+               null;
+            end;
+         exception
+            when Replication_Sessions.Standby_Copy_Done =>
+               Done := True;
+         end;
+         Assert (Done, "standby CopyDone has a distinct normal signal");
+      end;
+      for Bad in 1 .. 2 loop
+         declare
+            Channel  : aliased Memory_Transport;
+            Session  : Server_Sessions.Session (Channel'Access);
+            Rejected : Boolean := False;
+         begin
+            Queue
+              (Channel,
+               (if Bad = 1 then Protocol.Make_Copy_Fail_Message ("abort")
+                else Protocol.Make_Empty_Message ('X')));
+            begin
+               declare
+                  Ignored : constant Replication.Stream_Message :=
+                    Replication_Sessions.Read_Standby_Message (Session, 1.0);
+                  pragma Unreferenced (Ignored);
+               begin
+                  null;
+               end;
+            exception
+               when Protocol.Protocol_Error =>
+                  Rejected := True;
+            end;
+            Assert
+              (Rejected,
+               "CopyFail and malformed standby frames remain errors");
+         end;
+      end loop;
+   end Test_Replication_Copy_Done;
 
    procedure Test_Negotiate_Protocol_Version is
       Channel : aliased Memory_Transport;
@@ -3101,6 +3168,7 @@ begin
    Test_Extended_Frontend_Messages;
    Test_Extended_Backend_Messages;
    Test_Copy_Protocol;
+   Test_Replication_Copy_Done;
    Test_Negotiate_Protocol_Version;
    Test_Copy_Client_State;
    Test_Extended_Copy_Sync_Sequences;

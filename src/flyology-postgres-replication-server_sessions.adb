@@ -202,7 +202,20 @@ package body Flyology.Postgres.Replication.Server_Sessions is
      (Client : in out Sessions.Session; Timeout : Duration)
       return Stream_Message is
    begin
-      return Decode (Sessions.Read_Command (Client, Timeout));
+      declare
+         Command : constant Protocol.Frontend_Copy_Message :=
+           Sessions.Read_Copy_Command (Client, Timeout);
+      begin
+         case Protocol.Copy_Kind (Command) is
+            when Protocol.Frontend_Copy_Data =>
+               return Decode (Protocol.Original_Message (Command));
+            when Protocol.Frontend_Copy_Done =>
+               raise Standby_Copy_Done;
+            when Protocol.Frontend_Copy_Fail =>
+               raise Protocol.Protocol_Error with
+                 "replica aborted COPY BOTH streaming";
+         end case;
+      end;
    end Read_Standby_Message;
 
    procedure Finish_Streaming
