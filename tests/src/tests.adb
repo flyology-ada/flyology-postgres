@@ -1502,6 +1502,213 @@ procedure Tests is
       end;
    end Test_Copy_Client_State;
 
+   procedure Test_Extended_Copy_Sync_Sequences is
+      type Receive_Path is (Synchronous_Path, Scoped_Path, Raw_Path);
+      type Copy_Direction is (Copy_In, Copy_Both, Copy_Out);
+      type Sync_Timing is (After_Copy_Done, After_Command_Complete);
+      type Case_Item is record
+         Path      : Receive_Path;
+         Direction : Copy_Direction;
+         Timing    : Sync_Timing;
+      end record;
+      type Case_Array is array (Positive range <>) of Case_Item;
+      Cases : constant Case_Array :=
+        ((Synchronous_Path, Copy_In, After_Copy_Done),
+         (Scoped_Path, Copy_In, After_Copy_Done),
+         (Raw_Path, Copy_In, After_Copy_Done),
+         (Synchronous_Path, Copy_In, After_Command_Complete),
+         (Scoped_Path, Copy_In, After_Command_Complete),
+         (Raw_Path, Copy_In, After_Command_Complete),
+         (Synchronous_Path, Copy_Both, After_Copy_Done),
+         (Scoped_Path, Copy_Both, After_Copy_Done),
+         (Raw_Path, Copy_Both, After_Copy_Done),
+         (Synchronous_Path, Copy_Out, After_Copy_Done),
+         (Scoped_Path, Copy_Out, After_Copy_Done),
+         (Raw_Path, Copy_Out, After_Copy_Done));
+      Ready_Payload : constant Protocol.Byte_Array :=
+        (1 => Protocol.Byte (Character'Pos ('I')));
+      Chunk : constant Protocol.Byte_Array :=
+        (1 => Protocol.Byte (Character'Pos ('x')),
+         2 => Protocol.Byte (Character'Pos (ASCII.LF)));
+
+      function Copy_Response (Code : Character) return Protocol.Message is
+         Contents : Flyology.Bytes.Unbounded_Bytes;
+      begin
+         Protocol.Append_Byte (Contents, 0);
+         Protocol.Append_U16 (Contents, 1);
+         Protocol.Append_U16 (Contents, 0);
+         return Protocol.Make_Message
+           (Code, Flyology.Bytes.To_Array (Contents));
+      end Copy_Response;
+
+      function Complete return Protocol.Message is
+         Contents : Flyology.Bytes.Unbounded_Bytes;
+      begin
+         Protocol.Append_C_String (Contents, "COPY 1");
+         return Protocol.Make_Message
+           ('C', Flyology.Bytes.To_Array (Contents));
+      end Complete;
+
+      procedure Check_Case (Test_Case : Case_Item) is
+         Channel : aliased Memory_Transport;
+         Session : aliased Client.Session (Channel'Access);
+         Set : aliased Operations.Completion_Set (Capacity => 1);
+         Authentication : Flyology.Bytes.Unbounded_Bytes;
+         Command_Start : Natural;
+         Label : constant String :=
+           Test_Case.Path'Image & Test_Case.Direction'Image
+           & Test_Case.Timing'Image;
+
+         function Receive_Start return Protocol.Backend_Message_Kind is
+         begin
+            case Test_Case.Path is
+               when Synchronous_Path =>
+                  return Protocol.Response_Kind
+                    (Client.Receive_Extended_Event
+                       (Session, Timeout => 1.0));
+               when Scoped_Path =>
+                  declare
+                     Event : Protocol.Backend_Message;
+                     Receive : Client.Receive_Operation :=
+                       Client.Receive_Extended_Event
+                         (Set'Access, Session'Access, Timeout => 1.0);
+                  begin
+                     Operations.Wait_All (Set);
+                     Client.Finish (Receive, Event);
+                     return Protocol.Response_Kind (Event);
+                  end;
+               when Raw_Path =>
+                  return Protocol.Response_Kind
+                    (Protocol.Decode_Backend
+                       (Client.Receive_Message (Session, Timeout => 1.0)));
+            end case;
+         end Receive_Start;
+
+         function Receive_Copy return Protocol.Backend_Message_Kind is
+         begin
+            if Test_Case.Path = Raw_Path then
+               return Protocol.Response_Kind
+                 (Protocol.Decode_Backend
+                    (Client.Receive_Message (Session, Timeout => 1.0)));
+            end if;
+            return Protocol.Response_Kind
+              (Client.Receive_Copy_Event (Session, Timeout => 1.0));
+         end Receive_Copy;
+
+         function Frontend_Tags return String is
+            Output : constant Protocol.Byte_Array :=
+              Flyology.Bytes.To_Array (Channel.Output);
+            Cursor : Protocol.Byte_Offset :=
+              Protocol.Byte_Offset (Command_Start);
+            Tags : Unbounded_String;
+         begin
+            while Cursor <= Output'Last loop
+               Append (Tags, Character'Val (Output (Cursor)));
+               Cursor := Cursor + 1;
+               declare
+                  Length : constant Protocol.UInt32 :=
+                    Protocol.Read_U32 (Output, Cursor);
+               begin
+                  Cursor := Cursor + Protocol.Byte_Offset (Length - 4);
+               end;
+            end loop;
+            return To_String (Tags);
+         end Frontend_Tags;
+      begin
+         Protocol.Append_U32 (Authentication, 0);
+         Queue
+           (Channel,
+            Protocol.Make_Message
+              ('R', Flyology.Bytes.To_Array (Authentication)));
+         Queue (Channel, Protocol.Make_Message ('Z', Ready_Payload));
+         Client.Startup (Session, User => "tester", Timeout => 1.0);
+         Command_Start := Flyology.Bytes.Length (Channel.Output) + 1;
+
+         Client.Prepare_Statement
+           (Session, "c", "copy t from stdin", Timeout => 1.0);
+         Client.Bind_Portal (Session, "", "c", Timeout => 1.0);
+         Client.Execute_Portal (Session, "", Timeout => 1.0);
+         Client.Synchronize (Session, Timeout => 1.0);
+         Queue (Channel, Protocol.Make_Empty_Message ('1'));
+         Queue (Channel, Protocol.Make_Empty_Message ('2'));
+         Queue
+           (Channel,
+            Copy_Response
+              (case Test_Case.Direction is
+                 when Copy_In   => 'G',
+                 when Copy_Both => 'W',
+                 when Copy_Out  => 'H'));
+         Assert
+           (Receive_Start = Protocol.Parse_Complete_Response
+            and then Receive_Start = Protocol.Bind_Complete_Response,
+            Label & " consumes ParseComplete and BindComplete");
+         Assert
+           (Receive_Start =
+              (case Test_Case.Direction is
+                 when Copy_In   => Protocol.Copy_In_Response,
+                 when Copy_Both => Protocol.Copy_Both_Response,
+                 when Copy_Out  => Protocol.Copy_Out_Response),
+            Label & " receives the COPY direction");
+         Assert
+           (Client.Pending_Synchronizations (Session) =
+              (if Test_Case.Direction = Copy_Out then 1 else 0),
+            Label & " counts only a Sync the backend will answer");
+
+         if Test_Case.Direction in Copy_Out | Copy_Both then
+            Queue (Channel, Protocol.Make_Empty_Message ('c'));
+            Assert
+              (Receive_Copy = Protocol.Copy_Done_Response,
+               Label & " receives the backend CopyDone");
+         end if;
+         if Test_Case.Direction /= Copy_Out then
+            Client.Send_Copy_Data (Session, Chunk, Timeout => 1.0);
+            Client.Finish_Copy (Session, Timeout => 1.0);
+            if Test_Case.Timing = After_Copy_Done then
+               Client.Synchronize (Session, Timeout => 1.0);
+               Assert
+                 (Client.Pending_Synchronizations (Session) = 1,
+                  Label & " counts the post-CopyDone Sync");
+            end if;
+         end if;
+
+         Queue (Channel, Complete);
+         Assert
+           (Receive_Copy = Protocol.Command_Complete_Response,
+            Label & " receives CommandComplete");
+         if Test_Case.Direction /= Copy_Out
+           and then Test_Case.Timing = After_Command_Complete
+         then
+            Assert
+              (Client.Pending_Synchronizations (Session) = 0
+               and then Client.State (Session) =
+                 Client.Extended_Query_Active,
+               Label & " does not wait for the discarded Sync");
+            Client.Synchronize (Session, Timeout => 1.0);
+         end if;
+         Queue (Channel, Protocol.Make_Message ('Z', Ready_Payload));
+         Assert
+           ((if Test_Case.Direction /= Copy_Out
+                and then Test_Case.Timing = After_Command_Complete
+             then Receive_Start
+             else Receive_Copy) = Protocol.Ready_For_Query_Response
+            and then Client.Pending_Synchronizations (Session) = 0
+            and then Client.Is_Ready (Session)
+            and then Channel.Next = Flyology.Bytes.Length (Channel.Input) + 1,
+            Label & " consumes the sole ReadyForQuery and becomes ready");
+         Assert
+           (Frontend_Tags =
+              (if Test_Case.Direction = Copy_Out then "PBES"
+               else "PBESdcS"),
+            Label & " writes the expected frontend sequence");
+         Client.Prepare_Statement
+           (Session, "next", "select 1", Timeout => 1.0);
+      end Check_Case;
+   begin
+      for Test_Case of Cases loop
+         Check_Case (Test_Case);
+      end loop;
+   end Test_Extended_Copy_Sync_Sequences;
+
    procedure Test_Base_Backup_Client_State is
       Channel : aliased Memory_Transport;
       Session : aliased Client.Session (Channel'Access);
@@ -2896,6 +3103,7 @@ begin
    Test_Copy_Protocol;
    Test_Negotiate_Protocol_Version;
    Test_Copy_Client_State;
+   Test_Extended_Copy_Sync_Sequences;
    Test_Base_Backup_Client_State;
    Test_Extended_Client_State;
    Test_Pipelined_Client_State;

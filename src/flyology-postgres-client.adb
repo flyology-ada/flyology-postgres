@@ -46,8 +46,24 @@ package body Flyology.Postgres.Client is
       Origin       : Copy_Origin;
       Sync_Pending : Boolean := False) is
    begin
+      if Origin = Extended_Copy
+        and then Sync_Pending
+        and then Response in
+          Protocol.Copy_In_Response | Protocol.Copy_Both_Response
+      then
+         --  PostgreSQL consumes a Sync sent after Execute while it reads
+         --  writable COPY data; no ReadyForQuery will answer that Sync.
+         if Item.Pending_Syncs = 0 then
+            raise Program_Error with
+              "writable COPY has no pending synchronization to retire";
+         end if;
+         Item.Pending_Syncs := Item.Pending_Syncs - 1;
+      end if;
       Item.Current_Copy_Origin := Origin;
-      Item.Copy_Sync_Pending := Sync_Pending;
+      Item.Copy_Sync_Pending :=
+        Sync_Pending
+        and then Response not in
+          Protocol.Copy_In_Response | Protocol.Copy_Both_Response;
       case Response is
          when Protocol.Copy_In_Response =>
             Item.Current_State := Copy_In_Active;

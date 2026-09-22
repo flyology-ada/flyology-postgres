@@ -318,7 +318,9 @@ directions close and before `CommandComplete`, matching real PostgreSQL
 replication shutdown ordering.
 For extended COPY, `Sync` is mandatory. COPY OUT may pipeline `Sync` after
 `Execute`; COPY IN and the writable half of COPY BOTH send it after local
-`CopyDone`/`CopyFail`. A server error without an already pending `Sync` enters
+`CopyDone`/`CopyFail`. PostgreSQL discards a `Sync` sent after `Execute` before
+writable COPY starts, so it does not replace the final `Sync`. A server error
+without an already pending `Sync` enters
 `Recovery_Required`, matching other extended-query operations. Cancellation is
 reported as the server's normal error and recovery sequence.
 
