@@ -3,6 +3,7 @@ with Flyology.Postgres.Protocol;
 package body Flyology.Postgres.Replication.Prepared_Consumer is
 
    use type Stores.Prepared_Phase;
+   use type Transaction_Id;
 
    procedure Prepare
      (Item        : in out Consumer;
@@ -11,12 +12,25 @@ package body Flyology.Postgres.Replication.Prepared_Consumer is
       XID         : Transaction_Id;
       Prepare_LSN : LSN;
       Payload     : Stores.Byte_Array) is
+      Proposed : constant Stores.Prepared_Transaction :=
+        Stores.Make_Prepared (XID, Prepare_LSN, Payload);
+      Existing : constant Stores.Prepared_Transaction :=
+        Stores.Load (Item.Store.all, Slot_Name, GID);
    begin
+      if Stores.Exists (Existing)
+        and then Stores.Phase (Existing) = Stores.Target_Applied
+      then
+         if Stores.XID (Existing) /= Stores.XID (Proposed) then
+            raise Flyology.Postgres.Protocol.Protocol_Error with
+              "prepared GID is awaiting acknowledgement";
+         end if;
+         return;
+      end if;
       Stores.Put
         (Item.Store.all,
          Slot_Name,
          GID,
-         Stores.Make_Prepared (XID, Prepare_LSN, Payload));
+         Proposed);
    end Prepare;
 
    procedure Commit
