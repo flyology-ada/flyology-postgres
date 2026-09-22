@@ -115,10 +115,22 @@ package body Replication_Persistence_Conformance is
 
       Persistence.Create
         (Slots,
+         "conformance_zero",
+         Persistence.Make_Slot
+           (Persistence.Physical_Slot, Restart_LSN => 0),
+         Created);
+      Check (Created = Persistence.Created, "zero-restart slot creation");
+      Persistence.Create
+        (Slots,
          "conformance_logical",
          Persistence.Make_Slot
            (Persistence.Logical_Slot, 110, 115, "pgoutput"),
          Created);
+      Check
+        (Persistence.Oldest_Restart_LSN (Slots) = 0,
+         "zero-restart slot remains the retention floor");
+      Persistence.Drop (Slots, "conformance_zero", Changed);
+      Check (Changed, "zero-restart slot drop");
       Check
         (Persistence.Oldest_Restart_LSN (Slots) = 110,
          "oldest restart retention floor");

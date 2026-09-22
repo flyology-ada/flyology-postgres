@@ -162,13 +162,15 @@ package body Flyology.Postgres.Replication.Persistence.Memory is
 
    overriding function Oldest_Restart_LSN (Item : Store) return LSN is
       Result : LSN := 0;
+      Found  : Boolean := False;
    begin
       for Item_Entry of Item.Slots loop
          if Item_Entry.State.Present and then not Item_Entry.State.Invalid
            and then
-             (Result = 0 or else Item_Entry.State.Restart < Result)
+             (not Found or else Item_Entry.State.Restart < Result)
          then
             Result := Item_Entry.State.Restart;
+            Found := True;
          end if;
       end loop;
       return Result;
