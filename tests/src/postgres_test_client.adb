@@ -80,7 +80,7 @@ procedure Postgres_Test_Client is
       Backend : aliased OpenSSL.OpenSSL_Provider;
       Socket  : aliased Sockets.Socket_Type;
       Channel : aliased Transports.TLS_Socket_Transport (Socket'Access);
-      Session : Client.Session (Channel'Access);
+      Session : aliased Client.Session (Channel'Access);
       All_Good : Boolean := True;
       Saw_Cancellation : Boolean := False;
       Server : constant Sockets.Endpoint :=
@@ -97,6 +97,127 @@ procedure Postgres_Test_Client is
       function Bytes (Value : String) return Protocol.Byte_Array is
         (Flyology.Bytes.To_Array
            (Flyology.Bytes.From_Byte_String (Value)));
+
+      type Extended_Receive_Path is (Synchronous_Path, Scoped_Path);
+
+      function Receive_Extended
+        (Item : not null access Client.Session;
+         Path : Extended_Receive_Path;
+         Set  : access Operations.Completion_Set := null)
+         return Protocol.Backend_Message is
+      begin
+         case Path is
+            when Synchronous_Path =>
+               return Client.Receive_Extended_Event
+                 (Item.all, Timeout => 5.0);
+            when Scoped_Path =>
+               if Set = null then
+                  raise Program_Error with
+                    "scoped receive reproduction requires a completion set";
+               end if;
+               declare
+                  Receive : Client.Receive_Operation :=
+                    Client.Receive_Extended_Event
+                      (Set, Item, Timeout => 5.0);
+                  Event : Protocol.Backend_Message;
+               begin
+                  Operations.Wait_All (Set.all);
+                  Client.Finish (Receive, Event);
+                  return Event;
+               end;
+         end case;
+      end Receive_Extended;
+
+      procedure Check_Discarded_Copy_Sync
+        (Item       : not null access Client.Session;
+         Path       : Extended_Receive_Path;
+         Set        : access Operations.Completion_Set := null;
+         Table_Name : String;
+         Label      : String) is
+         type Expected_Response_Array is
+           array (Positive range <>) of Protocol.Backend_Message_Kind;
+         Expected_Responses : constant Expected_Response_Array :=
+           (Protocol.Command_Complete_Response,
+            Protocol.Ready_For_Query_Response);
+      begin
+         Client.Send_Query
+           (Item.all,
+            "create temporary table " & Table_Name & " (value text)",
+            Timeout => 5.0);
+         loop
+            declare
+               Event : constant Client.Simple_Query_Event :=
+                 Client.Receive_Query_Event (Item.all, Timeout => 5.0);
+            begin
+               Check
+                 (Protocol.Response_Kind (Event) /= Protocol.Error_Response);
+               exit when Protocol.Response_Kind (Event) =
+                 Protocol.Ready_For_Query_Response;
+            end;
+         end loop;
+
+         Client.Prepare_Statement
+           (Item.all,
+            Label & "_statement",
+            "copy " & Table_Name & " from stdin",
+            Timeout => 5.0);
+         Client.Bind_Portal
+           (Item.all, "", Label & "_statement", Timeout => 5.0);
+         Client.Execute_Portal (Item.all, "", Timeout => 5.0);
+         Client.Synchronize (Item.all, Timeout => 5.0);
+         Check
+           (Client.Pending_Synchronizations (Item.all) = 1
+            and then Client.State (Item.all) = Client.Awaiting_Ready);
+
+         loop
+            declare
+               Event : constant Protocol.Backend_Message :=
+                 Receive_Extended (Item, Path, Set);
+            begin
+               Check
+                 (Protocol.Response_Kind (Event) /= Protocol.Error_Response);
+               exit when Protocol.Response_Kind (Event) =
+                 Protocol.Copy_In_Response;
+            end;
+         end loop;
+         Check
+           (Client.Pending_Synchronizations (Item.all) = 0
+            and then Client.State (Item.all) = Client.Copy_In_Active);
+
+         Client.Send_Copy_Data
+           (Item.all, Bytes (Label & ASCII.LF), Timeout => 5.0);
+         Client.Finish_Copy (Item.all, Timeout => 5.0);
+         Client.Synchronize (Item.all, Timeout => 5.0);
+         Check
+           (Client.Pending_Synchronizations (Item.all) = 1
+            and then Client.State (Item.all) = Client.Awaiting_Ready);
+
+         for Expected of Expected_Responses loop
+            declare
+               Event : constant Client.Copy_Event :=
+                 Client.Receive_Copy_Event (Item.all, Timeout => 5.0);
+            begin
+               Check (Protocol.Response_Kind (Event) = Expected);
+            end;
+         end loop;
+         Check
+           (Client.Pending_Synchronizations (Item.all) = 0
+            and then Client.Is_Ready (Item.all));
+         Client.Send_Query
+           (Item.all, "select count(*) from " & Table_Name, Timeout => 5.0);
+         loop
+            declare
+               Event : constant Client.Simple_Query_Event :=
+                 Client.Receive_Query_Event (Item.all, Timeout => 5.0);
+            begin
+               Check
+                 (Protocol.Response_Kind (Event) /= Protocol.Error_Response);
+               exit when Protocol.Response_Kind (Event) =
+                 Protocol.Ready_For_Query_Response;
+            end;
+         end loop;
+         Check (Client.Is_Ready (Item.all));
+      end Check_Discarded_Copy_Sync;
    begin
       OpenSSL.Initialize_Client
         (Backend,
@@ -1142,6 +1263,12 @@ procedure Postgres_Test_Client is
       end;
       Check (Saw_Cancellation);
 
+      Check_Discarded_Copy_Sync
+        (Session'Access,
+         Synchronous_Path,
+         Table_Name => "flyology_copy_sync_repro",
+         Label      => "synchronous");
+
       --  Exercise the public set-independent connection capability after a
       --  synchronous same-connection PostgreSQL TLS negotiation.  The query
       --  and every result frame are scoped operations over upgraded TLS.
@@ -1229,6 +1356,12 @@ procedure Postgres_Test_Client is
             end loop;
          end;
          Check (Rows = 3 and then Client.Is_Ready (Scoped_Session));
+         Check_Discarded_Copy_Sync
+           (Scoped_Session'Access,
+            Scoped_Path,
+            Set        => Set'Access,
+            Table_Name => "flyology_copy_scoped_repro",
+            Label      => "scoped");
          Client.Send_Command
            (Scoped_Session,
             Protocol.Make_Empty_Message ('X'),
