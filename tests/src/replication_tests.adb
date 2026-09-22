@@ -1534,6 +1534,49 @@ package body Replication_Tests is
          "source acknowledgement removes prepared replay state");
    end Test_Persistence_Contracts;
 
+   procedure Test_Zero_Restart_Retention is
+      Ascending  : Memory.Store;
+      Descending : Memory.Store;
+      Created    : Persistence.Create_Result;
+      Floor      : Replication.LSN;
+   begin
+      Memory.Create
+        (Ascending, "fresh",
+         Persistence.Make_Slot
+           (Persistence.Physical_Slot, Restart_LSN => 0),
+         Created);
+      Memory.Create
+        (Ascending, "later",
+         Persistence.Make_Slot
+           (Persistence.Physical_Slot, Restart_LSN => 50),
+         Created);
+      Memory.Create
+        (Descending, "later",
+         Persistence.Make_Slot
+           (Persistence.Physical_Slot, Restart_LSN => 50),
+         Created);
+      Memory.Create
+        (Descending, "fresh",
+         Persistence.Make_Slot
+           (Persistence.Physical_Slot, Restart_LSN => 0),
+         Created);
+      Assert
+        (Memory.Oldest_Restart_LSN (Ascending) = 0
+         and then Memory.Oldest_Restart_LSN (Descending) = 0,
+         "zero-restart retention floor is independent of slot order");
+
+      Memory.Append (Ascending, Start => 0, Data => (1 .. 100 => 7));
+      Floor := Memory.Oldest_Restart_LSN (Ascending);
+      if Floor > Memory.First_LSN (Ascending) then
+         Memory.Retain_From (Ascending, Floor);
+      end if;
+      Assert
+        (Memory.First_LSN (Ascending) = 0
+         and then Memory.Read (Ascending, 0, 10) =
+           Persistence.Byte_Array'(1 .. 10 => 7),
+         "retention preserves WAL required by a zero-restart slot");
+   end Test_Zero_Restart_Retention;
+
    procedure Test_Logical_Producer is
       Encoder : Producer.Encoder;
       Tuple : constant Logical.Tuple_Data := Logical.Make_Tuple
@@ -1912,6 +1955,7 @@ package body Replication_Tests is
       Test_Logical_Encoding;
       Test_Logical_Failures;
       Test_Persistence_Contracts;
+      Test_Zero_Restart_Retention;
       Test_Managed_Copy_Done;
       Test_Logical_Producer;
    end Run;
