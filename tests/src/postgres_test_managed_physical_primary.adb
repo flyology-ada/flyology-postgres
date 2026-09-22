@@ -53,6 +53,7 @@ procedure Postgres_Test_Managed_Physical_Primary is
       First        : Replication.LSN := 0;
       Current      : Replication.LSN := 0;
       Fork         : Replication.LSN := 0;
+      Second_Fork  : Replication.LSN := 0;
       Final        : Replication.LSN := 0;
       Segment_Size : Replication.UInt64 := 16 * 1_024 * 1_024;
       Timeline     : Replication.UInt32 := 1;
@@ -244,6 +245,9 @@ procedure Postgres_Test_Managed_Physical_Primary is
          if WAL.Timeline = 1 then
             WAL.Current := WAL.Fork;
          elsif WAL.Timeline = 2 then
+            WAL.Current :=
+              (if WAL.Second_Fork = 0 then WAL.Final else WAL.Second_Fork);
+         elsif WAL.Timeline = 3 and then WAL.Second_Fork /= 0 then
             WAL.Current := WAL.Final;
          else
             raise Protocol.Protocol_Error with
@@ -298,6 +302,11 @@ begin
    WAL.Fork := Replication.Value
      (Ada.Environment_Variables.Value ("POSTGRES_PRIMARY_FORK_LSN"));
    WAL.Timeline := Durable.Current_Timeline (Store);
+   if WAL.Timeline = 3 then
+      WAL.Second_Fork := Replication.Value
+        (Ada.Environment_Variables.Value
+           ("POSTGRES_PRIMARY_SECOND_FORK_LSN"));
+   end if;
    WAL.Segment_Size := Replication.UInt64'Value
      (Ada.Environment_Variables.Value
         ("POSTGRES_PRIMARY_WAL_SEGMENT_SIZE", "16777216"));

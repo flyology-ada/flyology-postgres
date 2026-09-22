@@ -580,14 +580,26 @@ run_managed_timeline_promotion () {
   follower_dir="$version_root/timeline-follower"
   follower_log="$version_root/timeline-follower.log"
   promotion_log="$version_root/timeline-promotion.log"
+  second_leader_dir="$version_root/timeline-three-leader"
+  second_promotion_log="$version_root/timeline-three-promotion.log"
+  second_leader_port=$((port + 7))
+  ancestor_wal_dir="$version_root/timeline-ancestor-wal"
   managed_log="$version_root/managed-timeline-primary.log"
   managed_store="$version_root/managed-timeline-store"
   managed_port=$((port + 5))
   follower_port=$((port + 6))
   timeline_slot="flyology_timeline_$major"
+  retained_wal_slot="flyology_timeline_retained_$major"
   timeline_marker="managed-timeline-two-$major"
+  final_marker="managed-timeline-three-$major"
 
   cp -R "$leader_dir" "$follower_dir"
+  mkdir -p "$ancestor_wal_dir"
+  for wal_file in "$follower_dir"/pg_wal/00000001????????????????; do
+    if [ -f "$wal_file" ]; then
+      cp "$wal_file" "$ancestor_wal_dir/"
+    fi
+  done
 
   if ! "$postgres_prefix/bin/pg_ctl" \
     -D "$leader_dir" -l "$promotion_log" \
@@ -649,10 +661,118 @@ run_managed_timeline_promotion () {
     "host=127.0.0.1 port=$standby_port user=flyology dbname=postgres sslmode=disable" \
     -qAtc \
     "select '$fork_lsn'::pg_lsn - (pg_walfile_name_offset('$fork_lsn')).file_offset")
+  PGPASSWORD=flyology-secret "$postgres_prefix/bin/psql" \
+    "host=127.0.0.1 port=$standby_port user=flyology dbname=postgres sslmode=disable" \
+    -v ON_ERROR_STOP=1 -qAtc \
+    "select pg_create_physical_replication_slot('$retained_wal_slot', true)" \
+    >/dev/null
+
+  PGPASSWORD=flyology-secret \
+    "$postgres_prefix/bin/pg_basebackup" \
+    -d "host=127.0.0.1 port=$standby_port user=flyology dbname=postgres sslmode=disable" \
+    -D "$second_leader_dir" -R -X stream -c fast --no-sync >/dev/null
+
+  for wal_file in "$leader_dir"/pg_wal/00000002????????????????; do
+    if [ -f "$wal_file" ]; then
+      cp "$wal_file" "$ancestor_wal_dir/"
+    fi
+  done
+  first_segment_file=$(PGPASSWORD=flyology-secret \
+    "$postgres_prefix/bin/psql" \
+    "host=127.0.0.1 port=$standby_port user=flyology dbname=postgres sslmode=disable" \
+    -qAtc "select pg_walfile_name('$timeline_first_lsn'::pg_lsn + 1)")
+  first_segment_suffix=${first_segment_file#????????}
+  backup_end_lsn=$(PGPASSWORD=flyology-secret \
+    "$postgres_prefix/bin/psql" \
+    "host=127.0.0.1 port=$standby_port user=flyology dbname=postgres sslmode=disable" \
+    -qAtc 'select pg_current_wal_flush_lsn()')
+  backup_end_file=$(PGPASSWORD=flyology-secret \
+    "$postgres_prefix/bin/psql" \
+    "host=127.0.0.1 port=$standby_port user=flyology dbname=postgres sslmode=disable" \
+    -qAtc "select pg_walfile_name('$backup_end_lsn'::pg_lsn - 1)")
+  for required_wal in \
+    "$ancestor_wal_dir/00000001$first_segment_suffix" \
+    "$ancestor_wal_dir/00000002$first_segment_suffix" \
+    "$ancestor_wal_dir/$backup_end_file"; do
+    printf '%s\n' "PostgreSQL $major required ancestor WAL=$required_wal"
+    if [ ! -f "$required_wal" ]; then
+      printf '%s\n' \
+        "PostgreSQL $major missing ancestor WAL=$required_wal backup_end=$backup_end_lsn file=$backup_end_file" >&2
+      return 1
+    fi
+  done
 
   "$postgres_prefix/bin/pg_ctl" \
     -D "$leader_dir" -m fast -w stop >/dev/null
   standby_started=false
+
+  second_leader_options="-h 127.0.0.1 -p $second_leader_port -F"
+  second_leader_options="$second_leader_options -c hot_standby=on"
+  second_leader_options="$second_leader_options -c max_wal_senders=20"
+  second_leader_options="$second_leader_options -c max_replication_slots=20"
+  second_leader_options="$second_leader_options -c max_prepared_transactions=20"
+  standby_dir=$second_leader_dir
+  if ! "$postgres_prefix/bin/pg_ctl" \
+    -D "$second_leader_dir" -l "$second_promotion_log" \
+    -o "$second_leader_options" -w start >/dev/null
+  then
+    cat "$second_promotion_log" >&2
+    return 1
+  fi
+  standby_started=true
+  if ! "$postgres_prefix/bin/pg_ctl" \
+    -D "$second_leader_dir" -w promote >/dev/null
+  then
+    cat "$second_promotion_log" >&2
+    return 1
+  fi
+  attempt=0
+  in_recovery=t
+  while [ "$in_recovery" != f ]; do
+    attempt=$((attempt + 1))
+    in_recovery=$(PGPASSWORD=flyology-secret PGCONNECT_TIMEOUT=1 \
+      "$postgres_prefix/bin/psql" \
+      "host=127.0.0.1 port=$second_leader_port user=flyology dbname=postgres sslmode=disable" \
+      -qAtc 'select pg_is_in_recovery()' 2>/dev/null || true)
+    if [ "$attempt" -ge 200 ]; then
+      cat "$second_promotion_log" >&2
+      printf '%s\n' "PostgreSQL $major second standby did not promote" >&2
+      return 1
+    fi
+    sleep 0.05
+  done
+  PGPASSWORD=flyology-secret "$postgres_prefix/bin/psql" \
+    "host=127.0.0.1 port=$second_leader_port user=flyology dbname=postgres sslmode=disable" \
+    -v ON_ERROR_STOP=1 -qAtc \
+    "insert into flyology_standby_probe values ('$final_marker')" \
+    >/dev/null
+  PGPASSWORD=flyology-secret "$postgres_prefix/bin/psql" \
+    "host=127.0.0.1 port=$second_leader_port user=flyology dbname=postgres sslmode=disable" \
+    -v ON_ERROR_STOP=1 -qAtc 'checkpoint' >/dev/null
+  timeline_end_lsn=$(PGPASSWORD=flyology-secret \
+    "$postgres_prefix/bin/psql" \
+    "host=127.0.0.1 port=$second_leader_port user=flyology dbname=postgres sslmode=disable" \
+    -qAtc 'select pg_current_wal_flush_lsn()')
+  second_history_file="$second_leader_dir/pg_wal/00000003.history"
+  if [ ! -f "$second_history_file" ]; then
+    cat "$second_promotion_log" >&2
+    printf '%s\n' "PostgreSQL $major second promotion created no history" >&2
+    return 1
+  fi
+  second_fork_lsn=$(awk '$1 == 2 { print $2 }' "$second_history_file")
+  if [ -z "$second_fork_lsn" ]; then
+    cat "$second_history_file" >&2
+    printf '%s\n' "PostgreSQL $major second history has no fork LSN" >&2
+    return 1
+  fi
+  "$postgres_prefix/bin/pg_ctl" \
+    -D "$second_leader_dir" -m fast -w stop >/dev/null
+  standby_started=false
+  for wal_file in "$ancestor_wal_dir"/0000000[12]????????????????; do
+    if [ -f "$wal_file" ]; then
+      cp "$wal_file" "$second_leader_dir/pg_wal/"
+    fi
+  done
 
   POSTGRES_DURABLE_STORE_DIR=$managed_store \
   POSTGRES_DURABLE_STORE_ACTION=physical-initialize \
@@ -660,13 +780,19 @@ run_managed_timeline_promotion () {
   POSTGRES_DURABLE_FORK_LSN=$fork_lsn \
     "$tests_root/bin/postgres_test_durable_store" \
     >"$version_root/managed-timeline-store.log" 2>&1
+  POSTGRES_DURABLE_STORE_DIR=$managed_store \
+  POSTGRES_DURABLE_STORE_ACTION=physical-promote-second \
+  POSTGRES_DURABLE_SECOND_FORK_LSN=$second_fork_lsn \
+    "$tests_root/bin/postgres_test_durable_store" \
+    >>"$version_root/managed-timeline-store.log" 2>&1
 
   POSTGRES_REPLICATION_SERVER_PORT=$managed_port \
   POSTGRES_PRIMARY_SYSTEM_ID=$system_id \
   POSTGRES_PRIMARY_FIRST_LSN=$timeline_first_lsn \
   POSTGRES_PRIMARY_END_LSN=$timeline_end_lsn \
   POSTGRES_PRIMARY_FORK_LSN=$fork_lsn \
-  POSTGRES_PRIMARY_WAL_DIR="$leader_dir/pg_wal" \
+  POSTGRES_PRIMARY_SECOND_FORK_LSN=$second_fork_lsn \
+  POSTGRES_PRIMARY_WAL_DIR="$second_leader_dir/pg_wal" \
   POSTGRES_PRIMARY_WAL_SEGMENT_SIZE=16777216 \
   POSTGRES_DURABLE_STORE_DIR=$managed_store \
   POSTGRES_TLS_CERT_FILE=$server_cert \
@@ -675,7 +801,7 @@ run_managed_timeline_promotion () {
     >"$managed_log" 2>&1 &
   managed_primary_pid=$!
   attempt=0
-  until grep -Eq '^ready timeline= *2$' "$managed_log"; do
+  until grep -Eq '^ready timeline= *3$' "$managed_log"; do
     attempt=$((attempt + 1))
     if ! kill -0 "$managed_primary_pid" >/dev/null 2>&1; then
       cat "$managed_log" >&2
@@ -720,22 +846,33 @@ run_managed_timeline_promotion () {
 
   attempt=0
   replayed=
-  while [ "$replayed" != "$timeline_marker" ]; do
+  while [ "$replayed" != "$final_marker" ]; do
     attempt=$((attempt + 1))
     replayed=$(PGPASSWORD=flyology-secret PGCONNECT_TIMEOUT=1 \
       "$postgres_prefix/bin/psql" \
       "host=127.0.0.1 port=$follower_port user=flyology dbname=postgres sslmode=disable" \
       -qAtc \
-      "select value from flyology_standby_probe where value = '$timeline_marker'" \
+      "select value from flyology_standby_probe where value = '$final_marker'" \
       2>/dev/null || true)
     if [ "$attempt" -ge 300 ]; then
       cat "$managed_log" >&2
       cat "$follower_log" >&2
-      printf '%s\n' "PostgreSQL $major follower did not replay timeline 2" >&2
+      printf '%s\n' "PostgreSQL $major follower did not replay timeline 3" >&2
       return 1
     fi
     sleep 0.1
   done
+
+  replayed=$(PGPASSWORD=flyology-secret \
+    "$postgres_prefix/bin/psql" \
+    "host=127.0.0.1 port=$follower_port user=flyology dbname=postgres sslmode=disable" \
+    -qAtc \
+    "select value from flyology_standby_probe where value = '$timeline_marker'")
+  if [ "$replayed" != "$timeline_marker" ]; then
+    cat "$follower_log" >&2
+    printf '%s\n' "PostgreSQL $major follower lost timeline 2 marker" >&2
+    return 1
+  fi
 
   attempt=0
   until grep -q '^timeline history requested= *2$' "$managed_log"; do
@@ -743,6 +880,16 @@ run_managed_timeline_promotion () {
     if [ "$attempt" -ge 100 ]; then
       cat "$managed_log" >&2
       printf '%s\n' "PostgreSQL $major follower requested no history" >&2
+      return 1
+    fi
+    sleep 0.05
+  done
+  attempt=0
+  until grep -q '^timeline history requested= *3$' "$managed_log"; do
+    attempt=$((attempt + 1))
+    if [ "$attempt" -ge 100 ]; then
+      cat "$managed_log" >&2
+      printf '%s\n' "PostgreSQL $major follower requested no timeline 3 history" >&2
       return 1
     fi
     sleep 0.05
@@ -767,7 +914,7 @@ run_managed_timeline_promotion () {
   kill "$managed_primary_pid" >/dev/null 2>&1 || true
   wait "$managed_primary_pid" >/dev/null 2>&1 || true
   managed_primary_pid=
-  printf '%s\n' "PostgreSQL $major managed timeline promotion passed"
+  printf '%s\n' "PostgreSQL $major managed two-promotion timeline passed"
 }
 
 run_real_standby () {

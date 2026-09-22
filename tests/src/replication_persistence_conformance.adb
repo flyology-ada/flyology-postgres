@@ -1,3 +1,4 @@
+with Flyology.Bytes;
 with Flyology.Postgres.Replication;
 
 package body Replication_Persistence_Conformance is
@@ -155,6 +156,38 @@ package body Replication_Persistence_Conformance is
          and then Persistence.Current_Timeline (Timelines) = 2
          and then Persistence.History (Timelines, 2)'Length > 0,
          "timeline promotion and history persistence");
+      declare
+         HT : constant Character := Character'Val (9);
+         LF : constant Character := Character'Val (10);
+         Parent_History : constant Persistence.Byte_Array :=
+           Persistence.History (Timelines, 2);
+         Expected_Parent : constant Persistence.Byte_Array :=
+           Flyology.Bytes.To_Array
+             (Flyology.Bytes.From_Byte_String
+                ("1" & HT & "0/69" & HT & "promotion" & LF));
+         Expected_Child : constant Persistence.Byte_Array :=
+           Flyology.Bytes.To_Array
+             (Flyology.Bytes.From_Byte_String
+                ("1" & HT & "0/69" & HT & "promotion" & LF & LF
+                 & "2" & HT & "0/CD" & HT & "promotion" & LF));
+      begin
+         Check
+           (Parent_History = Expected_Parent,
+            "first timeline history has PostgreSQL switch format");
+         Persistence.Promote (Timelines, 2, 205, Timeline);
+         declare
+            Child_History : constant Persistence.Byte_Array :=
+              Persistence.History (Timelines, 3);
+         begin
+            Check
+              (Timeline = 3
+               and then Persistence.Current_Timeline (Timelines) = 3,
+               "second timeline promotion");
+            Check
+              (Child_History = Expected_Child,
+               "second history inherits ancestry and exact switch format");
+         end;
+      end;
 
       Prepared_State := Persistence.Make_Prepared
         (77, 150, (9, 8, 7));
