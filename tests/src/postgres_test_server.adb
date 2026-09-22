@@ -46,8 +46,41 @@ procedure Postgres_Test_Server is
       return
         (if To_String (Startup.User) = "flyology"
          then To_String (State.Verifier)
+         elsif To_String (Startup.User) = "classified-mock"
+         then Flyology.Postgres.SCRAM.Make_Verifier_Raw
+           ("Flyology classified mock credential",
+            Flyology.Postgres.SCRAM.To_Bytes ("classified mock salt"))
          else "");
    end Lookup_SCRAM_Verifier;
+
+   procedure Provide_SCRAM_Mock_Secret
+     (State    : in out Context;
+      Secret   : in out Flyology.Postgres.SCRAM.Digest;
+      Provided : in out Boolean) is
+      pragma Unreferenced (State);
+      Invalid : constant String :=
+        Ada.Environment_Variables.Value
+          ("POSTGRES_TEST_INVALID_SCRAM_MOCK_SECRET", "");
+   begin
+      if Invalid = "zero" then
+         Provided := True;
+      elsif Invalid /= "missing" then
+         Secret := (others => 16#47#);
+         Provided := True;
+      end if;
+   end Provide_SCRAM_Mock_Secret;
+
+   procedure Classify_SCRAM_Verifier
+     (State          : in out Context;
+      Startup        : Protocol.Startup_Information;
+      Verifier       : String;
+      Has_Credential : in out Boolean) is
+      pragma Unreferenced (State, Verifier);
+   begin
+      if To_String (Startup.User) = "classified-mock" then
+         Has_Credential := False;
+      end if;
+   end Classify_SCRAM_Verifier;
 
    function Is_Select (SQL : String) return Boolean is
       Trimmed : constant String := Ada.Strings.Fixed.Trim
@@ -280,7 +313,9 @@ procedure Postgres_Test_Server is
       Handle          => Handle,
       Authentication  => Flyology.Postgres.SCRAM_SHA_256,
       Handler_Model   => Flyology.Lightweight_Task,
-      Startup_Timeout => 1.0);
+      Startup_Timeout => 1.0,
+      Provide_SCRAM_Mock_Secret => Provide_SCRAM_Mock_Secret,
+      Classify_SCRAM_Verifier   => Classify_SCRAM_Verifier);
 
    function Port return Sockets.Port is
    begin

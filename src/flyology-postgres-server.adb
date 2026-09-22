@@ -1,4 +1,5 @@
 with Ada.Exceptions;
+with Ada.Finalization;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Unchecked_Deallocation;
 with Flyology.Postgres.SCRAM;
@@ -6,6 +7,7 @@ with Flyology.Postgres.SCRAM_Core;
 with Flyology.Postgres.Server_Sessions.Control;
 with Flyology.IO.Connections.TLS;
 with Flyology.Postgres.Transports.Connections;
+with HMAC_SHA256;
 with Interfaces;
 with System_Random;
 
@@ -25,14 +27,53 @@ package body Flyology.Postgres.Server is
       Index         => Protocol.Byte_Offset,
       Element_Array => Protocol.Byte_Array);
 
-   --  Precomputed from a non-secret dummy password and salt. Keep this as
-   --  verifier text so known and unknown users take the same per-attempt
-   --  Parse_Verifier and constant-time proof-verification path without
-   --  attacker-controlled PBKDF2 work on the server.
-   Dummy_SCRAM_Verifier : constant String :=
-     "SCRAM-SHA-256$4096:Zml4ZWQgZHVtbXkgc2FsdA==$"
-     & "6noiwI8hQdf8Z+HCRIbshx1qqrjQPi1wyxZ1+7fQdIM=:"
-     & "KctKYif+hWsn2f75oSuDVm9zGdZUQ4iWXqV1PDhONRs=";
+   --  PostgreSQL's mock_scram_secret publishes its default 16-byte salt
+   --  length on the wire. Keep the same private shape while deriving each
+   --  role's salt from caller-managed cluster entropy.
+   Mock_Salt_Length : constant := 16;
+
+   type Secret_Guard is new Ada.Finalization.Limited_Controlled with record
+      Value : aliased Flyology.Postgres.SCRAM.Digest := (others => 0);
+   end record;
+
+   overriding procedure Finalize (Item : in out Secret_Guard) is
+   begin
+      Flyology.Postgres.SCRAM_Core.Wipe (Item.Value);
+   exception
+      when others =>
+         null;
+   end Finalize;
+
+   function Mock_SCRAM_Verifier
+     (Role   : String;
+      Secret : Flyology.Postgres.SCRAM.Digest) return String is
+      Derived : Secret_Guard;
+      Salt : Flyology.Postgres.SCRAM.Byte_Array (1 .. Mock_Salt_Length);
+      Zero_Key : constant Flyology.Postgres.SCRAM.Digest := (others => 0);
+      Iteration_Image : constant String :=
+        Positive'Image (Flyology.Postgres.SCRAM.Minimum_Iterations);
+   begin
+      HMAC_SHA256.Compute
+         (Flyology.Postgres.SCRAM.Byte_Array (Secret),
+         Flyology.Postgres.SCRAM.To_Bytes (Role),
+         Derived.Value);
+      for Index in Salt'Range loop
+         Salt (Index) := Derived.Value (Index);
+      end loop;
+      declare
+         Result : constant String :=
+           Flyology.Postgres.SCRAM.Mechanism & "$"
+           & Iteration_Image (2 .. Iteration_Image'Last)
+           & ":" & Flyology.Postgres.SCRAM.Base64_Encode (Salt)
+           & "$" & Flyology.Postgres.SCRAM.Base64_Encode
+             (Flyology.Postgres.SCRAM.Byte_Array (Zero_Key))
+           & ":" & Flyology.Postgres.SCRAM.Base64_Encode
+             (Flyology.Postgres.SCRAM.Byte_Array (Zero_Key));
+      begin
+         Flyology.Postgres.SCRAM_Core.Wipe (Derived.Value);
+         return Result;
+      end;
+   end Mock_SCRAM_Verifier;
 
    function Same_Credentials
      (Left : Credentials; Right : Credentials) return Boolean is
@@ -256,6 +297,7 @@ package body Flyology.Postgres.Server is
 
    function Admit
      (Context : in out Handler_Context;
+      SCRAM_Mock_Secret : SCRAM_Mock_Secret_Access;
       Client  : in out Server_Sessions.Session;
       Startup : Protocol.Startup_Information) return Boolean is
    begin
@@ -287,71 +329,80 @@ package body Flyology.Postgres.Server is
             declare
                Supplied : constant String :=
                  Lookup_SCRAM_Verifier (Context, Startup);
-               Has_Credential : constant Boolean := Supplied'Length > 0;
-               Credential : constant Flyology.Postgres.SCRAM.Verifier :=
-                 Flyology.Postgres.SCRAM.Parse_Verifier
-                   ((if Has_Credential
-                     then Supplied
-                     else Dummy_SCRAM_Verifier));
+               Has_Credential : Boolean := Supplied'Length > 0;
             begin
-               Server_Sessions.Send_Authentication_SASL
-                 (Client, Timeout => Write_Timeout);
+               Classify_SCRAM_Verifier
+                 (Context, Startup, Supplied, Has_Credential);
+               Has_Credential := Supplied'Length > 0 and then Has_Credential;
                declare
-                  Initial_Response : constant Protocol.Message :=
-                    Server_Sessions.Read_Command
-                      (Client, Timeout => Startup_Timeout);
-                  Client_First : constant String :=
-                    Server_Sessions.SASL_Initial_Response
-                      (Initial_Response);
-                  Bare : constant String :=
-                    Flyology.Postgres.SCRAM.Bare_From_Client_First
-                      (Client_First);
-                  Client_Nonce : constant String :=
-                    Flyology.Postgres.SCRAM.Nonce_From_Client_First
-                      (Client_First);
-                  Channel_Binding : constant String :=
-                    Flyology.Postgres.SCRAM
-                      .Channel_Binding_From_Client_First (Client_First);
-                  Combined_Nonce : constant String :=
-                    Client_Nonce & Flyology.Postgres.SCRAM.Random_Nonce;
-                  Server_First : constant String :=
-                    Flyology.Postgres.SCRAM.Server_First_Message
-                      (Credential, Combined_Nonce);
+                  Credential : constant Flyology.Postgres.SCRAM.Verifier :=
+                    Flyology.Postgres.SCRAM.Parse_Verifier
+                      ((if Supplied'Length > 0
+                        then Supplied
+                        else Mock_SCRAM_Verifier
+                          (To_String (Startup.User),
+                           SCRAM_Mock_Secret.all)));
                begin
-                  Server_Sessions.Send_Authentication_SASL_Continue
-                    (Client, Server_First, Write_Timeout);
+                  Server_Sessions.Send_Authentication_SASL
+                    (Client, Timeout => Write_Timeout);
                   declare
-                     Final_Response : constant Protocol.Message :=
+                     Initial_Response : constant Protocol.Message :=
                        Server_Sessions.Read_Command
                          (Client, Timeout => Startup_Timeout);
-                     Client_Final : constant String :=
-                       Server_Sessions.SASL_Response (Final_Response);
-                     Signature : Flyology.Postgres.SCRAM.Digest :=
-                       (others => 0);
-                     Proof_Valid : Boolean;
+                     Client_First : constant String :=
+                       Server_Sessions.SASL_Initial_Response
+                         (Initial_Response);
+                     Bare : constant String :=
+                       Flyology.Postgres.SCRAM.Bare_From_Client_First
+                         (Client_First);
+                     Client_Nonce : constant String :=
+                       Flyology.Postgres.SCRAM.Nonce_From_Client_First
+                         (Client_First);
+                     Channel_Binding : constant String :=
+                       Flyology.Postgres.SCRAM
+                         .Channel_Binding_From_Client_First (Client_First);
+                     Combined_Nonce : constant String :=
+                       Client_Nonce & Flyology.Postgres.SCRAM.Random_Nonce;
+                     Server_First : constant String :=
+                       Flyology.Postgres.SCRAM.Server_First_Message
+                         (Credential, Combined_Nonce);
                   begin
-                     Flyology.Postgres.SCRAM.Verify_Client_Final
-                       (Credential,
-                        Bare,
-                        Server_First,
-                        Combined_Nonce,
-                        Client_Final,
-                        Signature,
-                        Proof_Valid,
-                        Channel_Binding => Channel_Binding);
-                     if not Proof_Valid or else not Has_Credential then
-                        Flyology.Postgres.SCRAM_Core.Wipe (Signature);
-                        return False;
-                     end if;
+                     Server_Sessions.Send_Authentication_SASL_Continue
+                       (Client, Server_First, Write_Timeout);
                      declare
-                        Server_Final : constant String :=
-                          "v=" & Flyology.Postgres.SCRAM.Base64_Encode
-                            (Flyology.Postgres.SCRAM.Byte_Array (Signature));
+                        Final_Response : constant Protocol.Message :=
+                          Server_Sessions.Read_Command
+                            (Client, Timeout => Startup_Timeout);
+                        Client_Final : constant String :=
+                          Server_Sessions.SASL_Response (Final_Response);
+                        Signature : Flyology.Postgres.SCRAM.Digest :=
+                          (others => 0);
+                        Proof_Valid : Boolean;
                      begin
-                        Flyology.Postgres.SCRAM_Core.Wipe (Signature);
-                        Server_Sessions.Send_Authentication_SASL_Final
-                          (Client, Server_Final, Write_Timeout);
-                        return True;
+                        Flyology.Postgres.SCRAM.Verify_Client_Final
+                          (Credential,
+                           Bare,
+                           Server_First,
+                           Combined_Nonce,
+                           Client_Final,
+                           Signature,
+                           Proof_Valid,
+                           Channel_Binding => Channel_Binding);
+                        if not Proof_Valid or else not Has_Credential then
+                           Flyology.Postgres.SCRAM_Core.Wipe (Signature);
+                           return False;
+                        end if;
+                        declare
+                           Server_Final : constant String :=
+                             "v=" & Flyology.Postgres.SCRAM.Base64_Encode
+                               (Flyology.Postgres.SCRAM.Byte_Array
+                                  (Signature));
+                        begin
+                           Flyology.Postgres.SCRAM_Core.Wipe (Signature);
+                           Server_Sessions.Send_Authentication_SASL_Final
+                             (Client, Server_Final, Write_Timeout);
+                           return True;
+                        end;
                      end;
                   end;
                end;
@@ -450,7 +501,12 @@ package body Flyology.Postgres.Server is
                Timeout        => Write_Timeout);
          end if;
 
-         if not Admit (Context.Application.all, Client, Startup) then
+         if not Admit
+           (Context.Application.all,
+            Context.SCRAM_Mock_Secret,
+            Client,
+            Startup)
+         then
             Server_Sessions.Send_Error
               (Client,
                Message   => "password authentication failed",
@@ -577,7 +633,12 @@ package body Flyology.Postgres.Server is
         (Application => Context'Unchecked_Access,
          Router      => Item.Router'Unchecked_Access,
          TLS_Backend => TLS_Backend,
-         TLS_Mode    => TLS_Mode);
+         TLS_Mode    => TLS_Mode,
+         SCRAM_Mock_Secret => null);
+      Provider_Secret : Secret_Guard;
+      Serve_Secret : Secret_Guard;
+      Mock_Secret_Provided : Boolean := False;
+      Zero_Secret : constant Flyology.Postgres.SCRAM.Digest := (others => 0);
       Inner : Structured_Access :=
         new Structured.Server
           (Capacity => Worker_Capacity (Item.Capacity));
@@ -588,6 +649,20 @@ package body Flyology.Postgres.Server is
    begin
       Item.Inner.Install (Inner, Stop_Already_Requested);
       Installed := True;
+      if Authentication = SCRAM_SHA_256 then
+         Provide_SCRAM_Mock_Secret
+           (Context, Provider_Secret.Value, Mock_Secret_Provided);
+         if not Mock_Secret_Provided
+           or else HMAC_SHA256.Equal (Provider_Secret.Value, Zero_Secret)
+         then
+            raise Program_Error with
+              "SCRAM authentication requires a nonzero persistent mock secret";
+         end if;
+         Serve_Secret.Value := Provider_Secret.Value;
+         --  Structured.Serve joins every handler before this guard finalizes.
+         Wrapped.SCRAM_Mock_Secret := Serve_Secret.Value'Unchecked_Access;
+         Flyology.Postgres.SCRAM_Core.Wipe (Provider_Secret.Value);
+      end if;
       if Stop_Already_Requested then
          Structured.Request_Shutdown (Inner.all);
       end if;
@@ -596,8 +671,11 @@ package body Flyology.Postgres.Server is
       Item.Inner.Clear (Inner);
       Installed := False;
       Free (Inner);
+      Flyology.Postgres.SCRAM_Core.Wipe (Serve_Secret.Value);
    exception
       when others =>
+         Flyology.Postgres.SCRAM_Core.Wipe (Provider_Secret.Value);
+         Flyology.Postgres.SCRAM_Core.Wipe (Serve_Secret.Value);
          if Installed then
             Item.Inner.Clear (Inner);
          end if;

@@ -222,6 +222,16 @@ procedure Postgres_Test_Managed_Physical_Primary is
          else "");
    end Lookup_SCRAM_Verifier;
 
+   procedure Provide_SCRAM_Mock_Secret
+     (State    : in out Context;
+      Secret   : in out Flyology.Postgres.SCRAM.Digest;
+      Provided : in out Boolean) is
+      pragma Unreferenced (State);
+   begin
+      Secret := (others => 16#4D#);
+      Provided := True;
+   end Provide_SCRAM_Mock_Secret;
+
    procedure Handle
      (State   : in out Context;
       Client  : in out Sessions.Session;
@@ -277,7 +287,8 @@ procedure Postgres_Test_Managed_Physical_Primary is
       Lookup_SCRAM_Verifier => Lookup_SCRAM_Verifier,
       Handle                => Handle,
       Authentication        => Flyology.Postgres.SCRAM_SHA_256,
-      Handler_Model         => Flyology.Lightweight_Task);
+      Handler_Model         => Flyology.Lightweight_Task,
+      Provide_SCRAM_Mock_Secret => Provide_SCRAM_Mock_Secret);
 
    function Port return Sockets.Port is
      (Sockets.Port'Value

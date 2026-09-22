@@ -78,6 +78,16 @@ procedure Postgres_Test_Replication_Server is
          else "");
    end Lookup_SCRAM_Verifier;
 
+   procedure Provide_SCRAM_Mock_Secret
+     (State    : in out Context;
+      Secret   : in out Flyology.Postgres.SCRAM.Digest;
+      Provided : in out Boolean) is
+      pragma Unreferenced (State);
+   begin
+      Secret := (others => 16#52#);
+      Provided := True;
+   end Provide_SCRAM_Mock_Secret;
+
    function Hex_8 (Value : Replication.UInt32) return String is
       Hexadecimal : constant String := "0123456789ABCDEF";
       Result      : String (1 .. 8) := (others => '0');
@@ -320,7 +330,8 @@ procedure Postgres_Test_Replication_Server is
       Lookup_SCRAM_Verifier => Lookup_SCRAM_Verifier,
       Handle                => Handle,
       Authentication        => Flyology.Postgres.SCRAM_SHA_256,
-      Handler_Model         => Flyology.Lightweight_Task);
+      Handler_Model         => Flyology.Lightweight_Task,
+      Provide_SCRAM_Mock_Secret => Provide_SCRAM_Mock_Secret);
 
    Listener : Sockets.Socket_Type;
    State    : aliased Context;
