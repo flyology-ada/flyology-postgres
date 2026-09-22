@@ -38,7 +38,9 @@ package Flyology.Postgres.Replication.Prepared_Consumer is
       Prepare_LSN : LSN;
       Payload     : Stores.Byte_Array);
    --  Persist a prepared payload before acknowledging Prepare or StreamPrepare
-   --  to the source.
+   --  to the source. A replay with the same XID after Target_Applied preserves
+   --  the durable marker; a different XID using that slot/GID before
+   --  acknowledgement is rejected.
    --  @param Item Consumer coordinator.
    --  @param Slot_Name Logical slot name.
    --  @param GID PostgreSQL prepared-transaction identifier.
@@ -46,6 +48,8 @@ package Flyology.Postgres.Replication.Prepared_Consumer is
    --  @param Prepare_LSN Nonzero source prepare position.
    --  @param Payload Deterministic data required by Apply_Target.
    --  @exception Constraint_Error XID or Prepare_LSN is zero.
+   --  @exception Protocol_Error A different XID reuses a slot/GID whose
+   --     prior target application remains marked.
    --  @exception Store_Error The backend cannot durably store the
    --     transaction.
 

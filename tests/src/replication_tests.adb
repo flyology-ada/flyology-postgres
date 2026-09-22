@@ -1521,11 +1521,61 @@ package body Replication_Tests is
         (Changed and then Target.Applications = 1
          and then Target.Last_XID = 88,
          "restarted prepared consumer applies durable state once");
+      Prepared_Consumers.Prepare
+        (First_Consumer,
+         "logical",
+         "gid-restart",
+         XID => 88,
+         Prepare_LSN => 180,
+         Payload => (6, 5, 4));
       Prepared_Consumers.Commit
         (First_Consumer, "logical", "gid-restart", Changed);
       Assert
         (not Changed and then Target.Applications = 1,
-         "applied prepared marker prevents duplicate target application");
+         "replayed PREPARE preserves the applied marker");
+      declare
+         Rejected : Boolean := False;
+      begin
+         begin
+            Prepared_Consumers.Prepare
+              (First_Consumer,
+               "logical",
+               "gid-restart",
+               XID => 89,
+               Prepare_LSN => 190,
+               Payload => (6, 5, 4));
+         exception
+            when Protocol.Protocol_Error =>
+               Rejected := True;
+         end;
+         Assert
+           (Rejected,
+            "new XID cannot replace an unacknowledged applied marker");
+      end;
+      declare
+         Rejected : Boolean := False;
+      begin
+         begin
+            Prepared_Consumers.Prepare
+              (First_Consumer,
+               "logical",
+               "gid-restart",
+               XID => 88,
+               Prepare_LSN => 0,
+               Payload => (6, 5, 4));
+         exception
+            when Constraint_Error =>
+               Rejected := True;
+         end;
+         Assert
+           (Rejected,
+            "applied marker does not bypass prepare LSN validation");
+      end;
+      Assert
+        (Persistence.Phase
+           (Memory.Load (Store, "logical", "gid-restart")) =
+             Persistence.Target_Applied,
+         "rejected GID reuse leaves the applied marker intact");
       Prepared_Consumers.Acknowledge_Commit
         (Restarted_Consumer, "logical", "gid-restart");
       Assert
