@@ -276,11 +276,26 @@ package body Flyology.Postgres.Replication.Persistence.Memory is
          raise Store_Error with "timeline history capacity exhausted";
       end if;
       New_Timeline := Item.Timeline + 1;
-      Item.Histories (Index) :=
-        (Timeline => New_Timeline,
-         Data     => Flyology.Bytes.From_Byte_String
-           (Parent_Image & Character'Val (9) & Replication.Image (Fork_LSN)
-            & Character'Val (9) & "promotion" & Character'Val (10)));
+      declare
+         Parent_History : constant Byte_Array := History (Item, Parent);
+         New_History : Flyology.Bytes.Unbounded_Bytes :=
+           Flyology.Bytes.To_Unbounded_Bytes (Parent_History);
+      begin
+         if Parent_History'Length > 0 then
+            --  PostgreSQL separates inherited history from the new line.
+            Protocol.Append_Byte (New_History, 10);
+         end if;
+         Protocol.Append_Bytes
+           (New_History,
+            Flyology.Bytes.To_Array
+              (Flyology.Bytes.From_Byte_String
+                 (Parent_Image & Character'Val (9)
+                  & Replication.Image (Fork_LSN)
+                  & Character'Val (9) & "promotion"
+                  & Character'Val (10))));
+         Item.Histories (Index) :=
+           (Timeline => New_Timeline, Data => New_History);
+      end;
       Item.Timeline := New_Timeline;
    end Promote;
 

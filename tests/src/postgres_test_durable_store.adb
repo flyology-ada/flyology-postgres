@@ -70,6 +70,19 @@ begin
          Ada.Text_IO.Put_Line
            ("physical-timeline-ready fork=" & Replication.Image (Fork_LSN));
       end;
+   elsif Action = "physical-promote-second" then
+      declare
+         Fork_LSN : constant Replication.LSN := Replication.Value
+           (Ada.Environment_Variables.Value
+              ("POSTGRES_DURABLE_SECOND_FORK_LSN"));
+      begin
+         Durable.Promote (Item, 2, Fork_LSN, Timeline);
+         Require (Timeline = 3, "second managed promotion failed");
+         Durable.Close (Item);
+         Ada.Text_IO.Put_Line
+           ("physical-timeline-three-ready fork="
+            & Replication.Image (Fork_LSN));
+      end;
    elsif Action = "physical-verify" then
       declare
          Slot_Name : constant String := Ada.Environment_Variables.Value
