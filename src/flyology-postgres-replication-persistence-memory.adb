@@ -157,6 +157,7 @@ package body Flyology.Postgres.Replication.Persistence.Memory is
         and then Item.Slots (Index).State.Lease = Lease;
       if Released then
          Item.Slots (Index).State.Active := False;
+         Item.Slots (Index).State.Lease := 0;
       end if;
    end Release;
 

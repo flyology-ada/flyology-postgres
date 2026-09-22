@@ -65,6 +65,11 @@ package body Replication_Persistence_Conformance is
       Persistence.Release
         (Slots, "conformance_physical", Lease_1, Changed);
       Check (Changed, "matching lease release");
+      State := Persistence.Load (Slots, "conformance_physical");
+      Check
+        (not Persistence.Is_Active (State)
+         and then Persistence.Generation (State) = 0,
+         "released slot clears its active generation");
       Persistence.Acquire
         (Slots, "conformance_physical", Persistence.Physical_Slot,
          Acquired, Lease_2, State);
