@@ -1053,6 +1053,122 @@ run_physical_slot_rejection () {
   printf '%s\n' "PostgreSQL $major physical slot rejection passed"
 }
 
+run_standby_copy_done () {
+  copy_done_port=$((port + 8))
+  copy_done_store="$version_root/managed-copy-done-store"
+  copy_done_wal="$version_root/managed-copy-done-wal"
+  copy_done_receive="$version_root/managed-copy-done-receive"
+  copy_done_log="$version_root/managed-copy-done-primary.log"
+  copy_done_client_log="$version_root/managed-copy-done-receivewal.log"
+  copy_done_verify_log="$version_root/managed-copy-done-verify.log"
+  copy_done_slot=flyology_copy_done_18
+
+  mkdir -p "$copy_done_store" "$copy_done_wal" "$copy_done_receive"
+  POSTGRES_DURABLE_STORE_DIR=$copy_done_store \
+  POSTGRES_DURABLE_STORE_ACTION=physical-initialize \
+  POSTGRES_DURABLE_PHYSICAL_SLOT=$copy_done_slot \
+  POSTGRES_DURABLE_FORK_LSN=0/1000 \
+    "$tests_root/bin/postgres_test_durable_store" \
+    >"$version_root/managed-copy-done-initialize.log" 2>&1
+
+  #  pg_receivewal starts after this complete timeline-2 segment and sends
+  #  CopyDone at the requested position inside the next segment.
+  dd if=/dev/zero \
+    of="$copy_done_receive/000000020000000000000001" \
+    bs=1048576 count=16 >/dev/null 2>&1
+  dd if=/dev/zero \
+    of="$copy_done_wal/000000020000000000000002" \
+    bs=1048576 count=16 >/dev/null 2>&1
+
+  POSTGRES_REPLICATION_SERVER_PORT=$copy_done_port \
+  POSTGRES_DURABLE_STORE_DIR=$copy_done_store \
+  POSTGRES_PRIMARY_SYSTEM_ID=1 \
+  POSTGRES_PRIMARY_FIRST_LSN=0/0 \
+  POSTGRES_PRIMARY_END_LSN=0/3000000 \
+  POSTGRES_PRIMARY_FORK_LSN=0/1000 \
+  POSTGRES_PRIMARY_WAL_DIR=$copy_done_wal \
+  POSTGRES_TLS_CERT_FILE=$server_cert \
+  POSTGRES_TLS_KEY_FILE=$server_key \
+    "$tests_root/bin/postgres_test_managed_physical_primary" \
+    >"$copy_done_log" 2>&1 &
+  managed_primary_pid=$!
+  attempt=0
+  until grep -q '^ready timeline= *2$' "$copy_done_log"; do
+    attempt=$((attempt + 1))
+    if ! kill -0 "$managed_primary_pid" >/dev/null 2>&1; then
+      cat "$copy_done_log" >&2
+      printf '%s\n' "managed CopyDone primary exited early" >&2
+      return 1
+    fi
+    if [ "$attempt" -ge 100 ]; then
+      cat "$copy_done_log" >&2
+      printf '%s\n' "managed CopyDone primary did not become ready" >&2
+      return 1
+    fi
+    sleep 0.05
+  done
+
+  copy_done_conninfo="host=localhost hostaddr=127.0.0.1"
+  copy_done_conninfo="$copy_done_conninfo port=$copy_done_port"
+  copy_done_conninfo="$copy_done_conninfo user=flyology dbname=postgres"
+  copy_done_conninfo="$copy_done_conninfo sslmode=verify-full"
+  copy_done_conninfo="$copy_done_conninfo sslrootcert=$ca_cert"
+  if ! PGPASSWORD=flyology-secret "$postgres_prefix/bin/pg_receivewal" \
+    --no-loop --synchronous --status-interval=1 \
+    --dbname="$copy_done_conninfo" \
+    --directory="$copy_done_receive" --slot="$copy_done_slot" \
+    --endpos=0/2F00000 >"$copy_done_client_log" 2>&1
+  then
+    cat "$copy_done_client_log" >&2
+    cat "$copy_done_log" >&2
+    return 1
+  fi
+  if grep -Eq 'FATAL:|error:' "$copy_done_client_log"; then
+    cat "$copy_done_client_log" >&2
+    cat "$copy_done_log" >&2
+    printf '%s\n' "pg_receivewal did not close COPY cleanly" >&2
+    return 1
+  fi
+  if [ "$(grep -c \
+    "^physical stream complete slot=$copy_done_slot restart=" \
+    "$copy_done_log")" -ne 1 ]
+  then
+    cat "$copy_done_log" >&2
+    printf '%s\n' "early CopyDone did not complete exactly once" >&2
+    return 1
+  fi
+  copy_done_restart=$(sed -n \
+    "s/^physical stream complete slot=$copy_done_slot restart=//p" \
+    "$copy_done_log")
+  #  The initial status reports 0/2000000. Synchronous pg_receivewal may
+  #  report later flushes before CopyDone; all must remain within sent WAL.
+  if ! printf '%s\n' "$copy_done_restart" | \
+    grep -Eq '^0/(2[0-9A-F]{6}|3000000)$'
+  then
+    cat "$copy_done_log" >&2
+    printf '%s\n' "early CopyDone lost or exceeded reported WAL progress" >&2
+    return 1
+  fi
+  if [ "$(wc -c < "$copy_done_receive/000000020000000000000002.partial")" \
+    -ne 16777216 ]
+  then
+    cat "$copy_done_client_log" >&2
+    printf '%s\n' "pg_receivewal did not receive the streamed WAL segment" >&2
+    return 1
+  fi
+
+  kill "$managed_primary_pid" >/dev/null 2>&1 || true
+  wait "$managed_primary_pid" >/dev/null 2>&1 || true
+  managed_primary_pid=
+  POSTGRES_DURABLE_STORE_DIR=$copy_done_store \
+  POSTGRES_DURABLE_STORE_ACTION=physical-verify \
+  POSTGRES_DURABLE_PHYSICAL_SLOT=$copy_done_slot \
+  POSTGRES_DURABLE_EXPECTED_RESTART_LSN=$copy_done_restart \
+    "$tests_root/bin/postgres_test_durable_store" \
+    >"$copy_done_verify_log" 2>&1
+  printf '%s\n' "PostgreSQL 18 pg_receivewal standby CopyDone passed"
+}
+
 run_logical_primary () {
   major=$1
   logical_primary_port=$((port + 4))
@@ -1479,6 +1595,9 @@ SQL
   fi
 
   run_physical_slot_rejection "$major"
+  if [ "$major" -eq 18 ]; then
+    run_standby_copy_done
+  fi
   run_real_standby "$major"
   run_logical_primary "$major"
   if [ "$major" -eq 18 ]; then

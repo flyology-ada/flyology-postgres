@@ -70,6 +70,24 @@ begin
          Ada.Text_IO.Put_Line
            ("physical-timeline-ready fork=" & Replication.Image (Fork_LSN));
       end;
+   elsif Action = "physical-verify" then
+      declare
+         Slot_Name : constant String := Ada.Environment_Variables.Value
+           ("POSTGRES_DURABLE_PHYSICAL_SLOT");
+         Expected : constant Replication.LSN := Replication.Value
+           (Ada.Environment_Variables.Value
+              ("POSTGRES_DURABLE_EXPECTED_RESTART_LSN"));
+      begin
+         State := Durable.Load (Item, Slot_Name);
+         Require
+           (Persistence.Exists (State)
+            and then not Persistence.Is_Active (State)
+            and then Persistence.Restart_LSN (State) = Expected,
+            "managed physical slot lost standby feedback or its lease");
+         Durable.Close (Item);
+         Ada.Text_IO.Put_Line
+           ("physical-slot-verified restart=" & Replication.Image (Expected));
+      end;
    elsif Action = "initialize" then
       Durable.Create
         (Item,

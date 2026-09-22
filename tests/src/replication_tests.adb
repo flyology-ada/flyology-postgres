@@ -6,9 +6,12 @@ with Flyology.Postgres.Replication;
 with Flyology.Postgres.Replication.Base_Backups;
 with Flyology.Postgres.Replication.Logical;
 with Flyology.Postgres.Replication.Logical.Producer;
+with Flyology.Postgres.Replication.Managed_Primary;
 with Flyology.Postgres.Replication.Persistence;
 with Flyology.Postgres.Replication.Persistence.Memory;
 with Flyology.Postgres.Replication.Prepared_Consumer;
+with Flyology.Postgres.Server_Sessions;
+with Flyology.Postgres.Transports;
 with Flyology.Postgres.Wire;
 with Replication_Persistence_Conformance;
 
@@ -61,6 +64,8 @@ package body Replication_Tests is
        (Target_Context => Target_Context,
         Apply_Target   => Apply_Target);
    package Wire renames Flyology.Postgres.Wire;
+   package Sessions renames Flyology.Postgres.Server_Sessions;
+   package Transports renames Flyology.Postgres.Transports;
 
    use type Ada.Streams.Stream_Element;
    use type Logical.Message_Kind;
@@ -84,6 +89,57 @@ package body Replication_Tests is
    use type Persistence.Create_Result;
    use type Persistence.Prepared_Phase;
    use type Persistence.Slot_Kind;
+
+   type Memory_Transport is limited new Transports.Transport with record
+      Input : Flyology.Bytes.Unbounded_Bytes;
+      Next  : Natural := 1;
+   end record;
+
+   overriding procedure Receive_Exactly
+     (Item    : in out Memory_Transport;
+      Data    : out Ada.Streams.Stream_Element_Array;
+      Timeout : Duration;
+      On_Wait : access Transports.Wait_Observer'Class := null);
+
+   overriding procedure Send_All
+     (Item    : in out Memory_Transport;
+      Data    : Ada.Streams.Stream_Element_Array;
+      Timeout : Duration);
+
+   overriding procedure Receive_Exactly
+     (Item    : in out Memory_Transport;
+      Data    : out Ada.Streams.Stream_Element_Array;
+      Timeout : Duration;
+      On_Wait : access Transports.Wait_Observer'Class := null) is
+      pragma Unreferenced (Timeout, On_Wait);
+      Available : constant Protocol.Byte_Array :=
+        Flyology.Bytes.To_Array (Item.Input);
+   begin
+      if Item.Next > Available'Length + 1
+        or else Data'Length > Available'Length - Item.Next + 1
+      then
+         raise Program_Error with "replication test input is exhausted";
+      end if;
+      for Index in Data'Range loop
+         Data (Index) := Available (Protocol.Byte_Offset (Item.Next));
+         Item.Next := Item.Next + 1;
+      end loop;
+   end Receive_Exactly;
+
+   overriding procedure Send_All
+     (Item    : in out Memory_Transport;
+      Data    : Ada.Streams.Stream_Element_Array;
+      Timeout : Duration) is
+      pragma Unreferenced (Item, Data, Timeout);
+   begin
+      null;
+   end Send_All;
+
+   procedure Queue
+     (Item : in out Memory_Transport; Message : Protocol.Message) is
+   begin
+      Flyology.Bytes.Append (Item.Input, Protocol.Encode (Message));
+   end Queue;
 
    procedure Append_U64
      (Target : in out Flyology.Bytes.Unbounded_Bytes;
@@ -1697,6 +1753,154 @@ package body Replication_Tests is
          "failed pgoutput encoding rolls producer state back atomically");
    end Test_Logical_Producer;
 
+   procedure Test_Managed_Copy_Done is
+      type Logical_Source is limited null record;
+
+      procedure Next_Logical
+        (Context   : in out Logical_Source;
+         Slot_Name : String;
+         After_LSN : Replication.LSN;
+         Available : out Boolean;
+         WAL_Start : out Replication.LSN;
+         WAL_End   : out Replication.LSN;
+         Message   : out Logical.Message) is
+         pragma Unreferenced (Context, Slot_Name);
+      begin
+         Available := False;
+         WAL_Start := After_LSN;
+         WAL_End := After_LSN;
+         Message := Logical.Make_Begin (1, 0, 1);
+      end Next_Logical;
+
+      package Managed is new Flyology.Postgres.Replication.Managed_Primary
+        (Logical_Context => Logical_Source,
+         Next_Logical    => Next_Logical);
+
+      procedure Check_Physical_Completion
+        (With_Feedback       : Boolean;
+         Initial_Restart     : Replication.LSN;
+         Expected_Restart    : Replication.LSN;
+         Intermediate_Invalid : Boolean) is
+         Channel : aliased Memory_Transport;
+         Session : Sessions.Session (Channel'Access);
+         Store   : aliased Memory.Store;
+         Source  : aliased Logical_Source;
+         Primary : Managed.Primary
+           (Slots          => Store'Access,
+            WAL            => Store'Access,
+            Timelines      => Store'Access,
+            Logical_Source => Source'Access);
+         Created : Persistence.Create_Result;
+         Command : constant Replication.Command :=
+           Replication.Decode_Command
+             (Replication.Start_Physical (100, Slot_Name => "copy_done"));
+      begin
+         Memory.Create
+           (Store, "copy_done",
+            Persistence.Make_Slot
+              (Persistence.Physical_Slot, Restart_LSN => Initial_Restart),
+            Created);
+         Assert
+           (Created = Persistence.Created,
+            "COPY completion fixture creates its physical slot");
+         Memory.Append (Store, 100, (1, 2, 3, 4, 5, 6));
+         Managed.Initialize (Primary, System_Id => 1, Timeout => 1.0);
+         if Intermediate_Invalid then
+            Queue
+              (Channel,
+               Replication.Make_Standby_Status_Update
+                 (Received_LSN => 107, Flushed_LSN => 102,
+                  Applied_LSN => 102, Sent_At => 0));
+            Queue
+              (Channel,
+               Replication.Make_Standby_Status_Update
+                 (Received_LSN => 106, Flushed_LSN => 106,
+                  Applied_LSN => 106, Sent_At => 0));
+         elsif With_Feedback then
+            Queue
+              (Channel,
+               Replication.Make_Standby_Status_Update
+                 (Received_LSN => 103, Flushed_LSN => 103,
+                  Applied_LSN => 103, Sent_At => 0));
+         end if;
+         Queue (Channel, Protocol.Make_Copy_Done_Message);
+         Managed.Handle (Primary, Session, Command);
+         declare
+            State : constant Persistence.Slot_State :=
+              Memory.Load (Store, "copy_done");
+         begin
+            Assert
+              (Persistence.Restart_LSN (State) = Expected_Restart
+               and then not Persistence.Is_Active (State)
+               and then Memory.First_LSN (Store) = Expected_Restart,
+               "COPY completion persists only final reported progress"
+               & " and releases its lease");
+         end;
+      end Check_Physical_Completion;
+
+      procedure Check_Logical_Stale_Feedback is
+         Channel : aliased Memory_Transport;
+         Session : Sessions.Session (Channel'Access);
+         Store   : aliased Memory.Store;
+         Source  : aliased Logical_Source;
+         Primary : Managed.Primary
+           (Slots          => Store'Access,
+            WAL            => Store'Access,
+            Timelines      => Store'Access,
+            Logical_Source => Source'Access);
+         Created : Persistence.Create_Result;
+         Command : constant Replication.Command :=
+           Replication.Decode_Command
+             (Replication.Start_Logical ("logical_done", 100));
+      begin
+         Memory.Create
+           (Store, "logical_done",
+            Persistence.Make_Slot
+              (Persistence.Logical_Slot,
+               Restart_LSN => 100, Confirmed_LSN => 104,
+               Plugin => "pgoutput"),
+            Created);
+         Assert
+           (Created = Persistence.Created,
+            "COPY completion fixture creates its logical slot");
+         Memory.Append (Store, 100, (1, 2, 3, 4, 5, 6));
+         Managed.Initialize (Primary, System_Id => 1, Timeout => 1.0);
+         Queue
+           (Channel,
+            Replication.Make_Standby_Status_Update
+              (Received_LSN => 103, Flushed_LSN => 103,
+               Applied_LSN => 103, Sent_At => 0));
+         Queue (Channel, Protocol.Make_Copy_Done_Message);
+         Managed.Handle (Primary, Session, Command);
+         declare
+            State : constant Persistence.Slot_State :=
+              Memory.Load (Store, "logical_done");
+         begin
+            Assert
+              (Persistence.Restart_LSN (State) = 100
+               and then Persistence.Confirmed_LSN (State) = 104
+               and then not Persistence.Is_Active (State)
+               and then Memory.First_LSN (Store) = 100,
+               "early CopyDone preserves a newer logical confirmation"
+               & " and releases its lease");
+         end;
+      end Check_Logical_Stale_Feedback;
+   begin
+      Check_Physical_Completion
+        (With_Feedback => True, Initial_Restart => 100,
+         Expected_Restart => 103, Intermediate_Invalid => False);
+      Check_Physical_Completion
+        (With_Feedback => False, Initial_Restart => 100,
+         Expected_Restart => 100, Intermediate_Invalid => False);
+      Check_Physical_Completion
+        (With_Feedback => True, Initial_Restart => 100,
+         Expected_Restart => 106, Intermediate_Invalid => True);
+      Check_Logical_Stale_Feedback;
+      Check_Physical_Completion
+        (With_Feedback => True, Initial_Restart => 104,
+         Expected_Restart => 104, Intermediate_Invalid => False);
+   end Test_Managed_Copy_Done;
+
    procedure Run is
    begin
       Test_Commands_And_LSN;
@@ -1708,6 +1912,7 @@ package body Replication_Tests is
       Test_Logical_Encoding;
       Test_Logical_Failures;
       Test_Persistence_Contracts;
+      Test_Managed_Copy_Done;
       Test_Logical_Producer;
    end Run;
 

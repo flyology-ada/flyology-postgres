@@ -63,8 +63,8 @@ package Flyology.Postgres.Replication.Managed_Primary is
       Command : Replication.Command);
    --  Handle one decoded replication command. START_REPLICATION acquires the
    --  requested slot, streams application data, waits for sufficient standby
-   --  feedback, persists progress, releases the lease, applies WAL retention,
-   --  and performs graceful COPY BOTH completion.
+   --  feedback or frontend CopyDone, persists non-regressing reported progress,
+   --  releases the lease, applies WAL retention, and completes COPY BOTH.
    --  @param Item Initialized managed primary.
    --  @param Client Authenticated replication-mode server session.
    --  @param Command Decoded IDENTIFY_SYSTEM, SHOW, TIMELINE_HISTORY, slot

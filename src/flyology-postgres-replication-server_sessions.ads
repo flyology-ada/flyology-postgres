@@ -103,19 +103,25 @@ package Flyology.Postgres.Replication.Server_Sessions is
    --  @param Reply_Requested Ask the standby for immediate status feedback.
    --  @param Timeout Maximum time allowed for the write.
 
+   Standby_Copy_Done : exception;
+   --  The standby closed its send direction with a valid CopyDone frame.
+
    function Read_Standby_Message
      (Client : in out Sessions.Session; Timeout : Duration)
       return Stream_Message;
-   --  Read and decode one standby CopyData message.
+   --  Read and decode one standby CopyData message, or signal CopyDone.
    --  @param Client Streaming replication session to read.
    --  @param Timeout Maximum time allowed for the complete message.
    --  @return Standby status update or hot-standby feedback.
+   --  @exception Standby_Copy_Done The standby closed its send direction.
+   --  @exception Protocol_Error The COPY command or CopyData is malformed,
+   --     or the standby sent CopyFail.
 
    procedure Finish_Streaming
      (Client : in out Sessions.Session; Timeout : Duration);
-   --  Close the server-to-standby direction. Continue reading frontend COPY
-   --  messages until CopyDone before Complete_Streaming; feedback can remain
-   --  in flight while the two directions close.
+   --  Close the server-to-standby direction. The caller must also observe
+   --  frontend CopyDone before Complete_Streaming, either beforehand via
+   --  Read_Standby_Message or afterward while reading frontend COPY messages.
    --  @param Client Streaming replication session to finish.
    --  @param Timeout Maximum time allowed to send CopyDone.
 

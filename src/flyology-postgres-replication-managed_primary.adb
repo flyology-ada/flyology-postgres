@@ -45,11 +45,13 @@ package body Flyology.Postgres.Replication.Managed_Primary is
    end Initialize;
 
    procedure Complete_Copy
-     (Item : Primary; Client : in out Sessions.Session) is
+     (Item : Primary;
+      Client : in out Sessions.Session;
+      Frontend_Done : Boolean) is
    begin
       Replication_Sessions.Finish_Streaming
         (Client, Timeout => Item.Operation_Timeout);
-      loop
+      while not Frontend_Done loop
          declare
             Copy_Command : constant Protocol.Frontend_Copy_Message :=
               Sessions.Read_Copy_Command
@@ -81,24 +83,34 @@ package body Flyology.Postgres.Replication.Managed_Primary is
      (Item      : Primary;
       Client    : in out Sessions.Session;
       Minimum   : LSN;
+      Standby_Done : out Boolean;
+      Has_Feedback : out Boolean;
       Received  : out LSN;
       Flushed   : out LSN) is
    begin
+      Standby_Done := False;
+      Has_Feedback := False;
+      Received := 0;
+      Flushed := 0;
       loop
          declare
             Feedback : constant Stream_Message :=
               Replication_Sessions.Read_Standby_Message
                 (Client, Timeout => Item.Operation_Timeout);
          begin
-            if Kind (Feedback) = Standby_Status_Update
-              and then Flushed_LSN (Feedback) >= Minimum
-            then
+            if Kind (Feedback) = Standby_Status_Update then
                Received := Received_LSN (Feedback);
                Flushed := Flushed_LSN (Feedback);
-               return;
+               Has_Feedback := True;
+               if Flushed >= Minimum then
+                  return;
+               end if;
             end if;
          end;
       end loop;
+   exception
+      when Replication_Sessions.Standby_Copy_Done =>
+         Standby_Done := True;
    end Await_Feedback;
 
    procedure Apply_Retention (Item : in out Primary) is
@@ -126,6 +138,8 @@ package body Flyology.Postgres.Replication.Managed_Primary is
       Has_Lease : Boolean := False;
       Received  : LSN := 0;
       Flushed   : LSN := 0;
+      Standby_Done : Boolean;
+      Has_Feedback : Boolean;
       Advanced  : Boolean;
       Released  : Boolean;
    begin
@@ -158,17 +172,22 @@ package body Flyology.Postgres.Replication.Managed_Primary is
       Replication_Sessions.Send_Primary_Keepalive
         (Client, End_LSN, Sent_At => 0, Reply_Requested => True,
          Timeout => Item.Operation_Timeout);
-      Await_Feedback (Item, Client, End_LSN, Received, Flushed);
+      Await_Feedback
+        (Item, Client, End_LSN, Standby_Done, Has_Feedback,
+         Received, Flushed);
       Require
         (Received <= End_LSN and then Flushed <= Received,
          "standby feedback exceeds streamed physical WAL");
-      if Has_Lease then
+      if Has_Lease and then Has_Feedback
+        and then
+          (not Standby_Done or else Flushed >= Stores.Restart_LSN (State))
+      then
          Stores.Advance
            (Item.Slots.all, Slot_Name, Lease,
             Restart => Flushed, Confirmed => 0, Advanced => Advanced);
          Require (Advanced, "physical slot advancement lost its lease");
       end if;
-      Complete_Copy (Item, Client);
+      Complete_Copy (Item, Client, Frontend_Done => Standby_Done);
       if Has_Lease then
          Stores.Release
            (Item.Slots.all, Slot_Name, Lease, Released);
@@ -236,6 +255,8 @@ package body Flyology.Postgres.Replication.Managed_Primary is
       Message   : Logical.Message;
       Received  : LSN := 0;
       Flushed   : LSN := 0;
+      Standby_Done : Boolean;
+      Has_Feedback : Boolean;
    begin
       Stores.Acquire
         (Item.Slots.all, Slot_Name, Stores.Logical_Slot,
@@ -278,15 +299,25 @@ package body Flyology.Postgres.Replication.Managed_Primary is
       Replication_Sessions.Send_Primary_Keepalive
         (Client, Position, Sent_At => 0, Reply_Requested => True,
          Timeout => Item.Operation_Timeout);
-      Await_Feedback (Item, Client, Position, Received, Flushed);
+      Await_Feedback
+        (Item, Client, Position, Standby_Done, Has_Feedback,
+         Received, Flushed);
       Require
         (Received <= Position and then Flushed <= Received,
          "standby feedback exceeds produced logical WAL");
-      Stores.Advance
-        (Item.Slots.all, Slot_Name, Lease,
-         Restart => Flushed, Confirmed => Flushed, Advanced => Advanced);
-      Require (Advanced, "logical slot advancement lost its lease");
-      Complete_Copy (Item, Client);
+      if Has_Feedback
+        and then
+          (not Standby_Done
+           or else
+             (Flushed >= Stores.Restart_LSN (State)
+              and then Flushed >= Stores.Confirmed_LSN (State)))
+      then
+         Stores.Advance
+           (Item.Slots.all, Slot_Name, Lease,
+            Restart => Flushed, Confirmed => Flushed, Advanced => Advanced);
+         Require (Advanced, "logical slot advancement lost its lease");
+      end if;
+      Complete_Copy (Item, Client, Frontend_Done => Standby_Done);
       Stores.Release (Item.Slots.all, Slot_Name, Lease, Released);
       Require (Released, "logical slot release lost its lease");
       Has_Lease := False;
