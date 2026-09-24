@@ -2365,6 +2365,19 @@ procedure Tests is
    procedure Test_Pipelined_Client_State is
       type Receive_Path is (Synchronous_Path, Scoped_Path);
       type Earlier_Response is (Earlier_Error, Earlier_Portal_Suspended);
+      type Query_Send_Path is (Synchronous_Query, Scoped_Query);
+      type Pipeline_Ready_Window is (Initial_Ready, Returned_To_Ready);
+      type Query_Rejection_Case is record
+         Path   : Query_Send_Path;
+         Window : Pipeline_Ready_Window;
+      end record;
+      type Query_Rejection_Case_Array is
+        array (Positive range <>) of Query_Rejection_Case;
+      Query_Rejection_Cases : constant Query_Rejection_Case_Array :=
+        ((Synchronous_Query, Initial_Ready),
+         (Scoped_Query, Initial_Ready),
+         (Synchronous_Query, Returned_To_Ready),
+         (Scoped_Query, Returned_To_Ready));
 
       Channel : aliased Memory_Transport;
       Session : Client.Session (Channel'Access);
@@ -2432,6 +2445,110 @@ procedure Tests is
          Client.Execute_Portal (Session, Name, Timeout => 1.0);
          Client.Synchronize (Session, Timeout => 1.0);
       end Write_Batch;
+
+      procedure Check_Query_Rejection
+        (Test_Case : Query_Rejection_Case) is
+         Test_Channel : aliased Memory_Transport;
+         Test_Session : aliased Client.Session (Test_Channel'Access);
+         Set : aliased Operations.Completion_Set (Capacity => 1);
+         Test_Authentication : Flyology.Bytes.Unbounded_Bytes;
+         Before : Natural;
+         Query_Rejected : Boolean := False;
+         Label : constant String :=
+           Test_Case.Path'Image & Test_Case.Window'Image;
+
+         function Test_Next return Protocol.Backend_Message_Kind is
+            Event : constant Client.Extended_Query_Event :=
+              Client.Receive_Extended_Event
+                (Test_Session, Timeout => 1.0);
+         begin
+            return Protocol.Response_Kind (Event);
+         end Test_Next;
+      begin
+         Protocol.Append_U32 (Test_Authentication, 0);
+         Queue
+           (Test_Channel,
+            Protocol.Make_Message
+              ('R', Flyology.Bytes.To_Array (Test_Authentication)));
+         Queue (Test_Channel, Protocol.Make_Message ('Z', Ready_Payload));
+         Client.Startup
+           (Test_Session, User => "pipeline-query", Timeout => 1.0);
+         Client.Enter_Pipeline_Mode (Test_Session);
+
+         if Test_Case.Window = Returned_To_Ready then
+            Client.Prepare_Statement
+              (Test_Session, "prior", "select 1", Timeout => 1.0);
+            Client.Bind_Portal
+              (Test_Session, "prior", "prior", Timeout => 1.0);
+            Client.Execute_Portal
+              (Test_Session, "prior", Timeout => 1.0);
+            Client.Synchronize (Test_Session, Timeout => 1.0);
+            Queue (Test_Channel, Protocol.Make_Empty_Message ('1'));
+            Queue (Test_Channel, Protocol.Make_Empty_Message ('2'));
+            Queue (Test_Channel, Complete);
+            Queue
+              (Test_Channel, Protocol.Make_Message ('Z', Ready_Payload));
+            Assert
+              (Test_Next = Protocol.Parse_Complete_Response
+               and then Test_Next = Protocol.Bind_Complete_Response
+               and then Test_Next = Protocol.Command_Complete_Response
+               and then Test_Next = Protocol.Ready_For_Query_Response,
+               Label & " completes the prior pipeline batch");
+         end if;
+
+         Assert
+           (Client.Is_Ready (Test_Session)
+            and then Client.In_Pipeline_Mode (Test_Session)
+            and then Client.Pending_Synchronizations (Test_Session) = 0,
+            Label & " reaches the pipeline Ready window");
+         Before := Flyology.Bytes.Length (Test_Channel.Output);
+         begin
+            case Test_Case.Path is
+               when Synchronous_Query =>
+                  Client.Send_Query
+                    (Test_Session, "select 2", Timeout => 1.0);
+               when Scoped_Query =>
+                  declare
+                     Send : Client.Send_Operation :=
+                       Client.Send_Query
+                         (Set'Access,
+                          Test_Session'Access,
+                          "select 2",
+                          Timeout => 1.0);
+                  begin
+                     Operations.Wait_All (Set);
+                     Client.Finish (Send);
+                  end;
+            end case;
+         exception
+            when Program_Error =>
+               Query_Rejected := True;
+         end;
+         Assert
+           (Query_Rejected
+            and then Flyology.Bytes.Length (Test_Channel.Output) = Before
+            and then Client.Is_Ready (Test_Session)
+            and then Client.In_Pipeline_Mode (Test_Session)
+            and then Client.Pending_Synchronizations (Test_Session) = 0
+            and then not Test_Channel.Engaged,
+            Label & " rejects Query without changing state or transport");
+
+         Client.Exit_Pipeline_Mode (Test_Session);
+         Client.Send_Query (Test_Session, "select 3", Timeout => 1.0);
+         Queue (Test_Channel, Protocol.Make_Empty_Message ('I'));
+         Queue (Test_Channel, Protocol.Make_Message ('Z', Ready_Payload));
+         Assert
+           (Protocol.Response_Kind
+              (Client.Receive_Query_Event
+                 (Test_Session, Timeout => 1.0)) =
+                Protocol.Empty_Query_Response
+            and then Protocol.Response_Kind
+              (Client.Receive_Query_Event
+                 (Test_Session, Timeout => 1.0)) =
+                Protocol.Ready_For_Query_Response
+            and then Client.Is_Ready (Test_Session),
+            Label & " leaves the session usable after leaving pipeline mode");
+      end Check_Query_Rejection;
 
       procedure Check_Open_Batch_Parity
         (Path : Receive_Path; Response : Earlier_Response) is
@@ -2535,6 +2652,10 @@ procedure Tests is
             & " leaves the open batch able to complete normally");
       end Check_Open_Batch_Parity;
    begin
+      for Test_Case of Query_Rejection_Cases loop
+         Check_Query_Rejection (Test_Case);
+      end loop;
+
       Protocol.Append_U32 (Authentication, 0);
       Queue
         (Channel,
