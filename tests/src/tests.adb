@@ -383,6 +383,71 @@ procedure Tests is
       Expect_Invalid ("");
    end Test_Startup_Replication_Values;
 
+   procedure Test_Initial_Request_Accessor_Guards is
+      Packet : constant Protocol.Byte_Array := Protocol.Encode_SSL_Request;
+      Cursor : Protocol.Byte_Offset := Packet'First;
+      Length : constant Protocol.UInt32 := Protocol.Read_U32 (Packet, Cursor);
+      Initial : constant Protocol.Initial_Request :=
+        Protocol.Decode_Initial (Packet (Cursor .. Packet'Last));
+      Startup_Rejected : Boolean := False;
+      Process_Rejected : Boolean := False;
+      Secret_Rejected  : Boolean := False;
+   begin
+      Assert (Length = 8, "SSLRequest has the required eight-byte length");
+      Assert
+        (Protocol.Kind (Initial) = Protocol.SSL_Request,
+         "accessor guard fixture is an SSLRequest");
+
+      begin
+         declare
+            Ignored : constant Protocol.Startup_Information :=
+              Protocol.Startup_Data (Initial);
+            pragma Unreferenced (Ignored);
+         begin
+            null;
+         end;
+      exception
+         when Protocol.Protocol_Error =>
+            Startup_Rejected := True;
+      end;
+
+      begin
+         declare
+            Ignored : constant Protocol.UInt32 :=
+              Protocol.Process_Id (Initial);
+            pragma Unreferenced (Ignored);
+         begin
+            null;
+         end;
+      exception
+         when Protocol.Protocol_Error =>
+            Process_Rejected := True;
+      end;
+
+      begin
+         declare
+            Ignored : constant Protocol.Byte_Array :=
+              Protocol.Secret_Key (Initial);
+            pragma Unreferenced (Ignored);
+         begin
+            null;
+         end;
+      exception
+         when Protocol.Protocol_Error =>
+            Secret_Rejected := True;
+      end;
+
+      Assert
+        (Startup_Rejected,
+         "Startup_Data rejects a non-Startup initial request");
+      Assert
+        (Process_Rejected,
+         "Process_Id rejects a non-CancelRequest initial request");
+      Assert
+        (Secret_Rejected,
+         "Secret_Key rejects a non-CancelRequest initial request");
+   end Test_Initial_Request_Accessor_Guards;
+
    procedure Test_SSL_Request is
       Packet  : constant Protocol.Byte_Array := Protocol.Encode_SSL_Request;
       Cursor  : Protocol.Byte_Offset := Packet'First;
@@ -3252,6 +3317,7 @@ procedure Tests is
 begin
    Test_Startup;
    Test_Startup_Replication_Values;
+   Test_Initial_Request_Accessor_Guards;
    Test_SSL_Request;
    Test_TLS_Refusal_Is_Terminal;
    Test_Message;

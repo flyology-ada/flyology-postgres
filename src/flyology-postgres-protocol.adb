@@ -1257,13 +1257,28 @@ package body Flyology.Postgres.Protocol is
 
    function Startup_Data
      (Item : Initial_Request) return Startup_Information is
-     (Item.Startup);
+   begin
+      Require
+        (Item.Request_Kind = Startup,
+         "initial request is not Startup");
+      return Item.Startup;
+   end Startup_Data;
 
    function Process_Id (Item : Initial_Request) return UInt32 is
-     (Item.Backend_Pid);
+   begin
+      Require
+        (Item.Request_Kind = Cancel_Request,
+         "initial request is not CancelRequest");
+      return Item.Backend_Pid;
+   end Process_Id;
 
    function Secret_Key (Item : Initial_Request) return Byte_Array is
-     (Flyology.Bytes.To_Array (Item.Secret));
+   begin
+      Require
+        (Item.Request_Kind = Cancel_Request,
+         "initial request is not CancelRequest");
+      return Flyology.Bytes.To_Array (Item.Secret);
+   end Secret_Key;
 
    function Encode_Startup
      (User             : String;
