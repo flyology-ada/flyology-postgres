@@ -184,11 +184,11 @@ procedure Postgres_Test_Replication is
             "IDENTIFY_SYSTEM did not return its real four-column result");
       end Check_Identify_System;
 
-      procedure Check_Logical_Server is
-         Saw_Logical : Boolean := False;
+      procedure Check_Show (Parameter, Expected : String) is
+         Saw_Value : Boolean := False;
       begin
          Client.Send_Command
-           (Session, Replication.Show ("wal_level"), Timeout => 10.0);
+           (Session, Replication.Show (Parameter), Timeout => 10.0);
          loop
             declare
                Event : constant Client.Simple_Query_Event :=
@@ -202,10 +202,10 @@ procedure Postgres_Test_Replication is
                      Row : constant Protocol.Data_Row :=
                        Protocol.Row_Data (Event);
                   begin
-                     Saw_Logical :=
+                     Saw_Value :=
                        Protocol.Column_Count (Row) = 1
                        and then Protocol.Column_Text
-                         (Protocol.Column_At (Row, 1)) = "logical";
+                         (Protocol.Column_At (Row, 1)) = Expected;
                   end;
                elsif Protocol.Response_Kind (Event) =
                  Protocol.Ready_For_Query_Response
@@ -214,7 +214,17 @@ procedure Postgres_Test_Replication is
                end if;
             end;
          end loop;
-         Require (Saw_Logical, "real server wal_level is not logical");
+         Require
+           (Saw_Value,
+            "real server SHOW " & Parameter & " returned the wrong value");
+      end Check_Show;
+
+      procedure Check_Logical_Server is
+      begin
+         Check_Show ("wal_level", "logical");
+         if Scenario = "logical_v1" then
+            Check_Show ("flyology.my_setting", "dotted");
+         end if;
       end Check_Logical_Server;
 
       procedure Start_Copy (Command : Protocol.Message) is
