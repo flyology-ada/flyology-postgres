@@ -191,10 +191,11 @@ package body Flyology.Postgres.Protocol is
       Success  : Boolean;
    begin
       Require
-        (Source'Length <= Maximum_Message_Size
-         and then Cursor >= Source'First
-         and then Cursor <= Source'Last,
+        (Source'Length <= Maximum_Message_Size,
          "Postgres string exceeds the configured limit");
+      Require
+        (Cursor >= Source'First and then Cursor <= Source'Last,
+         "unterminated Postgres string");
       Position := Wire.Wire_Length (Cursor - Source'First);
       Wire.Try_Read_C_String (Source, Position, View, Success);
       Require (Success, "unterminated Postgres string");

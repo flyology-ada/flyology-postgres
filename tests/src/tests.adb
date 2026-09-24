@@ -1,3 +1,4 @@
+with Ada.Exceptions;
 with Ada.Real_Time;
 with Ada.Streams;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
@@ -557,23 +558,47 @@ procedure Tests is
    end Test_All_Frontend_Commands;
 
    procedure Test_Malformed_String is
-      Contents : constant Protocol.Byte_Array (1 .. 1) :=
+      Empty     : constant Protocol.Byte_Array (1 .. 0) := (others => 0);
+      One_Byte  : constant Protocol.Byte_Array (1 .. 1) :=
         (1 => Protocol.Byte (Character'Pos ('x')));
-      Cursor   : Protocol.Byte_Offset := Contents'First;
-      Rejected : Boolean := False;
-   begin
+
+      function Read_Error (Contents : Protocol.Byte_Array) return String is
+         Cursor : Protocol.Byte_Offset := Contents'First;
       begin
          declare
             Ignored : constant String :=
               Protocol.Read_C_String (Contents, Cursor);
          begin
-            Assert (Ignored'Length = 0, "unreachable malformed string result");
+            return "accepted: " & Ignored;
          end;
       exception
-         when Protocol.Protocol_Error =>
-            Rejected := True;
-      end;
-      Assert (Rejected, "unterminated strings are rejected");
+         when Error : Protocol.Protocol_Error =>
+            return Ada.Exceptions.Exception_Message (Error);
+      end Read_Error;
+
+      function Query_Error return String is
+      begin
+         declare
+            Ignored : constant String :=
+              Server_Sessions.Query_Text
+                (Protocol.Make_Message ('Q', Empty));
+         begin
+            return "accepted: " & Ignored;
+         end;
+      exception
+         when Error : Protocol.Protocol_Error =>
+            return Ada.Exceptions.Exception_Message (Error);
+      end Query_Error;
+   begin
+      Assert
+        (Read_Error (One_Byte) = "unterminated Postgres string",
+         "an unterminated non-empty string reports its missing terminator");
+      Assert
+        (Read_Error (Empty) = "unterminated Postgres string",
+         "an empty string buffer reports its missing terminator");
+      Assert
+        (Query_Error = "unterminated Postgres string",
+         "an empty Query payload reports its missing terminator");
    end Test_Malformed_String;
 
    procedure Test_Proved_Wire_Core is

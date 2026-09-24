@@ -218,7 +218,15 @@ is
       Success : out Boolean)
    with
      Post =>
-       (if Success
+       (if not Fits_Wire_Limit (Data)
+        then not Success
+          and then Cursor = Cursor'Old
+          and then View = Empty_View
+        elsif Cursor'Old >= Data'Length
+        then not Success
+          and then Cursor = Cursor'Old
+          and then View = Empty_View
+        elsif Success
         then View.First = Cursor'Old
           and then C_String_View (Data, View)
           and then Cursor = View.First + View.Length + 1
