@@ -7,6 +7,7 @@ with Interfaces;
 with AUnit.Assertions; use AUnit.Assertions;
 with Flyology.Bytes;
 with Flyology.IO;
+with Flyology.IO.Sockets;
 with Flyology.IO.Timers;
 with Flyology.IO.TLS;
 with Flyology.IO.TLS.OpenSSL;
@@ -23,6 +24,7 @@ with Flyology.Postgres.SCRAM;
 with Flyology.Postgres.SCRAM_Core;
 with Flyology.Postgres.Server_Sessions;
 with Flyology.Postgres.Transports;
+with Flyology.Postgres.Transports.TLS_Sockets;
 with Flyology.Postgres.Wire;
 with Replication_Tests;
 
@@ -41,6 +43,9 @@ procedure Tests is
      Flyology.Postgres.Replication.Server_Sessions;
    package Server_Sessions renames Flyology.Postgres.Server_Sessions;
    package Transports renames Flyology.Postgres.Transports;
+   package TLS_Socket_Transports renames
+     Flyology.Postgres.Transports.TLS_Sockets;
+   package Sockets renames Flyology.IO.Sockets;
    package Operations renames Flyology.Operations;
    package Operation_Drivers renames Flyology.Operations.Drivers;
    package Timers renames Flyology.IO.Timers;
@@ -590,6 +595,136 @@ procedure Tests is
         (Timed_Out or else Elapsed <= Message_Timeout + Tolerance,
          "one deadline bounds all transport reads for a typed frame");
    end Test_Framing_Deadline;
+
+   procedure Test_TLS_Socket_Receive_Semantics is
+      type Counting_Observer is new Transports.Wait_Observer with record
+         Calls : Natural := 0;
+      end record;
+
+      overriding procedure On_Wait (Item : in out Counting_Observer) is
+      begin
+         Item.Calls := Item.Calls + 1;
+      end On_Wait;
+
+      type Receive_Outcome is
+        (Receive_Returned, Device_Error_Raised, TLS_Error_Raised);
+      type Close_Observation is record
+         Outcome : Receive_Outcome;
+         Waits   : Natural;
+      end record;
+
+      procedure Make_Loopback_Pair
+        (Writer : in out Sockets.Socket_Type;
+         Reader : in out Sockets.Socket_Type) is
+         Listener : Sockets.Socket_Type;
+         Peer     : Sockets.Endpoint;
+      begin
+         Sockets.Create_Socket (Listener, Family => Sockets.IPv4);
+         Sockets.Bind_Socket
+           (Listener,
+            Sockets.Network_Endpoint
+              (Sockets.Loopback_IPv4, Sockets.Any_Port));
+         Sockets.Listen_Socket (Listener, Length => 1);
+         Sockets.Create_Socket (Writer, Family => Sockets.IPv4);
+         Sockets.Connect
+           (Writer, Sockets.Get_Socket_Name (Listener), Timeout => 1.0);
+         Sockets.Accept_Connection
+           (Listener, Reader, Peer, Timeout => 1.0);
+         Sockets.Close_Socket (Listener);
+      end Make_Loopback_Pair;
+
+      function Observe_Close
+        (With_Observer : Boolean) return Close_Observation is
+         Writer  : aliased Sockets.Socket_Type;
+         Reader  : aliased Sockets.Socket_Type;
+         Channel : TLS_Socket_Transports.TLS_Socket_Transport
+           (Reader'Access);
+         Watcher : aliased Counting_Observer;
+         Prefix  : constant Protocol.Byte_Array (1 .. 3) :=
+           (1 => 16#11#, 2 => 16#22#, 3 => 16#33#);
+         Data    : Protocol.Byte_Array (1 .. 8);
+         Outcome : Receive_Outcome := Receive_Returned;
+      begin
+         Make_Loopback_Pair (Writer, Reader);
+         Sockets.Send_All (Writer, Prefix, Timeout => 1.0);
+         Sockets.Close_Socket (Writer);
+         begin
+            if With_Observer then
+               Channel.Receive_Exactly
+                 (Data, Timeout => 1.0, On_Wait => Watcher'Access);
+            else
+               Channel.Receive_Exactly (Data, Timeout => 1.0);
+            end if;
+         exception
+            when Flyology.IO.Device_Error =>
+               Outcome := Device_Error_Raised;
+            when Flyology.IO.TLS.TLS_Error =>
+               Outcome := TLS_Error_Raised;
+         end;
+         Sockets.Close_Socket (Reader);
+         return (Outcome => Outcome, Waits => Watcher.Calls);
+      end Observe_Close;
+
+      function Immediate_Receive_Succeeds return Boolean is
+         Writer  : aliased Sockets.Socket_Type;
+         Reader  : aliased Sockets.Socket_Type;
+         Channel : TLS_Socket_Transports.TLS_Socket_Transport
+           (Reader'Access);
+         Watcher : aliased Counting_Observer;
+         Sent    : constant Protocol.Byte_Array (1 .. 8) :=
+           (1 => 16#10#,
+            2 => 16#20#,
+            3 => 16#30#,
+            4 => 16#40#,
+            5 => 16#50#,
+            6 => 16#60#,
+            7 => 16#70#,
+            8 => 16#80#);
+         Received : Protocol.Byte_Array (Sent'Range);
+         Pending  : Sockets.Request_Type (Sockets.N_Bytes_To_Read);
+         Deadline : constant Ada.Real_Time.Time :=
+           Ada.Real_Time.Clock + Ada.Real_Time.Seconds (1);
+         Completed : Boolean := False;
+      begin
+         Make_Loopback_Pair (Writer, Reader);
+         Sockets.Send_All (Writer, Sent, Timeout => 1.0);
+         loop
+            Sockets.Control_Socket (Reader, Pending);
+            exit when Pending.Size >= Sent'Length;
+            if Ada.Real_Time.Clock >= Deadline then
+               raise Program_Error with
+                 "loopback receive data did not reach the socket queue";
+            end if;
+            delay 0.001;
+         end loop;
+         begin
+            Channel.Receive_Exactly
+              (Received, Timeout => 0.0, On_Wait => Watcher'Access);
+            Completed := Received = Sent;
+         exception
+            when Flyology.IO.Timeout_Error =>
+               Completed := False;
+         end;
+         Sockets.Close_Socket (Writer);
+         Sockets.Close_Socket (Reader);
+         return Completed;
+      end Immediate_Receive_Succeeds;
+
+      Without_Observer : constant Close_Observation := Observe_Close (False);
+      With_Observer    : constant Close_Observation := Observe_Close (True);
+      Immediate        : constant Boolean := Immediate_Receive_Succeeds;
+   begin
+      Assert
+        (Without_Observer.Outcome = Device_Error_Raised,
+         "plaintext early close without an observer raises Device_Error");
+      Assert
+        (With_Observer.Outcome = Device_Error_Raised
+         and then With_Observer.Waits > 0,
+         "plaintext early close with an observer raises Device_Error");
+      Assert
+        (Immediate,
+         "zero timeout with an observer makes one immediate receive attempt");
+   end Test_TLS_Socket_Receive_Semantics;
 
    procedure Test_All_Frontend_Commands is
       type Case_Item is record
@@ -3322,6 +3457,7 @@ begin
    Test_TLS_Refusal_Is_Terminal;
    Test_Message;
    Test_Framing_Deadline;
+   Test_TLS_Socket_Receive_Semantics;
    Test_All_Frontend_Commands;
    Test_Malformed_String;
    Test_Proved_Wire_Core;

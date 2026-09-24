@@ -29,14 +29,15 @@ package body Flyology.Postgres.Transports.TLS_Sockets is
       Timeout : Duration;
       On_Wait : access Wait_Observer'Class := null) is
       use type Ada.Real_Time.Time;
-      Bounded  : constant Boolean := Timeout >= 0.0;
-      Deadline : constant Ada.Real_Time.Time :=
+      Bounded   : constant Boolean := Timeout >= 0.0;
+      Deadline  : constant Ada.Real_Time.Time :=
         (if Bounded
          then Ada.Real_Time.Clock + Ada.Real_Time.To_Time_Span (Timeout)
          else Ada.Real_Time.Time_First);
-      Cursor   : Ada.Streams.Stream_Element_Offset := Data'First;
-      Last     : Ada.Streams.Stream_Element_Offset;
-      Left     : Duration;
+      Cursor    : Ada.Streams.Stream_Element_Offset := Data'First;
+      Last      : Ada.Streams.Stream_Element_Offset;
+      Left      : Duration;
+      Attempted : Boolean := False;
    begin
       if On_Wait = null then
          if Item.Encrypted then
@@ -52,23 +53,31 @@ package body Flyology.Postgres.Transports.TLS_Sockets is
       while Cursor <= Data'Last loop
          if Bounded then
             Left := Ada.Real_Time.To_Duration (Deadline - Ada.Real_Time.Clock);
-            if Left <= 0.0 then
+            if Attempted and then Left <= 0.0 then
                raise Flyology.IO.Timeout_Error with
                  "Postgres transport deadline expired before the buffer"
                  & " filled";
+            elsif Left <= 0.0 then
+               Left := 0.0;
             end if;
          else
             Left := Wait_Slice;
          end if;
          begin
+            Attempted := True;
             Receive_Chunk
               (Item,
                Data (Cursor .. Data'Last),
                Last,
                Duration'Min (Wait_Slice, Left));
             if Last < Cursor then
-               raise Flyology.IO.TLS.TLS_Error with
-                 "TLS peer closed before receive completed";
+               if Item.Encrypted then
+                  raise Flyology.IO.TLS.TLS_Error with
+                    "TLS peer closed before receive completed";
+               else
+                  raise Flyology.IO.Device_Error with
+                    "socket closed while receiving";
+               end if;
             end if;
             Cursor := Last + 1;
          exception

@@ -38,6 +38,10 @@ package Flyology.Postgres.Transports is
    --     effort: a transport that cannot read incrementally, or that never
    --     waits, may never call it.
    --  @exception Flyology.IO.Timeout_Error The deadline expires first.
+   --  @exception Flyology.IO.Device_Error A plaintext peer closes before
+   --     Data is filled.
+   --  @exception Flyology.IO.TLS.TLS_Error TLS processing fails or an
+   --     encrypted peer closes before Data is filled.
 
    procedure Send_All
      (Item    : in out Transport;
