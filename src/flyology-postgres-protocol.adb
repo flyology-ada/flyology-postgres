@@ -1,3 +1,4 @@
+with Ada.Characters.Handling;
 with Ada.Containers;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Interfaces; use Interfaces;
@@ -66,6 +67,41 @@ package body Flyology.Postgres.Protocol is
       end loop;
       return Result;
    end View_To_Bytes;
+
+   function Parse_Startup_Boolean
+     (Value : String; Result : out Boolean) return Boolean is
+      Lowercase : constant String := Ada.Characters.Handling.To_Lower (Value);
+
+      function Is_Prefix_Of (Candidate : String) return Boolean is
+        (Lowercase'Length > 0
+         and then Lowercase'Length <= Candidate'Length
+         and then Lowercase =
+           Candidate
+             (Candidate'First .. Candidate'First + Lowercase'Length - 1));
+   begin
+      --  PostgreSQL parse_bool accepts case-insensitive unique prefixes of
+      --  these words, except that bare "o" is ambiguous between on and off.
+      if Lowercase = "1"
+        or else Is_Prefix_Of ("true")
+        or else Is_Prefix_Of ("yes")
+        or else
+          (Lowercase'Length >= 2 and then Is_Prefix_Of ("on"))
+      then
+         Result := True;
+         return True;
+      elsif Lowercase = "0"
+        or else Is_Prefix_Of ("false")
+        or else Is_Prefix_Of ("no")
+        or else
+          (Lowercase'Length >= 2 and then Is_Prefix_Of ("off"))
+      then
+         Result := False;
+         return True;
+      else
+         Result := False;
+         return False;
+      end if;
+   end Parse_Startup_Boolean;
 
    procedure Append_Byte
      (Target : in out Flyology.Bytes.Unbounded_Bytes; Value : Byte) is
@@ -1191,14 +1227,18 @@ package body Flyology.Postgres.Protocol is
                         if Value = "database" then
                            Result.Startup.Replication_Mode :=
                              Logical_Replication_Connection;
-                        elsif Value in "true" | "on" | "yes" | "1" then
-                           Result.Startup.Replication_Mode :=
-                             Physical_Replication_Connection;
-                        elsif Value not in
-                          "false" | "off" | "no" | "0"
-                        then
-                           raise Protocol_Error with
-                             "invalid startup replication mode";
+                        else
+                           declare
+                              Enabled : Boolean;
+                           begin
+                              if not Parse_Startup_Boolean (Value, Enabled) then
+                                 raise Protocol_Error with
+                                   "invalid startup replication mode";
+                              elsif Enabled then
+                                 Result.Startup.Replication_Mode :=
+                                   Physical_Replication_Connection;
+                              end if;
+                           end;
                         end if;
                      end if;
                   end;

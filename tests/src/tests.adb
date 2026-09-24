@@ -53,6 +53,7 @@ procedure Tests is
    use type Protocol.Frontend_Copy_Kind;
    use type Protocol.Int16;
    use type Protocol.Int32;
+   use type Protocol.Replication_Connection_Mode;
    use type Protocol.Transaction_Status;
    use type Protocol.UInt16;
    use type Protocol.UInt32;
@@ -308,6 +309,78 @@ procedure Tests is
         (To_String (Startup.Application_Name) = "tests",
          "startup application name round-trips");
    end Test_Startup;
+
+   procedure Test_Startup_Replication_Values is
+      function Startup_Contents
+        (Replication : String) return Protocol.Byte_Array is
+         Contents : Flyology.Bytes.Unbounded_Bytes;
+      begin
+         Protocol.Append_U32 (Contents, 16#0003_0000#);
+         Protocol.Append_C_String (Contents, "user");
+         Protocol.Append_C_String (Contents, "alice");
+         Protocol.Append_C_String (Contents, "replication");
+         Protocol.Append_C_String (Contents, Replication);
+         Protocol.Append_Byte (Contents, 0);
+         return Flyology.Bytes.To_Array (Contents);
+      end Startup_Contents;
+
+      procedure Expect
+        (Value : String; Mode : Protocol.Replication_Connection_Mode) is
+         Initial : constant Protocol.Initial_Request :=
+           Protocol.Decode_Initial (Startup_Contents (Value));
+      begin
+         Assert
+           (Protocol.Startup_Data (Initial).Replication_Mode = Mode,
+            "startup replication=" & Value & " is decoded");
+      end Expect;
+
+      procedure Expect_Invalid (Value : String) is
+         Rejected : Boolean := False;
+      begin
+         begin
+            declare
+               Ignored : constant Protocol.Initial_Request :=
+                 Protocol.Decode_Initial (Startup_Contents (Value));
+            begin
+               Assert
+                 (Protocol.Kind (Ignored) = Protocol.Unknown_Initial,
+                  "unreachable invalid startup replication result");
+            end;
+         exception
+            when Protocol.Protocol_Error =>
+               Rejected := True;
+         end;
+         Assert
+           (Rejected,
+            "invalid startup replication=" & Value & " is rejected");
+      end Expect_Invalid;
+   begin
+      Expect ("t", Protocol.Physical_Replication_Connection);
+      Expect ("TR", Protocol.Physical_Replication_Connection);
+      Expect ("true", Protocol.Physical_Replication_Connection);
+      Expect ("TRUE", Protocol.Physical_Replication_Connection);
+      Expect ("True", Protocol.Physical_Replication_Connection);
+      Expect ("y", Protocol.Physical_Replication_Connection);
+      Expect ("Yes", Protocol.Physical_Replication_Connection);
+      Expect ("YES", Protocol.Physical_Replication_Connection);
+      Expect ("on", Protocol.Physical_Replication_Connection);
+      Expect ("On", Protocol.Physical_Replication_Connection);
+      Expect ("1", Protocol.Physical_Replication_Connection);
+      Expect ("f", Protocol.Normal_Connection);
+      Expect ("false", Protocol.Normal_Connection);
+      Expect ("FaLs", Protocol.Normal_Connection);
+      Expect ("n", Protocol.Normal_Connection);
+      Expect ("NO", Protocol.Normal_Connection);
+      Expect ("of", Protocol.Normal_Connection);
+      Expect ("Off", Protocol.Normal_Connection);
+      Expect ("0", Protocol.Normal_Connection);
+      Expect ("database", Protocol.Logical_Replication_Connection);
+      Expect_Invalid ("o");
+      Expect_Invalid ("Database");
+      Expect_Invalid ("10");
+      Expect_Invalid ("truex");
+      Expect_Invalid ("");
+   end Test_Startup_Replication_Values;
 
    procedure Test_SSL_Request is
       Packet  : constant Protocol.Byte_Array := Protocol.Encode_SSL_Request;
@@ -3153,6 +3226,7 @@ procedure Tests is
 
 begin
    Test_Startup;
+   Test_Startup_Replication_Values;
    Test_SSL_Request;
    Test_TLS_Refusal_Is_Terminal;
    Test_Message;
