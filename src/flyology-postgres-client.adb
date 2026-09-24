@@ -476,6 +476,14 @@ package body Flyology.Postgres.Client is
       end;
    end Startup_TLS;
 
+   procedure Require_No_Pipelined_Query (Item : Session) is
+   begin
+      if Item.Pipelined then
+         raise Program_Error with
+           "simple queries are not allowed in Postgres pipeline mode";
+      end if;
+   end Require_No_Pipelined_Query;
+
    procedure Send_Command
      (Item    : in out Session;
       Command : Protocol.Message;
@@ -485,9 +493,8 @@ package body Flyology.Postgres.Client is
       if Item.Current_State in Not_Started | TLS_Negotiated | Closed then
          raise Program_Error with "Postgres session is not started";
       end if;
-      if Item.Pipelined and then Tag = Protocol.Query then
-         raise Program_Error with
-           "simple queries are not allowed in Postgres pipeline mode";
+      if Tag = Protocol.Query then
+         Require_No_Pipelined_Query (Item);
       end if;
       if Item.Current_State = Recovery_Required
         and then Tag /= Protocol.Sync
@@ -578,10 +585,7 @@ package body Flyology.Postgres.Client is
      (Item : in out Session; SQL : String; Timeout : Duration := 30.0) is
       Contents : Flyology.Bytes.Unbounded_Bytes;
    begin
-      if Item.Pipelined then
-         raise Program_Error with
-           "simple queries are not allowed in Postgres pipeline mode";
-      end if;
+      Require_No_Pipelined_Query (Item);
       if Item.Current_State /= Ready then
          raise Program_Error with "Postgres session is not ready for a query";
       end if;
@@ -1278,6 +1282,7 @@ package body Flyology.Postgres.Client is
       Operation : in out Send_Operation) is
       Contents : Flyology.Bytes.Unbounded_Bytes;
    begin
+      Require_No_Pipelined_Query (Item.all);
       if Item.Current_State /= Ready then
          raise Program_Error with "Postgres session is not ready for a query";
       elsif SQL'Length > Protocol.Maximum_Message_Size - 5 then
