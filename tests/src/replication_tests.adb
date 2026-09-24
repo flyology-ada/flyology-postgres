@@ -213,6 +213,42 @@ package body Replication_Tests is
       Assert (Rejected, "malformed replication command is rejected");
    end Assert_Command_Rejected;
 
+   procedure Assert_Show_Rejected (Parameter : String) is
+      Rejected : Boolean := False;
+   begin
+      begin
+         declare
+            Ignored : constant Protocol.Message :=
+              Replication.Show (Parameter);
+            pragma Unreferenced (Ignored);
+         begin
+            null;
+         end;
+      exception
+         when Protocol.Protocol_Error =>
+            Rejected := True;
+      end;
+      Assert (Rejected, "malformed replication SHOW is rejected");
+   end Assert_Show_Rejected;
+
+   procedure Assert_Option_Rejected (Name : String) is
+      Rejected : Boolean := False;
+   begin
+      begin
+         declare
+            Ignored : constant Replication.Logical_Option :=
+              Replication.Option (Name);
+            pragma Unreferenced (Ignored);
+         begin
+            null;
+         end;
+      exception
+         when Protocol.Protocol_Error =>
+            Rejected := True;
+      end;
+      Assert (Rejected, "malformed logical option name is rejected");
+   end Assert_Option_Rejected;
+
    procedure Assert_Rejected
      (Data      : Logical.Byte_Array;
       Version   : Logical.Protocol_Version;
@@ -273,6 +309,14 @@ package body Replication_Tests is
       Assert
         (Query_Text (Replication.Show ("wal_level")) = "SHOW wal_level",
          "replication SHOW command is typed");
+      Assert
+        (Query_Text (Replication.Show ("myext.my_setting")) =
+           "SHOW myext.my_setting",
+         "replication SHOW accepts dotted GUC names");
+      Assert
+        (Query_Text (Replication.Show ("1myext.group.my_setting")) =
+           "SHOW 1myext.group.my_setting",
+         "dotted SHOW preserves the existing segment grammar");
       Assert
         (Query_Text (Replication.Timeline_History (7)) =
            "TIMELINE_HISTORY 7",
@@ -553,6 +597,15 @@ package body Replication_Tests is
             and then Replication.Parameter (Item) = "wal_level",
             "primary-side decoding exposes SHOW parameters");
       end;
+      declare
+         Item : constant Replication.Command := Replication.Decode_Command
+           (Query ("SHOW myext.my_setting"));
+      begin
+         Assert
+           (Replication.Kind (Item) = Replication.Show_Command
+            and then Replication.Parameter (Item) = "myext.my_setting",
+            "primary-side decoding exposes dotted SHOW parameters");
+      end;
 
       declare
          Item : constant Replication.Command := Replication.Decode_Command
@@ -576,6 +629,20 @@ package body Replication_Tests is
             "primary-side decoding accepts PostgreSQL whitespace");
       end;
       Assert_Command_Rejected ("select 1");
+      Assert_Command_Rejected ("SHOW .my_setting");
+      Assert_Command_Rejected ("SHOW myext.");
+      Assert_Command_Rejected ("SHOW myext..my_setting");
+      Assert_Command_Rejected ("SHOW myext.my$setting");
+      Assert_Command_Rejected ("SHOW ""myext"".""my_setting""");
+      Assert_Command_Rejected
+        ("SHOW myext." & Character'Val (16#E9#));
+      Assert_Show_Rejected (".my_setting");
+      Assert_Show_Rejected ("myext.");
+      Assert_Show_Rejected ("myext..my_setting");
+      Assert_Show_Rejected ("myext.my$setting");
+      Assert_Show_Rejected ("""myext"".""my_setting""");
+      Assert_Show_Rejected ("myext." & Character'Val (16#E9#));
+      Assert_Option_Rejected ("myext.my_setting");
       Assert_Command_Rejected
         ("START_REPLICATION SLOT subscriber_1 LOGICAL 0/0"
          & " (proto_version '4' trailing)");

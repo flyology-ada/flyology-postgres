@@ -1526,6 +1526,7 @@ for version in $versions; do
   server_options="$server_options -c max_replication_slots=20"
   server_options="$server_options -c max_prepared_transactions=20"
   server_options="$server_options -c logical_decoding_work_mem=64kB"
+  server_options="$server_options -c flyology.my_setting=dotted"
   #  Short on purpose: a primary that gives up quickly is what makes the
   #  scenarios below prove anything.  Clients answer from inside a receive
   #  and the physical backlog is a few kilobytes, so nothing here depends on

@@ -103,6 +103,24 @@ package body Flyology.Postgres.Replication is
         (for all Item of Name =>
            Item in 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '_'));
 
+   function Is_GUC_Name (Name : String) return Boolean is
+      Segment_Empty : Boolean := True;
+   begin
+      for Item of Name loop
+         if Item = '.' then
+            if Segment_Empty then
+               return False;
+            end if;
+            Segment_Empty := True;
+         elsif Item in 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '_' then
+            Segment_Empty := False;
+         else
+            return False;
+         end if;
+      end loop;
+      return not Segment_Empty;
+   end Is_GUC_Name;
+
    function Is_Slot_Name (Name : String) return Boolean is
      (Name'Length in 1 .. 63
       and then
@@ -183,7 +201,7 @@ package body Flyology.Postgres.Replication is
    function Show (Parameter : String) return Protocol.Message is
    begin
       Require
-        (Is_Option_Name (Parameter),
+        (Is_GUC_Name (Parameter),
          "invalid replication SHOW parameter name");
       return Query ("SHOW " & Parameter);
    end Show;
@@ -523,7 +541,7 @@ package body Flyology.Postgres.Replication is
             Name : constant String := Next_Token (Text, Cursor);
          begin
             Require
-              (Is_Option_Name (Name),
+              (Is_GUC_Name (Name),
                "invalid replication SHOW parameter name");
             Result.Parameter_Data :=
               Flyology.Bytes.From_Byte_String (Name);

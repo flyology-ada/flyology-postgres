@@ -72,7 +72,8 @@ package Flyology.Postgres.Replication is
    --  @return Simple Query message containing IDENTIFY_SYSTEM.
    function Show (Parameter : String) return Protocol.Message;
    --  Construct a replication-mode SHOW command.
-   --  @param Parameter Nonempty ASCII letter, digit, or underscore identifier.
+   --  @param Parameter One or more nonempty ASCII letter, digit, or underscore
+   --  segments separated by dots.
    --  @return Simple Query message containing SHOW.
    --  @exception Protocol.Protocol_Error Parameter is invalid.
    function Timeline_History (Timeline : UInt32) return Protocol.Message;
