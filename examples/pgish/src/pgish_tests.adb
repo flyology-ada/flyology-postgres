@@ -170,6 +170,49 @@ begin
         (Result.Column_Count = 4 and then Result.Row_Count = 9,
          "filtered information_schema columns stay within result bounds");
    end;
+   declare
+      procedure Check_Columns_Query
+        (Text : String; Expected_Rows : Natural) is
+      begin
+         begin
+            Catalog.Execute (Context, Session, SQL.Parse (Text), Result);
+            Check
+              (Result.Row_Count = Expected_Rows,
+               Text & " returns" & Expected_Rows'Image & " rows");
+         exception
+            when Error : others =>
+               Check
+                 (False,
+                  Text & " does not raise " &
+                  Ada.Exceptions.Exception_Name (Error));
+         end;
+      end Check_Columns_Query;
+   begin
+      Check_Columns_Query
+        ("SELECT column_name FROM information_schema.columns LIMIT 5", 5);
+      Check_Columns_Query
+        ("SELECT column_name FROM information_schema.columns " &
+         "WHERE table_schema = 'flyology' LIMIT 1",
+         1);
+      Check_Columns_Query
+        ("SELECT column_name FROM information_schema.columns " &
+         "WHERE table_name LIKE 'flyology_server%' LIMIT 5",
+         5);
+      Check_Columns_Query
+        ("SELECT column_name FROM information_schema.columns " &
+         "ORDER BY column_name LIMIT 5",
+         5);
+      Check
+        (SQL.Image (Result.Rows (1).Values (1).Value) = "active_arenas"
+         and then SQL.Image (Result.Rows (2).Values (1).Value) =
+           "application_name"
+         and then SQL.Image (Result.Rows (3).Values (1).Value) =
+           "arena_mappings"
+         and then SQL.Image (Result.Rows (4).Values (1).Value) =
+           "arena_unmappings"
+         and then SQL.Image (Result.Rows (5).Values (1).Value) = "author",
+         "ordered columns LIMIT returns the global first five names");
+   end;
    State.Register_Session
      (Context, "flyology", "flyology", "tests", Accepted);
    Check (Accepted, "test session registers");

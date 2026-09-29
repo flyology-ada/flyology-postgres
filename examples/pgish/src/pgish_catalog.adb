@@ -510,7 +510,8 @@ package body Pgish_Catalog is
      (Source  : Result_Set;
       Session : State.Session_Snapshot;
       Query   : SQL.Query;
-      Result  : in out Result_Set) is
+      Result  : in out Result_Set;
+      Stop_At_Limit : Boolean) is
       Current_Time : constant String := Timestamp (Ada.Calendar.Clock);
 
       procedure Add_Projected_Column (Projection : SQL.Projection) is
@@ -600,13 +601,18 @@ package body Pgish_Catalog is
       Keep : Boolean;
       Empty_Row : constant Result_Row := (Values => (others => Null_Cell));
    begin
-      for Index in 1 .. Query.Projection_Count loop
-         Add_Projected_Column (Query.Projections (Index));
-      end loop;
+      if Result.Column_Count = 0 then
+         for Index in 1 .. Query.Projection_Count loop
+            Add_Projected_Column (Query.Projections (Index));
+         end loop;
+      end if;
       if SQL.Is_Empty (Query.Table_Name) then
          Add_Projected_Row (Empty_Row);
       else
          for Row_Index in 1 .. Source.Row_Count loop
+            exit when Stop_At_Limit and then Query.Has_Limit
+              and then SQL.Is_Empty (Query.Order_Column)
+              and then Result.Row_Count = Query.Limit;
             Keep := True;
             for Predicate_Index in 1 .. Query.Predicate_Count loop
                if not Matches
@@ -621,26 +627,30 @@ package body Pgish_Catalog is
       end if;
    end Project;
 
+   function Sorts_Before
+     (Left, Right : Cell;
+      Type_Oid    : Natural;
+      Descending  : Boolean) return Boolean is
+      Left_Number  : Long_Long_Integer;
+      Right_Number : Long_Long_Integer;
+   begin
+      if Left.Is_Null then return Descending and then not Right.Is_Null;
+      elsif Right.Is_Null then return not Descending;
+      elsif Type_Oid in 20 | 23
+        and then Numeric (SQL.Image (Left.Value), Left_Number)
+        and then Numeric (SQL.Image (Right.Value), Right_Number)
+      then
+         return
+           (if Descending
+            then Left_Number > Right_Number
+            else Left_Number < Right_Number);
+      elsif Descending then return SQL.Image (Left.Value) > SQL.Image (Right.Value);
+      else return SQL.Image (Left.Value) < SQL.Image (Right.Value);
+      end if;
+   end Sorts_Before;
+
    procedure Sort (Result : in out Result_Set; Column : String; Descending : Boolean) is
       Index : constant Natural := Find_Column (Result, Column);
-      function Before (Left, Right : Cell) return Boolean is
-         Left_Number  : Long_Long_Integer;
-         Right_Number : Long_Long_Integer;
-      begin
-         if Left.Is_Null then return Descending and then not Right.Is_Null;
-         elsif Right.Is_Null then return not Descending;
-         elsif Result.Columns (Index).Type_Oid in 20 | 23
-           and then Numeric (SQL.Image (Left.Value), Left_Number)
-           and then Numeric (SQL.Image (Right.Value), Right_Number)
-         then
-            return
-              (if Descending
-               then Left_Number > Right_Number
-               else Left_Number < Right_Number);
-         elsif Descending then return SQL.Image (Left.Value) > SQL.Image (Right.Value);
-         else return SQL.Image (Left.Value) < SQL.Image (Right.Value);
-         end if;
-      end Before;
    begin
       if Index = 0 then
          raise Undefined_Column_Error with "ORDER BY column is not projected: " & Column;
@@ -651,7 +661,11 @@ package body Pgish_Catalog is
             Cursor : Natural := Position;
          begin
             while Cursor > 1
-              and then Before (Value.Values (Index), Result.Rows (Cursor - 1).Values (Index))
+              and then Sorts_Before
+                (Value.Values (Index),
+                 Result.Rows (Cursor - 1).Values (Index),
+                 Result.Columns (Index).Type_Oid,
+                 Descending)
             loop
                Result.Rows (Cursor) := Result.Rows (Cursor - 1);
                Cursor := Cursor - 1;
@@ -660,6 +674,47 @@ package body Pgish_Catalog is
          end;
       end loop;
    end Sort;
+
+   procedure Merge_Ordered_Limit
+     (Result     : in out Result_Set;
+      Batch      : Result_Set;
+      Column     : String;
+      Descending : Boolean;
+      Limit      : Natural) is
+      Index : Natural;
+   begin
+      if Result.Column_Count = 0 then
+         for Column_Index in 1 .. Batch.Column_Count loop
+            Add_Column
+              (Result,
+               SQL.Image (Batch.Columns (Column_Index).Name),
+               Batch.Columns (Column_Index).Type_Oid,
+               Batch.Columns (Column_Index).Type_Size);
+         end loop;
+      end if;
+      Index := Find_Column (Result, Column);
+      if Index = 0 then
+         raise Undefined_Column_Error with
+           "ORDER BY column is not projected: " & Column;
+      end if;
+      if Limit = 0 then
+         return;
+      end if;
+      for Row_Index in 1 .. Batch.Row_Count loop
+         if Result.Row_Count < Limit then
+            Add_Row (Result, Batch.Rows (Row_Index).Values);
+            Sort (Result, Column, Descending);
+         elsif Sorts_Before
+           (Batch.Rows (Row_Index).Values (Index),
+            Result.Rows (Result.Row_Count).Values (Index),
+            Result.Columns (Index).Type_Oid,
+            Descending)
+         then
+            Result.Rows (Result.Row_Count) := Batch.Rows (Row_Index);
+            Sort (Result, Column, Descending);
+         end if;
+      end loop;
+   end Merge_Ordered_Limit;
 
    procedure Execute
      (State   : in out Pgish_State.Server_State;
@@ -686,31 +741,42 @@ package body Pgish_Catalog is
          end;
          return;
       end if;
-      if not SQL.Is_Empty (Query.Table_Name) then
-         if To_Lower (SQL.Image (Query.Table_Name)) =
-           "information_schema.columns"
-         then
-            declare
-               Table_Filter : SQL.Value_Text;
-            begin
-               for Index in 1 .. Query.Predicate_Count loop
-                  if Base_Name (SQL.Image (Query.Predicates (Index).Column)) =
-                    "table_name"
-                    and then Query.Predicates (Index).Operator = SQL.Equal_To
-                  then
-                     Table_Filter := Query.Predicates (Index).Value;
-                     exit;
-                  end if;
-               end loop;
-               Source := (others => <>);
-               Add_Information_Columns
-                 (State, Source, SQL.Image (Table_Filter));
-            end;
-         else
+      if not SQL.Is_Empty (Query.Table_Name)
+        and then To_Lower (SQL.Image (Query.Table_Name)) =
+          "information_schema.columns"
+      then
+         for Table of Tables loop
+            Source := (others => <>);
+            Add_Information_Columns
+              (State, Source, SQL.Image (Table.Name));
+            if Query.Has_Limit
+              and then not SQL.Is_Empty (Query.Order_Column)
+            then
+               declare
+                  Batch : Result_Set := (others => <>);
+               begin
+                  Project
+                    (Source, Session, Query, Batch,
+                     Stop_At_Limit => False);
+                  Merge_Ordered_Limit
+                    (Result, Batch, SQL.Image (Query.Order_Column),
+                     Query.Order_Descending, Query.Limit);
+               end;
+            else
+               Project
+                 (Source, Session, Query, Result, Stop_At_Limit => True);
+            end if;
+            exit when Query.Has_Limit
+              and then SQL.Is_Empty (Query.Order_Column)
+              and then Result.Row_Count = Query.Limit;
+         end loop;
+      else
+         if not SQL.Is_Empty (Query.Table_Name) then
             Load_Source (State, SQL.Image (Query.Table_Name), Source);
          end if;
+         Project
+           (Source, Session, Query, Result, Stop_At_Limit => False);
       end if;
-      Project (Source, Session, Query, Result);
       if not SQL.Is_Empty (Query.Order_Column) then
          Sort (Result, SQL.Image (Query.Order_Column), Query.Order_Descending);
       end if;
