@@ -1,0 +1,1229 @@
+V "GNAT Lib v16"
+A -O0
+A -gnatA
+A --RTS=/Users/yrashk/.local/share/alire/builds/flyology_0.1.1_bd95746d/3cf1f8e431e0343b4154ab650e51121b9e3441939b55a10702aab1165f04bd0a/build/alire-rts/
+A -g
+A -gnat2022
+A -gnata
+A -gnatVa
+A -gnatwa
+A -gnatwJ
+A -gnateDFLYOLOGY_CONNECTION_TEST_HOOKS=False
+A -mmacosx-version-min=26.0.0
+A -mcpu=apple-m1
+A -mlittle-endian
+A -mabi=lp64
+A -fPIC
+P SS ZX
+
+RN
+RV NO_DISPATCHING_CALLS
+RV NO_ENUMERATION_MAPS
+RV NO_EXCEPTION_HANDLERS
+RV NO_EXCEPTION_PROPAGATION
+RV NO_EXCEPTIONS
+RV NO_IMPLICIT_CONDITIONALS
+RV NO_LOCAL_TAGGED_TYPES
+RV NO_LOCAL_ALLOCATORS
+RV NO_NESTED_FINALIZATION
+RV NO_RECURSION
+RV NO_SECONDARY_STACK
+RV NO_STANDARD_STORAGE_POOLS
+RV NO_DEFAULT_INITIALIZATION
+RV NO_DYNAMIC_SIZED_OBJECTS
+RV NO_IMPLEMENTATION_PRAGMAS
+RV NO_IMPLICIT_LOOPS
+RV NO_ELABORATION_CODE
+RV STATIC_DISPATCH_TABLES
+
+U pgish_sql%b		pgish_sql.adb		14335906 NE OO PK IU
+W ada%s			ada.ads			ada.ali
+W ada.characters%s	a-charac.ads		a-charac.ali
+W ada.characters.handling%s  a-chahan.adb	a-chahan.ali
+W ada.containers%s	a-contai.ads		a-contai.ali
+Z ada.exceptions%s	a-except.adb		a-except.ali
+W ada.strings%s		a-string.ads		a-string.ali
+W ada.strings.fixed%s	a-strfix.adb		a-strfix.ali
+Z ada.strings.text_buffers%s  a-sttebu.adb	a-sttebu.ali
+W ada.strings.unbounded%s  a-strunb.adb		a-strunb.ali
+Z ada.tags%s		a-tags.adb		a-tags.ali
+W flyology%s		flyology.ads		flyology.ali
+W flyology.postgres%s	flyology-postgres.ads	flyology-postgres.ali
+W flyology.postgres.sql%s  flyology-postgres-sql.adb  flyology-postgres-sql.ali
+W flyology.postgres.sql.ast%s  flyology-postgres-sql-ast.ads  flyology-postgres-sql-ast.ali
+W flyology.postgres.sql.ast.v18%s  flyology-postgres-sql-ast-v18.adb  flyology-postgres-sql-ast-v18.ali
+W flyology.postgres.sql.ast.v18.visitors%s  flyology-postgres-sql-ast-v18-visitors.adb  flyology-postgres-sql-ast-v18-visitors.ali
+Z system%s		system.ads		system.ali
+Z system.concat_2%s	s-conca2.adb		s-conca2.ali
+Z system.concat_3%s	s-conca3.adb		s-conca3.ali
+Z system.finalization_primitives%s  s-finpri.adb  s-finpri.ali
+Z system.img_address_64%s  s-imad64.ads		s-imad64.ali
+Z system.img_int%s	s-imgint.ads		s-imgint.ali
+Z system.img_uns%s	s-imguns.ads		s-imguns.ali
+Z system.put_images%s	s-putima.adb		s-putima.ali
+Z system.secondary_stack%s  s-secsta.adb	s-secsta.ali
+Z system.soft_links%s	s-soflin.adb		s-soflin.ali
+Z system.standard_library%s  s-stalib.adb	s-stalib.ali
+Z system.unsigned_types%s  s-unstyp.ads		s-unstyp.ali
+Z system.val_int%s	s-valint.ads		s-valint.ali
+Z system.wch_stw%s	s-wchstw.adb		s-wchstw.ali
+
+U pgish_sql%s		pgish_sql.ads		67718885 EE OO PK
+Z system%s		system.ads		system.ali
+Z system.exception_table%s  s-exctab.adb	s-exctab.ali
+Z system.standard_library%s  s-stalib.adb	s-stalib.ali
+
+D ada.ads		20260901211354 76789da1 ada%s
+D a-charac.ads		20260901211354 2d3ec45b ada.characters%s
+D a-chahan.ads		20260901211354 bf752ff6 ada.characters.handling%s
+D a-chlat1.ads		20260901211354 e0d72e76 ada.characters.latin_1%s
+D a-contai.ads		20260901211354 61e5e089 ada.containers%s
+D a-conhel.ads		20260901211354 46fe1ce3 ada.containers.helpers%s
+D a-convec.ads		20260901211354 cb0f314a ada.containers.vectors%s
+D a-except.ads		20260901211354 8699d7ff ada.exceptions%s
+D a-finali.ads		20260901211354 099c16e4 ada.finalization%s
+D a-iteint.ads		20260901211354 49a8bee2 ada.iterator_interfaces%s
+D a-stream.ads		20260901211354 cb01a8f8 ada.streams%s
+D a-string.ads		20260901211354 90ac6797 ada.strings%s
+D a-strfix.ads		20260901211354 8648dedb ada.strings.fixed%s
+D a-strmap.ads		20260901211354 f7e6ca10 ada.strings.maps%s
+D a-strsea.ads		20260901211354 18c3c634 ada.strings.search%s
+D a-sttebu.ads		20260901211354 f1ad67a2 ada.strings.text_buffers%s
+D a-strunb.ads		20260901211354 8d6ccba7 ada.strings.unbounded%s
+D a-stuten.ads		20260901211354 c6ced0ae ada.strings.utf_encoding%s
+D a-tags.ads		20260901211354 2dbf449c ada.tags%s
+D a-unccon.ads		20260901211354 0e9b276f ada.unchecked_conversion%s
+D flyology.ads		20260901211211 3ef168e6 flyology%s
+D flyology-postgres.ads	20260807121426 acc81f2f flyology.postgres%s
+D flyology-postgres-sql.ads  20260807121426 b81ccc8c flyology.postgres.sql%s
+D flyology-postgres-sql-ast.ads  20260807121426 2d5e1d66 flyology.postgres.sql.ast%s
+D flyology-postgres-sql-ast-v18.ads  20260807121426 84e0142e flyology.postgres.sql.ast.v18%s
+D flyology-postgres-sql-ast-v18-visitors.ads  20260807121426 24cf0e61 flyology.postgres.sql.ast.v18.visitors%s
+D interfac.ads		20260901211354 9111f9c1 interfaces%s
+D i-c.ads		20260901211354 dbdd3be7 interfaces.c%s
+D pgish_sql.ads		20260807121425 67718885 pgish_sql%s
+D pgish_sql.adb		20260807121425 96757658 pgish_sql%b
+D system.ads		20260901211353 8a611ac3 system%s
+D s-atocou.ads		20260901211354 dc18efc3 system.atomic_counters%s
+D s-conca2.ads		20260901211354 b5fb73f7 system.concat_2%s
+D s-conca3.ads		20260901211354 8a7a19a2 system.concat_3%s
+D s-exctab.ads		20260901211354 91bef6ef system.exception_table%s
+D s-finpri.ads		20260901211354 5970d55a system.finalization_primitives%s
+D s-finroo.ads		20260901211354 0a7c3ed4 system.finalization_root%s
+D s-imagea.ads		20260901211354 c875d703 system.image_a%s
+D s-imagei.ads		20260901211354 11a376a2 system.image_i%s
+D s-imageu.ads		20260901211354 95851461 system.image_u%s
+D s-imad64.ads		20260901211354 41fa65e5 system.img_address_64%s
+D s-imgint.ads		20260901211354 86836590 system.img_int%s
+D s-imguns.ads		20260901211354 34f2a7d6 system.img_uns%s
+D s-memory.ads		20260901211354 18949c1a system.memory%s
+D s-oscons.ads		20260901211354 42ad9981 system.os_constants%s
+D s-oslock.ads		20260901211354 bcc789d2 system.os_locks%s
+D s-parame.ads		20260901211354 a1aeab5c system.parameters%s
+D s-pooglo.ads		20260901211354 91708d21 system.pool_global%s
+D s-putima.ads		20260901211353 1b989439 system.put_images%s
+D s-retsta.ads		20260901211353 0f6b06cb system.return_stack%s
+D s-secsta.ads		20260901211354 578279f5 system.secondary_stack%s
+D s-soflin.ads		20260901211354 5d88fdea system.soft_links%s
+D s-stache.ads		20260901211354 0b81c1fe system.stack_checking%s
+D s-stalib.ads		20260901211354 1c9580f6 system.standard_library%s
+D s-stalib.adb		20260901211354 eb464a47 system.standard_library%b
+D s-stoele.ads		20260901211354 ccded4e8 system.storage_elements%s
+D s-stopoo.ads		20260901211354 45459446 system.storage_pools%s
+D s-stratt.ads		20260901211354 80b8dafb system.stream_attributes%s
+D s-tasinf.ads		20260901211354 801abd01 system.task_info%s
+D s-traent.ads		20260901211354 c81cbf8c system.traceback_entries%s
+D s-unstyp.ads		20260901211354 fa2a7f59 system.unsigned_types%s
+D s-valint.ads		20260901211354 9081ae83 system.val_int%s
+D s-valuns.ads		20260901211354 c639d3c7 system.val_uns%s
+D s-valuei.ads		20260901211354 75953b98 system.value_i%s
+D s-valueu.ads		20260901211354 099f68d2 system.value_u%s
+D s-wchcon.ads		20260901211354 d9032363 system.wch_con%s
+D s-wchstw.ads		20260901211354 2d112c01 system.wch_stw%s
+G a e
+G c Z s b [make_text pgish_sql 20 13 none]
+G c Z s b [image pgish_sql 21 13 none]
+G c Z s b [is_empty pgish_sql 22 13 none]
+G c Z s b [parse pgish_sql 80 13 none]
+G c Z s s [textIP pgish_sql 15 9 none]
+G c Z s s [projectionIP pgish_sql 49 9 none]
+G c Z s s [projection_arrayIP pgish_sql 56 9 none]
+G c Z s s [predicateIP pgish_sql 58 9 none]
+G c Z s s [predicate_arrayIP pgish_sql 63 9 none]
+G c Z s s [queryIP pgish_sql 65 9 none]
+G c Z b b [trimmed pgish_sql 50 13 none]
+G c Z b b [node_text pgish_sql 53 13 none]
+G c Z b b [name_from pgish_sql 71 13 none]
+G c Z b b [is_bare_star pgish_sql 89 13 none]
+G c Z b b [column_name pgish_sql 97 13 none]
+G c Z b b [is_integer_lexeme pgish_sql 112 13 none]
+G c Z b b [literal_value pgish_sql 133 13 none]
+G c Z b b [string_literal pgish_sql 198 13 none]
+G c Z b b [range_name pgish_sql 216 13 none]
+G c Z b b [add_projection pgish_sql 241 14 none]
+G c Z b b [add_predicate pgish_sql 349 14 none]
+G c Z b b [store_predicate pgish_sql 353 14 none]
+G c Z b b [lower_select pgish_sql 469 14 none]
+G r s owned_syntax_tree [parse pgish_sql 80 13 none] [owned_syntax_treeIP flyology__postgres__sql__ast__v18 5303 9 none]
+G r l owned_syntax_tree [parse pgish_sql 80 13 none] [owned_syntax_treeDI flyology__postgres__sql__ast__v18 5303 9 none]
+G r k owned_syntax_tree [parse pgish_sql 80 13 none] [owned_syntax_treeDF flyology__postgres__sql__ast__v18 5303 9 none]
+G r s visitor [parse pgish_sql 80 13 none] [visitorIP flyology__postgres__sql__ast__v18__visitors 9 9 none]
+G r c none [parse pgish_sql 80 13 none] [parse flyology__postgres__sql__ast__v18 5314 14 none]
+G r c none [parse pgish_sql 80 13 none] [traverse flyology__postgres__sql__ast__v18__visitors 2468 14 none]
+G r j string_value [node_text pgish_sql 53 13 none] [string_valueDA flyology__postgres__sql__ast__v18 2528 9 none]
+G r j string_value [name_from pgish_sql 71 13 none] [string_valueDA flyology__postgres__sql__ast__v18 2528 9 none]
+G r j column_ref [column_name pgish_sql 97 13 none] [column_refDA flyology__postgres__sql__ast__v18 3225 9 none]
+G r j string_value [column_name pgish_sql 97 13 none] [string_valueDA flyology__postgres__sql__ast__v18 2528 9 none]
+G r j a_expr [literal_value pgish_sql 133 13 none] [a_exprDA flyology__postgres__sql__ast__v18 3235 9 none]
+G r j string_value [literal_value pgish_sql 133 13 none] [string_valueDA flyology__postgres__sql__ast__v18 2528 9 none]
+G r j res_target [add_projection pgish_sql 241 14 none] [res_targetDA flyology__postgres__sql__ast__v18 3297 9 none]
+G r j column_ref [add_projection pgish_sql 241 14 none] [column_refDA flyology__postgres__sql__ast__v18 3225 9 none]
+G r j string_value [add_projection pgish_sql 241 14 none] [string_valueDA flyology__postgres__sql__ast__v18 2528 9 none]
+G r j a_expr [add_projection pgish_sql 241 14 none] [a_exprDA flyology__postgres__sql__ast__v18 3235 9 none]
+G r j func_call [add_projection pgish_sql 241 14 none] [func_callDA flyology__postgres__sql__ast__v18 3263 9 none]
+G r j bool_expr [add_predicate pgish_sql 349 14 none] [bool_exprDA flyology__postgres__sql__ast__v18 2763 9 none]
+G r j column_ref [add_predicate pgish_sql 349 14 none] [column_refDA flyology__postgres__sql__ast__v18 3225 9 none]
+G r j string_value [add_predicate pgish_sql 349 14 none] [string_valueDA flyology__postgres__sql__ast__v18 2528 9 none]
+G r j a_expr [add_predicate pgish_sql 349 14 none] [a_exprDA flyology__postgres__sql__ast__v18 3235 9 none]
+G r j res_target [lower_select pgish_sql 469 14 none] [res_targetDA flyology__postgres__sql__ast__v18 3297 9 none]
+G r j column_ref [lower_select pgish_sql 469 14 none] [column_refDA flyology__postgres__sql__ast__v18 3225 9 none]
+G r j string_value [lower_select pgish_sql 469 14 none] [string_valueDA flyology__postgres__sql__ast__v18 2528 9 none]
+G r j a_expr [lower_select pgish_sql 469 14 none] [a_exprDA flyology__postgres__sql__ast__v18 3235 9 none]
+G r j func_call [lower_select pgish_sql 469 14 none] [func_callDA flyology__postgres__sql__ast__v18 3263 9 none]
+G r j bool_expr [lower_select pgish_sql 469 14 none] [bool_exprDA flyology__postgres__sql__ast__v18 2763 9 none]
+G r j sort_by [lower_select pgish_sql 469 14 none] [sort_byDA flyology__postgres__sql__ast__v18 3310 9 none]
+X 1 ada.ads
+18K9*Ada 22e8 30|1r6 2r6 3r6 4r6 5r6 11r8 12r8 30r13 51r7 51r38
+X 2 a-charac.ads
+16K13*Characters 18e19 30|1r10 11r12
+X 3 a-chahan.ads
+43K24*Handling 454e28 30|1w21 11r23
+274V13*To_Lower{string} 30|283s24
+X 5 a-contai.ads
+16K13*Containers 28e19 30|2w10 30r17
+22I9*Count_Type<integer> 30|30r28
+X 7 a-convec.ads
+91R9*Vector<9|43R9>
+175V13*Length{5|22I9} 30|92s21[25|1468] 496s27[25|1468] 526s27[25|1468]
+187V13*Is_Empty{boolean} 30|77s16[25|1468] 256s33[25|1468] 285s39[25|1468]
+. 286s51[25|1468] 474s35[25|1468] 476s39[25|1468] 480s40[25|1468] 481s39[25|1468]
+. 482s41[25|1468] 493s27[25|1468] 505s31[25|1468] 528s34[25|1468] 540s42[25|1468]
+567V13*First_Element{25|919P9} 30|93s30[25|1468] 94s30[25|1468] 508s32[25|1468]
+. 531s32[25|1468]
+X 10 a-iteint.ads
+24h9 Forward_Iterator
+32h9 Reversible_Iterator<24R9[7|119]>
+X 12 a-string.ads
+16K13*Strings 35e16 30|3w10 4r10 5r10 12r12 51r11 51r42
+33n37*Both{33E9} 30|51r50
+X 13 a-strfix.ads
+49K21*Fixed 1390e22 30|4w18 51r19
+1133V13*Trim{string} 30|51s25
+X 17 a-strunb.ads
+91K21*Unbounded 1641e26 30|5w18 12r20
+105R9*Unbounded_String<9|43R9> 1620e15 30|75r16 217r16
+111V13*Length{natural} 30|81s13 222s16 235s10
+135V13*To_String{string} 30|67s17 86s14 146s27 157s21 159s26 209s21 225s29
+. 238s14 342s26 689s23 701s12
+159U14*Append 30|82s13 84s10 223s16 225s13
+X 21 flyology.ads
+11K9*Flyology 33e13 30|6r6 7r6 14r24 15r29
+X 22 flyology-postgres.ads
+2K18*Postgres 23e22 30|6r15 7r15 14r33 15r38
+X 23 flyology-postgres-sql.ads
+5K27*SQL 109e26 30|6r24 7r24 14r42 15r47
+X 24 flyology-postgres-sql-ast.ads
+1K31*AST 2e30 30|6r28 7r28 14r46 15r51
+X 25 flyology-postgres-sql-ast-v18.ads
+9K35*V18 5331e34 30|6w32 7r32 14r50 15r55
+23E9*Sort_By_Dir 28e32 30|26r17
+24n7*Sort_By_Dir_Undefined{23E9} 30|554r31
+25n7*Sort_By_Dir_Sortby_Default{23E9} 30|555r28
+26n7*Sort_By_Dir_Sortby_Asc{23E9} 30|556r28
+27n7*Sort_By_Dir_Sortby_Desc{23E9} 30|558r31
+30E9*Sort_By_Nulls 34e39 30|27r17
+31n7*Sort_By_Nulls_Undefined{30E9} 30|544r27
+32n7*Sort_By_Nulls_Sortby_Nulls_Default{30E9} 30|545r27
+36E9*A_Expr_Kind 51e41 30|17r17
+38n7*A_Expr_Kind_Aexpr_Op{36E9} 30|171r50 437r45
+45n7*A_Expr_Kind_Aexpr_Like{36E9} 30|431r42
+135E9*Set_Operation 140e34 30|25r17
+136n7*Set_Operation_Undefined{135E9} 30|489r18
+137n7*Set_Operation_Setop_None{135E9} 30|489r48
+444E9*Bool_Expr_Type 448e31 30|18r17
+446n7*Bool_Expr_Type_And_Expr{444E9} 30|381r52
+466E9*Sql_Value_Function_Op 482e50 30|28r17
+478n7*Sql_Value_Function_Op_Svfop_Current_User{466E9} 30|325r30
+556E9*Null_Test_Type 559e34 30|24r17
+558n7*Null_Test_Type_Is_Null{556E9} 30|404r28
+559n7*Null_Test_Type_Is_Not_Null{556E9} 30|406r28
+612E9*Limit_Option 616e30 30|19r17
+616n7*Limit_Option_With_Ties{612E9} 30|573r48
+644E9*Node_Kind 916e20 30|21r17
+647n7*Node_Range_Var{644E9} 30|510r57
+664n7*Node_Bool_Expr{644E9} 30|375r19
+683n7*Node_Sql_Value_Function{644E9} 30|318r25
+695n7*Node_Null_Test{644E9} 30|390r19
+712n7*Node_Column_Ref{644E9} 30|99r47 265r25
+714n7*Node_A_Expr{644E9} 30|166r19 274r44 414r19
+718n7*Node_Func_Call{644E9} 30|279r25
+719n7*Node_A_Star{644E9} 30|94r55
+723n7*Node_Res_Target{644E9} 30|250r51
+725n7*Node_Sort_By{644E9} 30|533r63
+783n7*Node_Select_Stmt{644E9} 30|656r19
+801n7*Node_Variable_Show_Stmt{644E9} 30|656r42
+911n7*Node_String_Value{644E9} 30|58r47
+916n7*Node_A_Const{644E9} 30|139r19 200r47 274r25
+918R9*Node 5301e14 30|617r24 644r24
+919P9*Node_Access(918R9) 30|20r17 54r18 97r37 133r39 198r40 242r20 262r34
+. 350r24 366r24 507r35 530r38
+922P9*Integer_Value_Access(921R9) 30|23r17
+924P9*Float_Value_Access(923R9) 30|22r17
+927R9*String_Value 2530e14 30|62r31
+928P9*String_Value_Access(927R9) 30|29r17
+937R9*A_Const 2556e14 30|141r37 204r31
+941R9*Range_Var 2571e14 30|216r36
+975R9*Bool_Expr 2768e14 30|377r37
+1013R9*Sql_Value_Function 2946e14 30|320r52
+1037R9*Null_Test 3052e14 30|392r37
+1071R9*Column_Ref 3228e14 30|89r38 103r31
+1075R9*A_Expr 3243e14 30|168r37 416r37
+1083R9*Func_Call 3275e14 30|281r42
+1093R9*Res_Target 3302e14 30|254r29
+1097R9*Sort_By 3316e14 30|537r36
+1203R9*Raw_Stmt 3790e14 30|613r24 630r24
+1213R9*Select_Stmt 3849e14 30|470r20 621r24 665r24
+1249R9*Variable_Show_Stmt 3988e14 30|625r24 679r24
+1470R12*Sequence_Of_Node{7|91R9[1468]} 30|72r19
+1476b30*Present{boolean} 30|150r47
+1479i13*Value{27|65I9} 30|151r58
+1485R9*Optional_Text 1492e14 30|219r34
+1485b24*Present{boolean} 30|64r28 145r47 155r49 208r41 221r19 340r22 684r48
+1488r13*Value{13R12} 30|67r39 146r60 157r54 159r59 209r54 225r46 342r46 689r44
+1494b27*Present{boolean} 30|290r49 293r41 295r45 298r46 478r32
+1497b13*Value{boolean} 30|291r58 293r72 296r54 299r55 478r69
+1503b40*Present{boolean} 30|148r33
+1506p13*Value{922P9} 30|148r61 150r36 151r47
+1512b38*Present{boolean} 30|153r33
+1515p13*Value{924P9} 30|154r38 155r38 157r43 159r48
+1530b39*Present{boolean} 30|143r30 206r24
+1533p13*Value{928P9} 30|143r58 145r36 146r49 206r52 208r30 209r43
+1548b32*Present{boolean} 30|229r21
+1566b31*Present{boolean} 30|172r43 173r39 256r62 287r48 395r33 421r42 423r42
+. 479r36 519r28 539r33 569r28 577r27
+1569p13*Value{919P9} 30|174r39 179r51 257r28 262r57 395r59 402r44 422r38
+. 424r38 430r46 435r52 456r51 523r43 539r59 551r44 579r72
+1647b34*Present{boolean} 30|380r36
+1650e13*Value{444E9} 30|381r39
+1692b41*Present{boolean} 30|323r47
+1695e13*Value{466E9} 30|324r50
+1818b34*Present{boolean} 30|396r49
+1821e13*Value{556E9} 30|403r40
+1908b32*Present{boolean} 30|572r28
+1911e13*Value{612E9} 30|573r36
+1917b31*Present{boolean} 30|170r30 420r34
+1920e13*Value{36E9} 30|171r38 431r30 437r33
+1944b37*Present{boolean} 30|288r42
+1953b31*Present{boolean} 30|552r35
+1956e13*Value{23E9} 30|553r40
+1962b33*Present{boolean} 30|542r39
+1965e13*Value{30E9} 30|543r48
+2214b38*Present{boolean} 30|483r34
+2223b38*Present{boolean} 30|475r34
+2232b33*Present{boolean} 30|487r20
+2235e13*Value{135E9} 30|488r29
+2241b38*Present{boolean} 30|484r27 485r27
+2517r7*Ival{1476R9} 30|150r42 151r53
+2521r7*Fval{1485R9} 30|155r44 157r49 159r54
+2528R9*String_Value
+2529r7*Sval{1485R9} 30|64r23 67r34 145r42 146r55 208r36 209r49
+2548R9*A_Const
+2549r7*Ival{1503R9} 30|148r28 148r56 150r31 151r42
+2550r7*Fval{1512R9} 30|153r28 154r33 155r33 157r38 159r43
+2552r7*Sval{1530R9} 30|143r25 143r53 145r31 146r44 206r19 206r47 208r25 209r38
+2563R9*Range_Var
+2564r7*Catalogname{1485R9} 30|232r17
+2565r7*Schemaname{1485R9} 30|233r17
+2566r7*Relname{1485R9} 30|234r17
+2569r7*Alias{1548R9} 30|229r15
+2763R9*Bool_Expr
+2765r7*Boolop{1647R9} 30|380r29 381r32
+2766r7*Args{1470R12} 30|385r35
+2940R9*Sql_Value_Function
+2942r7*Op{1692R9} 30|323r44 324r47
+3046R9*Null_Test
+3048r7*Arg{1566R9} 30|395r29 395r55 402r40
+3049r7*Nulltesttype{1818R9} 30|396r36 403r27
+3225R9*Column_Ref
+3226r7*Fields{1470R12} 30|92r14 93r23 94r23 108r34
+3235R9*A_Expr
+3236r7*Kind{1917R9} 30|170r25 171r33 420r29 431r25 437r28
+3237r7*Name{1470R12} 30|175r44 418r35
+3238r7*Lexpr{1566R9} 30|172r37 421r36 422r32 430r40
+3239r7*Rexpr{1566R9} 30|173r33 174r33 179r45 423r36 424r32 435r46 456r45
+3263R9*Func_Call
+3264r7*Funcname{1470R12} 30|283r50
+3265r7*Args{1470R12} 30|285r34
+3266r7*Agg_Order{1470R12} 30|286r41
+3267r7*Agg_Filter{1566R9} 30|287r37
+3268r7*Over{1944R9} 30|288r37
+3269r7*Agg_Within_Group{1494R9} 30|290r32 291r41
+3270r7*Agg_Star{1494R9} 30|293r32 293r63
+3271r7*Agg_Distinct{1494R9} 30|295r32 296r41
+3272r7*Func_Variadic{1494R9} 30|298r32 299r41
+3297R9*Res_Target
+3298r7*Name{1485R9} 30|340r17 342r41
+3299r7*Indirection{1470R12} 30|256r21
+3300r7*Val{1566R9} 30|256r58 257r24 262r53
+3310R9*Sort_By
+3311r7*Node{1566R9} 30|539r28 539r54 551r39
+3312r7*Sortby_Dir{1953R9} 30|552r24 553r29
+3313r7*Sortby_Nulls{1962R9} 30|542r26 543r35
+3314r7*Use_Op{1470R12} 30|540r35
+3786R9*Raw_Stmt
+3828R9*Select_Stmt
+3829r7*Distinct_Clause{1470R12} 30|474r19
+3830r7*Into_Clause{2223R9} 30|475r22
+3831r7*Target_List{1470R12} 30|493r15 501r26
+3832r7*From_Clause{1470R12} 30|496r15 505r19 508r20
+3833r7*Where_Clause{1566R9} 30|519r15 523r30
+3834r7*Group_Clause{1470R12} 30|476r26
+3835r7*Group_Distinct{1494R9} 30|478r17 478r54
+3836r7*Having_Clause{1566R9} 30|479r22
+3837r7*Window_Clause{1470R12} 30|480r26
+3838r7*Values_Lists{1470R12} 30|481r26
+3839r7*Sort_Clause{1470R12} 30|526r15 528r22 531r20
+3840r7*Limit_Offset{1566R9} 30|569r15
+3841r7*Limit_Count{1566R9} 30|577r15 579r60
+3842r7*Limit_Option{1908R9} 30|572r15 573r23
+3843r7*Locking_Clause{1470R12} 30|482r26
+3844r7*With_Clause{2214R9} 30|483r22
+3845r7*Op{2232R9} 30|487r17 488r26
+3847r7*Larg{2241R9} 30|484r22
+3848r7*Rarg{2241R9} 30|485r22
+3986R9*Variable_Show_Stmt
+3987r7*Name{1485R9} 30|684r43 689r39
+4754R9*Node
+4754e15*Kind{644E9} 30|58r35 94r44 99r35 138r17 200r35 250r39 264r24 374r23
+. 510r45 533r51 655r21
+4761r13*Range_Var_Payload{2563R9} 30|515r37
+4795r13*Bool_Expr_Payload{2763R9} 30|378r29
+4833r13*Sql_Value_Function_Payload{2940R9} 30|321r30
+4857r13*Null_Test_Payload{3046R9} 30|393r29
+4891r13*Column_Ref_Payload{3225R9} 30|103r50 266r42
+4895r13*A_Expr_Payload{3235R9} 30|168r52 416r58
+4903r13*Func_Call_Payload{3263R9} 30|281r61
+4913r13*Res_Target_Payload{3297R9} 30|254r50
+4917r13*Sort_By_Payload{3310R9} 30|537r57
+5289r13*String_Value_Payload{2528R9} 30|62r52
+5299r13*A_Const_Payload{2548R9} 30|141r53 204r47
+5303R9*Owned_Syntax_Tree<9|50R9> 5310e14 30|601r18
+5305b7*Valid{boolean} 30|699r19
+5307r7*Diagnostic_Message{13R12} 30|701r28
+5308i7*Diagnostic_Position{natural} 30|702r37
+5314U14*Parse 30|698s11
+X 26 flyology-postgres-sql-ast-v18-visitors.ads
+4K39*Visitors 2490e43 30|7w36 15r59
+6E9*Traversal_Control 7e57 30|614r36 618r36 622r36 626r36 631r36 645r36 666r36
+. 680r36
+9H9*Visitor 9e55 30|603r45
+11U14*Enter_Parse_Result
+16U14*Leave_Parse_Result
+25U14*Leave_Node
+29U14*Enter_Integer_Value
+34U14*Leave_Integer_Value
+38U14*Enter_Float_Value
+43U14*Leave_Float_Value
+47U14*Enter_Boolean_Value
+52U14*Leave_Boolean_Value
+56U14*Enter_String_Value
+61U14*Leave_String_Value
+65U14*Enter_Bit_String_Value
+70U14*Leave_Bit_String_Value
+74U14*Enter_Node_List_Value
+79U14*Leave_Node_List_Value
+83U14*Enter_Oid_List
+88U14*Leave_Oid_List
+92U14*Enter_Int_List
+97U14*Leave_Int_List
+101U14*Enter_A_Const
+106U14*Leave_A_Const
+110U14*Enter_Alias
+115U14*Leave_Alias
+119U14*Enter_Range_Var
+124U14*Leave_Range_Var
+128U14*Enter_Table_Func
+133U14*Leave_Table_Func
+137U14*Enter_Into_Clause
+142U14*Leave_Into_Clause
+146U14*Enter_Var
+151U14*Leave_Var
+155U14*Enter_Param
+160U14*Leave_Param
+164U14*Enter_Aggref
+169U14*Leave_Aggref
+173U14*Enter_Grouping_Func
+178U14*Leave_Grouping_Func
+182U14*Enter_Window_Func
+187U14*Leave_Window_Func
+191U14*Enter_Window_Func_Run_Condition
+196U14*Leave_Window_Func_Run_Condition
+200U14*Enter_Merge_Support_Func
+205U14*Leave_Merge_Support_Func
+209U14*Enter_Subscripting_Ref
+214U14*Leave_Subscripting_Ref
+218U14*Enter_Func_Expr
+223U14*Leave_Func_Expr
+227U14*Enter_Named_Arg_Expr
+232U14*Leave_Named_Arg_Expr
+236U14*Enter_Op_Expr
+241U14*Leave_Op_Expr
+245U14*Enter_Distinct_Expr
+250U14*Leave_Distinct_Expr
+254U14*Enter_Null_If_Expr
+259U14*Leave_Null_If_Expr
+263U14*Enter_Scalar_Array_Op_Expr
+268U14*Leave_Scalar_Array_Op_Expr
+272U14*Enter_Bool_Expr
+277U14*Leave_Bool_Expr
+281U14*Enter_Sub_Link
+286U14*Leave_Sub_Link
+290U14*Enter_Sub_Plan
+295U14*Leave_Sub_Plan
+299U14*Enter_Alternative_Sub_Plan
+304U14*Leave_Alternative_Sub_Plan
+308U14*Enter_Field_Select
+313U14*Leave_Field_Select
+317U14*Enter_Field_Store
+322U14*Leave_Field_Store
+326U14*Enter_Relabel_Type
+331U14*Leave_Relabel_Type
+335U14*Enter_Coerce_Via_Io
+340U14*Leave_Coerce_Via_Io
+344U14*Enter_Array_Coerce_Expr
+349U14*Leave_Array_Coerce_Expr
+353U14*Enter_Convert_Rowtype_Expr
+358U14*Leave_Convert_Rowtype_Expr
+362U14*Enter_Collate_Expr
+367U14*Leave_Collate_Expr
+371U14*Enter_Case_Expr
+376U14*Leave_Case_Expr
+380U14*Enter_Case_When
+385U14*Leave_Case_When
+389U14*Enter_Case_Test_Expr
+394U14*Leave_Case_Test_Expr
+398U14*Enter_Array_Expr
+403U14*Leave_Array_Expr
+407U14*Enter_Row_Expr
+412U14*Leave_Row_Expr
+416U14*Enter_Row_Compare_Expr
+421U14*Leave_Row_Compare_Expr
+425U14*Enter_Coalesce_Expr
+430U14*Leave_Coalesce_Expr
+434U14*Enter_Min_Max_Expr
+439U14*Leave_Min_Max_Expr
+443U14*Enter_Sql_Value_Function
+448U14*Leave_Sql_Value_Function
+452U14*Enter_Xml_Expr
+457U14*Leave_Xml_Expr
+461U14*Enter_Json_Format
+466U14*Leave_Json_Format
+470U14*Enter_Json_Returning
+475U14*Leave_Json_Returning
+479U14*Enter_Json_Value_Expr
+484U14*Leave_Json_Value_Expr
+488U14*Enter_Json_Constructor_Expr
+493U14*Leave_Json_Constructor_Expr
+497U14*Enter_Json_Is_Predicate
+502U14*Leave_Json_Is_Predicate
+506U14*Enter_Json_Behavior
+511U14*Leave_Json_Behavior
+515U14*Enter_Json_Expr
+520U14*Leave_Json_Expr
+524U14*Enter_Json_Table_Path
+529U14*Leave_Json_Table_Path
+533U14*Enter_Json_Table_Path_Scan
+538U14*Leave_Json_Table_Path_Scan
+542U14*Enter_Json_Table_Sibling_Join
+547U14*Leave_Json_Table_Sibling_Join
+551U14*Enter_Null_Test
+556U14*Leave_Null_Test
+560U14*Enter_Boolean_Test
+565U14*Leave_Boolean_Test
+569U14*Enter_Merge_Action
+574U14*Leave_Merge_Action
+578U14*Enter_Coerce_To_Domain
+583U14*Leave_Coerce_To_Domain
+587U14*Enter_Coerce_To_Domain_Value
+592U14*Leave_Coerce_To_Domain_Value
+596U14*Enter_Set_To_Default
+601U14*Leave_Set_To_Default
+605U14*Enter_Current_Of_Expr
+610U14*Leave_Current_Of_Expr
+614U14*Enter_Next_Value_Expr
+619U14*Leave_Next_Value_Expr
+623U14*Enter_Inference_Elem
+628U14*Leave_Inference_Elem
+632U14*Enter_Returning_Expr
+637U14*Leave_Returning_Expr
+641U14*Enter_Target_Entry
+646U14*Leave_Target_Entry
+650U14*Enter_Range_Tbl_Ref
+655U14*Leave_Range_Tbl_Ref
+659U14*Enter_Join_Expr
+664U14*Leave_Join_Expr
+668U14*Enter_From_Expr
+673U14*Leave_From_Expr
+677U14*Enter_On_Conflict_Expr
+682U14*Leave_On_Conflict_Expr
+686U14*Enter_Query
+691U14*Leave_Query
+695U14*Enter_Type_Name
+700U14*Leave_Type_Name
+704U14*Enter_Column_Ref
+709U14*Leave_Column_Ref
+713U14*Enter_Param_Ref
+718U14*Leave_Param_Ref
+722U14*Enter_A_Expr
+727U14*Leave_A_Expr
+731U14*Enter_Type_Cast
+736U14*Leave_Type_Cast
+740U14*Enter_Collate_Clause
+745U14*Leave_Collate_Clause
+749U14*Enter_Role_Spec
+754U14*Leave_Role_Spec
+758U14*Enter_Func_Call
+763U14*Leave_Func_Call
+767U14*Enter_A_Star
+772U14*Leave_A_Star
+776U14*Enter_A_Indices
+781U14*Leave_A_Indices
+785U14*Enter_A_Indirection
+790U14*Leave_A_Indirection
+794U14*Enter_A_Array_Expr
+799U14*Leave_A_Array_Expr
+803U14*Enter_Res_Target
+808U14*Leave_Res_Target
+812U14*Enter_Multi_Assign_Ref
+817U14*Leave_Multi_Assign_Ref
+821U14*Enter_Sort_By
+826U14*Leave_Sort_By
+830U14*Enter_Window_Def
+835U14*Leave_Window_Def
+839U14*Enter_Range_Subselect
+844U14*Leave_Range_Subselect
+848U14*Enter_Range_Function
+853U14*Leave_Range_Function
+857U14*Enter_Range_Table_Func
+862U14*Leave_Range_Table_Func
+866U14*Enter_Range_Table_Func_Col
+871U14*Leave_Range_Table_Func_Col
+875U14*Enter_Range_Table_Sample
+880U14*Leave_Range_Table_Sample
+884U14*Enter_Column_Def
+889U14*Leave_Column_Def
+893U14*Enter_Table_Like_Clause
+898U14*Leave_Table_Like_Clause
+902U14*Enter_Index_Elem
+907U14*Leave_Index_Elem
+911U14*Enter_Def_Elem
+916U14*Leave_Def_Elem
+920U14*Enter_Locking_Clause
+925U14*Leave_Locking_Clause
+929U14*Enter_Xml_Serialize
+934U14*Leave_Xml_Serialize
+938U14*Enter_Partition_Elem
+943U14*Leave_Partition_Elem
+947U14*Enter_Partition_Spec
+952U14*Leave_Partition_Spec
+956U14*Enter_Partition_Bound_Spec
+961U14*Leave_Partition_Bound_Spec
+965U14*Enter_Partition_Range_Datum
+970U14*Leave_Partition_Range_Datum
+974U14*Enter_Partition_Cmd
+979U14*Leave_Partition_Cmd
+983U14*Enter_Range_Tbl_Entry
+988U14*Leave_Range_Tbl_Entry
+992U14*Enter_Rte_Permission_Info
+997U14*Leave_Rte_Permission_Info
+1001U14*Enter_Range_Tbl_Function
+1006U14*Leave_Range_Tbl_Function
+1010U14*Enter_Table_Sample_Clause
+1015U14*Leave_Table_Sample_Clause
+1019U14*Enter_With_Check_Option
+1024U14*Leave_With_Check_Option
+1028U14*Enter_Sort_Group_Clause
+1033U14*Leave_Sort_Group_Clause
+1037U14*Enter_Grouping_Set
+1042U14*Leave_Grouping_Set
+1046U14*Enter_Window_Clause
+1051U14*Leave_Window_Clause
+1055U14*Enter_Row_Mark_Clause
+1060U14*Leave_Row_Mark_Clause
+1064U14*Enter_With_Clause
+1069U14*Leave_With_Clause
+1073U14*Enter_Infer_Clause
+1078U14*Leave_Infer_Clause
+1082U14*Enter_On_Conflict_Clause
+1087U14*Leave_On_Conflict_Clause
+1091U14*Enter_Cte_Search_Clause
+1096U14*Leave_Cte_Search_Clause
+1100U14*Enter_Cte_Cycle_Clause
+1105U14*Leave_Cte_Cycle_Clause
+1109U14*Enter_Common_Table_Expr
+1114U14*Leave_Common_Table_Expr
+1118U14*Enter_Merge_When_Clause
+1123U14*Leave_Merge_When_Clause
+1127U14*Enter_Returning_Option
+1132U14*Leave_Returning_Option
+1136U14*Enter_Returning_Clause
+1141U14*Leave_Returning_Clause
+1145U14*Enter_Trigger_Transition
+1150U14*Leave_Trigger_Transition
+1154U14*Enter_Json_Output
+1159U14*Leave_Json_Output
+1163U14*Enter_Json_Argument
+1168U14*Leave_Json_Argument
+1172U14*Enter_Json_Func_Expr
+1177U14*Leave_Json_Func_Expr
+1181U14*Enter_Json_Table_Path_Spec
+1186U14*Leave_Json_Table_Path_Spec
+1190U14*Enter_Json_Table
+1195U14*Leave_Json_Table
+1199U14*Enter_Json_Table_Column
+1204U14*Leave_Json_Table_Column
+1208U14*Enter_Json_Key_Value
+1213U14*Leave_Json_Key_Value
+1217U14*Enter_Json_Parse_Expr
+1222U14*Leave_Json_Parse_Expr
+1226U14*Enter_Json_Scalar_Expr
+1231U14*Leave_Json_Scalar_Expr
+1235U14*Enter_Json_Serialize_Expr
+1240U14*Leave_Json_Serialize_Expr
+1244U14*Enter_Json_Object_Constructor
+1249U14*Leave_Json_Object_Constructor
+1253U14*Enter_Json_Array_Constructor
+1258U14*Leave_Json_Array_Constructor
+1262U14*Enter_Json_Array_Query_Constructor
+1267U14*Leave_Json_Array_Query_Constructor
+1271U14*Enter_Json_Agg_Constructor
+1276U14*Leave_Json_Agg_Constructor
+1280U14*Enter_Json_Object_Agg
+1285U14*Leave_Json_Object_Agg
+1289U14*Enter_Json_Array_Agg
+1294U14*Leave_Json_Array_Agg
+1303U14*Leave_Raw_Stmt
+1307U14*Enter_Insert_Stmt
+1312U14*Leave_Insert_Stmt
+1316U14*Enter_Delete_Stmt
+1321U14*Leave_Delete_Stmt
+1325U14*Enter_Update_Stmt
+1330U14*Leave_Update_Stmt
+1334U14*Enter_Merge_Stmt
+1339U14*Leave_Merge_Stmt
+1348U14*Leave_Select_Stmt
+1352U14*Enter_Set_Operation_Stmt
+1357U14*Leave_Set_Operation_Stmt
+1361U14*Enter_Return_Stmt
+1366U14*Leave_Return_Stmt
+1370U14*Enter_Pl_Assign_Stmt
+1375U14*Leave_Pl_Assign_Stmt
+1379U14*Enter_Create_Schema_Stmt
+1384U14*Leave_Create_Schema_Stmt
+1388U14*Enter_Alter_Table_Stmt
+1393U14*Leave_Alter_Table_Stmt
+1397U14*Enter_Alter_Table_Cmd
+1402U14*Leave_Alter_Table_Cmd
+1406U14*Enter_At_Alter_Constraint
+1411U14*Leave_At_Alter_Constraint
+1415U14*Enter_Replica_Identity_Stmt
+1420U14*Leave_Replica_Identity_Stmt
+1424U14*Enter_Alter_Collation_Stmt
+1429U14*Leave_Alter_Collation_Stmt
+1433U14*Enter_Alter_Domain_Stmt
+1438U14*Leave_Alter_Domain_Stmt
+1442U14*Enter_Grant_Stmt
+1447U14*Leave_Grant_Stmt
+1451U14*Enter_Object_With_Args
+1456U14*Leave_Object_With_Args
+1460U14*Enter_Access_Priv
+1465U14*Leave_Access_Priv
+1469U14*Enter_Grant_Role_Stmt
+1474U14*Leave_Grant_Role_Stmt
+1478U14*Enter_Alter_Default_Privileges_Stmt
+1483U14*Leave_Alter_Default_Privileges_Stmt
+1487U14*Enter_Copy_Stmt
+1492U14*Leave_Copy_Stmt
+1496U14*Enter_Variable_Set_Stmt
+1501U14*Leave_Variable_Set_Stmt
+1510U14*Leave_Variable_Show_Stmt
+1514U14*Enter_Create_Stmt
+1519U14*Leave_Create_Stmt
+1523U14*Enter_Constraint
+1528U14*Leave_Constraint
+1532U14*Enter_Create_Table_Space_Stmt
+1537U14*Leave_Create_Table_Space_Stmt
+1541U14*Enter_Drop_Table_Space_Stmt
+1546U14*Leave_Drop_Table_Space_Stmt
+1550U14*Enter_Alter_Table_Space_Options_Stmt
+1555U14*Leave_Alter_Table_Space_Options_Stmt
+1559U14*Enter_Alter_Table_Move_All_Stmt
+1564U14*Leave_Alter_Table_Move_All_Stmt
+1568U14*Enter_Create_Extension_Stmt
+1573U14*Leave_Create_Extension_Stmt
+1577U14*Enter_Alter_Extension_Stmt
+1582U14*Leave_Alter_Extension_Stmt
+1586U14*Enter_Alter_Extension_Contents_Stmt
+1591U14*Leave_Alter_Extension_Contents_Stmt
+1595U14*Enter_Create_Fdw_Stmt
+1600U14*Leave_Create_Fdw_Stmt
+1604U14*Enter_Alter_Fdw_Stmt
+1609U14*Leave_Alter_Fdw_Stmt
+1613U14*Enter_Create_Foreign_Server_Stmt
+1618U14*Leave_Create_Foreign_Server_Stmt
+1622U14*Enter_Alter_Foreign_Server_Stmt
+1627U14*Leave_Alter_Foreign_Server_Stmt
+1631U14*Enter_Create_Foreign_Table_Stmt
+1636U14*Leave_Create_Foreign_Table_Stmt
+1640U14*Enter_Create_User_Mapping_Stmt
+1645U14*Leave_Create_User_Mapping_Stmt
+1649U14*Enter_Alter_User_Mapping_Stmt
+1654U14*Leave_Alter_User_Mapping_Stmt
+1658U14*Enter_Drop_User_Mapping_Stmt
+1663U14*Leave_Drop_User_Mapping_Stmt
+1667U14*Enter_Import_Foreign_Schema_Stmt
+1672U14*Leave_Import_Foreign_Schema_Stmt
+1676U14*Enter_Create_Policy_Stmt
+1681U14*Leave_Create_Policy_Stmt
+1685U14*Enter_Alter_Policy_Stmt
+1690U14*Leave_Alter_Policy_Stmt
+1694U14*Enter_Create_Am_Stmt
+1699U14*Leave_Create_Am_Stmt
+1703U14*Enter_Create_Trig_Stmt
+1708U14*Leave_Create_Trig_Stmt
+1712U14*Enter_Create_Event_Trig_Stmt
+1717U14*Leave_Create_Event_Trig_Stmt
+1721U14*Enter_Alter_Event_Trig_Stmt
+1726U14*Leave_Alter_Event_Trig_Stmt
+1730U14*Enter_Create_P_Lang_Stmt
+1735U14*Leave_Create_P_Lang_Stmt
+1739U14*Enter_Create_Role_Stmt
+1744U14*Leave_Create_Role_Stmt
+1748U14*Enter_Alter_Role_Stmt
+1753U14*Leave_Alter_Role_Stmt
+1757U14*Enter_Alter_Role_Set_Stmt
+1762U14*Leave_Alter_Role_Set_Stmt
+1766U14*Enter_Drop_Role_Stmt
+1771U14*Leave_Drop_Role_Stmt
+1775U14*Enter_Create_Seq_Stmt
+1780U14*Leave_Create_Seq_Stmt
+1784U14*Enter_Alter_Seq_Stmt
+1789U14*Leave_Alter_Seq_Stmt
+1793U14*Enter_Define_Stmt
+1798U14*Leave_Define_Stmt
+1802U14*Enter_Create_Domain_Stmt
+1807U14*Leave_Create_Domain_Stmt
+1811U14*Enter_Create_Op_Class_Stmt
+1816U14*Leave_Create_Op_Class_Stmt
+1820U14*Enter_Create_Op_Class_Item
+1825U14*Leave_Create_Op_Class_Item
+1829U14*Enter_Create_Op_Family_Stmt
+1834U14*Leave_Create_Op_Family_Stmt
+1838U14*Enter_Alter_Op_Family_Stmt
+1843U14*Leave_Alter_Op_Family_Stmt
+1847U14*Enter_Drop_Stmt
+1852U14*Leave_Drop_Stmt
+1856U14*Enter_Truncate_Stmt
+1861U14*Leave_Truncate_Stmt
+1865U14*Enter_Comment_Stmt
+1870U14*Leave_Comment_Stmt
+1874U14*Enter_Sec_Label_Stmt
+1879U14*Leave_Sec_Label_Stmt
+1883U14*Enter_Declare_Cursor_Stmt
+1888U14*Leave_Declare_Cursor_Stmt
+1892U14*Enter_Close_Portal_Stmt
+1897U14*Leave_Close_Portal_Stmt
+1901U14*Enter_Fetch_Stmt
+1906U14*Leave_Fetch_Stmt
+1910U14*Enter_Index_Stmt
+1915U14*Leave_Index_Stmt
+1919U14*Enter_Create_Stats_Stmt
+1924U14*Leave_Create_Stats_Stmt
+1928U14*Enter_Stats_Elem
+1933U14*Leave_Stats_Elem
+1937U14*Enter_Alter_Stats_Stmt
+1942U14*Leave_Alter_Stats_Stmt
+1946U14*Enter_Create_Function_Stmt
+1951U14*Leave_Create_Function_Stmt
+1955U14*Enter_Function_Parameter
+1960U14*Leave_Function_Parameter
+1964U14*Enter_Alter_Function_Stmt
+1969U14*Leave_Alter_Function_Stmt
+1973U14*Enter_Do_Stmt
+1978U14*Leave_Do_Stmt
+1982U14*Enter_Inline_Code_Block
+1987U14*Leave_Inline_Code_Block
+1991U14*Enter_Call_Stmt
+1996U14*Leave_Call_Stmt
+2000U14*Enter_Call_Context
+2005U14*Leave_Call_Context
+2009U14*Enter_Rename_Stmt
+2014U14*Leave_Rename_Stmt
+2018U14*Enter_Alter_Object_Depends_Stmt
+2023U14*Leave_Alter_Object_Depends_Stmt
+2027U14*Enter_Alter_Object_Schema_Stmt
+2032U14*Leave_Alter_Object_Schema_Stmt
+2036U14*Enter_Alter_Owner_Stmt
+2041U14*Leave_Alter_Owner_Stmt
+2045U14*Enter_Alter_Operator_Stmt
+2050U14*Leave_Alter_Operator_Stmt
+2054U14*Enter_Alter_Type_Stmt
+2059U14*Leave_Alter_Type_Stmt
+2063U14*Enter_Rule_Stmt
+2068U14*Leave_Rule_Stmt
+2072U14*Enter_Notify_Stmt
+2077U14*Leave_Notify_Stmt
+2081U14*Enter_Listen_Stmt
+2086U14*Leave_Listen_Stmt
+2090U14*Enter_Unlisten_Stmt
+2095U14*Leave_Unlisten_Stmt
+2099U14*Enter_Transaction_Stmt
+2104U14*Leave_Transaction_Stmt
+2108U14*Enter_Composite_Type_Stmt
+2113U14*Leave_Composite_Type_Stmt
+2117U14*Enter_Create_Enum_Stmt
+2122U14*Leave_Create_Enum_Stmt
+2126U14*Enter_Create_Range_Stmt
+2131U14*Leave_Create_Range_Stmt
+2135U14*Enter_Alter_Enum_Stmt
+2140U14*Leave_Alter_Enum_Stmt
+2144U14*Enter_View_Stmt
+2149U14*Leave_View_Stmt
+2153U14*Enter_Load_Stmt
+2158U14*Leave_Load_Stmt
+2162U14*Enter_Createdb_Stmt
+2167U14*Leave_Createdb_Stmt
+2171U14*Enter_Alter_Database_Stmt
+2176U14*Leave_Alter_Database_Stmt
+2180U14*Enter_Alter_Database_Refresh_Coll_Stmt
+2185U14*Leave_Alter_Database_Refresh_Coll_Stmt
+2189U14*Enter_Alter_Database_Set_Stmt
+2194U14*Leave_Alter_Database_Set_Stmt
+2198U14*Enter_Dropdb_Stmt
+2203U14*Leave_Dropdb_Stmt
+2207U14*Enter_Alter_System_Stmt
+2212U14*Leave_Alter_System_Stmt
+2216U14*Enter_Cluster_Stmt
+2221U14*Leave_Cluster_Stmt
+2225U14*Enter_Vacuum_Stmt
+2230U14*Leave_Vacuum_Stmt
+2234U14*Enter_Vacuum_Relation
+2239U14*Leave_Vacuum_Relation
+2243U14*Enter_Explain_Stmt
+2248U14*Leave_Explain_Stmt
+2252U14*Enter_Create_Table_As_Stmt
+2257U14*Leave_Create_Table_As_Stmt
+2261U14*Enter_Refresh_Mat_View_Stmt
+2266U14*Leave_Refresh_Mat_View_Stmt
+2270U14*Enter_Check_Point_Stmt
+2275U14*Leave_Check_Point_Stmt
+2279U14*Enter_Discard_Stmt
+2284U14*Leave_Discard_Stmt
+2288U14*Enter_Lock_Stmt
+2293U14*Leave_Lock_Stmt
+2297U14*Enter_Constraints_Set_Stmt
+2302U14*Leave_Constraints_Set_Stmt
+2306U14*Enter_Reindex_Stmt
+2311U14*Leave_Reindex_Stmt
+2315U14*Enter_Create_Conversion_Stmt
+2320U14*Leave_Create_Conversion_Stmt
+2324U14*Enter_Create_Cast_Stmt
+2329U14*Leave_Create_Cast_Stmt
+2333U14*Enter_Create_Transform_Stmt
+2338U14*Leave_Create_Transform_Stmt
+2342U14*Enter_Prepare_Stmt
+2347U14*Leave_Prepare_Stmt
+2351U14*Enter_Execute_Stmt
+2356U14*Leave_Execute_Stmt
+2360U14*Enter_Deallocate_Stmt
+2365U14*Leave_Deallocate_Stmt
+2369U14*Enter_Drop_Owned_Stmt
+2374U14*Leave_Drop_Owned_Stmt
+2378U14*Enter_Reassign_Owned_Stmt
+2383U14*Leave_Reassign_Owned_Stmt
+2387U14*Enter_Alter_Ts_Dictionary_Stmt
+2392U14*Leave_Alter_Ts_Dictionary_Stmt
+2396U14*Enter_Alter_Ts_Configuration_Stmt
+2401U14*Leave_Alter_Ts_Configuration_Stmt
+2405U14*Enter_Publication_Table
+2410U14*Leave_Publication_Table
+2414U14*Enter_Publication_Obj_Spec
+2419U14*Leave_Publication_Obj_Spec
+2423U14*Enter_Create_Publication_Stmt
+2428U14*Leave_Create_Publication_Stmt
+2432U14*Enter_Alter_Publication_Stmt
+2437U14*Leave_Alter_Publication_Stmt
+2441U14*Enter_Create_Subscription_Stmt
+2446U14*Leave_Create_Subscription_Stmt
+2450U14*Enter_Alter_Subscription_Stmt
+2455U14*Leave_Alter_Subscription_Stmt
+2459U14*Enter_Drop_Subscription_Stmt
+2464U14*Leave_Drop_Subscription_Stmt
+2468U14*Traverse 30|704s16
+X 27 interfac.ads
+65I9*Integer_32<integer>
+X 29 pgish_sql.ads
+1K9*Pgish_SQL 82l5 82e14 30|9b14 713l5 713t14
+3N4*Maximum_Query_Length 30|695r23
+4N4*Maximum_AST_Nodes 5r39 30|650r31
+5N4*Maximum_Tokens
+7N4*Maximum_Projections 67r49 68r45 30|247r36
+8N4*Maximum_Predicates 70r48 71r45 30|358r35
+9N4*Maximum_Name_Length 24r31 30|271r56 305r52 333r51 342r54 402r52 430r54
+. 515r57 551r52 689r52
+10N4*Maximum_Value_Length 25r32 30|277r55 436r24 457r24
+11N4*Maximum_Result_Rows 75r45 76r9 30|593r21
+13X4*Syntax_Error 30|36r16 59r16 65r19 78r16 100r16 106r19 136r16 161r25
+. 189r22 194r19 201r16 212r16 230r16 236r16 248r16 251r16 259r19 301r31 313r31
+. 327r31 337r25 359r16 372r16 383r25 398r25 409r28 426r25 451r28 459r25 465r19
+. 491r16 494r16 497r16 511r22 521r19 527r16 534r22 547r25 561r31 570r16 575r16
+. 584r22 591r25 637r19 651r19 658r22 671r19 685r19 696r16 700r16 706r16 708r16
+15R9*Text 15d15 18e14 20r68 21r28 22r31 24r25 25r26 30|32r68 33r16 45r28
+. 48r31
+15i15*Capacity{positive} 17r29
+16i7*Length{natural} 30|38m14 46r16 46r63 48r62
+17a7*Data{string} 30|40m17 46r46
+20V13*Make_Text{15R9} 20>24 20>40 30|32b13 43l8 43t17 271s24 277s21 305s35
+. 333s24 342s15 401s18 429s18 434s21 455s21 514s15 550s18 689s12
+20a24 Value{string} 30|32b24 35r10 38r24 39r10 40r28 40r45
+20i40 Capacity{positive} 30|32b40 33r22 35r25
+21V13*Image{string} 21>20 30|45b13
+21r20 Value{15R9} 30|46r10 46r40 46r57
+22V13*Is_Empty{boolean} 22>23 30|48b13 520s13
+22r23 Value{15R9} 30|48r56
+24R12*Name_Text{15R9} 51r20 54r20 59r16 69r26 72r26 77r26
+25R12*Value_Text{15R9} 52r20 61r15
+27E9*Statement_Kind 27e61 66r26
+27n28*Select_Statement{27E9} 66r44 30|500r22
+27n46*Show_Statement{27E9} 30|687r29
+28E9*Projection_Kind 32e27 50r20
+29n7*Column_Projection{28E9} 50r39 30|269r35
+30n7*Star_Projection{28E9} 30|267r35
+31n7*Literal_Projection{28E9} 30|275r32
+32n7*Function_Projection{28E9} 30|304r35 330r35
+33E9*Function_Kind 37e20 53r21
+34n7*Current_Database_Function{33E9} 53r38 30|307r45
+35n7*Current_User_Function{33E9} 30|331r42
+36n7*Version_Function{33E9} 30|309r45
+37n7*Now_Function{33E9} 30|311r45
+38E9*Comparison_Operator 47e19 60r18
+39n7*Equal_To{38E9} 60r41 30|439r39
+40n7*Not_Equal_To{38E9} 30|441r39
+41n7*Less_Than{38E9} 30|443r39
+42n7*Less_Or_Equal{38E9} 30|445r39
+43n7*Greater_Than{38E9} 30|447r39
+44n7*Greater_Or_Equal{38E9} 30|449r39
+45n7*Like_Match{38E9} 30|432r36
+46n7*Is_Null{38E9} 30|405r39
+47n7*Is_Not_Null{38E9} 30|407r39
+49R9*Projection 55e14 56r58 30|245r14
+50e7*Kind{28E9} 30|267m27 269m27 275m24 304m27 330m27
+51r7*Name{24R12} 30|270m27 305m27 332m27
+52r7*Literal{25R12} 30|276m24
+53e7*Function_Id{33E9} 30|307m30 309m30 311m30 331m27
+54r7*Alias{24R12} 30|341m18
+56A9*Projection_Array(49R9)<integer> 67r26
+58R9*Predicate 62e14 63r57 30|354r16 369r14
+59r7*Column{24R12} 30|400m21 428m21
+60e7*Operator{38E9} 30|405m27 407m27 432m24 439m27 441m27 443m27 445m27 447m27
+. 449m27
+61r7*Value{25R12} 30|433m24 454m24
+63A9*Predicate_Array(58R9)<integer> 70r26
+65R9*Query 78e14 80r41 30|243r23 351r27 355r23 367r27 471r23 600r41 604r35
+66e7*Kind{27E9} 30|500m14 687m21
+67a7*Projections{56A9} 30|346m14
+68i7*Projection_Count{integer} 30|247r17 345m14 345r41 346r34
+69r7*Table_Name{24R12} 30|513m20 520r30
+70a7*Predicates{63A9} 30|362m14
+71i7*Predicate_Count{integer} 30|358r17 361m14 361r40 362r33
+72r7*Order_Column{24R12} 30|549m23
+73b7*Order_Descending{boolean} 30|559m32
+74b7*Has_Limit{boolean} 30|595m20
+75i7*Limit{integer} 30|588m23
+77r7*Show_Name{24R12} 30|688m21
+80V13*Parse{65R9} 80>20 30|600b13 711l8 711t13
+80a20 SQL{string} 30|600b20 695r10 698r18
+X 30 pgish_sql.adb
+14K12 AST=14:50 17r13 18r13 19r13 20r13 21r13 22r13 23r13 24r13 25r13 26r13
+. 27r13 28r13 29r13 54r14 58r43 62r27 72r15 89r34 94r51 97r33 99r43 103r27
+. 133r35 139r15 141r33 166r15 168r33 171r46 198r36 200r43 204r27 216r32 219r30
+. 242r16 250r47 254r25 262r30 265r21 274r21 274r40 279r21 281r38 318r21 320r48
+. 325r26 350r20 366r20 375r15 377r33 381r48 390r15 392r33 404r24 406r24 414r15
+. 416r33 431r38 437r41 470r16 489r14 489r44 507r31 510r53 530r34 533r59 537r32
+. 544r23 545r23 554r27 555r24 556r24 558r27 573r44 601r14 613r20 617r20 621r20
+. 625r20 630r20 644r20 656r15 656r38 665r20 679r20 698r7
+15K12 Visitors=15:59 603r36 614r27 618r27 622r27 626r27 631r27 645r27 666r27
+. 680r27 704r7
+33r7 Result{29|15R9} 38m7 40m10 42r14
+50V13 Trimmed{string} 50b13 50>22 151s27
+50a22 Value{string} 51r31
+53V13 Node_Text{string} 53b13 54>7 55>7 69l8 69t17 84s26
+54p7 Item{25|919P9} 58r10 58r30 62r47
+55a7 What{string} 59r51 65r54
+62r10 Value{25|2528R9} 64r17 67r28
+71V13 Name_From{string} 71b13 72>7 73>7 87l8 87t17 108s17 175s27 283s34 418s18
+72r7 Items{25|1470R12} 77r10 80r19
+73a7 What{string} 78r51 84r43
+75r7 Result{17|105R9} 81r21 82m21 82r21 84m18 84r18 86r25
+80p11 Item{25|919P9} 84r37
+89V13 Is_Bare_Star{boolean} 89b13 89>27 95l8 95t20 105s13 266s22
+89r27 Item{25|3225R9} 92r9 93r18 94r18
+97V13 Column_Name{string} 97b13 97>26 110l8 110t19 271s35 402s21 430s21 551s21
+97p26 Item{25|919P9} 99r10 99r30 103r45
+103r10 Value{25|3225R9} 105r27 108r28
+112V13 Is_Integer_Lexeme{boolean} 112b13 112>32 131l8 131t25 156s27 183s33
+. 581s20
+112a32 Value{string} 113r27 115r10 118r10 120r22 124r23 125r13
+113i7 Cursor{integer} 118r17 119m10 119r20 120r13 124r13 125r20 128m10 128r20
+133V13 Literal_Value{string} 133b13 133>28 179s24 196l8 196t21 277s32 456s24
+. 579s40
+133p28 Item{25|919P9} 135r10 138r12 141r48 168r47
+141r16 Value{25|2548R9} 143r19 143r47 145r25 146r38 148r22 148r50 150r25
+. 151r36 153r22 154r27 155r27 157r32 159r37
+168r16 Value{25|3235R9} 170r19 171r27 172r31 173r27 174r27 175r38 179r39
+178a22 Magnitude{string} 181r25 182r33 182r44 183r52 185r38
+198V13 String_Literal{string} 198b13 198>29 214l8 214t22 435s24
+198p29 Item{25|919P9} 200r10 200r30 204r42
+204r10 Value{25|2548R9} 206r13 206r41 208r19 209r32
+216V13 Range_Name{string} 216b13 216>25 239l8 239t18 515s18
+216r25 Item{25|2563R9} 229r10 232r12 233r12 234r12
+217r7 Result{17|105R9} 222r24 223m24 223r24 225m21 225r21 235r18 238r25
+219U17 Add 219b17 219>22 227l11 227t14 232s7 233s7 234s7
+219r22 Value{25|1485R9} 221r13 225r40
+241U14 Add_Projection 241b14 242>7 243=7 347l8 347t22 502s10
+242p7 Target{25|919P9} 250r10 250r32 254r43
+243r7 Result{29|65R9} 247r10 345m7 345r34 346m7 346r27
+245r7 Item{29|49R9} 267m22 269m22 270m22 275m19 276m19 304m22 305m22 307m25
+. 309m25 311m25 330m22 331m22 332m22 341m13 346r55
+254r10 Res{25|3297R9} 256r17 256r54 257r20 262r49 340r13 342r37
+262p13 Value{25|919P9} 264r18 266r36 271r48 277r47 281r55 321r24
+281r22 Call{25|3263R9} 283r45 285r29 286r36 287r32 288r32 290r27 291r36 293r27
+. 293r58 295r27 296r36 298r27 299r36
+282a22 Name{string} 305r46 306r25 308r28 310r28 314r58
+320r22 Value_Function{25|2940R9} 323r29 324r32
+349U14 Add_Predicate 350>7 351=7 365b14 386s19 467l8 467t21 523s10
+350p7 Expression{25|919P9} 366b7 371r10 374r12 378r18 393r18 416r47
+351r7 Result{29|65R9} 367b7 386m41 411m39 461m39
+353U14 Store_Predicate 353b14 354>7 355=7 363l8 363t23 411s16 461s16
+354r7 Item{29|58R9} 362r53
+355r7 Result{29|65R9} 358r10 361m7 361r33 362m7 362r26
+369r7 Item{29|58R9} 400m16 405m22 407m22 411r33 428m16 432m19 433m19 439m22
+. 441m22 443m22 445m22 447m22 449m22 454m19 461r33
+377r16 Value{25|2763R9} 380r23 381r26 385r29
+385p20 Child{25|919P9} 386r34
+392r16 Value{25|3046R9} 395r23 395r49 396r30 402r34 403r21
+416r16 Value{25|3235R9} 418r29 420r23 421r30 422r26 423r30 424r26 430r34
+. 431r19 435r40 437r22 456r39
+417a16 Name{string} 438r22 440r25 442r25 444r25 446r25 448r25
+469U14 Lower_Select 469b14 470>7 471=7 598l8 598t20 673s10
+470r7 Item{25|3828R9} 474r14 475r17 476r21 478r12 478r49 479r17 480r21 481r21
+. 482r21 483r17 484r17 485r17 487r12 488r21 493r10 496r10 501r21 505r14 508r15
+. 519r10 523r25 526r10 528r17 531r15 569r10 572r10 573r18 577r10 579r55
+471r7 Result{29|65R9} 500m7 502m34 513m13 520r23 523m50 549m16 559m25 588m16
+. 595m13
+501p11 Target{25|919P9} 502r26
+507p13 Source{25|919P9} 510r16 510r38 515r30
+530p13 Sort_Node{25|919P9} 533r16 533r41 537r47
+537r16 Sort{25|3310R9} 539r23 539r49 540r30 542r21 543r30 551r34 552r19 553r24
+579a13 Value{string} 581r39 582r24 582r50 582r57 588r47
+601r7 Tree{25|5303R9} 698m23 698r23 699r14 701r23 702r32 704r35
+603R12 Lowering_Visitor<26|9R9> 26|11p14 16p14 25p14 29p14 34p14 38p14 43p14
+. 47p14 52p14 56p14 61p14 65p14 70p14 74p14 79p14 83p14 88p14 92p14 97p14
+. 101p14 106p14 110p14 115p14 119p14 124p14 128p14 133p14 137p14 142p14 146p14
+. 151p14 155p14 160p14 164p14 169p14 173p14 178p14 182p14 187p14 191p14 196p14
+. 200p14 205p14 209p14 214p14 218p14 223p14 227p14 232p14 236p14 241p14 245p14
+. 250p14 254p14 259p14 263p14 268p14 272p14 277p14 281p14 286p14 290p14 295p14
+. 299p14 304p14 308p14 313p14 317p14 322p14 326p14 331p14 335p14 340p14 344p14
+. 349p14 353p14 358p14 362p14 367p14 371p14 376p14 380p14 385p14 389p14 394p14
+. 398p14 403p14 407p14 412p14 416p14 421p14 425p14 430p14 434p14 439p14 443p14
+. 448p14 452p14 457p14 461p14 466p14 470p14 475p14 479p14 484p14 488p14 493p14
+. 497p14 502p14 506p14 511p14 515p14 520p14 524p14 529p14 533p14 538p14 542p14
+. 547p14 551p14 556p14 560p14 565p14 569p14 574p14 578p14 583p14 587p14 592p14
+. 596p14 601p14 605p14 610p14 614p14 619p14 623p14 628p14 632p14 637p14 641p14
+. 646p14 650p14 655p14 659p14 664p14 668p14 673p14 677p14 682p14 686p14 691p14
+. 695p14 700p14 704p14 709p14 713p14 718p14 722p14 727p14 731p14 736p14 740p14
+. 745p14 749p14 754p14 758p14 763p14 767p14 772p14 776p14 781p14 785p14 790p14
+. 794p14 799p14 803p14 808p14 812p14 817p14 821p14 826p14 830p14 835p14 839p14
+. 844p14 848p14 853p14 857p14 862p14 866p14 871p14 875p14 880p14 884p14 889p14
+. 893p14 898p14 902p14 907p14 911p14 916p14 920p14 925p14 929p14 934p14 938p14
+. 943p14 947p14 952p14 956p14 961p14 965p14 970p14 974p14 979p14 983p14 988p14
+. 992p14 997p14 1001p14 1006p14 1010p14 1015p14 1019p14 1024p14 1028p14 1033p14
+. 1037p14 1042p14 1046p14 1051p14 1055p14 1060p14 1064p14 1069p14 1073p14
+. 1078p14 1082p14 1087p14 1091p14 1096p14 1100p14 1105p14 1109p14 1114p14
+. 1118p14 1123p14 1127p14 1132p14 1136p14 1141p14 1145p14 1150p14 1154p14
+. 1159p14 1163p14 1168p14 1172p14 1177p14 1181p14 1186p14 1190p14 1195p14
+. 1199p14 1204p14 1208p14 1213p14 1217p14 1222p14 1226p14 1231p14 1235p14
+. 1240p14 1244p14 1249p14 1253p14 1258p14 1262p14 1267p14 1271p14 1276p14
+. 1280p14 1285p14 1289p14 1294p14 1303p14 1307p14 1312p14 1316p14 1321p14
+. 1325p14 1330p14 1334p14 1339p14 1348p14 1352p14 1357p14 1361p14 1366p14
+. 1370p14 1375p14 1379p14 1384p14 1388p14 1393p14 1397p14 1402p14 1406p14
+. 1411p14 1415p14 1420p14 1424p14 1429p14 1433p14 1438p14 1442p14 1447p14
+. 1451p14 1456p14 1460p14 1465p14 1469p14 1474p14 1478p14 1483p14 1487p14
+. 1492p14 1496p14 1501p14 1510p14 1514p14 1519p14 1523p14 1528p14 1532p14
+. 1537p14 1541p14 1546p14 1550p14 1555p14 1559p14 1564p14 1568p14 1573p14
+. 1577p14 1582p14 1586p14 1591p14 1595p14 1600p14 1604p14 1609p14 1613p14
+. 1618p14 1622p14 1627p14 1631p14 1636p14 1640p14 1645p14 1649p14 1654p14
+. 1658p14 1663p14 1667p14 1672p14 1676p14 1681p14 1685p14 1690p14 1694p14
+. 1699p14 1703p14 1708p14 1712p14 1717p14 1721p14 1726p14 1730p14 1735p14
+. 1739p14 1744p14 1748p14 1753p14 1757p14 1762p14 1766p14 1771p14 1775p14
+. 1780p14 1784p14 1789p14 1793p14 1798p14 1802p14 1807p14 1811p14 1816p14
+. 1820p14 1825p14 1829p14 1834p14 1838p14 1843p14 1847p14 1852p14 1856p14
+. 1861p14 1865p14 1870p14 1874p14 1879p14 1883p14 1888p14 1892p14 1897p14
+. 1901p14 1906p14 1910p14 1915p14 1919p14 1924p14 1928p14 1933p14 1937p14
+. 1942p14 1946p14 1951p14 1955p14 1960p14 1964p14 1969p14 1973p14 1978p14
+. 1982p14 1987p14 1991p14 1996p14 2000p14 2005p14 2009p14 2014p14 2018p14
+. 2023p14 2027p14 2032p14 2036p14 2041p14 2045p14 2050p14 2054p14 2059p14
+. 2063p14 2068p14 2072p14 2077p14 2081p14 2086p14 2090p14 2095p14 2099p14
+. 2104p14 2108p14 2113p14 2117p14 2122p14 2126p14 2131p14 2135p14 2140p14
+. 2144p14 2149p14 2153p14 2158p14 2162p14 2167p14 2171p14 2176p14 2180p14
+. 2185p14 2189p14 2194p14 2198p14 2203p14 2207p14 2212p14 2216p14 2221p14
+. 2225p14 2230p14 2234p14 2239p14 2243p14 2248p14 2252p14 2257p14 2261p14
+. 2266p14 2270p14 2275p14 2279p14 2284p14 2288p14 2293p14 2297p14 2302p14
+. 2306p14 2311p14 2315p14 2320p14 2324p14 2329p14 2333p14 2338p14 2342p14
+. 2347p14 2351p14 2356p14 2360p14 2365p14 2369p14 2374p14 2378p14 2383p14
+. 2387p14 2392p14 2396p14 2401p14 2405p14 2410p14 2414p14 2419p14 2423p14
+. 2428p14 2432p14 2437p14 2441p14 2446p14 2450p14 2455p14 2459p14 2464p14
+. 30|609e17 611P28 612r27 615P28 616r27 619P28 620r27 623P28 624r27 629r27
+. 643r27 664r27 678r27 693r17
+604r10 Value{29|65R9} 673m35 687m15 688m15 710r22
+605i10 Statement_Count{natural} 635m15 635r39 636r18 705r18
+606i10 Node_Count{natural} 649m15 649r34 650r18
+607b10 Expect_Statement_Root{boolean} 639m15 653r18 654m18
+608b10 Lowered{boolean} 670r18 674m15 684r18 690m15 707r25
+611U28 Enter_Raw_Stmt<26|1298p14> 612=10 613>10 614=10 628b28 640l11 640t25
+612r10 Self{603R12} 629b10 635m10 635r34 636r13 639m10
+613r10 Item{25|3786R9} 630b10 633r31
+614e10 Control{26|6E9} 631b10 633r37
+615U28 Enter_Node<26|20p14> 616=10 617>10 618=10 642b28 661l11 661t21
+616r10 Self{603R12} 643b10 649m10 649r29 650r13 653r13 654m13
+617r10 Item{25|4754R9} 644b10 655r16
+618e10 Control{26|6E9} 645b10 647r31
+619U28 Enter_Select_Stmt<26|1343p14> 620=10 621>10 622=10 663b28 675l11 675t28
+620r10 Self{603R12} 664b10 670r13 673m30 673r30 674m10
+621r10 Item{25|3828R9} 665b10 673r24
+622e10 Control{26|6E9} 666b10 668r31
+623U28 Enter_Variable_Show_Stmt<26|1505p14> 624=10 625>10 626=10 677b28 691l11
+. 691t35
+624r10 Self{603R12} 678b10 684r13 687m10 688m10 690m10
+625r10 Item{25|3986R9} 679b10 684r38 689r34
+626e10 Control{26|6E9} 680b10 682r31
+693r7 Lowerer{603R12} 704m26 704r26 705r10 707r17 710r14
+X 31 system.ads
+67M9*Address
+X 44 s-memory.ads
+51V13*Alloc{31|67M9} 101i<c,__gnat_malloc>22
+66U14*Free 102i<c,__gnat_free>22
+74V13*Realloc{31|67M9} 103i<c,__gnat_realloc>22
+X 55 s-stalib.adb
+87U14 Break_Start 88i<c,__gnat_break_start>22
+

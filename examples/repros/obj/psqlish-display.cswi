@@ -1,0 +1,14 @@
+20260905004426
+-c
+-x
+ada
+-gnatA
+--RTS=/Users/yrashk/.local/share/alire/builds/flyology_0.1.1_bd95746d/3cf1f8e431e0343b4154ab650e51121b9e3441939b55a10702aab1165f04bd0a/build/alire-rts/
+-g
+-O0
+-gnat2022
+-gnata
+-gnatVa
+-gnatwa
+-gnatwJ
+-gnateDFLYOLOGY_CONNECTION_TEST_HOOKS=False

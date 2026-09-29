@@ -1,0 +1,125 @@
+V "GNAT Lib v16"
+M P W=b
+A -O0
+A -gnatA
+A --RTS=/Users/yrashk/.local/share/alire/builds/flyology_0.1.1_bd95746d/3cf1f8e431e0343b4154ab650e51121b9e3441939b55a10702aab1165f04bd0a/build/alire-rts/
+A -g
+A -gnat2022
+A -gnata
+A -gnatVa
+A -gnatwa
+A -gnatwJ
+A -mmacosx-version-min=26.0.0
+A -mcpu=apple-m1
+A -mlittle-endian
+A -mabi=lp64
+A -fPIC
+P SS ZX
+
+RN
+RV NO_ENUMERATION_MAPS
+RV NO_LOCAL_ALLOCATORS
+RV NO_SECONDARY_STACK
+RV NO_STANDARD_STORAGE_POOLS
+RV NO_DYNAMIC_SIZED_OBJECTS
+RV NO_IMPLEMENTATION_PRAGMAS
+
+U repro_sql_9%b		repro_sql_9.adb		617afff7 NE OO SU
+Z ada.strings.text_buffers%s  a-sttebu.adb	a-sttebu.ali
+W sql_repro_support%s	sql_repro_support.adb	sql_repro_support.ali
+Z system.concat_2%s	s-conca2.adb		s-conca2.ali
+Z system.concat_4%s	s-conca4.adb		s-conca4.ali
+Z system.concat_8%s	s-conca8.adb		s-conca8.ali
+Z system.img_int%s	s-imgint.ads		s-imgint.ali
+Z system.secondary_stack%s  s-secsta.adb	s-secsta.ali
+
+D ada.ads		20260901211354 76789da1 ada%s
+D a-charac.ads		20260901211354 2d3ec45b ada.characters%s
+D a-chlat1.ads		20260901211354 e0d72e76 ada.characters.latin_1%s
+D a-contai.ads		20260901211354 61e5e089 ada.containers%s
+D a-conhel.ads		20260901211354 46fe1ce3 ada.containers.helpers%s
+D a-convec.ads		20260901211354 cb0f314a ada.containers.vectors%s
+D a-except.ads		20260901211354 8699d7ff ada.exceptions%s
+D a-finali.ads		20260901211354 099c16e4 ada.finalization%s
+D a-iteint.ads		20260901211354 49a8bee2 ada.iterator_interfaces%s
+D a-stream.ads		20260901211354 cb01a8f8 ada.streams%s
+D a-string.ads		20260901211354 90ac6797 ada.strings%s
+D a-strmap.ads		20260901211354 f7e6ca10 ada.strings.maps%s
+D a-strsea.ads		20260901211354 18c3c634 ada.strings.search%s
+D a-sttebu.ads		20260901211354 f1ad67a2 ada.strings.text_buffers%s
+D a-strunb.ads		20260901211354 8d6ccba7 ada.strings.unbounded%s
+D a-stuten.ads		20260901211354 c6ced0ae ada.strings.utf_encoding%s
+D a-tags.ads		20260901211354 2dbf449c ada.tags%s
+D a-unccon.ads		20260901211354 0e9b276f ada.unchecked_conversion%s
+D flyology.ads		20260901211211 3ef168e6 flyology%s
+D flyology-postgres.ads	20260807121426 acc81f2f flyology.postgres%s
+D flyology-postgres-sql.ads  20260807121426 b81ccc8c flyology.postgres.sql%s
+D interfac.ads		20260901211354 9111f9c1 interfaces%s
+D i-c.ads		20260901211354 dbdd3be7 interfaces.c%s
+D repro_sql_9.adb	20260905010737 9c3224b3 repro_sql_9%b
+D sql_repro_support.ads	20260905002039 fd48db44 sql_repro_support%s
+D system.ads		20260901211353 8a611ac3 system%s
+D s-atocou.ads		20260901211354 dc18efc3 system.atomic_counters%s
+D s-conca2.ads		20260901211354 b5fb73f7 system.concat_2%s
+D s-conca4.ads		20260901211354 33f85f3e system.concat_4%s
+D s-conca8.ads		20260901211354 8d8f50c1 system.concat_8%s
+D s-exctab.ads		20260901211354 91bef6ef system.exception_table%s
+D s-finpri.ads		20260901211354 5970d55a system.finalization_primitives%s
+D s-finroo.ads		20260901211354 0a7c3ed4 system.finalization_root%s
+D s-imagei.ads		20260901211354 11a376a2 system.image_i%s
+D s-imgint.ads		20260901211354 86836590 system.img_int%s
+D s-oscons.ads		20260901211354 42ad9981 system.os_constants%s
+D s-oslock.ads		20260901211354 bcc789d2 system.os_locks%s
+D s-parame.ads		20260901211354 a1aeab5c system.parameters%s
+D s-pooglo.ads		20260901211354 91708d21 system.pool_global%s
+D s-putima.ads		20260901211353 1b989439 system.put_images%s
+D s-retsta.ads		20260901211353 0f6b06cb system.return_stack%s
+D s-secsta.ads		20260901211354 578279f5 system.secondary_stack%s
+D s-soflin.ads		20260901211354 5d88fdea system.soft_links%s
+D s-stache.ads		20260901211354 0b81c1fe system.stack_checking%s
+D s-stalib.ads		20260901211354 1c9580f6 system.standard_library%s
+D s-stoele.ads		20260901211354 ccded4e8 system.storage_elements%s
+D s-stopoo.ads		20260901211354 45459446 system.storage_pools%s
+D s-stratt.ads		20260901211354 80b8dafb system.stream_attributes%s
+D s-tasinf.ads		20260901211354 801abd01 system.task_info%s
+D s-traent.ads		20260901211354 c81cbf8c system.traceback_entries%s
+D s-unstyp.ads		20260901211354 fa2a7f59 system.unsigned_types%s
+D s-wchcon.ads		20260901211354 d9032363 system.wch_con%s
+D s-wchstw.ads		20260901211354 2d112c01 system.wch_stw%s
+G a e
+G c Z b b [repro_sql_9 standard 3 11 none]
+G r c none [repro_sql_9 standard 3 11 none] [native_error_position sql_repro_support 27 13 none]
+G r c none [repro_sql_9 standard 3 11 none] [native_error sql_repro_support 20 13 none]
+G r c none [repro_sql_9 standard 3 11 none] [note sql_repro_support 14 14 none]
+G r c none [repro_sql_9 standard 3 11 none] [oracle_error_position sql_repro_support 39 13 none]
+G r c none [repro_sql_9 standard 3 11 none] [oracle_error sql_repro_support 33 13 none]
+G r c none [repro_sql_9 standard 3 11 none] [check sql_repro_support 11 14 none]
+G r c none [repro_sql_9 standard 3 11 none] [finish sql_repro_support 17 14 none]
+X 9 a-iteint.ads
+24h9 Forward_Iterator
+32h9 Reversible_Iterator<24R9[6|119]>
+X 21 flyology-postgres-sql.ads
+7E9*Major_Version 8e56 24|21r67 34r23
+X 24 repro_sql_9.adb
+3U11*Repro_SQL_9 3b11 47l5 47t16
+13a4 E_Acute{string} 16r50 17r51
+16a4 Syntax_Case{string} 35r24
+17a4 Scanner_Case{string} 36r24
+18a4 Ascii_Syntax{string} 38r37 39r39
+19a4 Ascii_Scan{string} 41r37 42r39
+21U14 Expect_Position 21b14 21>31 21>37 21>53 32l8 32t23 35s7 36s7
+21a31 Text{string} 24r38 25r29 27r38 28r29 29r37 30r39
+21a37 Label{string} 23r35 26r35 31r37
+21e53 Version{21|7E9} 23r13 24r44 25r35 26r13 27r44 28r35 29r43 30r45 31r14
+34e8 Version{21|7E9} 35r77 36r78 38r51 39r53 40r14 41r49 42r51 43r14
+X 25 sql_repro_support.ads
+3K9*SQL_Repro_Support 24|1w6 1r29 25|52e22
+9K12*SQL=9:42 24|21r63 34r19
+11U14*Check 24|29s7 38s7 41s7
+14U14*Note 24|23s7 26s7
+17U14*Finish 24|46s4
+20V13*Native_Error{string} 24|25s15
+27V13*Native_Error_Position{natural} 24|24s15 29s14 38s14 41s14
+33V13*Oracle_Error{string} 24|28s15
+39V13*Oracle_Error_Position{natural} 24|27s15 30s16 39s16 42s16
+

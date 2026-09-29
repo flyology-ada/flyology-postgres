@@ -1,0 +1,36 @@
+with "flyology_postgres.gpr";
+with "sql_v18.gpr";
+with "linenoise.gpr";
+
+project Example_Repros is
+
+   for Languages use ("Ada");
+   --  The example crates' non-main packages are compiled from their own
+   --  source trees; only the selected repro program is a main here.
+   for Source_Dirs use
+     ("src", "../pgish/src", "../psqlish/src");
+   for Object_Dir use "obj";
+   for Create_Missing_Dirs use "True";
+   for Exec_Dir use "bin";
+
+   --  Select one reproduction program per build:
+   --    ./run.sh repro_examples_xxx
+   Main_Name := external ("MAIN", "repro_examples_smoke");
+   for Main use (Main_Name & ".adb");
+
+   package Compiler is
+      for Default_Switches ("Ada") use
+        ("-g", "-O0", "-gnat2022", "-gnata", "-gnatVa", "-gnatwa", "-gnatwJ",
+         "-gnateDFLYOLOGY_CONNECTION_TEST_HOOKS=False");
+   end Compiler;
+
+   package Binder is
+      for Switches ("Ada") use ("-Es");
+   end Binder;
+
+   package Linker is
+      for Switches ("Ada") use
+        (external ("FLYOLOGY_ROOT") & "/build/alire-rts/adalib/libgnarl.a");
+   end Linker;
+
+end Example_Repros;

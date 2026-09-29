@@ -1,0 +1,380 @@
+{
+  "BACKUP-1": {
+    "number": 66,
+    "title": "Memory.Promote drops the parent history, so a third timeline's history file omits every earlier ancestor",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/66"
+  },
+  "BACKUP-2": {
+    "number": 67,
+    "title": "Memory.Oldest_Restart_LSN treats restart LSN zero as no candidate and discards WAL a live slot needs",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/67"
+  },
+  "BACKUP-3": {
+    "number": 68,
+    "title": "Memory.Append rebases a fully retained-away store, moving Current_LSN backwards and reusing WAL positions",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/68"
+  },
+  "BACKUP-4": {
+    "number": 69,
+    "title": "Persistence.Generation keeps returning the stale nonzero lease after a slot is released",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/69"
+  },
+  "BACKUP-5": {
+    "number": 70,
+    "title": "Prepared_Consumer.Prepare overwrites the Target_Applied marker for the same GID, defeating the replay guard",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/70"
+  },
+  "BACKUP-6": {
+    "number": 71,
+    "title": "Memory.Create accepts an active leased snapshot as initial state, creating a slot nobody can acquire or drop",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/71"
+  },
+  "BACKUP-7": {
+    "number": 72,
+    "title": "Base backup Send_Position declares the tli column as int4 where PostgreSQL 14 through 18 declare int8",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/72"
+  },
+  "CLIENT-1": {
+    "number": 50,
+    "title": "Scoped Receive_Extended_Event puts an open pipelined batch into Recovery_Required on an earlier batch's error",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/50"
+  },
+  "CLIENT-2": {
+    "number": 51,
+    "title": "Extended COPY IN counts the Sync the backend discards, leaving the session one ReadyForQuery short",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/51"
+  },
+  "CLIENT-3": {
+    "number": 52,
+    "title": "Scoped Send_Query writes a simple query while pipeline mode is active",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/52"
+  },
+  "CLIENT-4": {
+    "number": 53,
+    "title": "A RowDescription for another statement makes the executed portal's DataRows unreadable",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/53"
+  },
+  "CLIENT-5": {
+    "number": 54,
+    "title": "One session-wide suspended-portal flag rejects executing and resuming portals in the same batch",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/54"
+  },
+  "CLIENT-6": {
+    "number": 55,
+    "title": "A rejected plaintext startup leaves the session in Not_Started and accepts a second startup packet",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/55"
+  },
+  "EXAMPLES-1": {
+    "number": 83,
+    "title": "pgish answers LIKE '%' with an internal XX000 error carrying a GNAT runtime source location",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/83"
+  },
+  "EXAMPLES-10": {
+    "number": 92,
+    "title": "pgish answers a semicolon, comment or whitespace-only query with 42601 instead of EmptyQueryResponse",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/92"
+  },
+  "EXAMPLES-11": {
+    "number": 93,
+    "title": "pgish returns a zero-column row for SELECT * with no FROM clause instead of rejecting it",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/93"
+  },
+  "EXAMPLES-2": {
+    "number": 84,
+    "title": "pgish evaluates NOT LIKE as LIKE and returns the inverse row set with no diagnostic",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/84"
+  },
+  "EXAMPLES-3": {
+    "number": 85,
+    "title": "pgish ORDER BY compares integer columns as text while WHERE compares them numerically",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/85"
+  },
+  "EXAMPLES-4": {
+    "number": 86,
+    "title": "psqlish raises Constraint_Error on a zero-column result and abandons the connection",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/86"
+  },
+  "EXAMPLES-5": {
+    "number": 87,
+    "title": "pgish information_schema.columns exceeds the 32-row bound unless a table_name equality filter is supplied",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/87"
+  },
+  "EXAMPLES-6": {
+    "number": 88,
+    "title": "pgish case-folds double-quoted identifiers and accepts any table or schema qualifier",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/88"
+  },
+  "EXAMPLES-7": {
+    "number": 89,
+    "title": "pgish keeps a session slot after an abrupt disconnect, then refuses live clients with FATAL 28P01",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/89"
+  },
+  "EXAMPLES-8": {
+    "number": 90,
+    "title": "flyology_pgish option and environment errors escape the main handler and print a GNAT traceback",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/90"
+  },
+  "EXAMPLES-9": {
+    "number": 91,
+    "title": "psqlish expanded output pads each field name to its column's data width instead of the widest name",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/91"
+  },
+  "LOGICAL-1": {
+    "number": 56,
+    "title": "Logical.Producer emits a data message without the streamed xid prefix inside an open stream segment",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/56"
+  },
+  "LOGICAL-2": {
+    "number": 57,
+    "title": "Logical.Producer ends the top-level transaction on a subtransaction Stream Abort and bars interleaving",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/57"
+  },
+  "LOGICAL-3": {
+    "number": 58,
+    "title": "Logical.Producer rejects a non-transactional logical decoding message outside a transaction",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/58"
+  },
+  "LOGICAL-4": {
+    "number": 59,
+    "title": "Logical.Producer accepts a Commit whose commit LSN disagrees with the pending Begin's final LSN",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/59"
+  },
+  "LOGICAL-5": {
+    "number": 60,
+    "title": "Abort_LSN and Event_Timestamp raise on a Stream Abort built with version-4 metadata by Make_Stream_Abort",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/60"
+  },
+  "PROTO-1": {
+    "number": 31,
+    "title": "Framing.Read_Message promises a single deadline but re-arms the full Timeout for each of its three reads",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/31"
+  },
+  "PROTO-2": {
+    "number": 32,
+    "title": "Startup_Data, Process_Id and Secret_Key return record defaults instead of the documented Protocol_Error",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/32"
+  },
+  "PROTO-3": {
+    "number": 33,
+    "title": "Decode_Initial is documented as taking the complete packet but decodes the bytes after the length field",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/33"
+  },
+  "PROTO-4": {
+    "number": 34,
+    "title": "Startup replication values are matched case-sensitively, rejecting spellings PostgreSQL accepts",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/34"
+  },
+  "PROTO-5": {
+    "number": 35,
+    "title": "Startup _pq_. protocol options are discarded, so a server cannot answer with NegotiateProtocolVersion",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/35"
+  },
+  "PROTO-6": {
+    "number": 36,
+    "title": "Read_C_String reports a size-limit violation for an empty buffer instead of a missing terminator",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/36"
+  },
+  "PROTO-7": {
+    "number": 37,
+    "title": "Maximum_Message_Size is documented as a frame bound but typed messages may be one byte larger",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/37"
+  },
+  "REPL-1": {
+    "number": 61,
+    "title": "Decode_Command rejects the valueless TWO_PHASE and FAILOVER options PostgreSQL subscribers send",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/61"
+  },
+  "REPL-2": {
+    "number": 62,
+    "title": "Decode_Command rejects the TEMPORARY and PHYSICAL forms of CREATE_REPLICATION_SLOT that pg_basebackup sends",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/62"
+  },
+  "REPL-3": {
+    "number": 63,
+    "title": "Read_Standby_Message raises Protocol_Error on the standby-initiated CopyDone PostgreSQL treats as normal",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/63"
+  },
+  "REPL-4": {
+    "number": 64,
+    "title": "Replication SHOW rejects the dotted GUC names PostgreSQL's replication grammar accepts",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/64"
+  },
+  "REPL-5": {
+    "number": 65,
+    "title": "Send_Identify_System advertises the IDENTIFY_SYSTEM timeline column as int4 for PostgreSQL 16 and newer peers",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/65"
+  },
+  "SCRAM-1": {
+    "number": 47,
+    "title": "SCRAM server answers every role without a verifier using one fixed salt published in the library source",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/47"
+  },
+  "SCRAM-2": {
+    "number": 48,
+    "title": "Optional SCRAM extension attributes are rejected in client-first, client-final and server-final messages",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/48"
+  },
+  "SCRAM-3": {
+    "number": 49,
+    "title": "Parsing refuses SCRAM iteration counts below 4096, locking out PostgreSQL roles with a lower scram_iterations",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/49"
+  },
+  "SERVER-1": {
+    "number": 38,
+    "title": "Run_Session's first Read_Initial runs in the declarative part, so a bare TCP probe terminates the server",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/38"
+  },
+  "SERVER-11": {
+    "number": 46,
+    "title": "Request_Shutdown cancels no connection work with the default Drain_Timeout, so Serve never returns",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/46"
+  },
+  "SERVER-2": {
+    "number": 39,
+    "title": "TLS_Required rejects a plaintext CancelRequest, so psql's Ctrl-C never cancels a running query",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/39"
+  },
+  "SERVER-3": {
+    "number": 40,
+    "title": "NegotiateProtocolVersion carries the bare minor number instead of the full protocol version word",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/40"
+  },
+  "SERVER-4": {
+    "number": 41,
+    "title": "Read_Copy_Command rejects a Sync during COPY IN and documents results its type cannot represent",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/41"
+  },
+  "SERVER-6": {
+    "number": 42,
+    "title": "Serve_TLS raises Program_Error where its specification documents Constraint_Error, and Serve is one-shot",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/42"
+  },
+  "SERVER-7": {
+    "number": 43,
+    "title": "Run_Session sends raw GNAT exception text to peers, and a shutdown-cancelled session gets no diagnostic",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/43"
+  },
+  "SERVER-8": {
+    "number": 44,
+    "title": "Read_Initial has no startup-specific length bound, so four unauthenticated bytes commit a 16 MiB buffer",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/44"
+  },
+  "SERVER-9": {
+    "number": 45,
+    "title": "TLS_Socket_Transport.Receive_Exactly changes its exception and zero-timeout behaviour given an observer",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/45"
+  },
+  "SQL-1": {
+    "number": 73,
+    "title": "E'\\v' unescapes to the letter v instead of vertical tab on PostgreSQL 17 and 18",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/73"
+  },
+  "SQL-2": {
+    "number": 74,
+    "title": "Octal escapes E'\\400' through E'\\777' fail the parse with a GNAT range-check message",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/74"
+  },
+  "SQL-3": {
+    "number": 75,
+    "title": "\\U escapes at or above 0x80000000 overflow Natural and report a GNAT overflow message",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/75"
+  },
+  "SQL-4": {
+    "number": 76,
+    "title": "Escape strings whose octal or hex escapes form invalid UTF-8 are accepted instead of rejected",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/76"
+  },
+  "SQL-5": {
+    "number": 77,
+    "title": "UESCAPE accepts form feed on every major and vertical tab on PostgreSQL 17 and 18",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/77"
+  },
+  "SQL-6": {
+    "number": 78,
+    "title": "On PostgreSQL 14, SELECT -'abc' folds the sign into the constant instead of building an A_Expr",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/78"
+  },
+  "SQL-7": {
+    "number": 79,
+    "title": "Grammar-level ereport diagnostics keep the raw %s format and report the wrong cursor",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/79"
+  },
+  "SQL-8": {
+    "number": 80,
+    "title": "Scanner diagnostics quote the rest of the statement instead of the offending token",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/80"
+  },
+  "SQL-8b": {
+    "number": 81,
+    "title": "PostgreSQL 18's parameter-number range check is applied to PostgreSQL 14 through 17",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/81"
+  },
+  "SQL-9": {
+    "number": 82,
+    "title": "Diagnostic cursor positions are byte offsets where PostgreSQL reports character offsets",
+    "unresolved": [],
+    "url": "https://github.com/flyology-ada/flyology-postgres/issues/82"
+  }
+}

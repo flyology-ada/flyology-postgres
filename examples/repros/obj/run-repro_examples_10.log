@@ -1,0 +1,13 @@
+  FAILED: Pgish_Handler treats a newline-only Query as empty
+  FAILED: Pgish_Handler treats a tab-only Query as empty
+  -- a bare semicolon is an empty query: Pgish_SQL.Syntax_Error "expected SELECT or SHOW statement" -> SQLSTATE 42601
+  FAILED: a bare semicolon is an empty query
+  -- a line comment is an empty query: Pgish_SQL.Syntax_Error "expected SELECT or SHOW statement" -> SQLSTATE 42601
+  FAILED: a line comment is an empty query
+  -- a block comment is an empty query: Pgish_SQL.Syntax_Error "expected SELECT or SHOW statement" -> SQLSTATE 42601
+  FAILED: a block comment is an empty query
+  -- a newline-only Query is an empty query: Pgish_SQL.Syntax_Error "expected SELECT or SHOW statement" -> SQLSTATE 42601
+  FAILED: a newline-only Query is an empty query
+  -- an empty string is an empty query: Pgish_SQL.Syntax_Error "expected SELECT or SHOW statement" -> SQLSTATE 42601
+  FAILED: an empty string is an empty query
+BUG REPRODUCED: 7 failed expectation(s)

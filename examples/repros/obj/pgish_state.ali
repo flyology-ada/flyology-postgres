@@ -1,0 +1,535 @@
+V "GNAT Lib v16"
+A -O0
+A -gnatA
+A --RTS=/Users/yrashk/.local/share/alire/builds/flyology_0.1.1_bd95746d/3cf1f8e431e0343b4154ab650e51121b9e3441939b55a10702aab1165f04bd0a/build/alire-rts/
+A -g
+A -gnat2022
+A -gnata
+A -gnatVa
+A -gnatwa
+A -gnatwJ
+A -gnateDFLYOLOGY_CONNECTION_TEST_HOOKS=False
+A -mmacosx-version-min=26.0.0
+A -mcpu=apple-m1
+A -mlittle-endian
+A -mabi=lp64
+A -fPIC
+P SS ZX
+
+RN
+RV NO_ALLOCATORS
+RV NO_CALENDAR
+RV NO_DELAY
+RV NO_EXCEPTION_HANDLERS
+RV NO_EXCEPTIONS
+RV NO_IO
+RV NO_IMPLICIT_CONDITIONALS
+RV NO_LOCAL_ALLOCATORS
+RV NO_PROTECTED_TYPES
+RV NO_SECONDARY_STACK
+RV NO_STANDARD_STORAGE_POOLS
+RV NO_DEFAULT_INITIALIZATION
+RV NO_DYNAMIC_SIZED_OBJECTS
+RV NO_IMPLEMENTATION_PRAGMAS
+RV NO_IMPLICIT_LOOPS
+RV NO_OBSOLESCENT_FEATURES
+RV MAX_ENTRY_QUEUE_LENGTH=1+
+
+U pgish_state%b		pgish_state.adb		840c8e84 NE OO PK
+W ada%s			ada.ads			ada.ali
+W ada.directories%s	a-direct.adb		a-direct.ali
+Z ada.exceptions%s	a-except.adb		a-except.ali
+Z ada.strings.text_buffers%s  a-sttebu.adb	a-sttebu.ali
+W ada.text_io%s		a-textio.adb		a-textio.ali
+W gnat%s		gnat.ads		gnat.ali
+W gnat.os_lib%s		g-os_lib.ads		g-os_lib.ali
+Z system.img_uns%s	s-imguns.ads		s-imguns.ali
+Z system.secondary_stack%s  s-secsta.adb	s-secsta.ali
+Z system.soft_links%s	s-soflin.adb		s-soflin.ali
+Z system.tasking.protected_objects%s  s-taprob.adb  s-taprob.ali
+Z system.unsigned_types%s  s-unstyp.ads		s-unstyp.ali
+
+U pgish_state%s		pgish_state.ads		0ce335da EE NE OO PK
+W ada%s			ada.ads			ada.ali
+W ada.calendar%s	a-calend.adb		a-calend.ali
+W ada.task_identification%s  a-taside.adb	a-taside.ali
+W pgish_sql%s		pgish_sql.adb		pgish_sql.ali
+Z system.tasking%s	s-taskin.adb		s-taskin.ali
+Z system.tasking.protected_objects%s  s-taprob.adb  s-taprob.ali
+
+D ada.ads		20260901211354 76789da1 ada%s
+D a-calend.ads		20260901211354 bf7f3cc9 ada.calendar%s
+D a-charac.ads		20260901211354 2d3ec45b ada.characters%s
+D a-chlat1.ads		20260901211354 e0d72e76 ada.characters.latin_1%s
+D a-direct.ads		20260901211354 467e87a1 ada.directories%s
+D a-except.ads		20260901211354 8699d7ff ada.exceptions%s
+D a-finali.ads		20260901211354 099c16e4 ada.finalization%s
+D a-ioexce.ads		20260901211354 40018c65 ada.io_exceptions%s
+D a-stream.ads		20260901211354 cb01a8f8 ada.streams%s
+D a-string.ads		20260901211354 90ac6797 ada.strings%s
+D a-strmap.ads		20260901211354 f7e6ca10 ada.strings.maps%s
+D a-strsea.ads		20260901211354 18c3c634 ada.strings.search%s
+D a-sttebu.ads		20260901211354 f1ad67a2 ada.strings.text_buffers%s
+D a-strunb.ads		20260901211354 8d6ccba7 ada.strings.unbounded%s
+D a-stuten.ads		20260901211354 c6ced0ae ada.strings.utf_encoding%s
+D a-tags.ads		20260901211354 2dbf449c ada.tags%s
+D a-taside.ads		20260901211354 c0a7c8d8 ada.task_identification%s
+D a-textio.ads		20260901211354 34ef47de ada.text_io%s
+D a-unccon.ads		20260901211354 0e9b276f ada.unchecked_conversion%s
+D a-uncdea.ads		20260901211354 c3a8ac65 ada.unchecked_deallocation%s
+D gnat.ads		20260901211354 b5988c27 gnat%s
+D g-os_lib.ads		20260901211354 0db74523 gnat.os_lib%s
+D interfac.ads		20260901211354 9111f9c1 interfaces%s
+D i-c.ads		20260901211354 dbdd3be7 interfaces.c%s
+D i-cstrea.ads		20260901211354 ffd01b9d interfaces.c_streams%s
+D pgish_sql.ads		20260807121425 67718885 pgish_sql%s
+D pgish_state.ads	20260807121425 144a494e pgish_state%s
+D pgish_state.adb	20260807121425 ef604296 pgish_state%b
+D system.ads		20260901211353 8a611ac3 system%s
+D s-atacco.ads		20260901211354 5868e3ba system.address_to_access_conversions%s
+D s-atocou.ads		20260901211354 dc18efc3 system.atomic_counters%s
+D s-c_time.ads		20260901211354 e502d0c0 system.c_time%s
+D s-crtl.ads		20260901211354 823b6536 system.crtl%s
+D s-exctab.ads		20260901211354 91bef6ef system.exception_table%s
+D s-ficobl.ads		20260901211353 dc5161d4 system.file_control_block%s
+D s-finpri.ads		20260901211354 5970d55a system.finalization_primitives%s
+D s-finroo.ads		20260901211354 0a7c3ed4 system.finalization_root%s
+D s-imageu.ads		20260901211354 95851461 system.image_u%s
+D s-imguns.ads		20260901211354 34f2a7d6 system.img_uns%s
+D s-multip.ads		20260901211354 38ac9f73 system.multiprocessors%s
+D s-oscons.ads		20260901211354 42ad9981 system.os_constants%s
+D s-osinte.ads		20260901211354 6d01fcda system.os_interface%s
+D s-os_lib.ads		20260901211354 66ffd2a3 system.os_lib%s
+D s-oslock.ads		20260901211354 bcc789d2 system.os_locks%s
+D s-parame.ads		20260901211354 a1aeab5c system.parameters%s
+D s-putima.ads		20260901211353 1b989439 system.put_images%s
+D s-retsta.ads		20260901211353 0f6b06cb system.return_stack%s
+D s-secsta.ads		20260901211354 578279f5 system.secondary_stack%s
+D s-soflin.ads		20260901211354 5d88fdea system.soft_links%s
+D s-stache.ads		20260901211354 0b81c1fe system.stack_checking%s
+D s-stausa.ads		20260901211353 f470ae2d system.stack_usage%s
+D s-stalib.ads		20260901211354 1c9580f6 system.standard_library%s
+D s-stoele.ads		20260901211354 ccded4e8 system.storage_elements%s
+D s-stratt.ads		20260901211354 80b8dafb system.stream_attributes%s
+D s-string.ads		20260901211353 582aac7d system.strings%s
+D s-tasinf.ads		20260901211354 801abd01 system.task_info%s
+D s-taspri.ads		20260901211354 4fd5ef41 system.task_primitives%s
+D s-taskin.ads		20260901211354 e3b5765b system.tasking%s
+D s-taprob.ads		20260901211354 acd6094d system.tasking.protected_objects%s
+D s-traent.ads		20260901211354 c81cbf8c system.traceback_entries%s
+D s-unstyp.ads		20260901211354 fa2a7f59 system.unsigned_types%s
+D s-wchcon.ads		20260901211354 d9032363 system.wch_con%s
+G a e
+G c Z s b [initialize pgish_state 49 14 none]
+G c Z s b [config pgish_state 51 13 none]
+G c Z s b [repository_head pgish_state 52 13 none]
+G c Z s b [repository_commits pgish_state 53 14 none]
+G c Z s b [register_session pgish_state 56 14 none]
+G c Z s b [begin_query pgish_state 62 14 none]
+G c Z s b [current_session pgish_state 64 14 none]
+G c Z s b [end_query pgish_state 66 14 none]
+G c Z s b [remove_session pgish_state 67 14 none]
+G c Z s b [sessions pgish_state 68 14 none]
+G c Z s b [store_statement pgish_state 72 14 none]
+G c Z s b [bind_portal pgish_state 74 14 none]
+G c Z s b [statement_sql pgish_state 76 13 none]
+G c Z s b [portal_sql pgish_state 78 13 none]
+G c Z s b [close_extended pgish_state 80 14 none]
+G c Z s b [set_extended_failed pgish_state 82 14 none]
+G c Z s b [extended_failed pgish_state 83 13 none]
+G c Z s b [register pgish_state__session_registry 102 17 none]
+G c Z s b [begin_query pgish_state__session_registry 108 17 none]
+G c Z s b [end_query pgish_state__session_registry 110 17 none]
+G c Z s b [current pgish_state__session_registry 111 17 none]
+G c Z s b [remove pgish_state__session_registry 112 17 none]
+G c Z s b [snapshot pgish_state__session_registry 113 17 none]
+G c Z s b [store_statement pgish_state__session_registry 114 17 none]
+G c Z s b [bind_portal pgish_state__session_registry 116 17 none]
+G c Z s b [get_sql pgish_state__session_registry 118 16 none]
+G c Z s b [close_extended pgish_state__session_registry 120 17 none]
+G c Z s b [set_failed pgish_state__session_registry 122 17 none]
+G c Z s b [is_failed pgish_state__session_registry 123 16 none]
+G c Z s b [session_registry__registerN pgish_state 102 7 none]
+G c Z s b [session_registry__registerP pgish_state 102 7 none]
+G c Z s b [session_registry__begin_queryN pgish_state 108 7 none]
+G c Z s b [session_registry__begin_queryP pgish_state 108 7 none]
+G c Z s b [session_registry__end_queryN pgish_state 110 7 none]
+G c Z s b [session_registry__end_queryP pgish_state 110 7 none]
+G c Z s b [session_registry__currentN pgish_state 111 7 none]
+G c Z s b [session_registry__currentP pgish_state 111 7 none]
+G c Z s b [session_registry__removeN pgish_state 112 7 none]
+G c Z s b [session_registry__removeP pgish_state 112 7 none]
+G c Z s b [session_registry__snapshotN pgish_state 113 7 none]
+G c Z s b [session_registry__snapshotP pgish_state 113 7 none]
+G c Z s b [session_registry__store_statementN pgish_state 114 7 none]
+G c Z s b [session_registry__store_statementP pgish_state 114 7 none]
+G c Z s b [session_registry__bind_portalN pgish_state 116 7 none]
+G c Z s b [session_registry__bind_portalP pgish_state 116 7 none]
+G c Z s b [session_registry__get_sqlN pgish_state 118 7 none]
+G c Z s b [session_registry__get_sqlP pgish_state 118 7 none]
+G c Z s b [session_registry__close_extendedN pgish_state 120 7 none]
+G c Z s b [session_registry__close_extendedP pgish_state 120 7 none]
+G c Z s b [session_registry__set_failedN pgish_state 122 7 none]
+G c Z s b [session_registry__set_failedP pgish_state 122 7 none]
+G c Z s b [session_registry__is_failedN pgish_state 123 7 none]
+G c Z s b [session_registry__is_failedP pgish_state 123 7 none]
+G c Z s s [configurationIP pgish_state 16 9 none]
+G c Z s s [commitIP pgish_state 25 9 none]
+G c Z s s [Tcommit_arrayBIP pgish_state 32 4 none]
+G c Z s s [session_snapshotIP pgish_state 34 9 none]
+G c Z s s [Tsession_arrayBIP pgish_state 44 4 none]
+G c Z s s [session_slotIP pgish_state 88 9 none]
+G c Z s s [Tsession_slot_arrayBIP pgish_state 98 4 none]
+G c Z s s [session_registryVIP pgish_state 101 4 none]
+G c Z s s [server_stateIP pgish_state 129 9 none]
+G c Z b b [clipped_name pgish_state 9 13 none]
+G c Z b b [clipped_value pgish_state 18 13 none]
+G c Z b b [load_commits pgish_state 227 14 none]
+G r s text [initialize pgish_state 49 14 none] [textIP pgish_sql 15 9 none]
+G r c none [initialize pgish_state 49 14 none] [make_text pgish_sql 20 13 none]
+G r c none [initialize pgish_state 49 14 none] [image pgish_sql 21 13 none]
+G r c none [initialize pgish_state 49 14 none] [is_empty pgish_sql 22 13 none]
+G r c none [repository_head pgish_state 52 13 none] [image pgish_sql 21 13 none]
+G r c none [register_session pgish_state 56 14 none] [make_text pgish_sql 20 13 none]
+G r s text [register_session pgish_state 56 14 none] [textIP pgish_sql 15 9 none]
+G r s text [begin_query pgish_state 62 14 none] [textIP pgish_sql 15 9 none]
+G r c none [begin_query pgish_state 62 14 none] [make_text pgish_sql 20 13 none]
+G r s text [current_session pgish_state 64 14 none] [textIP pgish_sql 15 9 none]
+G r c none [end_query pgish_state 66 14 none] [make_text pgish_sql 20 13 none]
+G r s text [remove_session pgish_state 67 14 none] [textIP pgish_sql 15 9 none]
+G r s text [sessions pgish_state 68 14 none] [textIP pgish_sql 15 9 none]
+G r c none [store_statement pgish_state 72 14 none] [make_text pgish_sql 20 13 none]
+G r c none [bind_portal pgish_state 74 14 none] [image pgish_sql 21 13 none]
+G r c none [bind_portal pgish_state 74 14 none] [make_text pgish_sql 20 13 none]
+G r c none [statement_sql pgish_state 76 13 none] [make_text pgish_sql 20 13 none]
+G r c none [statement_sql pgish_state 76 13 none] [image pgish_sql 21 13 none]
+G r c none [statement_sql pgish_state 76 13 none] [is_empty pgish_sql 22 13 none]
+G r c none [portal_sql pgish_state 78 13 none] [make_text pgish_sql 20 13 none]
+G r c none [portal_sql pgish_state 78 13 none] [image pgish_sql 21 13 none]
+G r c none [portal_sql pgish_state 78 13 none] [is_empty pgish_sql 22 13 none]
+G r c none [close_extended pgish_state 80 14 none] [image pgish_sql 21 13 none]
+G r c none [close_extended pgish_state 80 14 none] [make_text pgish_sql 20 13 none]
+G r c none [register pgish_state__session_registry 102 17 none] [make_text pgish_sql 20 13 none]
+G r s text [register pgish_state__session_registry 102 17 none] [textIP pgish_sql 15 9 none]
+G r s text [begin_query pgish_state__session_registry 108 17 none] [textIP pgish_sql 15 9 none]
+G r c none [begin_query pgish_state__session_registry 108 17 none] [make_text pgish_sql 20 13 none]
+G r c none [end_query pgish_state__session_registry 110 17 none] [make_text pgish_sql 20 13 none]
+G r s text [current pgish_state__session_registry 111 17 none] [textIP pgish_sql 15 9 none]
+G r s text [remove pgish_state__session_registry 112 17 none] [textIP pgish_sql 15 9 none]
+G r s text [snapshot pgish_state__session_registry 113 17 none] [textIP pgish_sql 15 9 none]
+G r c none [store_statement pgish_state__session_registry 114 17 none] [make_text pgish_sql 20 13 none]
+G r c none [bind_portal pgish_state__session_registry 116 17 none] [image pgish_sql 21 13 none]
+G r c none [bind_portal pgish_state__session_registry 116 17 none] [make_text pgish_sql 20 13 none]
+G r c none [get_sql pgish_state__session_registry 118 16 none] [make_text pgish_sql 20 13 none]
+G r c none [get_sql pgish_state__session_registry 118 16 none] [image pgish_sql 21 13 none]
+G r c none [close_extended pgish_state__session_registry 120 17 none] [image pgish_sql 21 13 none]
+G r c none [close_extended pgish_state__session_registry 120 17 none] [make_text pgish_sql 20 13 none]
+G r s text [configurationIP pgish_state 16 9 none] [textIP pgish_sql 15 9 none]
+G r s text [commitIP pgish_state 25 9 none] [textIP pgish_sql 15 9 none]
+G r s text [Tcommit_arrayBIP pgish_state 32 4 none] [textIP pgish_sql 15 9 none]
+G r s text [session_snapshotIP pgish_state 34 9 none] [textIP pgish_sql 15 9 none]
+G r s text [Tsession_arrayBIP pgish_state 44 4 none] [textIP pgish_sql 15 9 none]
+G r s text [session_slotIP pgish_state 88 9 none] [textIP pgish_sql 15 9 none]
+G r s text [Tsession_slot_arrayBIP pgish_state 98 4 none] [textIP pgish_sql 15 9 none]
+G r s text [session_registryVIP pgish_state 101 4 none] [textIP pgish_sql 15 9 none]
+G r s text [server_stateIP pgish_state 129 9 none] [textIP pgish_sql 15 9 none]
+G r c none [clipped_name pgish_state 9 13 none] [make_text pgish_sql 20 13 none]
+G r c none [clipped_value pgish_state 18 13 none] [make_text pgish_sql 20 13 none]
+G r s text [load_commits pgish_state 227 14 none] [textIP pgish_sql 15 9 none]
+G r c none [load_commits pgish_state 227 14 none] [make_text pgish_sql 20 13 none]
+G r c none [load_commits pgish_state 227 14 none] [image pgish_sql 21 13 none]
+G r c none [load_commits pgish_state 227 14 none] [is_empty pgish_sql 22 13 none]
+X 1 ada.ads
+18K9*Ada 22e8 27|1r6 2r6 22r25 22r46 40r25 40r46 86r23 90r29 28|1r6 2r6 7r13
+. 55r39 309r20 311r13 311r37 312r23 316r19 330r13 333r19 334r19 354r16 392r10
+. 403r10 408r32 415r10 420r29 435r10 442r10 448r10 457r10 467r10 472r33 476r32
+X 2 a-calend.ads
+36K13*Calendar 440e17 27|1w10 22r29 22r50 40r29 40r50 28|55r43
+42I9*Time<226I9> 27|22r38 40r38
+56V13*Clock{42I9} 27|22s59 40s59 28|55s52
+226I9 Time_Rep<long_long_integer>
+X 5 a-direct.ads
+76K13*Directories 524e20 28|1w10 354r20
+147U14*Delete_File 28|354s32
+X 17 a-taside.ads
+47K13*Task_Identification 108e28 27|2w10 86r27 90r33 28|7r17 392r14 403r14
+. 408r36 415r14 420r33 435r14 442r14 448r14 457r14 467r14 472r37 476r36
+55P9*Task_Id<58|109P9> 27|86r47 28|7r37
+58p4*Null_Task_Id{55P9} 27|90r53
+60V14*"="{boolean} 28|37s68 72s50 88s50 100s50 111s50 134s50 153s50 171s50
+. 189s50 209s50 219s50
+67V13*Current_Task{55P9} 28|392s34 403s34 408s56 415s34 420s53 435s34 442s34
+. 448s34 457s34 467s34 472s57 476s56
+X 18 a-textio.ads
+58K13*Text_IO 785e16 28|2w10 309r24 311r17 311r41 312r27 316r23 330r17 333r23
+. 334r23
+67P9*File_Type 28|309r32
+69n23*In_File{69E9} 28|311r49
+115U14*Open 28|311s25
+131U14*Close 28|330s25 334s31
+176V13*Is_Open{boolean} 28|333s31
+341V13*End_Of_File{boolean} 28|312s35
+414U14*Get 28|316s31
+X 21 gnat.ads
+40K9*GNAT 63e9 28|3r6 228r26
+X 22 g-os_lib.ads
+51K14*OS_Lib=51:36 28|3w11 228r31
+X 26 pgish_sql.ads
+1K9*Pgish_SQL 82e14 27|3w6 10r25 11r26 12r25 14r6 14r22 28|11r24 13r14 15r10
+. 20r24 22r14 24r10 136r38 137r24 140r38 141r26 154r19 167r30 168r17 172r35
+. 175r27 190r35 192r38 193r26 195r27 198r41 199r26 236r33 260r25 288r25 375r7
+. 450r20 451r14 459r20 460r14
+3N4*Maximum_Query_Length 27|14r32 28|137r34 141r36 168r27 193r36 199r36
+9N4*Maximum_Name_Length 28|11r34 15r20
+10N4*Maximum_Value_Length 28|20r34 24r20 236r43
+15R9*Text 18e14 27|12r35 14r16
+20V13*Make_Text{15R9} 28|13s24 22s24 136s48 140s48 167s40 192s48 198s51
+21V13*Image{string} 28|154s29 172s45 175s37 190s45 195s37 288s35 375s17 451s24
+. 460s24
+22V13*Is_Empty{boolean} 28|260s35 450s30 459s30
+24R12*Name_Text{15R9} 27|10r35
+25R12*Value_Text{15R9} 27|11r36
+X 27 pgish_state.ads
+5K9*Pgish_State 86E12 137l5 137e16 28|5b14 478l5 478t16
+7N4*Maximum_Sessions 45r33 99r33
+8N4*Maximum_Commits 32r52 133r41 28|259r33 293r25
+10R12*Name_Text{26|24R12} 17r25 20r25 26r22 27r22 29r22 36r25 37r25 38r26
+. 41r25 92r24 94r24 131r22 28|9r50
+11R12*Value_Text{26|25R12} 28r22 30r22 42r25 28|18r51
+12R12*Path_Text{26|15R9} 19r25
+13R12*Query_Text{26|15R9} 93r24 95r24 119r67 28|166r67 167r16 447r24 456r24
+16R9*Configuration 23e14 50r44 51r49 130r22 28|365r44 371r49
+17r7*Host{10R12}
+18i7*Port{integer}
+19r7*Repository_Path{12R12} 28|288r56
+20r7*Task_Mode{10R12}
+21b7*TLS_Enabled{boolean}
+22i7*Started_At{2|42I9}
+25R9*Commit 31e14 32r72 28|239r22
+26r7*Hash{10R12} 28|246m31 260r53 265r37
+27r7*Short_Hash{10R12} 28|247m31
+28r7*Author{11R12} 28|248m31
+29r7*Committed_At{10R12} 28|249m31
+30r7*Subject{11R12} 28|250m31
+32A9*Commit_Array(25R9)<integer> 54r41 132r22 28|378r41
+34R9*Session_Snapshot 43e14 45r54 63r63 65r49 91r18 109r55 111r57 28|68r55
+. 96r57 400r63 412r49
+35i7*Session_Id{natural} 28|50m19
+36r7*User_Name{10R12} 28|51m19
+37r7*Database_Name{10R12} 28|52m19
+38r7*Application_Name{10R12} 28|53m19
+39i7*Query_Count{natural} 28|54m19 73r30 74m30 74r56
+40i7*Connected_At{2|42I9} 28|55m19
+41r7*State{10R12} 28|56m19 76m27 89m27
+42r7*Current_Query{11R12} 28|57m19 77m27 90m27
+44A9*Session_Array(34R9)<integer> 70r20 113r40 28|118r40 425r20
+47R9*Server_State 50r21 51r28 52r37 54r14 57r33 63r21 65r21 66r39 67r44 69r21
+. 73r21 75r21 77r14 79r14 81r21 82r49 83r37 129c9 135e14 28|227r42 365r21
+. 371r28 374r37 378r14 385r33 400r21 406r39 412r21 418r44 424r21 432r21 439r21
+. 446r14 455r14 464r21 470r49 475r37
+49U14*Initialize 50=7 50>35 28|364b14 369l8 369t18
+50r7 Item{47R9} 28|365b7 367m7 368m21
+50r35 Config{16R9} 28|365b35 367r24
+51V13*Config{16R9} 51>21 28|371b13
+51r21 Item{47R9} 28|372r7
+52V13*Repository_Head{string} 52>30 28|374b13
+52r30 Item{47R9} 28|375r24
+53U14*Repository_Commits 54>7 54<28 54<55 28|377b14 382l8 382t26
+54r7 Item{47R9} 28|378b7 380r17 381r16
+54a28 Values{32A9} 28|378b28 380m7
+54i55 Count{natural} 28|378b55 381m7
+56U14*Register_Session 57=7 58>7 59>7 60>7 61<7 28|384b14 397l8 397t24
+57r7 Item{47R9} 28|385b7 391r7
+58a7 User_Name{string} 28|386b7 393r10
+59a7 Database_Name{string} 28|387b7 394r10
+60a7 Application_Name{string} 28|388b7 395r10
+61b7 Accepted{boolean} 28|389b7 396m10
+62U14*Begin_Query 63=7 63>35 63<49 28|399b14 404l8 404t19
+63r7 Item{47R9} 28|400b7 402r7
+63a35 SQL{string} 28|400b35 403r48
+63r49 Session{34R9} 28|400b49 403m53
+64U14*Current_Session 65=7 65<35 28|411b14 416l8 416t23
+65r7 Item{47R9} 28|412b7 414r7
+65r35 Session{34R9} 28|412b35 415m48
+66U14*End_Query 66=25 28|406b14 409l8 409t17
+66r25 Item{47R9} 28|406b25 408r7
+67U14*Remove_Session 67=30 28|418b14 421l8 421t22
+67r30 Item{47R9} 28|418b30 420r7
+68U14*Sessions 69=7 70<7 71<7 28|423b14 429l8 429t16
+69r7 Item{47R9} 28|424b7 428r7
+70a7 Values{44A9} 28|425b7 428m31
+71i7 Count{natural} 28|426b7 428m39
+72U14*Store_Statement 73=7 73>35 73>50 28|431b14 436l8 436t23
+73r7 Item{47R9} 28|432b7 434r7
+73a35 Name{string} 28|432b35 435r48
+73a50 SQL{string} 28|432b50 435r54
+74U14*Bind_Portal 75=7 75>35 75>57 28|438b14 443l8 443t19
+75r7 Item{47R9} 28|439b7 441r7
+75a35 Portal_Name{string} 28|439b35 442r48
+75a57 Statement_Name{string} 28|439b57 442r61
+76V13*Statement_SQL{string} 77>7 77>28 77<43 28|445b13 452l8 452t21
+77r7 Item{47R9} 28|446b7 447r38
+77a28 Name{string} 28|446b28 448r55
+77b43 Found{boolean} 28|446b43 450m7
+78V13*Portal_SQL{string} 79>7 79>28 79<43 28|454b13 461l8 461t18
+79r7 Item{47R9} 28|455b7 456r38
+79a28 Name{string} 28|455b28 457r54
+79b43 Found{boolean} 28|455b43 459m7
+80U14*Close_Extended 81=7 81>35 81>53 28|463b14 468l8 468t22
+81r7 Item{47R9} 28|464b7 466r7
+81b35 Portal{boolean} 28|464b35 467r48
+81a53 Name{string} 28|464b53 467r56
+82U14*Set_Extended_Failed 82=35 82>63 28|470b14 473l8 473t27
+82r35 Item{47R9} 28|470b35 472r7
+82b63 Value{boolean} 28|470b63 472r71
+83V13*Extended_Failed{boolean} 83>30 28|475b13
+83r30 Item{47R9} 28|476r7
+86P12 Task_Id{17|55P9} 90r18 103r29 109r18 110r36 111r34 112r33 115r18 117r18
+. 119r18 121r18 122r37 123r35 28|29r29 68r18 85r36 96r34 108r33 131r18 150r18
+. 166r18 186r18 206r37 216r35
+88R9 Session_Slot 97e14 99r54
+89b7*Occupied{boolean} 28|37r30 40r37 47m16 72r21 88r21 100r21 111r21 123r21
+. 134r21 153r21 171r21 189r21 209r21 219r21
+90p7*Owner{86P12} 28|37r62 48m16 72r44 88r44 100r44 111r44 134r44 153r44
+. 171r44 189r44 209r44 219r44
+91r7*Value{34R9} 28|49m16 73r24 74m24 74r50 76m21 77m21 78r32 89m21 90m21
+. 101r32 125r39
+92r7*Statement_Name{10R12} 28|135m21 154r41 175r49 195r49 197m24
+93r7*Statement_SQL{13R12} 28|136m21 158r40 177r31 198m24
+94r7*Portal_Name{10R12} 28|139m24 157m21 172r57 190r57 191m24
+95r7*Portal_SQL{13R12} 28|140m24 158m21 173r31 192m24
+96b7*Failed_Extended{boolean} 28|210m21 220r28
+98A9 Session_Slot_Array(88R9)<integer> 125r17
+101W19 Session_Registry 125E7 127l8 127e24 134r22 28|27b19 225l8 225t24
+102U17 Register 103>10 104>10 105>10 106>10 107<10 28|28b17 65l11 65t19 391s21
+103p10 Owner{86P12} 28|29b10 37r70 48r28
+104a10 User_Name{string} 28|30b10 51r53
+105a10 Database_Name{string} 28|31b10 52r53
+106a10 Application_Name{string} 28|32b10 53r53
+107b10 Accepted{boolean} 28|33b10 44m10 45r13
+108U17 Begin_Query 109>10 109>27 109<41 28|67b17 83l11 83t22 402s21
+109p10 Owner{86P12} 28|68b10 72r52
+109a27 SQL{string} 28|68b27 77r59
+109r41 Session{34R9} 28|68b41 70m10 78m16
+110U17 End_Query 110>28 28|85b17 94l11 94t20 408s21
+110p28 Owner{86P12} 28|85b28 88r52
+111U17 Current 111>26 111<43 28|96b17 106l11 106t18 414s21
+111p26 Owner{86P12} 28|96b26 100r52
+111r43 Session{34R9} 28|96b43 98m10 101m16
+112U17 Remove 112>25 28|108b17 116l11 116t17 420s21
+112p25 Owner{86P12} 28|108b25 111r52
+113U17 Snapshot 113<27 113<55 28|118b17 128l11 128t19 428s21
+113a27 Values{44A9} 28|118b27 120m10 125m16
+113i55 Count{natural} 28|118b55 121m10 124m16 124r25 125r24
+114U17 Store_Statement 115>10 115>27 115>42 28|130b17 147l11 147t26 434s21
+115p10 Owner{86P12} 28|131b10 134r52
+115a27 Name{string} 28|131b27 135r53 138r19
+115a42 SQL{string} 28|131b42 137r19
+116U17 Bind_Portal 117>10 117>27 117>49 28|149b17 163l11 163t22 441s21
+117p10 Owner{86P12} 28|150b10 153r52
+117a27 Portal_Name{string} 28|150b27 157r50
+117a49 Statement_Name{string} 28|150b49 154r60
+118V16 Get_SQL{13R12} 119>10 119>27 119>45 28|165b16 183l11 183t18 447s52
+. 456s52
+119p10 Owner{86P12} 28|166b10 171r52
+119b27 Portal{boolean} 28|166b27 172r19 174r26
+119a45 Name{string} 28|166b45 172r72 175r67
+120U17 Close_Extended 121>10 121>27 121>45 28|185b17 204l11 204t25 466s21
+121p10 Owner{86P12} 28|186b10 189r52
+121b27 Portal{boolean} 28|186b27 190r19 194r26
+121a45 Name{string} 28|186b45 190r72 195r67
+122U17 Set_Failed 122>29 122>46 28|206b17 214l11 214t21 472s21
+122p29 Owner{86P12} 28|206b29 209r52
+122b46 Value{boolean} 28|206b46 210r40
+123V16 Is_Failed{boolean} 123>27 28|216b16 224l11 224t20 476s21
+123p27 Owner{86P12} 28|216b27 219r52
+125a7 Slots{98A9} 28|36r23 37r16 37r48 40r23 46r13 71r22 87r22 99r22 110r22
+. 122r22 133r22 152r22 170r22 188r22 208r22 218r22
+126i7 Next_Id{natural} 28|50r39 59r16 60r16 62r16 62r27
+130r7*Settings{16R9} 28|288r47 367m12 372r12
+131r7*Head{10R12} 28|265m21 274m12 337m21 361m15 375r29
+132a7*Commit_Data{32A9} 28|263m18 272m12 380r22
+133i7*Commit_Count{integer} 28|259r18 262m18 262r39 263r36 264r21 273m12
+. 336m21 360m15 381r21
+134w7*Registry{101W19} 28|391r12 402r12 408r12 414r12 420r12 428r12 434r12
+. 441r12 447r43 456r43 466r12 472r12 476r12
+X 28 pgish_state.adb
+9V13 Clipped_Name{27|10R12} 9b13 9>27 16l8 16t20 51s39 52s39 53s39 56s39
+. 76s36 89s36 135s39 139s39 157s36 191s39 197s42 246s39 247s45 249s47 274s20
+. 337s29 361s23
+9a27 Value{string} 11r10 14r36 14r43 14r58
+10i7 Last{natural} 14r14 14r72
+18V13 Clipped_Value{27|11R12} 18b13 18>28 25l8 25t21 57s39 77s44 90s44 248s41
+. 250s42
+18a28 Value{string} 20r10 23r36 23r43 23r58
+19i7 Last{natural} 23r14 23r72
+34i10 Free{natural} 38m16 40r55 41m16 44r22 46r20
+36i14 Index{integer} 37r23 37r55 38r24 40r30 41r24
+71r14 Slot=71:22{27|88R9} 72r16 72r39 73r19 74r19 74r45 76r16 77r16 78r27
+87r14 Slot=87:22{27|88R9} 88r16 88r39 89r16 90r16
+99r14 Slot=99:22{27|88R9} 100r16 100r39 101r27
+110r14 Slot=110:22{27|88R9} 111r16 111r39 112r16
+122r14 Slot=122:22{27|88R9} 123r16 125r34
+133r14 Slot=133:22{27|88R9} 134r16 134r39 135r16 136r16 139r19 140r19
+152r14 Slot=152:22{27|88R9} 153r16 153r39 154r36 157r16 158r16 158r35
+167r10 SQL{27|13R12} 173r19 177r19 179r23 182r17
+170r14 Slot=170:22{27|88R9} 171r16 171r39 172r52 173r26 175r44 177r26
+188r14 Slot=188:22{27|88R9} 189r16 189r39 190r52 191r19 192r19 195r44 197r19
+. 198r19
+208r14 Slot=208:22{27|88R9} 209r16 209r39 210r16
+218r14 Slot=218:22{27|88R9} 219r16 219r39 220r23
+227U14 Load_Commits 227b14 227=28 362l8 362t20 368s7
+227r28 Item{27|47R9} 259r13 262m13 262r34 263m13 263r31 264r16 265m16 272m7
+. 273m7 274m7 288r42 336m16 337m16 360m10 361m10
+228K15 OS=228:31 229r16 230r16 231r20 231r40 232r20 233r21 279r7 280r22 281r10
+. 284r7 286r17 296r10 304r13 343r10 345r7 346r7 350r13 358r13
+231p7 Git{43|64P12} 275r10 281m19 281r19 297r29 346m16 346r16 349r13 350m22
+. 350r22
+232i7 Output_FD{43|186I9} 279m35 280r10 284r17
+233p7 Output_Name{43|64P12} 279m46 279r46 280r44 299r29 311r58 343r26 345m16
+. 345r16 352r13 354r45 358m22 358r22
+234b7 Success{boolean} 300m29 307r10
+235i7 Return_Code{integer} 301m29 307r27
+236a7 Field{string} 243r46 323r45 326m22
+237i7 Field_Length{natural} 243r16 243r58 253m10 323r30 325m22 325r38 326r29
+238i7 Field_Number{positive} 245r15 269m10 319m22 319r38
+239r7 Current{27|25R9} 246m23 247m23 248m23 249m23 250m23 260r45 263r53 265r29
+. 268m10
+241U17 Finish_Field 241b17 254l11 254t23 258s10 318s22
+242a10 Value{string} 246r53 247r59 248r56 249r61 250r57
+256U17 Finish_Record 256b17 270l11 270t24 321s22
+286a10 Args{43|734A12} 298r29 303m26 303r26
+303p14 Argument=303:26{55|43P9} 304r22
+309p13 File{18|67P9} 311m31 311r31 312r48 316r36 330m32 330r32 333r40 334m38
+. 334r38
+314e19 Character_Value{character} 316m42 317r22 320r25 322r25 326r46
+341b10 Deleted{boolean} 343m43
+447r7 Value{27|13R12} 450r40 451r31
+456r7 Value{27|13R12} 459r40 460r31
+X 43 s-os_lib.ads
+64P12*String_Access{55|43P9} 28|230r19 231r23 233r24
+69U14*Free=69:62 28|281s13 304s16 345s10 346s10 350s16 358s16
+71A12*String_List{55|52A9}<integer>
+186I9*File_Descriptor<integer> 28|229r19 232r23
+194i4*Invalid_FD{186I9} 28|280r25
+205U14*Close 28|284s10
+350U14*Create_Temp_Output_File 28|279s10
+366U14*Delete_File 28|343s13
+482V13*Locate_Exec_On_Path{64P12} 28|231s43
+734A12*Argument_List{71A12}<integer> 28|286r20
+921U14*Spawn 28|296s13
+922a7 Program_Name{string} 28|297r13
+923a7 Args{734A12} 28|298r13
+924a7 Output_File{string} 28|299r13
+925b7 Success{boolean} 28|300r13
+926i7 Return_Code{integer} 28|301r13
+927b7 Err_To_Out{boolean} 28|302r13
+X 51 s-stausa.ads
+206U14*Initialize 207i<c,__gnat_stack_usage_initialize>22
+265U14*Output_Results 269i<c,__gnat_stack_usage_output_results>22
+X 55 s-string.ads
+43P9*String_Access(string)
+52A9*String_List(43P9)<integer>
+X 58 s-taskin.ads
+109P9*Task_Id(107R9)
+

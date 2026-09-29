@@ -1,0 +1,90 @@
+V "GNAT Lib v16"
+A -O0
+A -gnatA
+A --RTS=/Users/yrashk/.local/share/alire/builds/flyology_0.1.1_bd95746d/3cf1f8e431e0343b4154ab650e51121b9e3441939b55a10702aab1165f04bd0a/build/alire-rts/
+A -g
+A -gnat2022
+A -gnata
+A -gnatVa
+A -gnatwa
+A -gnatwJ
+A -gnateDFLYOLOGY_CONNECTION_TEST_HOOKS=False
+A -mmacosx-version-min=26.0.0
+A -mcpu=apple-m1
+A -mlittle-endian
+A -mabi=lp64
+A -fPIC
+P ZX
+
+RN
+RV NO_IO
+RV NO_DYNAMIC_SIZED_OBJECTS
+RV NO_IMPLEMENTATION_PRAGMAS
+
+U example_repro_support%b  example_repro_support.adb  1d8e4f39 NE OO PK
+W ada%s			ada.ads			ada.ali
+W ada.command_line%s	a-comlin.adb		a-comlin.ali
+Z ada.strings.text_buffers%s  a-sttebu.adb	a-sttebu.ali
+W ada.text_io%s		a-textio.adb		a-textio.ali
+Z system.concat_2%s	s-conca2.adb		s-conca2.ali
+Z system.concat_3%s	s-conca3.adb		s-conca3.ali
+Z system.img_int%s	s-imgint.ads		s-imgint.ali
+
+U example_repro_support%s  example_repro_support.ads  6f9acea2 EE NE OO PK
+
+D ada.ads		20260901211354 76789da1 ada%s
+D a-comlin.ads		20260901211354 4aa66568 ada.command_line%s
+D a-except.ads		20260901211354 8699d7ff ada.exceptions%s
+D a-ioexce.ads		20260901211354 40018c65 ada.io_exceptions%s
+D a-stream.ads		20260901211354 cb01a8f8 ada.streams%s
+D a-string.ads		20260901211354 90ac6797 ada.strings%s
+D a-sttebu.ads		20260901211354 f1ad67a2 ada.strings.text_buffers%s
+D a-stuten.ads		20260901211354 c6ced0ae ada.strings.utf_encoding%s
+D a-tags.ads		20260901211354 2dbf449c ada.tags%s
+D a-textio.ads		20260901211354 34ef47de ada.text_io%s
+D a-unccon.ads		20260901211354 0e9b276f ada.unchecked_conversion%s
+D example_repro_support.ads  20260905004420 6f9acea2 example_repro_support%s
+D example_repro_support.adb  20260905004420 0c5da32d example_repro_support%b
+D interfac.ads		20260901211354 9111f9c1 interfaces%s
+D i-cstrea.ads		20260901211354 ffd01b9d interfaces.c_streams%s
+D system.ads		20260901211353 8a611ac3 system%s
+D s-conca2.ads		20260901211354 b5fb73f7 system.concat_2%s
+D s-conca3.ads		20260901211354 8a7a19a2 system.concat_3%s
+D s-crtl.ads		20260901211354 823b6536 system.crtl%s
+D s-exctab.ads		20260901211354 91bef6ef system.exception_table%s
+D s-ficobl.ads		20260901211353 dc5161d4 system.file_control_block%s
+D s-imagei.ads		20260901211354 11a376a2 system.image_i%s
+D s-imgint.ads		20260901211354 86836590 system.img_int%s
+D s-parame.ads		20260901211354 a1aeab5c system.parameters%s
+D s-putima.ads		20260901211353 1b989439 system.put_images%s
+D s-secsta.ads		20260901211354 578279f5 system.secondary_stack%s
+D s-soflin.ads		20260901211354 5d88fdea system.soft_links%s
+D s-stache.ads		20260901211354 0b81c1fe system.stack_checking%s
+D s-stalib.ads		20260901211354 1c9580f6 system.standard_library%s
+D s-stoele.ads		20260901211354 ccded4e8 system.storage_elements%s
+D s-traent.ads		20260901211354 c81cbf8c system.traceback_entries%s
+D s-unstyp.ads		20260901211354 fa2a7f59 system.unsigned_types%s
+D s-wchcon.ads		20260901211354 d9032363 system.wch_con%s
+G a e
+G c Z s b [check example_repro_support 7 14 none]
+G c Z s b [note example_repro_support 10 14 none]
+G c Z s b [finish example_repro_support 13 14 none]
+X 1 ada.ads
+18K9*Ada 22e8 13|1r6 2r6 11r10 14r10 20r7 26r10 27r10 29r10 31r10
+X 2 a-comlin.ads
+40K13*Command_Line 148e21 13|1w10 27r14 31r14
+79U14*Set_Exit_Status 13|27s27 31s27
+X 10 a-textio.ads
+58K13*Text_IO 785e16 13|2w10 11r14 14r14 20r11 26r14 29r14
+565U14*Put_Line 13|11s22 14s22 20s19 26s22 29s22
+X 12 example_repro_support.ads
+1K9*Example_Repro_Support 16l5 16e26 13|4b14 35l5 35t26
+7U14*Check 7>21 7>42 13|8b14 16l8 16t13
+7b21 Condition{boolean} 13|8b21 10r10
+7a42 Description{string} 13|8b42 11r43 14r47
+10U14*Note 10>20 13|18b14 21l8 21t12
+10a20 Text{string} 13|18b20 20r39
+13U14*Finish 13|23b14 33l8 33t14
+X 13 example_repro_support.adb
+6i4 Failures{natural} 13m10 13r22 25r10 30r33
+

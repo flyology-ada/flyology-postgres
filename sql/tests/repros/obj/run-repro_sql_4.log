@@ -1,0 +1,51 @@
+  -- POSTGRESQL_14 SELECT E'\377' native: [] @ 0  oracle: [invalid byte sequence for encoding "UTF8": 0xff] @ 0
+  FAILED: POSTGRESQL_14: SELECT E'\377' reports the C oracle message
+  ok: POSTGRESQL_14: SELECT E'\377' reports the C oracle cursor
+  -- POSTGRESQL_15 SELECT E'\377' native: [] @ 0  oracle: [invalid byte sequence for encoding "UTF8": 0xff] @ 0
+  FAILED: POSTGRESQL_15: SELECT E'\377' reports the C oracle message
+  ok: POSTGRESQL_15: SELECT E'\377' reports the C oracle cursor
+  -- POSTGRESQL_16 SELECT E'\377' native: [] @ 0  oracle: [invalid byte sequence for encoding "UTF8": 0xff] @ 0
+  FAILED: POSTGRESQL_16: SELECT E'\377' reports the C oracle message
+  ok: POSTGRESQL_16: SELECT E'\377' reports the C oracle cursor
+  -- POSTGRESQL_17 SELECT E'\377' native: [] @ 0  oracle: [invalid byte sequence for encoding "UTF8": 0xff] @ 0
+  FAILED: POSTGRESQL_17: SELECT E'\377' reports the C oracle message
+  ok: POSTGRESQL_17: SELECT E'\377' reports the C oracle cursor
+  -- POSTGRESQL_18 SELECT E'\377' native: [] @ 0  oracle: [invalid byte sequence for encoding "UTF8": 0xff] @ 0
+  FAILED: POSTGRESQL_18: SELECT E'\377' reports the C oracle message
+  ok: POSTGRESQL_18: SELECT E'\377' reports the C oracle cursor
+  -- POSTGRESQL_14 SELECT E'\xC3' native: [] @ 0  oracle: [invalid byte sequence for encoding "UTF8": 0xc3] @ 0
+  FAILED: POSTGRESQL_14: SELECT E'\xC3' reports the C oracle message
+  ok: POSTGRESQL_14: SELECT E'\xC3' reports the C oracle cursor
+  -- POSTGRESQL_15 SELECT E'\xC3' native: [] @ 0  oracle: [invalid byte sequence for encoding "UTF8": 0xc3] @ 0
+  FAILED: POSTGRESQL_15: SELECT E'\xC3' reports the C oracle message
+  ok: POSTGRESQL_15: SELECT E'\xC3' reports the C oracle cursor
+  -- POSTGRESQL_16 SELECT E'\xC3' native: [] @ 0  oracle: [invalid byte sequence for encoding "UTF8": 0xc3] @ 0
+  FAILED: POSTGRESQL_16: SELECT E'\xC3' reports the C oracle message
+  ok: POSTGRESQL_16: SELECT E'\xC3' reports the C oracle cursor
+  -- POSTGRESQL_17 SELECT E'\xC3' native: [] @ 0  oracle: [invalid byte sequence for encoding "UTF8": 0xc3] @ 0
+  FAILED: POSTGRESQL_17: SELECT E'\xC3' reports the C oracle message
+  ok: POSTGRESQL_17: SELECT E'\xC3' reports the C oracle cursor
+  -- POSTGRESQL_18 SELECT E'\xC3' native: [] @ 0  oracle: [invalid byte sequence for encoding "UTF8": 0xc3] @ 0
+  FAILED: POSTGRESQL_18: SELECT E'\xC3' reports the C oracle message
+  ok: POSTGRESQL_18: SELECT E'\xC3' reports the C oracle cursor
+  -- POSTGRESQL_14 SELECT E'\000' native: [invalid zero byte in string literal at or near "\000'"] @ 10  oracle: [invalid byte sequence for encoding "UTF8": 0x00] @ 0
+  FAILED: POSTGRESQL_14: SELECT E'\000' reports the C oracle message
+  FAILED: POSTGRESQL_14: SELECT E'\000' reports the C oracle cursor
+  -- POSTGRESQL_15 SELECT E'\000' native: [invalid zero byte in string literal at or near "\000'"] @ 10  oracle: [invalid byte sequence for encoding "UTF8": 0x00] @ 0
+  FAILED: POSTGRESQL_15: SELECT E'\000' reports the C oracle message
+  FAILED: POSTGRESQL_15: SELECT E'\000' reports the C oracle cursor
+  -- POSTGRESQL_16 SELECT E'\000' native: [invalid zero byte in string literal at or near "\000'"] @ 10  oracle: [invalid byte sequence for encoding "UTF8": 0x00] @ 0
+  FAILED: POSTGRESQL_16: SELECT E'\000' reports the C oracle message
+  FAILED: POSTGRESQL_16: SELECT E'\000' reports the C oracle cursor
+  -- POSTGRESQL_17 SELECT E'\000' native: [invalid zero byte in string literal at or near "\000'"] @ 10  oracle: [invalid byte sequence for encoding "UTF8": 0x00] @ 0
+  FAILED: POSTGRESQL_17: SELECT E'\000' reports the C oracle message
+  FAILED: POSTGRESQL_17: SELECT E'\000' reports the C oracle cursor
+  -- POSTGRESQL_18 SELECT E'\000' native: [invalid zero byte in string literal at or near "\000'"] @ 10  oracle: [invalid byte sequence for encoding "UTF8": 0x00] @ 0
+  FAILED: POSTGRESQL_18: SELECT E'\000' reports the C oracle message
+  FAILED: POSTGRESQL_18: SELECT E'\000' reports the C oracle cursor
+  ok: POSTGRESQL_14: control E'\303\251' matches the C oracle
+  ok: POSTGRESQL_15: control E'\303\251' matches the C oracle
+  ok: POSTGRESQL_16: control E'\303\251' matches the C oracle
+  ok: POSTGRESQL_17: control E'\303\251' matches the C oracle
+  ok: POSTGRESQL_18: control E'\303\251' matches the C oracle
+BUG REPRODUCED: 20 failed expectation(s)

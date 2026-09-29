@@ -1,0 +1,55 @@
+[GENERATED OBJECT FILE]
+b__repro_examples_smoke.o
+[PROJECT FILES]
+/Users/yrashk/Projects/flyology-ada/flyology-postgres/.claude/worktrees/ci-pipeline-failure-1b45fd/examples/repros/example_repros.gpr
+20260905004420 c25462329ef600333a5a3f657bb145c4
+/Users/yrashk/.local/share/alire/builds/linenoise_ada_1.1.2_d96796f6/25369ec00ad073095506c76079e658939c3de54081cba6cd99a44584f230bfbc/linenoise.gpr
+20260804191440 dc82f18b2f5dd3fcfe22a739bcf150d4
+/Users/yrashk/Projects/flyology-ada/flyology-postgres/.claude/worktrees/ci-pipeline-failure-1b45fd/sql/v18/config/flyology_postgres_sql_v18_config.gpr
+20260904153841 1f4f40718f9aaa93154137f72b4d2a9c
+/Users/yrashk/Projects/flyology-ada/flyology-postgres/.claude/worktrees/ci-pipeline-failure-1b45fd/sql/core/config/flyology_postgres_sql_core_config.gpr
+20260904153841 58a5d9c9d7a3fb79130e669b0cfdf702
+/Users/yrashk/Projects/flyology-ada/flyology-postgres/.claude/worktrees/ci-pipeline-failure-1b45fd/sql/core/sql_core.gpr
+20260807121426 d5647c54db9309996b4273ef5228cab3
+/Users/yrashk/Projects/flyology-ada/flyology-postgres/.claude/worktrees/ci-pipeline-failure-1b45fd/sql/v18/sql_v18.gpr
+20260807121426 50fafc442359884bbc9618f260e8f1cd
+/Users/yrashk/Projects/flyology-ada/flyology-postgres/.claude/worktrees/ci-pipeline-failure-1b45fd/config/flyology_postgres_config.gpr
+20260904153841 f26394fb616ef0738235aeb41d1885fa
+/Users/yrashk/.local/share/alire/builds/system_random_1.0.0_3db7f76e/8e772b64f4c98910d054fb00f95b9ff4d4ec2bc960e27711b878528e74ef5617/config/system_random_config.gpr
+20260904153841 08dd26b5ed9eef031b5586c3b984ba1d
+/Users/yrashk/.local/share/alire/builds/system_random_1.0.0_3db7f76e/8e772b64f4c98910d054fb00f95b9ff4d4ec2bc960e27711b878528e74ef5617/system_random.gpr
+20260803223333 8047f96df71340414768e9efc514cd97
+/Users/yrashk/.local/share/alire/builds/hmac_ada_0.2.0_6cab7904/76e9122652dc905df27753c9448614fa19e645efd9d11ce9ee33520edd1b8616/hmac_ada.gpr
+20260804144714 19c556d051737eb316259081b81a3106
+/Users/yrashk/.local/share/alire/builds/flyology_6f91b1af/ce5a6cb5c23b9204ed30aafa3511ec1573b30b3a1b47dd8721b7721c266f17ae/flyology_allocators/flyology_allocators.gpr
+20260901181123 1d628e89092fb730072f3b9af08caffa
+/Users/yrashk/.local/share/alire/builds/flyology_0.1.1_bd95746d/3cf1f8e431e0343b4154ab650e51121b9e3441939b55a10702aab1165f04bd0a/config/flyology_config.gpr
+20260904153841 ec4568a61825d49cb25e174476221b91
+/Users/yrashk/.local/share/alire/builds/flyology_0.1.1_bd95746d/3cf1f8e431e0343b4154ab650e51121b9e3441939b55a10702aab1165f04bd0a/flyology.gpr
+20260901211211 384e917761c828c4217a92c987510814
+/Users/yrashk/Projects/flyology-ada/flyology-postgres/.claude/worktrees/ci-pipeline-failure-1b45fd/flyology_postgres.gpr
+20260820031130 c236aed4e832071bb77d4ba747b7b60c
+[BOUND OBJECT FILES]
+/Users/yrashk/Projects/flyology-ada/flyology-postgres/.claude/worktrees/ci-pipeline-failure-1b45fd/examples/repros/obj/example_repro_support.o
+/Users/yrashk/Projects/flyology-ada/flyology-postgres/.claude/worktrees/ci-pipeline-failure-1b45fd/examples/repros/obj/pgish_sql.o
+/Users/yrashk/Projects/flyology-ada/flyology-postgres/.claude/worktrees/ci-pipeline-failure-1b45fd/examples/repros/obj/psqlish.o
+/Users/yrashk/Projects/flyology-ada/flyology-postgres/.claude/worktrees/ci-pipeline-failure-1b45fd/examples/repros/obj/psqlish-display.o
+/Users/yrashk/Projects/flyology-ada/flyology-postgres/.claude/worktrees/ci-pipeline-failure-1b45fd/examples/repros/obj/repro_examples_smoke.o
+[GENERATED SOURCE FILES]
+b__repro_examples_smoke.ads
+b__repro_examples_smoke.adb
+b__repro_examples_smoke.ali
+[RESULTING OPTIONS]
+-L/Users/yrashk/Projects/flyology-ada/flyology-postgres/.claude/worktrees/ci-pipeline-failure-1b45fd/examples/repros/obj/
+-L/Users/yrashk/Projects/flyology-ada/flyology-postgres/.claude/worktrees/ci-pipeline-failure-1b45fd/examples/repros/obj/
+-L/Users/yrashk/Projects/flyology-ada/flyology-postgres/.claude/worktrees/ci-pipeline-failure-1b45fd/lib/
+-L/Users/yrashk/.local/share/alire/builds/flyology_0.1.1_bd95746d/3cf1f8e431e0343b4154ab650e51121b9e3441939b55a10702aab1165f04bd0a/lib/
+-L/Users/yrashk/.local/share/alire/builds/flyology_6f91b1af/ce5a6cb5c23b9204ed30aafa3511ec1573b30b3a1b47dd8721b7721c266f17ae/flyology_allocators/lib/
+-L/Users/yrashk/.local/share/alire/builds/hmac_ada_0.2.0_6cab7904/76e9122652dc905df27753c9448614fa19e645efd9d11ce9ee33520edd1b8616/lib/
+-L/Users/yrashk/.local/share/alire/builds/system_random_1.0.0_3db7f76e/8e772b64f4c98910d054fb00f95b9ff4d4ec2bc960e27711b878528e74ef5617/lib/
+-L/Users/yrashk/Projects/flyology-ada/flyology-postgres/.claude/worktrees/ci-pipeline-failure-1b45fd/sql/v18/lib/
+-L/Users/yrashk/Projects/flyology-ada/flyology-postgres/.claude/worktrees/ci-pipeline-failure-1b45fd/sql/core/lib/
+-L/Users/yrashk/.local/share/alire/builds/linenoise_ada_1.1.2_d96796f6/25369ec00ad073095506c76079e658939c3de54081cba6cd99a44584f230bfbc/lib/
+-L/Users/yrashk/.local/share/alire/builds/flyology_0.1.1_bd95746d/3cf1f8e431e0343b4154ab650e51121b9e3441939b55a10702aab1165f04bd0a/build/alire-rts/adalib/
+-static
+/Users/yrashk/.local/share/alire/builds/flyology_0.1.1_bd95746d/3cf1f8e431e0343b4154ab650e51121b9e3441939b55a10702aab1165f04bd0a/build/alire-rts/adalib/libgnat.a

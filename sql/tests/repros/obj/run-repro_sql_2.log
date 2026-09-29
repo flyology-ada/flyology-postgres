@@ -1,0 +1,26 @@
+  -- POSTGRESQL_14 native: [flyology-postgres-sql-native-scanner.adb:393 range check failed] @ 1
+  -- POSTGRESQL_14 oracle: [] @ 0
+  FAILED: POSTGRESQL_14: E'\401' parses (C oracle accepts it)
+  FAILED: POSTGRESQL_14: E'\401' arena matches the C oracle
+  -- POSTGRESQL_15 native: [flyology-postgres-sql-native-scanner.adb:393 range check failed] @ 1
+  -- POSTGRESQL_15 oracle: [] @ 0
+  FAILED: POSTGRESQL_15: E'\401' parses (C oracle accepts it)
+  FAILED: POSTGRESQL_15: E'\401' arena matches the C oracle
+  -- POSTGRESQL_16 native: [flyology-postgres-sql-native-scanner.adb:393 range check failed] @ 1
+  -- POSTGRESQL_16 oracle: [] @ 0
+  FAILED: POSTGRESQL_16: E'\401' parses (C oracle accepts it)
+  FAILED: POSTGRESQL_16: E'\401' arena matches the C oracle
+  -- POSTGRESQL_17 native: [flyology-postgres-sql-native-scanner.adb:393 range check failed] @ 1
+  -- POSTGRESQL_17 oracle: [] @ 0
+  FAILED: POSTGRESQL_17: E'\401' parses (C oracle accepts it)
+  FAILED: POSTGRESQL_17: E'\401' arena matches the C oracle
+  -- POSTGRESQL_18 native: [flyology-postgres-sql-native-scanner.adb:393 range check failed] @ 1
+  -- POSTGRESQL_18 oracle: [] @ 0
+  FAILED: POSTGRESQL_18: E'\401' parses (C oracle accepts it)
+  FAILED: POSTGRESQL_18: E'\401' arena matches the C oracle
+  -- owned Parse diagnostic: [flyology-postgres-sql-native-scanner.adb:393 range check failed] @ 1
+  ok: owned V18.Parse does not propagate an exception
+  FAILED: owned V18.Parse accepts SELECT E'\401'
+  -- SELECT E'\400' native: [flyology-postgres-sql-native-scanner.adb:393 range check failed] oracle: [invalid byte sequence for encoding "UTF8": 0x00]
+  -- SELECT E'\777' native: [flyology-postgres-sql-native-scanner.adb:393 range check failed] oracle: [invalid byte sequence for encoding "UTF8": 0xff]
+BUG REPRODUCED: 11 failed expectation(s)

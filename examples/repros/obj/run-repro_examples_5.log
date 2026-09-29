@@ -1,0 +1,8 @@
+  ok: SELECT column_name FROM information_schema.columns WHERE table_name = 'flyology_server_info' returns 9 rows (got 9)
+  -- unexpected PGISH_CATALOG.RESOURCE_LIMIT_ERROR : result row limit exceeded
+  FAILED: SELECT column_name FROM information_schema.columns LIMIT 5 must not raise
+  -- unexpected PGISH_CATALOG.RESOURCE_LIMIT_ERROR : result row limit exceeded
+  FAILED: SELECT column_name FROM information_schema.columns WHERE table_schema = 'flyology' LIMIT 1 must not raise
+  -- unexpected PGISH_CATALOG.RESOURCE_LIMIT_ERROR : result row limit exceeded
+  FAILED: SELECT column_name FROM information_schema.columns WHERE table_name LIKE 'flyology_server%' LIMIT 5 must not raise
+BUG REPRODUCED: 3 failed expectation(s)

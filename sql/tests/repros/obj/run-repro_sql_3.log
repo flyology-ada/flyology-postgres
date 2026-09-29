@@ -1,0 +1,24 @@
+  -- POSTGRESQL_14 native: [flyology-postgres-sql-native-scanner.adb:74 overflow check failed] @ 1
+  -- POSTGRESQL_14 oracle: [invalid Unicode escape value at or near "\UFFFFFFFF"] @ 10
+  FAILED: POSTGRESQL_14: \UFFFFFFFF reports invalid Unicode escape value
+  FAILED: POSTGRESQL_14: \UFFFFFFFF cursor matches the C oracle
+  -- POSTGRESQL_15 native: [flyology-postgres-sql-native-scanner.adb:74 overflow check failed] @ 1
+  -- POSTGRESQL_15 oracle: [invalid Unicode escape value at or near "\UFFFFFFFF"] @ 10
+  FAILED: POSTGRESQL_15: \UFFFFFFFF reports invalid Unicode escape value
+  FAILED: POSTGRESQL_15: \UFFFFFFFF cursor matches the C oracle
+  -- POSTGRESQL_16 native: [flyology-postgres-sql-native-scanner.adb:74 overflow check failed] @ 1
+  -- POSTGRESQL_16 oracle: [invalid Unicode escape value at or near "\UFFFFFFFF"] @ 10
+  FAILED: POSTGRESQL_16: \UFFFFFFFF reports invalid Unicode escape value
+  FAILED: POSTGRESQL_16: \UFFFFFFFF cursor matches the C oracle
+  -- POSTGRESQL_17 native: [flyology-postgres-sql-native-scanner.adb:74 overflow check failed] @ 1
+  -- POSTGRESQL_17 oracle: [invalid Unicode escape value at or near "\UFFFFFFFF"] @ 10
+  FAILED: POSTGRESQL_17: \UFFFFFFFF reports invalid Unicode escape value
+  FAILED: POSTGRESQL_17: \UFFFFFFFF cursor matches the C oracle
+  -- POSTGRESQL_18 native: [flyology-postgres-sql-native-scanner.adb:74 overflow check failed] @ 1
+  -- POSTGRESQL_18 oracle: [invalid Unicode escape value at or near "\UFFFFFFFF"] @ 10
+  FAILED: POSTGRESQL_18: \UFFFFFFFF reports invalid Unicode escape value
+  FAILED: POSTGRESQL_18: \UFFFFFFFF cursor matches the C oracle
+  -- control \U7FFFFFFF native: [invalid Unicode escape value at or near "\U7FFFFFFF'"] @ 10
+  ok: control: \U7FFFFFFF reports invalid Unicode escape value
+  ok: control: \U7FFFFFFF cursor matches the C oracle
+BUG REPRODUCED: 10 failed expectation(s)

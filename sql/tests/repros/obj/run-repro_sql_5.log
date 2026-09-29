@@ -1,0 +1,25 @@
+  -- POSTGRESQL_14 SELECT U&'a' UESCAPE E'\f' native: [] @ 0  oracle: [invalid Unicode escape character at or near "E'\f'"] @ 22
+  FAILED: POSTGRESQL_14: SELECT U&'a' UESCAPE E'\f' reports the C oracle message
+  FAILED: POSTGRESQL_14: SELECT U&'a' UESCAPE E'\f' reports the C oracle cursor
+  -- POSTGRESQL_15 SELECT U&'a' UESCAPE E'\f' native: [] @ 0  oracle: [invalid Unicode escape character at or near "E'\f'"] @ 22
+  FAILED: POSTGRESQL_15: SELECT U&'a' UESCAPE E'\f' reports the C oracle message
+  FAILED: POSTGRESQL_15: SELECT U&'a' UESCAPE E'\f' reports the C oracle cursor
+  -- POSTGRESQL_16 SELECT U&'a' UESCAPE E'\f' native: [] @ 0  oracle: [invalid Unicode escape character at or near "E'\f'"] @ 22
+  FAILED: POSTGRESQL_16: SELECT U&'a' UESCAPE E'\f' reports the C oracle message
+  FAILED: POSTGRESQL_16: SELECT U&'a' UESCAPE E'\f' reports the C oracle cursor
+  -- POSTGRESQL_17 SELECT U&'a' UESCAPE E'\f' native: [] @ 0  oracle: [invalid Unicode escape character at or near "E'\f'"] @ 22
+  FAILED: POSTGRESQL_17: SELECT U&'a' UESCAPE E'\f' reports the C oracle message
+  FAILED: POSTGRESQL_17: SELECT U&'a' UESCAPE E'\f' reports the C oracle cursor
+  -- POSTGRESQL_18 SELECT U&'a' UESCAPE E'\f' native: [] @ 0  oracle: [invalid Unicode escape character at or near "E'\f'"] @ 22
+  FAILED: POSTGRESQL_18: SELECT U&'a' UESCAPE E'\f' reports the C oracle message
+  FAILED: POSTGRESQL_18: SELECT U&'a' UESCAPE E'\f' reports the C oracle cursor
+  -- POSTGRESQL_17 SELECT U&'a' UESCAPE E'\v' native: [] @ 0  oracle: [invalid Unicode escape character at or near "E'\v'"] @ 22
+  FAILED: POSTGRESQL_17: SELECT U&'a' UESCAPE E'\v' reports the C oracle message
+  FAILED: POSTGRESQL_17: SELECT U&'a' UESCAPE E'\v' reports the C oracle cursor
+  -- POSTGRESQL_18 SELECT U&'a' UESCAPE E'\v' native: [] @ 0  oracle: [invalid Unicode escape character at or near "E'\v'"] @ 22
+  FAILED: POSTGRESQL_18: SELECT U&'a' UESCAPE E'\v' reports the C oracle message
+  FAILED: POSTGRESQL_18: SELECT U&'a' UESCAPE E'\v' reports the C oracle cursor
+  ok: POSTGRESQL_14: control UESCAPE E'\v' matches the C oracle
+  ok: POSTGRESQL_15: control UESCAPE E'\v' matches the C oracle
+  ok: POSTGRESQL_16: control UESCAPE E'\v' matches the C oracle
+BUG REPRODUCED: 14 failed expectation(s)

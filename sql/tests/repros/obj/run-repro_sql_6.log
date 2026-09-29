@@ -1,0 +1,20 @@
+  -- v14 SELECT -'abc' native-vs-C: [root.stmts[ 1].stmt.SelectStmt.targetList[ 1].ResTarget.val: C object omits member A_Const (members: A_Expr)]
+  FAILED: v14: SELECT -'abc' matches the C oracle
+  -- v14 SELECT -B'101' native-vs-C: [root.stmts[ 1].stmt.SelectStmt.targetList[ 1].ResTarget.val: C object omits member A_Const (members: A_Expr)]
+  FAILED: v14: SELECT -B'101' matches the C oracle
+  FAILED: v14: -'abc' is not the same tree as the literal '-abc'
+  -- v14 SELECT -1 native-vs-C: []
+  ok: v14: SELECT -1 matches the C oracle
+  -- v14 SELECT -1.5 native-vs-C: []
+  ok: v14: SELECT -1.5 matches the C oracle
+  -- v14 SELECT -TRUE native-vs-C: []
+  ok: v14: SELECT -TRUE matches the C oracle
+  ok: POSTGRESQL_15: control -'abc' matches the C oracle
+  ok: POSTGRESQL_15: control -B'101' matches the C oracle
+  ok: POSTGRESQL_16: control -'abc' matches the C oracle
+  ok: POSTGRESQL_16: control -B'101' matches the C oracle
+  ok: POSTGRESQL_17: control -'abc' matches the C oracle
+  ok: POSTGRESQL_17: control -B'101' matches the C oracle
+  ok: POSTGRESQL_18: control -'abc' matches the C oracle
+  ok: POSTGRESQL_18: control -B'101' matches the C oracle
+BUG REPRODUCED: 3 failed expectation(s)

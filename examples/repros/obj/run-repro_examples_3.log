@@ -1,0 +1,8 @@
+  -- ascending order: 1,10,11,12,13,14,15,16,2,3,4,5,6,7,8,9
+  ok: flyology_runtime_groups reports 16 columns (got 16)
+  FAILED: ascending ORDER BY places 2 second, not 10
+  FAILED: ascending ORDER BY places 16 last, not 9
+  -- descending order: 9,8,7,6,5,4,3,2,16,15,14,13,12,11,10,1
+  FAILED: descending ORDER BY places 16 first, not 9
+  ok: WHERE ordinal_position > 9 is numeric and yields 7 rows (got 7)
+BUG REPRODUCED: 3 failed expectation(s)

@@ -1,0 +1,303 @@
+# THIS FILE IS GENERATED. DO NOT EDIT.
+
+[solution]
+[solution.context]
+solved = true
+[[solution.state]]
+crate = "flyology"
+fulfilment = "solved"
+pinned = false
+transitivity = "direct"
+versions = "~0.1.1-dev"
+[solution.state.release]
+authors = [
+"Yurii Rashkovskii",
+]
+description = "Experimental GNAT runtime extension for native and lightweight Ada tasks"
+licenses = "(MIT OR Apache-2.0) AND GPL-3.0-or-later WITH GCC-exception-3.1"
+maintainers = [
+"Yurii Rashkovskii <yrashk@gmail.com>",
+]
+maintainers-logins = [
+"yrashk",
+]
+name = "flyology"
+project-files = [
+"flyology.gpr",
+]
+tags = [
+"ada",
+"runtime",
+"event-loop",
+"concurrency",
+"lightweight",
+"spark",
+]
+version = "0.1.1-dev"
+website = "https://flyology.org/"
+[solution.state.release.environment]
+[solution.state.release.environment.FLYOLOGY_ROOT]
+set = "${CRATE_ROOT}"
+[solution.state.release.environment.GPR_CONFIG]
+set = "${CRATE_ROOT}/build/flyology.cgpr"
+[solution.state.release.origin]
+commit = "bd95746d5c9c31f5b41b611db9ba82a016ceaaa4"
+url = "git+https://github.com/flyology-ada/flyology.git"
+[[solution.state.release.actions]]
+command = [
+"./scripts/prepare-alire-rts.sh",
+]
+directory = "."
+type = "pre-build"
+[[solution.state.release.actions]]
+command = [
+"./scripts/test.sh",
+]
+directory = "."
+type = "test"
+[[solution.state.release.depends-on]]
+flyology_allocators = "~0.1.0-dev"
+gnat = ">=13 & <17"
+[[solution.state]]
+crate = "flyology_allocators"
+fulfilment = "solved"
+pinned = false
+transitivity = "indirect"
+versions = "~0.1.0-dev"
+[solution.state.release]
+authors = [
+"Yurii Rashkovskii",
+]
+description = "Caller-owned memory allocation algorithms for Ada"
+licenses = "MIT OR Apache-2.0"
+maintainers = [
+"Yurii Rashkovskii <yrashk@gmail.com>",
+]
+maintainers-logins = [
+"yrashk",
+]
+name = "flyology_allocators"
+project-files = [
+"flyology_allocators.gpr",
+]
+tags = [
+"ada",
+"allocators",
+"embedded",
+"memory",
+"systems",
+]
+version = "0.1.0"
+website = "https://flyology.org/"
+[solution.state.release.build-switches]
+[solution.state.release.build-switches."*"]
+Compile_Checks = "warnings"
+[solution.state.release.origin]
+commit = "6f91b1afb27f861e73411a4abd0bf4b23b87e5c2"
+subdir = "flyology_allocators"
+url = "git+https://github.com/flyology-ada/flyology.git"
+[[solution.state.release.actions]]
+command = [
+"./scripts/test.sh",
+]
+directory = "."
+type = "test"
+[[solution.state.release.depends-on]]
+gnat = ">=13 & <17"
+[[solution.state]]
+crate = "flyology_postgres"
+fulfilment = "linked"
+pinned = false
+transitivity = "direct"
+versions = "*"
+[solution.state.link]
+lockfiled = true
+path = "../.."
+[[solution.state]]
+crate = "flyology_postgres_sql_core"
+fulfilment = "linked"
+pinned = false
+transitivity = "direct"
+versions = "~0.1.1-dev"
+[solution.state.link]
+lockfiled = true
+path = "../../sql/core"
+[[solution.state]]
+crate = "flyology_postgres_sql_v18"
+fulfilment = "linked"
+pinned = false
+transitivity = "direct"
+versions = "*"
+[solution.state.link]
+lockfiled = true
+path = "../../sql/v18"
+[[solution.state]]
+crate = "gnat"
+fulfilment = "solved"
+pinned = false
+transitivity = "indirect"
+versions = ">=13 & <17"
+[solution.state.release]
+auto-gpr-with = false
+description = "The GNAT Ada compiler - Native"
+licenses = "GPL-3.0-or-later AND GPL-3.0-or-later WITH GCC-exception-3.1"
+maintainers = [
+"Fabien Chouteau <chouteau@adacore.com>",
+"CÃ©sar Sagaert <sagaert@adacore.com>",
+]
+maintainers-logins = [
+"Fabien-Chouteau",
+"AldanTanneo",
+]
+name = "gnat_native"
+provides = [
+"gnat=16.1.0",
+]
+version = "16.1.0"
+website = "https://github.com/alire-project/GNAT-FSF-builds"
+[solution.state.release.configuration]
+auto_gpr_with = true
+disabled = true
+generate_ada = true
+generate_c = true
+generate_gpr = true
+output_dir = "config"
+[solution.state.release.environment]
+[solution.state.release.environment.LD_LIBRARY_PATH]
+prepend = "${CRATE_ROOT}/lib"
+[solution.state.release.environment.LD_RUN_PATH]
+prepend = "${CRATE_ROOT}/lib"
+[solution.state.release.environment.PATH]
+prepend = "${CRATE_ROOT}/bin"
+[solution.state.release.origin]
+binary = true
+hashes = [
+"sha256:657cf254323eb91f79768918e8bd8887d6da7ac6056732a38f21e2848267da18",
+]
+url = "https://github.com/alire-project/GNAT-FSF-builds/releases/download/gnat-16.1.0-1/gnat-aarch64-darwin-16.1.0-1.tar.gz"
+[[solution.state]]
+crate = "hmac_ada"
+fulfilment = "solved"
+pinned = false
+transitivity = "indirect"
+versions = "^0.2.0"
+[solution.state.release]
+authors = [
+"Baris Erdem",
+]
+description = "SPARK-proved HMAC (RFC 2104) implementation for Ada/SPARK"
+licenses = "Apache-2.0"
+long-description = "SPARK-proved HMAC (RFC 2104) with standalone SHA-256 (FIPS 180-4) for Ada 2022.\n175 proof obligations fully discharged at Level 2 with zero pragma Assume.\nConstant-time digest comparison (the default `=` operator), secure wipe of\nkey material, no heap allocation, pragma Pure. Suitable for embedded and\nsafety-critical systems. Includes streaming and one-shot APIs, plus a generic\nHMAC package for other hash functions.\n"
+maintainers = [
+"Baris Erdem <baris@erdem.dev>",
+]
+maintainers-logins = [
+"b-erdem",
+]
+name = "hmac_ada"
+tags = [
+"hmac",
+"rfc2104",
+"cryptography",
+"spark",
+"embedded",
+"security",
+]
+version = "0.2.0"
+website = "https://github.com/b-erdem/hmac_ada"
+[solution.state.release.origin]
+commit = "6cab790417b3672fe821fdd68f6668026c8e26cb"
+url = "git+https://github.com/b-erdem/hmac_ada.git"
+[[solution.state]]
+crate = "linenoise_ada"
+fulfilment = "solved"
+pinned = false
+transitivity = "direct"
+versions = "^1.1.2"
+[solution.state.release]
+authors = [
+"nytpu",
+]
+description = "Bindings to the Linenoise line editing library"
+licenses = "BSD-2-Clause"
+maintainers = [
+"nytpu <alex@nytpu.com>",
+]
+maintainers-logins = [
+"nytpu",
+]
+name = "linenoise_ada"
+project-files = [
+"linenoise.gpr",
+]
+tags = [
+"linenoise",
+"readline",
+"line-editing",
+]
+version = "1.1.2"
+website = "https://git.sr.ht/~nytpu/linenoise-ada"
+[solution.state.release.gpr-externals]
+LINENOISE_BUILD_MODE = [
+"debug",
+"optimize",
+]
+LINENOISE_COMPILE_CHECKS = [
+"enabled",
+"disabled",
+]
+LINENOISE_CONTRACTS = [
+"enabled",
+"disabled",
+]
+LINENOISE_LIBRARY_TYPE = [
+"dynamic",
+"relocatable",
+"static",
+"static-pic",
+]
+LINENOISE_RUNTIME_CHECKS = [
+"enabled",
+"disabled",
+]
+LINENOISE_STYLE_CHECKS = [
+"enabled",
+"disabled",
+]
+[solution.state.release.origin]
+hashes = [
+"sha256:d96796f61c2f04f2dd986adfe6efec2c11c120b2453b1c3f20aabd54a584c9d3",
+"sha512:1f8823196e68602f5a69932e5fd475acae98b1199e9baa74ba1d1125dd13271dc4205abd6431a96677c2b0c6cdd38fee5ea38e107e27ee389dc28dec063c9612",
+]
+url = "https://git.sr.ht/~nytpu/linenoise-ada/archive/v1.1.2.tar.gz"
+[[solution.state]]
+crate = "system_random"
+fulfilment = "solved"
+pinned = false
+transitivity = "indirect"
+versions = "^1.0.0"
+[solution.state.release]
+authors = [
+"Anton Fediushin",
+]
+description = "Minimal library to retrieve random data from system sources"
+licenses = "ISC"
+maintainers = [
+"Anton Fediushin <imantonmeep@gmail.com>",
+]
+maintainers-logins = [
+"AntonMeep",
+]
+name = "system_random"
+tags = [
+"system",
+"cryptography",
+"random",
+"security",
+]
+version = "1.0.0"
+website = "https://github.com/AntonMeep/system_random"
+[solution.state.release.origin]
+commit = "3db7f76e04f09ade5811abd8c09686750bc733ae"
+url = "git+https://github.com/AntonMeep/system_random.git"
+

@@ -1,0 +1,105 @@
+V "GNAT Lib v16"
+M P W=b
+A -O0
+A -gnatA
+A --RTS=/Users/yrashk/.local/share/alire/builds/flyology_0.1.1_bd95746d/3cf1f8e431e0343b4154ab650e51121b9e3441939b55a10702aab1165f04bd0a/build/alire-rts/
+A -g
+A -gnat2022
+A -gnata
+A -gnatVa
+A -gnatwa
+A -gnatwJ
+A -gnateDFLYOLOGY_CONNECTION_TEST_HOOKS=False
+A -mmacosx-version-min=26.0.0
+A -mcpu=apple-m1
+A -mlittle-endian
+A -mabi=lp64
+A -fPIC
+P SS ZX
+
+RN
+RV NO_EXCEPTION_HANDLERS
+RV NO_EXCEPTION_PROPAGATION
+RV NO_EXCEPTIONS
+RV NO_LOCAL_ALLOCATORS
+RV NO_SECONDARY_STACK
+RV NO_STANDARD_STORAGE_POOLS
+RV NO_DEFAULT_INITIALIZATION
+RV NO_DYNAMIC_SIZED_OBJECTS
+RV NO_IMPLEMENTATION_PRAGMAS
+RV NO_OBSOLESCENT_FEATURES
+
+U repro_examples_10%b	repro_examples_10.adb	ecb79e3a NE OO SU
+W ada%s			ada.ads			ada.ali
+W ada.exceptions%s	a-except.adb		a-except.ali
+W ada.strings%s		a-string.ads		a-string.ali
+W ada.strings.fixed%s	a-strfix.adb		a-strfix.ali
+W example_repro_support%s  example_repro_support.adb  example_repro_support.ali
+W pgish_sql%s		pgish_sql.adb		pgish_sql.ali
+Z system.concat_3%s	s-conca3.adb		s-conca3.ali
+Z system.concat_4%s	s-conca4.adb		s-conca4.ali
+Z system.secondary_stack%s  s-secsta.adb	s-secsta.ali
+
+D ada.ads		20260901211354 76789da1 ada%s
+D a-charac.ads		20260901211354 2d3ec45b ada.characters%s
+D a-chlat1.ads		20260901211354 e0d72e76 ada.characters.latin_1%s
+D a-except.ads		20260901211354 8699d7ff ada.exceptions%s
+D a-string.ads		20260901211354 90ac6797 ada.strings%s
+D a-strfix.ads		20260901211354 8648dedb ada.strings.fixed%s
+D a-strmap.ads		20260901211354 f7e6ca10 ada.strings.maps%s
+D a-strsea.ads		20260901211354 18c3c634 ada.strings.search%s
+D a-unccon.ads		20260901211354 0e9b276f ada.unchecked_conversion%s
+D example_repro_support.ads  20260905004420 6f9acea2 example_repro_support%s
+D pgish_sql.ads		20260807121425 67718885 pgish_sql%s
+D repro_examples_10.adb	20260905005307 7421b6ae repro_examples_10%b
+D system.ads		20260901211353 8a611ac3 system%s
+D s-conca3.ads		20260901211354 8a7a19a2 system.concat_3%s
+D s-conca4.ads		20260901211354 33f85f3e system.concat_4%s
+D s-exctab.ads		20260901211354 91bef6ef system.exception_table%s
+D s-parame.ads		20260901211354 a1aeab5c system.parameters%s
+D s-secsta.ads		20260901211354 578279f5 system.secondary_stack%s
+D s-stalib.ads		20260901211354 1c9580f6 system.standard_library%s
+D s-stoele.ads		20260901211354 ccded4e8 system.storage_elements%s
+D s-traent.ads		20260901211354 c81cbf8c system.traceback_entries%s
+D s-unstyp.ads		20260901211354 fa2a7f59 system.unsigned_types%s
+G a e
+G c Z b b [repro_examples_10 standard 18 11 none]
+G r c none [repro_examples_10 standard 18 11 none] [check example_repro_support 7 14 none]
+G r s query [repro_examples_10 standard 18 11 none] [queryIP pgish_sql 65 9 none]
+G r c none [repro_examples_10 standard 18 11 none] [parse pgish_sql 80 13 none]
+G r c none [repro_examples_10 standard 18 11 none] [note example_repro_support 10 14 none]
+G r c none [repro_examples_10 standard 18 11 none] [finish example_repro_support 13 14 none]
+X 1 ada.ads
+18K9*Ada 22e8 12|12r6 13r6 14r6 30r18 34r37 41r11 41r44 43r11 44r31
+X 4 a-except.ads
+44K13*Exceptions 309e19 12|12w10 30r22 34r41
+62V13*Exception_Name{string} 12|34s52
+84V13*Exception_Message{string} 12|30s33
+X 5 a-string.ads
+16K13*Strings 35e16 12|13w10 14r10 41r15 41r48 43r15 44r35
+33n37*Both{33E9} 12|41r56 44r43
+X 6 a-strfix.ads
+49K21*Fixed 1390e22 12|14w18 41r23 43r23
+1133V13*Trim{string} 12|41s29 43s29
+X 10 example_repro_support.ads
+1K9*Example_Repro_Support 16e26 12|16w6 16r33
+7U14*Check 12|26s7 32s10 35s10 41s4 43s4
+10U14*Note 12|29s10 34s10
+13U14*Finish 12|54s4
+X 11 pgish_sql.ads
+1K9*Pgish_SQL 82e14 12|15w6 19r24
+13X4*Syntax_Error 12|28r24
+65R9*Query 78e14 12|22r19
+80V13*Parse{65R9} 12|25s20
+X 12 repro_examples_10.adb
+18U11*Repro_Examples_10 18b11 55l5 55t22
+19K12 SQL=19:24 22r15 25r16 28r20
+21U14 Expect_Not_Syntax_Error 21b14 21>39 21>45 36l8 36t31 49s4 50s4 51s4
+. 52s4 53s4
+21a39 Text{string} 25r27
+21a45 Description{string} 26r20 29r16 32r24 34r16 35r24
+22r7 Query{11|65R9} 23r28 25m7
+28r12 Error{4|53R9} 30r52
+33r12 Error{4|53R9} 34r68
+38a4 Newline{string} 41r35 52r29
+

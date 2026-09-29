@@ -1,0 +1,2 @@
+last_build_profile = "example_repros=DEVELOPMENT,flyology=RELEASE,flyology_allocators=RELEASE,flyology_postgres=RELEASE,flyology_postgres_sql_core=RELEASE,flyology_postgres_sql_v18=RELEASE,gnat_native=RELEASE,hmac_ada=RELEASE,linenoise_ada=RELEASE,system_random=RELEASE"
+

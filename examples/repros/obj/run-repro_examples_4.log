@@ -1,0 +1,11 @@
+  ok: a zero-field RowDescription decodes as RowDescription
+  ok: the library reports Field_Count = 0 (Natural, not Positive)
+  ok: the library reports Column_Count = 0 (Natural, not Positive)
+  -- psqlish_main.adb:234 raised CONSTRAINT_ERROR : repro_examples_4.adb:57 range check failed
+  FAILED: psqlish accepts a zero-field RowDescription
+  -- psqlish_main.adb:262 raised CONSTRAINT_ERROR : repro_examples_4.adb:76 range check failed
+  FAILED: psqlish accepts a zero-column DataRow
+  -- Display renders a zero-column result as: "SELECT 1
+"
+  ok: Psqlish.Display already accepts an empty Column_Array
+BUG REPRODUCED: 2 failed expectation(s)

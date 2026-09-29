@@ -1,0 +1,10 @@
+  ok: unquoted identifiers are case-insensitive
+  -- a double-quoted upper-case column name is case sensitive: accepted,  1 column(s) named "protocol_version", 1 row(s)
+  FAILED: a double-quoted upper-case column name is case sensitive
+  -- a double-quoted upper-case table name is case sensitive: accepted,  1 column(s) named "protocol_version", 1 row(s)
+  FAILED: a double-quoted upper-case table name is case sensitive
+  -- an unknown column qualifier is rejected: accepted,  1 column(s) named "protocol_version", 1 row(s)
+  FAILED: an unknown column qualifier is rejected
+  -- an unknown schema qualifier is rejected: accepted,  3 column(s) named "table_schema", 8 row(s)
+  FAILED: an unknown schema qualifier is rejected
+BUG REPRODUCED: 4 failed expectation(s)

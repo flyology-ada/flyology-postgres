@@ -1,0 +1,7 @@
+dependency:aunit=26.0.0=c7d2d3946a9f4db393078f76bdd765207c7ecb1cb4501e646254fd6d2ff8f3f3
+dependency:flyology_postgres_sql=0.1.1-dev=d31bdbdb369d5475c221f77883aedaf2c2fd0d903e167641f94c4741c2260d9d
+environment:FLYOLOGY_POSTGRES_SQL_BACKEND_OS=macos
+external:LIBRARY_TYPE=default
+external:SQL_REPROS_LIBRARY_TYPE=default
+profile:sql_repros=DEVELOPMENT
+switches:sql_repros=-Og,-fdata-sections,-ffunction-sections,-g,-gnatVa,-gnatW8,-gnatw.X,-gnatwa,-gnaty-d,-gnaty3,-gnatyA,-gnatyB,-gnatyI,-gnatyO,-gnatyS,-gnatya,-gnatyb,-gnatyc,-gnatye,-gnatyf,-gnatyh,-gnatyi,-gnatyk,-gnatyl,-gnatym,-gnatyn,-gnatyp,-gnatyr,-gnatyt,-gnatyu,-gnatyx

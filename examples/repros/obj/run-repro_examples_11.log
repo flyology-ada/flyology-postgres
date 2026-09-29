@@ -1,0 +1,5 @@
+  -- SELECT * with no FROM clause is rejected: accepted, Column_Count = 0, Row_Count = 1
+  FAILED: SELECT * with no FROM clause is rejected
+  -- SELECT *; with no FROM clause is rejected: accepted, Column_Count = 0, Row_Count = 1
+  FAILED: SELECT *; with no FROM clause is rejected
+BUG REPRODUCED: 2 failed expectation(s)

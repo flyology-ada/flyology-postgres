@@ -1,0 +1,24 @@
+with "config/repros_config.gpr";
+project Repros is
+
+   for Source_Dirs use ("src/", "config/");
+   for Object_Dir use "obj/" & Repros_Config.Build_Profile;
+   for Create_Missing_Dirs use "True";
+   for Exec_Dir use "bin";
+
+   --  Select one reproduction program per build:
+   --    ./run.sh repro_xxx
+   Main_Name := external ("MAIN", "repro_smoke");
+   for Main use (Main_Name & ".adb");
+
+   package Compiler is
+      for Default_Switches ("Ada") use
+        ("-g", "-O0", "-gnat2022", "-gnata", "-gnatVa", "-gnatwa",
+         "-gnateDFLYOLOGY_CONNECTION_TEST_HOOKS=False");
+   end Compiler;
+
+   package Binder is
+      for Switches ("Ada") use ("-Es");
+   end Binder;
+
+end Repros;

@@ -1,0 +1,2 @@
+repro_examples_4.adb:58:10: warning: variable "Columns" is assigned but never read [-gnatwm]
+repro_examples_4.adb:77:10: warning: variable "Values" is assigned but never read [-gnatwm]

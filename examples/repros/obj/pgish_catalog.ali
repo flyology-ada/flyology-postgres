@@ -1,0 +1,753 @@
+V "GNAT Lib v16"
+A -O0
+A -gnatA
+A --RTS=/Users/yrashk/.local/share/alire/builds/flyology_0.1.1_bd95746d/3cf1f8e431e0343b4154ab650e51121b9e3441939b55a10702aab1165f04bd0a/build/alire-rts/
+A -g
+A -gnat2022
+A -gnata
+A -gnatVa
+A -gnatwa
+A -gnatwJ
+A -gnateDFLYOLOGY_CONNECTION_TEST_HOOKS=False
+A -mmacosx-version-min=26.0.0
+A -mcpu=apple-m1
+A -mlittle-endian
+A -mabi=lp64
+A -fPIC
+P SS ZX
+
+RN
+RV NO_CALENDAR
+RV NO_DELAY
+RV NO_DIRECT_BOOLEAN_OPERATORS
+RV NO_ENUMERATION_MAPS
+RV NO_EXCEPTION_HANDLERS
+RV NO_EXCEPTIONS
+RV NO_FIXED_POINT
+RV NO_IMPLICIT_CONDITIONALS
+RV NO_LOCAL_ALLOCATORS
+RV NO_LONG_LONG_INTEGERS
+RV NO_SECONDARY_STACK
+RV NO_STANDARD_STORAGE_POOLS
+RV NO_DEFAULT_INITIALIZATION
+RV NO_DYNAMIC_SIZED_OBJECTS
+RV NO_IMPLEMENTATION_PRAGMAS
+RV NO_IMPLICIT_LOOPS
+RV NO_ELABORATION_CODE
+
+U pgish_catalog%b	pgish_catalog.adb	c8fbd661 OO PK
+W ada%s			ada.ads			ada.ali
+W ada.calendar%s	a-calend.adb		a-calend.ali
+W ada.calendar.formatting%s  a-calfor.adb	a-calfor.ali
+W ada.characters%s	a-charac.ads		a-charac.ali
+W ada.characters.handling%s  a-chahan.adb	a-chahan.ali
+W ada.environment_variables%s  a-envvar.adb	a-envvar.ali
+Z ada.exceptions%s	a-except.adb		a-except.ali
+W ada.strings%s		a-string.ads		a-string.ali
+W ada.strings.fixed%s	a-strfix.adb		a-strfix.ali
+Z ada.strings.text_buffers%s  a-sttebu.adb	a-sttebu.ali
+W flyology%s		flyology.ads		flyology.ali
+W flyology.execution_groups%s  flyology-execution_groups.adb  flyology-execution_groups.ali
+W flyology.observability%s  flyology-observability.adb  flyology-observability.ali
+Z pgish_sql%s		pgish_sql.adb		pgish_sql.ali  AD
+Z system.concat_2%s	s-conca2.adb		s-conca2.ali
+Z system.concat_3%s	s-conca3.adb		s-conca3.ali
+Z system.img_int%s	s-imgint.ads		s-imgint.ali
+Z system.img_lli%s	s-imglli.ads		s-imglli.ali
+Z system.img_llu%s	s-imgllu.ads		s-imgllu.ali
+Z system.img_uns%s	s-imguns.ads		s-imguns.ali
+Z system.secondary_stack%s  s-secsta.adb	s-secsta.ali
+Z system.unsigned_types%s  s-unstyp.ads		s-unstyp.ali
+Z system.val_lli%s	s-vallli.ads		s-vallli.ali
+
+U pgish_catalog%s	pgish_catalog.ads	7b587601 EE OO PK
+W pgish_sql%s		pgish_sql.adb		pgish_sql.ali
+W pgish_state%s		pgish_state.adb		pgish_state.ali
+Z system%s		system.ads		system.ali
+Z system.exception_table%s  s-exctab.adb	s-exctab.ali
+Z system.standard_library%s  s-stalib.adb	s-stalib.ali
+
+D ada.ads		20260901211354 76789da1 ada%s
+D a-calend.ads		20260901211354 bf7f3cc9 ada.calendar%s
+D a-calfor.ads		20260901211354 0f4707d1 ada.calendar.formatting%s
+D a-catizo.ads		20260901211354 eaa56756 ada.calendar.time_zones%s
+D a-charac.ads		20260901211354 2d3ec45b ada.characters%s
+D a-chahan.ads		20260901211354 bf752ff6 ada.characters.handling%s
+D a-chlat1.ads		20260901211354 e0d72e76 ada.characters.latin_1%s
+D a-envvar.ads		20260901211354 00080416 ada.environment_variables%s
+D a-except.ads		20260901211354 8699d7ff ada.exceptions%s
+D a-finali.ads		20260901211354 099c16e4 ada.finalization%s
+D a-stream.ads		20260901211354 cb01a8f8 ada.streams%s
+D a-string.ads		20260901211354 90ac6797 ada.strings%s
+D a-strfix.ads		20260901211354 8648dedb ada.strings.fixed%s
+D a-strmap.ads		20260901211354 f7e6ca10 ada.strings.maps%s
+D a-strsea.ads		20260901211354 18c3c634 ada.strings.search%s
+D a-sttebu.ads		20260901211354 f1ad67a2 ada.strings.text_buffers%s
+D a-stuten.ads		20260901211354 c6ced0ae ada.strings.utf_encoding%s
+D a-tags.ads		20260901211354 2dbf449c ada.tags%s
+D a-taside.ads		20260901211354 c0a7c8d8 ada.task_identification%s
+D a-unccon.ads		20260901211354 0e9b276f ada.unchecked_conversion%s
+D flyology.ads		20260901211211 3ef168e6 flyology%s
+D flyology-execution_groups.ads  20260901211211 7c10a18b flyology.execution_groups%s
+D flyology-observability.ads  20260901211211 0fea87b5 flyology.observability%s
+D interfac.ads		20260901211354 9111f9c1 interfaces%s
+D i-c.ads		20260901211354 dbdd3be7 interfaces.c%s
+D pgish_catalog.ads	20260807121425 0863b7ca pgish_catalog%s
+D pgish_catalog.adb	20260807121425 aac3ee21 pgish_catalog%b
+D pgish_sql.ads		20260807121425 67718885 pgish_sql%s
+D pgish_state.ads	20260807121425 144a494e pgish_state%s
+D system.ads		20260901211353 8a611ac3 system%s
+D s-atacco.ads		20260901211354 5868e3ba system.address_to_access_conversions%s
+D s-c_time.ads		20260901211354 e502d0c0 system.c_time%s
+D s-conca2.ads		20260901211354 b5fb73f7 system.concat_2%s
+D s-conca3.ads		20260901211354 8a7a19a2 system.concat_3%s
+D s-exctab.ads		20260901211354 91bef6ef system.exception_table%s
+D s-finpri.ads		20260901211354 5970d55a system.finalization_primitives%s
+D s-finroo.ads		20260901211354 0a7c3ed4 system.finalization_root%s
+D s-imagei.ads		20260901211354 11a376a2 system.image_i%s
+D s-imageu.ads		20260901211354 95851461 system.image_u%s
+D s-imgint.ads		20260901211354 86836590 system.img_int%s
+D s-imglli.ads		20260901211354 29d6e8e4 system.img_lli%s
+D s-imgllu.ads		20260901211353 047fb1fb system.img_llu%s
+D s-imguns.ads		20260901211354 34f2a7d6 system.img_uns%s
+D s-multip.ads		20260901211354 38ac9f73 system.multiprocessors%s
+D s-oscons.ads		20260901211354 42ad9981 system.os_constants%s
+D s-osinte.ads		20260901211354 6d01fcda system.os_interface%s
+D s-oslock.ads		20260901211354 bcc789d2 system.os_locks%s
+D s-parame.ads		20260901211354 a1aeab5c system.parameters%s
+D s-putima.ads		20260901211353 1b989439 system.put_images%s
+D s-secsta.ads		20260901211354 578279f5 system.secondary_stack%s
+D s-soflin.ads		20260901211354 5d88fdea system.soft_links%s
+D s-stache.ads		20260901211354 0b81c1fe system.stack_checking%s
+D s-stausa.ads		20260901211353 f470ae2d system.stack_usage%s
+D s-stalib.ads		20260901211354 1c9580f6 system.standard_library%s
+D s-stoele.ads		20260901211354 ccded4e8 system.storage_elements%s
+D s-stopoo.ads		20260901211354 45459446 system.storage_pools%s
+D s-tasinf.ads		20260901211354 801abd01 system.task_info%s
+D s-taspri.ads		20260901211354 4fd5ef41 system.task_primitives%s
+D s-taskin.ads		20260901211354 e3b5765b system.tasking%s
+D s-taprob.ads		20260901211354 acd6094d system.tasking.protected_objects%s
+D s-traent.ads		20260901211354 c81cbf8c system.traceback_entries%s
+D s-unstyp.ads		20260901211354 fa2a7f59 system.unsigned_types%s
+D s-vallli.ads		20260901211354 b00d83a1 system.val_lli%s
+D s-valllu.ads		20260901211354 6c4ea24d system.val_llu%s
+D s-valuei.ads		20260901211354 75953b98 system.value_i%s
+D s-valueu.ads		20260901211354 099f68d2 system.value_u%s
+G a e
+G c b b b [b pgish_catalog 10 1 none]
+G c Z s b [execute pgish_catalog 40 14 none]
+G c Z s b [psql_compatibility pgish_catalog 46 14 none]
+G c Z s s [column_definitionIP pgish_catalog 14 9 none]
+G c Z s s [Tcolumn_arrayBIP pgish_catalog 19 4 none]
+G c Z s s [cellIP pgish_catalog 22 9 none]
+G c Z s s [Tcell_arrayBIP pgish_catalog 26 4 none]
+G c Z s s [result_rowIP pgish_catalog 28 9 none]
+G c Z s s [Trow_arrayBIP pgish_catalog 31 4 none]
+G c Z s s [result_setIP pgish_catalog 33 9 none]
+G c Z b b [table_metadataIP pgish_catalog 24 9 none]
+G c Z b b [metadata_arrayIP pgish_catalog 28 9 none]
+G c Z b b [t pgish_catalog 48 13 none]
+G c Z b b [v pgish_catalog 50 13 none]
+G c Z b b [text_cell pgish_catalog 56 13 none]
+G c Z b b [null_cell pgish_catalog 58 13 none]
+G c Z b b [trim_image pgish_catalog 60 13 none]
+G c Z b b [b pgish_catalog 62 13 none]
+G c Z b b [timestamp pgish_catalog 65 13 none]
+G c Z b b [add_column pgish_catalog 69 14 none]
+G c Z b b [add_row pgish_catalog 83 14 none]
+G c Z b b [base_name pgish_catalog 92 13 none]
+G c Z b b [find_column pgish_catalog 100 13 none]
+G c Z b b [add_server_info pgish_catalog 111 14 none]
+G c Z b b [add_runtime_groups pgish_catalog 141 14 none]
+G c Z b b [add_stack_pool pgish_catalog 186 14 none]
+G c Z b b [add_sessions pgish_catalog 210 14 none]
+G c Z b b [add_commits pgish_catalog 242 14 none]
+G c Z b b [add_tables pgish_catalog 265 14 none]
+G c Z b b [add_settings pgish_catalog 280 14 none]
+G c Z b b [add_environment pgish_catalog 317 14 none]
+G c Z b b [add_information_tables pgish_catalog 339 14 none]
+G c Z b b [add_information_columns pgish_catalog 356 14 none]
+G c Z b b [load_source pgish_catalog 412 14 none]
+G c Z b b [numeric pgish_catalog 436 13 none]
+G c Z b b [like pgish_catalog 444 13 none]
+G c Z b b [matches pgish_catalog 468 13 none]
+G c Z b b [project pgish_catalog 508 14 none]
+G c Z b b [sort pgish_catalog 623 14 none]
+G r c none [b pgish_catalog 10 1 none] [make_text pgish_sql 20 13 none]
+G r s text [execute pgish_catalog 40 14 none] [textIP pgish_sql 15 9 none]
+G r c none [execute pgish_catalog 40 14 none] [image pgish_sql 21 13 none]
+G r c none [execute pgish_catalog 40 14 none] [make_text pgish_sql 20 13 none]
+G r c none [execute pgish_catalog 40 14 none] [is_empty pgish_sql 22 13 none]
+G r c none [execute pgish_catalog 40 14 none] [config pgish_state 51 13 none]
+G r c none [execute pgish_catalog 40 14 none] [repository_head pgish_state 52 13 none]
+G r c none [execute pgish_catalog 40 14 none] [snapshot flyology__observability 205 13 none]
+G r c none [execute pgish_catalog 40 14 none] [stack_pool flyology__observability 245 13 none]
+G r s Tsession_arrayB [execute pgish_catalog 40 14 none] [Tsession_arrayBIP pgish_state 44 4 none]
+G r c none [execute pgish_catalog 40 14 none] [sessions pgish_state 68 14 none]
+G r s Tcommit_arrayB [execute pgish_catalog 40 14 none] [Tcommit_arrayBIP pgish_state 32 4 none]
+G r c none [execute pgish_catalog 40 14 none] [repository_commits pgish_state 53 14 none]
+G r c none [psql_compatibility pgish_catalog 46 14 none] [make_text pgish_sql 20 13 none]
+G r s text [psql_compatibility pgish_catalog 46 14 none] [textIP pgish_sql 15 9 none]
+G r c none [psql_compatibility pgish_catalog 46 14 none] [image pgish_sql 21 13 none]
+G r c none [psql_compatibility pgish_catalog 46 14 none] [config pgish_state 51 13 none]
+G r c none [psql_compatibility pgish_catalog 46 14 none] [repository_head pgish_state 52 13 none]
+G r c none [psql_compatibility pgish_catalog 46 14 none] [snapshot flyology__observability 205 13 none]
+G r c none [psql_compatibility pgish_catalog 46 14 none] [stack_pool flyology__observability 245 13 none]
+G r s Tsession_arrayB [psql_compatibility pgish_catalog 46 14 none] [Tsession_arrayBIP pgish_state 44 4 none]
+G r c none [psql_compatibility pgish_catalog 46 14 none] [sessions pgish_state 68 14 none]
+G r c none [psql_compatibility pgish_catalog 46 14 none] [is_empty pgish_sql 22 13 none]
+G r s Tcommit_arrayB [psql_compatibility pgish_catalog 46 14 none] [Tcommit_arrayBIP pgish_state 32 4 none]
+G r c none [psql_compatibility pgish_catalog 46 14 none] [repository_commits pgish_state 53 14 none]
+G r s text [column_definitionIP pgish_catalog 14 9 none] [textIP pgish_sql 15 9 none]
+G r s text [Tcolumn_arrayBIP pgish_catalog 19 4 none] [textIP pgish_sql 15 9 none]
+G r s text [cellIP pgish_catalog 22 9 none] [textIP pgish_sql 15 9 none]
+G r s text [Tcell_arrayBIP pgish_catalog 26 4 none] [textIP pgish_sql 15 9 none]
+G r s text [result_rowIP pgish_catalog 28 9 none] [textIP pgish_sql 15 9 none]
+G r s text [Trow_arrayBIP pgish_catalog 31 4 none] [textIP pgish_sql 15 9 none]
+G r s text [result_setIP pgish_catalog 33 9 none] [textIP pgish_sql 15 9 none]
+G r s text [table_metadataIP pgish_catalog 24 9 none] [textIP pgish_sql 15 9 none]
+G r s text [metadata_arrayIP pgish_catalog 28 9 none] [textIP pgish_sql 15 9 none]
+G r c none [t pgish_catalog 48 13 none] [make_text pgish_sql 20 13 none]
+G r c none [v pgish_catalog 50 13 none] [make_text pgish_sql 20 13 none]
+G r c none [text_cell pgish_catalog 56 13 none] [make_text pgish_sql 20 13 none]
+G r c none [null_cell pgish_catalog 58 13 none] [make_text pgish_sql 20 13 none]
+G r c none [add_column pgish_catalog 69 14 none] [make_text pgish_sql 20 13 none]
+G r c none [find_column pgish_catalog 100 13 none] [image pgish_sql 21 13 none]
+G r c none [add_server_info pgish_catalog 111 14 none] [config pgish_state 51 13 none]
+G r c none [add_server_info pgish_catalog 111 14 none] [make_text pgish_sql 20 13 none]
+G r c none [add_server_info pgish_catalog 111 14 none] [image pgish_sql 21 13 none]
+G r c none [add_server_info pgish_catalog 111 14 none] [repository_head pgish_state 52 13 none]
+G r c none [add_runtime_groups pgish_catalog 141 14 none] [make_text pgish_sql 20 13 none]
+G r c none [add_runtime_groups pgish_catalog 141 14 none] [snapshot flyology__observability 205 13 none]
+G r c none [add_stack_pool pgish_catalog 186 14 none] [stack_pool flyology__observability 245 13 none]
+G r c none [add_stack_pool pgish_catalog 186 14 none] [make_text pgish_sql 20 13 none]
+G r c none [add_stack_pool pgish_catalog 186 14 none] [image pgish_sql 21 13 none]
+G r s Tsession_arrayB [add_sessions pgish_catalog 210 14 none] [Tsession_arrayBIP pgish_state 44 4 none]
+G r c none [add_sessions pgish_catalog 210 14 none] [make_text pgish_sql 20 13 none]
+G r c none [add_sessions pgish_catalog 210 14 none] [sessions pgish_state 68 14 none]
+G r c none [add_sessions pgish_catalog 210 14 none] [image pgish_sql 21 13 none]
+G r c none [add_sessions pgish_catalog 210 14 none] [is_empty pgish_sql 22 13 none]
+G r s Tcommit_arrayB [add_commits pgish_catalog 242 14 none] [Tcommit_arrayBIP pgish_state 32 4 none]
+G r c none [add_commits pgish_catalog 242 14 none] [make_text pgish_sql 20 13 none]
+G r c none [add_commits pgish_catalog 242 14 none] [repository_commits pgish_state 53 14 none]
+G r c none [add_commits pgish_catalog 242 14 none] [image pgish_sql 21 13 none]
+G r c none [add_tables pgish_catalog 265 14 none] [make_text pgish_sql 20 13 none]
+G r c none [add_tables pgish_catalog 265 14 none] [image pgish_sql 21 13 none]
+G r c none [add_settings pgish_catalog 280 14 none] [make_text pgish_sql 20 13 none]
+G r c none [add_settings pgish_catalog 280 14 none] [config pgish_state 51 13 none]
+G r c none [add_environment pgish_catalog 317 14 none] [make_text pgish_sql 20 13 none]
+G r c none [add_environment pgish_catalog 317 14 none] [image pgish_sql 21 13 none]
+G r c none [add_information_tables pgish_catalog 339 14 none] [make_text pgish_sql 20 13 none]
+G r c none [add_information_tables pgish_catalog 339 14 none] [image pgish_sql 21 13 none]
+G r s text [add_information_columns pgish_catalog 356 14 none] [textIP pgish_sql 15 9 none]
+G r c none [add_information_columns pgish_catalog 356 14 none] [make_text pgish_sql 20 13 none]
+G r c none [add_information_columns pgish_catalog 356 14 none] [image pgish_sql 21 13 none]
+G r c none [add_information_columns pgish_catalog 356 14 none] [config pgish_state 51 13 none]
+G r c none [add_information_columns pgish_catalog 356 14 none] [repository_head pgish_state 52 13 none]
+G r c none [add_information_columns pgish_catalog 356 14 none] [snapshot flyology__observability 205 13 none]
+G r c none [add_information_columns pgish_catalog 356 14 none] [stack_pool flyology__observability 245 13 none]
+G r s Tsession_arrayB [add_information_columns pgish_catalog 356 14 none] [Tsession_arrayBIP pgish_state 44 4 none]
+G r c none [add_information_columns pgish_catalog 356 14 none] [sessions pgish_state 68 14 none]
+G r c none [add_information_columns pgish_catalog 356 14 none] [is_empty pgish_sql 22 13 none]
+G r s Tcommit_arrayB [add_information_columns pgish_catalog 356 14 none] [Tcommit_arrayBIP pgish_state 32 4 none]
+G r c none [add_information_columns pgish_catalog 356 14 none] [repository_commits pgish_state 53 14 none]
+G r s text [load_source pgish_catalog 412 14 none] [textIP pgish_sql 15 9 none]
+G r c none [load_source pgish_catalog 412 14 none] [config pgish_state 51 13 none]
+G r c none [load_source pgish_catalog 412 14 none] [make_text pgish_sql 20 13 none]
+G r c none [load_source pgish_catalog 412 14 none] [image pgish_sql 21 13 none]
+G r c none [load_source pgish_catalog 412 14 none] [repository_head pgish_state 52 13 none]
+G r c none [load_source pgish_catalog 412 14 none] [snapshot flyology__observability 205 13 none]
+G r c none [load_source pgish_catalog 412 14 none] [stack_pool flyology__observability 245 13 none]
+G r s Tsession_arrayB [load_source pgish_catalog 412 14 none] [Tsession_arrayBIP pgish_state 44 4 none]
+G r c none [load_source pgish_catalog 412 14 none] [sessions pgish_state 68 14 none]
+G r c none [load_source pgish_catalog 412 14 none] [is_empty pgish_sql 22 13 none]
+G r s Tcommit_arrayB [load_source pgish_catalog 412 14 none] [Tcommit_arrayBIP pgish_state 32 4 none]
+G r c none [load_source pgish_catalog 412 14 none] [repository_commits pgish_state 53 14 none]
+G r c none [matches pgish_catalog 468 13 none] [image pgish_sql 21 13 none]
+G r s text [matches pgish_catalog 468 13 none] [textIP pgish_sql 15 9 none]
+G r c none [project pgish_catalog 508 14 none] [make_text pgish_sql 20 13 none]
+G r s text [project pgish_catalog 508 14 none] [textIP pgish_sql 15 9 none]
+G r c none [project pgish_catalog 508 14 none] [image pgish_sql 21 13 none]
+G r c none [project pgish_catalog 508 14 none] [is_empty pgish_sql 22 13 none]
+G r c none [sort pgish_catalog 623 14 none] [image pgish_sql 21 13 none]
+X 1 ada.ads
+18K9*Ada 22e8 27|1r6 2r6 3r6 4r6 5r6 6r6 12r8 13r13 61r7 61r38 65r32 66r7
+. 93r33 94r30 115r37 329r16 332r41 451r10 452r17 456r17 513r52 717r9 725r17
+. 727r17 743r13 747r16 780r13 807r13 827r16
+X 2 a-calend.ads
+36K13*Calendar 440e17 27|1w10 2r10 13r17 65r36 66r11 115r41 513r56
+42I9*Time<226I9> 27|13r26 65r45
+56V13*Clock{42I9} 27|115s50 513s65
+112V14*"-"{duration} 27|115s56
+226I9 Time_Rep<long_long_integer>
+X 3 a-calfor.ads
+24K22*Formatting 223e28 27|2w19 66r20
+176V13*Image{string} 27|66s31
+178b7 Include_Time_Fraction{boolean} 27|67r17
+179i7 Time_Zone{4|23I9} 27|67r49
+X 4 a-catizo.ads
+23I9*Time_Offset<short_integer>
+X 5 a-charac.ads
+16K13*Characters 18e19 27|3r10 12r12
+X 6 a-chahan.ads
+43K24*Handling 454e28 27|3w21 12r23
+274V13*To_Lower{string} 27|96s14 104s13 166s38 428s13 429s13 665s39 679s13
+. 715s35
+X 8 a-envvar.ads
+19K13*Environment_Variables 69e30 27|4w10 329r20 332r45
+22V13*Value{string} 27|332s67
+34V13*Exists{boolean} 27|329s42
+X 12 a-string.ads
+16K13*Strings 35e16 27|5w10 6r10 61r11 61r42 93r37 94r34 451r14 452r21 456r21
+. 717r13 725r21 727r21 743r17 747r20 780r17 807r17 827r20
+32n33*Backward{32E9} 27|94r42
+33n37*Both{33E9} 27|61r50
+X 13 a-strfix.ads
+49K21*Fixed 1390e22 27|6w18 61r19 93r45 451r22 452r29 456r29 717r21 725r29
+. 727r29 743r25 747r28 780r25 807r25 827r28
+252V13*Index{natural} 27|93s51 451s28 452s35 456s35 717s27 725s35 727s35
+. 743s31 747s34 780s31 807s31 827s34
+255e7 Going{12|32E9} 27|94r21
+1133V13*Trim{string} 27|61s25
+X 21 flyology.ads
+11K9*Flyology 33e13 27|7r6 8r6 21r27 22r34
+X 22 flyology-execution_groups.ads
+10K18*Execution_Groups 270e30 27|7w15 21r36
+15I9*Group_Id<short_integer> 27|161r27
+X 23 flyology-observability.ads
+4K18*Observability 247e27 27|8w15 22r43
+19M12*Counter{24|95M9}
+141R9*Group_Snapshot 177e14 27|142r32
+143e7*Thread_State{87E9} 27|166r57
+144b7*Dedicated{boolean} 27|167r50
+145b7*Reserved{boolean} 27|168r50
+146m7*Members{19M12} 27|169r59
+147m7*Pinned_Members{19M12} 27|170r59
+148m7*Ready{19M12} 27|171r59
+149m7*Waiting{19M12} 27|172r59
+150m7*Running{19M12} 27|173r59
+153m7*Timer_Waits{19M12} 27|174r60
+154m7*Descriptor_Waits{19M12} 27|175r60
+155m7*Interrupt_Waits{19M12} 27|176r60
+156m7*File_Waits{19M12} 27|177r60
+168m7*Dispatches{19M12} 27|178r60
+170m7*Poll_Events{19M12} 27|179r60
+171m7*Wakeups{19M12} 27|180r60
+188R9*Stack_Pool_Snapshot 197e14 27|187r41
+189m7*Active_Arenas{19M12} 27|199r53
+190m7*Live_Stacks{19M12} 27|200r53
+191m7*Live_Usable_Bytes{19M12} 27|201r53
+192m7*Reserved_Bytes{19M12} 27|202r53
+193m7*Arena_Mappings{19M12} 27|203r53
+194m7*Arena_Unmappings{19M12} 27|204r53
+195m7*Shared_Stacks{19M12} 27|205r53
+196m7*Discarded_Stacks{19M12} 27|206r53
+205V13*Snapshot{boolean} 27|163s27
+245V13*Stack_Pool{188R9} 27|188s23
+X 24 interfac.ads
+95M9*Unsigned_64
+X 26 pgish_catalog.ads
+4K9*Pgish_Catalog 52l5 52e18 27|10b14 841l5 841t18
+6X4*Undefined_Table_Error 27|432r16
+7X4*Undefined_Column_Error 27|478r16 545r22 635r16 672r24
+8X4*Unsupported_Error 27|454r16
+9X4*Resource_Limit_Error 27|76r16 86r16
+11N4*Maximum_Columns 20r33 26r50 35r41 27|75r32
+12N4*Maximum_Rows 31r49 37r41 27|85r29 162r39 301r47 706r58
+14R9*Column_Definition 18e14 20r53
+15r7*Name{28|24R12} 27|80m10 104r57 396r76 522r61 765r73
+16i7*Type_Oid{natural} 27|80m28 400r49 523r42 549r72 767r46
+17i7*Type_Size{integer} 27|80m50 524r42 550r46
+19A9*Column_Array(14R9)<integer> 34r22
+22R9*Cell 25e14 26r70 27|56r47 58r30 472r20 625r38
+23b7*Is_Null{boolean} 27|57m7 58m39 482r66 483r77 484r24 627r18 627r68 628r22
+24r7*Value{28|25R12} 27|57m25 58m56 486r45 488r54 495r38 496r41 629r55 629r81
+. 630r38 630r64
+26A9*Cell_Array(22R9)<integer> 29r16 27|83r60 114r16 143r18 189r16 214r18
+. 246r17 266r16 282r16 318r16 340r16 361r16 561r19 666r22 719r16
+28R9*Result_Row 30e14 31r66 27|469r34 560r49 600r28 639r30
+29a7*Values{26A9} 27|89m38 481r25 572r52 579r55 600m43 643r38 643r79
+31A9*Row_Array(28R9)<integer> 36r22
+33R9*Result_Set 38e14 44r21 50r22 27|70r23 83r39 100r35 112r57 141r50 186r46
+. 211r64 243r57 265r42 281r57 317r47 339r54 358r28 360r16 415r26 469r16 509r17
+. 512r24 623r36 657r21 658r16 714r22 720r16
+34a7*Columns{19A9} 27|79m14 104r41 396r59 400r32 522r45 523r26 524r26 549r49
+. 550r23 765r56 767r29
+35i7*Column_Count{integer} 27|75r17 78m14 78r37 79r30 103r32 391r39 520r38
+. 570r44 763r36
+36a7*Rows{31A9} 27|89m14 612r34 618r52 639r51 643r61 645m23 645r47 648m20
+37i7*Row_Count{integer} 27|85r17 88m14 88r34 89r27 162r27 608r39 637r35 707r17
+. 707m47
+40U14*Execute 41=7 42>7 43>7 44<7 27|653b14 708l8 708t15
+41r7 State{29|47R9} 27|654b7 696m19 699m26
+42r7 Session{29|34R9} 27|655b7 702r24
+43r7 Query{28|65R9} 27|656b7 662r10 663r41 665r60 678r28 679r34 685r34 686r44
+. 688r30 690r38 699r44 702r33 703r28 704r35 704r56 706r20 706r41
+44r7 Result{33R9} 27|657b7 661m7 663m22 674m22 702m40 704m16 707r10 707m40
+46U14*Psql_Compatibility 47=7 48>7 49<7 50<7 27|710b14 839l8 839t26
+47r7 Context{29|47R9} 27|711b7 752m19
+48a7 SQL_Text{string} 27|712b7 715r45
+49b7 Matched{boolean} 27|713b7 723m7 729r14
+50r7 Result{33R9} 27|714b7 722m7 733m22 734m22 735m22 741m22 756m22 757m22
+. 758m22 759m22 760m22 761m22 762m22 778m22 791m28 806m19 810m22 811m22 812m22
+. 813m22 820m22 823m22 824m22 825m22 835m25
+X 27 pgish_catalog.adb
+19K12 SQL=19:24 25r21 26r21 31r8 31r47 32r8 32r76 33r8 33r50 34r8 34r79 35r8
+. 35r54 36r8 36r76 37r8 37r44 38r8 38r57 39r8 39r48 40r8 40r73 41r8 41r42
+. 42r8 42r69 43r8 43r44 44r8 44r79 45r8 45r47 46r8 46r76 48r39 49r7 49r29
+. 50r39 51r7 52r30 54r52 55r10 104r23 129r32 130r32 132r32 190r53 197r30
+. 228r35 229r35 230r35 233r35 235r16 237r29 256r35 257r35 258r35 259r35 260r35
+. 274r35 275r35 297r48 299r40 319r53 327r38 350r35 388r56 390r19 395r41 396r41
+. 469r58 471r56 479r43 482r31 483r34 485r34 486r23 486r53 488r32 489r27 495r16
+. 495r47 496r19 496r50 499r15 500r15 501r15 502r15 503r15 504r15 511r17 515r52
+. 517r17 519r31 522r27 529r13 531r21 531r68 532r21 533r21 535r26 536r26 537r26
+. 538r26 539r21 542r31 543r50 546r50 549r24 551r34 552r46 554r33 556r33 567r29
+. 569r37 577r27 578r62 580r27 581r55 582r27 585r35 585r68 586r35 586r64 587r35
+. 590r35 591r27 605r10 629r39 629r64 630r22 630r47 662r23 663r30 665r49 678r14
+. 679r23 683r31 686r33 688r66 696r34 699r33 703r14 704r24 739r38 752r28 765r38
+. 782r59 791r36 817r38 828r23 834r41
+20K12 State=20:26 112r21 113r25 113r48 134r13 136r26 211r28 212r18 224r7
+. 243r21 244r17 253r7 281r21 302r44 305r40 357r28 413r24 510r17 711r24
+21K12 Groups=21:36 161r20
+22K12 Observability=22:43 142r18 163r13 187r27 188r9
+24R9 Table_Metadata 27e14 28r56
+25r7*Name{28|24R12} 274r52 350r52 388r73 390r36 395r58 739r55 752r54 817r55
+. 828r49 834r67
+26r7*Description{28|25R12} 275r52
+28A9 Metadata_Array(24R9)<integer> 30r22
+30a4 Tables{28A9} 271r20 346r20 386r20 736r23 746r23 752r39 814r23 826r23
+. 828r34 834r52
+48V13 T{28|24R12} 48b13 48>16 80s18 191s10 191s31 192s10 192s35 193s10 193s32
+. 194s10 194s31 320s10 320s34 321s10 321s41 321s53 531s54 532s55 533s56 783s16
+. 783s33 783s48 784s16 784s35 785s16 785s38 786s16 786s34 787s16 787s37 787s58
+. 788s16 788s38 788s58
+48a16 Value{string} 49r22
+50V13 V{28|25R12} 50b13 50>16 57s34 58s65
+50a16 Value{string} 52r14 53r16 54r16 54r23 54r38
+56V13 Text_Cell{26|22R9} 56b13 56>24 126s21 127s21 128s21 129s21 130s21 131s21
+. 132s21 136s15 137s21 165s27 166s27 167s27 168s27 169s27 170s27 171s27 172s27
+. 173s27 174s28 175s28 176s28 177s28 178s28 179s28 180s28 199s21 200s21 201s21
+. 202s21 203s21 204s21 205s21 206s21 227s24 228s24 229s24 230s24 231s24 232s24
+. 233s24 237s18 256s24 257s24 258s24 259s24 260s24 273s24 274s24 275s24 286s24
+. 287s24 288s64 289s24 331s30 332s30 348s24 349s24 350s24 351s24 393s30 394s30
+. 395s30 396s30 397s30 398s30 399s30 581s44 583s44 668s59 669s96 670s56 671s75
+. 738s27 739s27 740s27 765s27 766s27 774s27 776s27 777s27 795s24 796s24 798s31
+. 800s25 801s25 802s25 803s25 804s25 816s27 817s27 818s27 819s27 831s30 833s30
+. 834s30
+56a24 Value{string} 57r37
+58V13 Null_Cell{26|22R9} 58b13 114s41 135s15 143s43 164s34 189s41 214s43
+. 226s31 236s18 246s42 255s31 266s41 272s31 282s41 285s31 288s49 318s41 330s37
+. 340s41 347s31 361s41 392s37 405s30 561s44 600s64 666s47 719s41 737s34 764s34
+. 773s27 775s27 794s31 805s25 815s34 830s37
+60V13 Trim_Image{string} 60b13 60>25 128s32 131s32 165s38 169s38 170s38 171s38
+. 172s38 173s38 174s39 175s39 176s39 177s39 178s39 179s39 180s39 199s32 200s32
+. 201s32 202s32 203s32 204s32 205s32 206s32 227s35 231s35 297s36 299s28 301s35
+. 302s32 397s41 748s29 832s19
+60a25 Value{string} 61r31
+62V13 B{string} 62b13 62>16 167s38 168s38
+62b16 Value{boolean} 63r10
+65V13 Timestamp{string} 65b13 65>24 137s32 232s35 513s41
+65i24 Value{2|42I9} 67r10
+69U14 Add_Column 69b14 70=7 71>7 72>7 73>7 81l8 81t18 117s7 118s7 119s7 120s7
+. 121s7 122s7 123s7 124s7 125s7 145s7 146s7 147s7 148s7 149s7 150s7 151s7
+. 152s7 153s7 154s7 155s7 156s7 157s7 158s7 159s7 160s7 197s10 216s7 217s7
+. 218s7 219s7 220s7 221s7 222s7 223s7 248s7 249s7 250s7 251s7 252s7 268s7
+. 269s7 270s7 293s7 294s7 295s7 296s7 323s7 324s7 342s7 343s7 344s7 345s7
+. 378s7 379s7 380s7 381s7 382s7 383s7 384s7 385s7 521s16 548s13 554s13 556s13
+. 663s10 733s10 734s10 735s10 756s10 757s10 758s10 759s10 760s10 761s10 762s10
+. 791s16 810s10 811s10 812s10 813s10 823s10 824s10 825s10
+70r7 Result{26|33R9} 75r10 78m7 78r30 79m7 79r23
+71a7 Name{string} 80r21
+72i7 Type_Oid{natural} 80r40
+73i7 Type_Size{integer} 80r63
+83U14 Add_Row 83b14 83=23 83>51 90l8 90t15 138s7 181s13 207s7 238s10 261s10
+. 276s10 290s10 333s16 352s10 406s16 596s10 674s13 741s13 778s13 806s10 820s13
+. 835s16
+83r23 Result{26|33R9} 85r10 88m7 88r27 89m7 89r20
+83a51 Values{26|26A9} 89r48
+92V13 Base_Name{string} 92b13 92>24 98l8 98t17 101s35 388s20 388s45 416s33
+. 531s57 686s22
+92a24 Name{string} 94r10 97r27 97r37 97r54
+93i7 Dot{natural} 97r14 97r43
+100V13 Find_Column{natural} 100b13 100>26 100>47 109l8 109t19 471s35 543s29
+. 578s41 624s35
+100r26 Result{26|33R9} 103r25 104r34
+100a47 Name{string} 101r46
+101a7 Wanted{string} 104r66
+103i11 Index{integer} 104r50 105r20
+111U14 Add_Server_Info 111b14 112>7 112=41 139l8 139t23 366s48 419s45
+112r7 State_Value{29|47R9} 113r62 134r36 136r49
+112r41 Result{26|33R9} 117m19 118m19 119m19 120m19 121m19 122m19 123m19 124m19
+. 125m19 138m16
+113r7 Config{29|16R9} 115r58 129r43 130r43 131r44 132r43 137r43
+114a7 Values{26|26A9} 126m7 127m7 128m7 129m7 130m7 131m7 132m7 133m7 137m7
+. 138r24
+115o7 Uptime{duration} 128r63
+141U14 Add_Runtime_Groups 141b14 141=34 184l8 184t26 367s54 420s51
+141r34 Result{26|33R9} 145m19 146m19 147m19 148m19 149m19 150m19 151m19 152m19
+. 153m19 154m19 155m19 156m19 157m19 158m19 159m19 160m19 162r20 181m22
+142r7 Snapshot{23|141R9} 163m44 163r44 166r48 167r41 168r41 169r50 170r50
+. 171r50 172r50 173r50 174r51 175r51 176r51 177r51 178r51 179r51 180r51
+143a7 Values{26|26A9} 164m13 165m13 166m13 167m13 168m13 169m13 170m13 171m13
+. 172m13 173m13 174m13 175m13 176m13 177m13 178m13 179m13 180m13 181r30
+161i11 Group{22|15I9} 163r37 165r50
+186U14 Add_Stack_Pool 186b14 186=30 208l8 208t22 368s58 421s55
+186r30 Result{26|33R9} 197m22 207m16
+187r7 Snapshot{23|188R9} 199r44 200r44 201r44 202r44 203r44 204r44 205r44
+. 206r44
+189a7 Values{26|26A9} 199m7 200m7 201m7 202m7 203m7 204m7 205m7 206m7 207r24
+190a7 Names(28|24R12) 196r19
+196r11 Name=196:19{28|24R12} 197r41
+210U14 Add_Sessions 210b14 211=7 211=48 240l8 240t20 369s48 422s45
+211r7 State_Value{29|47R9} 224m23
+211r48 Result{26|33R9} 216m19 217m19 218m19 219m19 220m19 221m19 222m19 223m19
+. 238m19
+212a7 Sessions{29|44A9} 224m36 227r47 228r46 229r46 230r46 231r47 232r46
+. 233r46 235r30 237r40
+213i7 Count{natural} 224m46 225r25
+214a7 Values{26|26A9} 226m10 227m10 228m10 229m10 230m10 231m10 232m10 233m10
+. 234m10 238r27
+225i11 Index{integer} 227r57 228r56 229r56 230r56 231r57 232r56 233r56 235r40
+. 237r50
+242U14 Add_Commits 242b14 243>7 243=41 263l8 263t19 370s52 423s49
+243r7 State_Value{29|47R9} 253r33
+243r41 Result{26|33R9} 248m19 249m19 250m19 251m19 252m19 261m19
+244a7 Commits{29|32A9} 253m46 256r46 257r46 258r46 259r46 260r46
+245i7 Count{natural} 253m55 254r25
+246a7 Values{26|26A9} 255m10 256m10 257m10 258m10 259m10 260m10 261r27
+254i11 Index{integer} 256r55 257r55 258r55 259r55 260r55
+265U14 Add_Tables 265b14 265=26 278l8 278t18 371s46 424s43
+265r26 Result{26|33R9} 268m19 269m19 270m19 276m19
+266a7 Values{26|26A9} 272m10 273m10 274m10 275m10 276r27
+271r11 Table=271:20{24R9} 274r46 275r46
+280U14 Add_Settings 280b14 281>7 281=41 315l8 315t20 373s13 426s10
+281r7 State_Value{29|47R9} 305r54
+281r41 Result{26|33R9} 290m19 293m19 294m19 295m19 296m19
+282a7 Values{26|26A9} 285m10 286m10 287m10 288m10 289m10 290r27
+283U17 Add 283b17 283>22 283>28 283>35 283>41 291l11 291t14 297s7 298s7 301s7
+. 302s7 303s7 307s10
+283a22 Name{string} 286r35
+283a28 Value{string} 287r35
+283a35 Unit{string} 288r28 288r75
+283a41 Description{string} 289r35
+305b10 Enabled{boolean} 309r17 311r17
+317U14 Add_Environment 317b14 317=31 337l8 337t23 374s51 427s48
+317r31 Result{26|33R9} 323m19 324m19 333m25
+318a7 Values{26|26A9} 330m16 331m16 332m16 333r33
+319a7 Names(28|24R12) 325r19
+325r11 Name=325:19{28|24R12} 327r49
+327a13 Key{string} 329r50 331r41 332r74
+339U14 Add_Information_Tables 339b14 339=38 354l8 354t30 428s64
+339r38 Result{26|33R9} 342m19 343m19 344m19 345m19 352m19
+340a7 Values{26|26A9} 347m10 348m10 349m10 350m10 351m10 352r27
+346r11 Table=346:20{24R9} 350r46
+356U14 Add_Information_Columns 356b14 357=7 358=7 359>7 410l8 410t31 430s10
+. 695s16
+357r7 State_Value{29|47R9} 366r65 369m62 370r65 373r27
+358r7 Result{26|33R9} 378m19 379m19 380m19 381m19 382m19 383m19 384m19 385m19
+. 406m25
+359a7 Only_Table{string} 387r13 388r31
+360r7 Source{26|33R9} 365m10 366m78 366r78 367m74 367r74 368m74 368r74 369m75
+. 369r75 370m78 370r78 371m58 371r58 373m40 373r40 374m68 374r68 391r32 396r52
+. 400r25
+361a7 Values{26|26A9} 392m16 393m16 394m16 395m16 396m16 397m16 398m16 399m16
+. 405m16 406r33
+363U17 Load 363b17 363>23 376l11 376t15 390s13
+363a23 Name{string} 366r13 367r16 368r16 369r16 370r16 371r16 372r16 374r16
+386r11 Table=386:20{24R9} 388r67 390r30 395r52
+391i17 Column{integer} 396r68 397r53 400r41
+412U14 Load_Source 412b14 413=7 414>7 415<7 434l8 434t19 699s13 751s16
+413r7 Context{29|47R9} 419r62 422m59 423r62 426r24 430m35
+414a7 Name{string} 416r44 428r23 429r23 432r71
+415r7 Result{26|33R9} 418m7 419m71 420m71 421m71 422m68 423m71 424m55 426m33
+. 427m65 428m88 430m44
+416a7 Base{string} 419r10 420r13 421r13 422r13 423r13 424r13 425r13 427r13
+436V13 Numeric{boolean} 436b13 436>22 436<38 442l8 442t15 488s23 489s18
+436a22 Value{string} 438r42
+436i38 Number{long_long_integer} 438m7 441m32
+444V13 Like{boolean} 444b13 444>19 444>26 466l8 466t12 486s17
+444a19 Value{string} 456r42 458r34 459r21 459r28 459r62 461r34 462r21 462r28
+. 462r43 464r17
+444a26 Pattern{string} 445r38 445r66 445r75 446r38 446r66 446r75 447r38 448r38
+. 449r67
+445b7 Leading{boolean} 447r67 455r13 457r13
+446b7 Trailing{boolean} 448r66 455r25 460r13
+447i7 First{integer} 449r41 449r76
+448i7 Last{integer} 449r49 449r85
+449a7 Needle{string} 451r35 452r42 456r49 458r17 459r41 459r76 461r17 462r57
+. 462r78 464r25
+468V13 Matches{boolean} 468b13 469>7 469>28 469>46 506l8 506t15 611s23
+469r7 Source{26|33R9} 471r48
+469r28 Row{26|28R9} 481r21
+469r46 Predicate{28|58R9} 471r67 479r54 482r10 483r13 485r13 486r64 489r38
+. 495r58 496r61 498r20
+471i7 Index{natural} 477r10 481r33
+472r7 Cell_Value{26|22R9} 481m7 482r55 483r66 484r13 486r34 488r43 495r27
+. 496r30
+473i7 Left_Number{long_long_integer} 488m62 488r62 491r28 492r31
+473i20 Right_Number{long_long_integer} 489m56 489r56 491r42 492r45
+474b7 Both_Numeric{boolean} 488m7 490r10
+475i7 Comparison{integer} 491m10 494m10 499r31 500r35 501r32 502r36 503r35
+. 504r39
+508U14 Project 508b14 509>7 510>7 511>7 512=7 621l8 621t15 702s7
+509r7 Source{26|33R9} 520r31 522r38 523r19 524r19 543r42 549r42 550r16 570r37
+. 578r54 608r32 612r19 612r27 618r45
+510r7 Session{29|34R9} 585r79 586r75
+511r7 Query{28|65R9} 565r39 567r52 602r25 603r32 605r24 610r41 612r52
+512r7 Result{26|33R9} 522m19 549m16 554m25 556m25 596m19
+513a7 Current_Time{string} 590r55
+515U17 Add_Projected_Column 515b17 515>39 558l11 558t31 603s10
+515r39 Projection{28|49R9} 519r13 528r18 530r18 531r79 534r25 542r13 543r61
+. 546r61 551r16 552r21
+516i10 Source_Index{natural} 543m13 544r16 549r58 550r32
+517r10 Name{28|24R12} 528m10 529r27 531m46 532m47 533m48 549r35 554r44 556r44
+520i17 Index{integer} 522r54 523r35 524r35
+560U17 Add_Projected_Row 560b17 560>36 597l11 597t28 606s10 618s26
+560r36 Source_Row{26|28R9} 572r41 579r44
+561a10 Values{26|26A9} 572m22 579m25 581m25 583m25 596r27
+562i10 Output{natural} 571m22 571r32 572r30 575m19 575r29 579r33 581r33 583r33
+563i10 Source_Index{natural} 578m25 579r63
+565i14 Projection_Index{integer} 567r71
+567r16 Projection{28|49R9} 569r19 576r24 578r73 581r66 584r34
+570i23 Index{integer} 572r60
+599b7 Keep{boolean} 609m13 614m19 618r16
+600r7 Empty_Row{26|28R9} 606r29
+602i11 Index{integer} 603r51
+608i14 Row_Index{integer} 612r40 618r58
+610i17 Predicate_Index{integer} 612r70
+623U14 Sort 623b14 623=20 623>48 623>65 651l8 651t12 704s10
+623r20 Result{26|33R9} 624r48 637r28 639r44 643r54 645m16 645r40 648m13
+623a48 Column{string} 624r56 635r83
+623b65 Descending{boolean} 627r38 628r46 629r16
+624i7 Index{natural} 634r10 643r46 643r87
+625V16 Before{boolean} 625b16 625>24 625>30 632l11 632t17 643s24
+625r24 Left{26|22R9} 627r13 629r50 630r33
+625r30 Right{26|22R9} 627r62 628r16 629r75 630r58
+637i11 Position{integer} 639r57 640r33
+639r13 Value{26|28R9} 643r32 648r37
+640i13 Cursor{natural} 642r19 643r67 645r29 645r53 646m16 646r26 648r26
+658r7 Source{26|33R9} 694m16 696m26 696r26 699m63 702r16
+659i7 Limit{natural} 706m7 707r29 707r60
+665a13 Name{string} 668r16 669r19 669r52 670r19 671r19 672r79
+666a13 Values{26|26A9} 668m45 669m82 670m42 671m61 674r30
+683r16 Table_Filter{28|25R12} 690m22 696r45
+685i20 Index{integer} 686r62 688r48 690r56
+715a7 Lower{string} 718r12 726r12 728r12 744r10 748r16 780r38 808r10 828r16
+716b7 Psqlish_Tables{boolean} 724r9 732r10
+719a7 Values{26|26A9} 737m13 738m13 739m13 740m13 741r30 764m13 765m13 766m13
+. 773m13 774m13 775m13 776m13 777m13 778r30 794m10 795m10 796m10 798m13 800m10
+. 801m10 802m10 803m10 804m10 805m10 806r27 815m13 816m13 817m13 818m13 819m13
+. 820r30 830m16 831m16 833m16 834m16 835r33
+720r7 Source{26|33R9} 752m61 763r29 765r49 767r22
+736r14 Table=736:23{24R9} 739r49
+746i14 Index{integer} 748r65 752r47
+763i14 Column{integer} 765r65 767r38
+782a13 Names(28|24R12) 790r25
+790r17 Name=790:25{28|24R12} 791r47
+797i14 Index{integer} 798r21
+814r14 Table=814:23{24R9} 817r49
+826i14 Index{integer} 828r42 832r55 834r60
+X 28 pgish_sql.ads
+1K9*Pgish_SQL 26|1w6 11r34 12r34 15r19 24r17 43r17 27|14r13 15r13 16r13 17r13
+. 19r24 656r17 28|82e14
+3N4*Maximum_Query_Length 27|297r52
+5N4*Maximum_Tokens 27|299r44
+7N4*Maximum_Projections 26|11r44
+9N4*Maximum_Name_Length 27|31r51 33r54 35r58 37r48 39r52 41r46 43r48 45r51
+. 49r33
+10N4*Maximum_Value_Length 27|32r80 34r83 36r80 38r61 40r77 42r73 44r83 46r80
+. 52r34 54r56 55r14
+11N4*Maximum_Result_Rows 26|12r44
+20V13*Make_Text{15R9} 27|31s12 32s12 33s12 34s12 35s12 36s12 37s12 38s12
+. 39s12 40s12 41s12 42s12 43s12 44s12 45s12 46s12 49s11 51s11
+21V13*Image{string} 27|104s27 129s36 130s36 132s36 197s34 228s39 229s39 230s39
+. 233s39 237s33 256s39 257s39 258s39 259s39 260s39 274s39 275s39 327s42 350s39
+. 388s60 390s23 395s45 396s45 471s60 479s47 486s27 486s57 488s36 489s31 495s20
+. 495s51 496s23 496s54 522s31 531s72 543s54 546s54 549s28 554s37 556s37 578s66
+. 581s59 585s72 586s68 629s43 629s68 630s26 630s51 663s34 665s53 679s27 686s37
+. 696s38 699s37 704s28 739s42 752s32 765s42 791s40 817s42 828s27 834s45
+22V13*Is_Empty{boolean} 27|235s20 529s17 605s14 678s18 703s18
+24R12*Name_Text{15R9} 26|15r29 27|25r25 48r43 190r57 319r57 517r21 782r63
+25R12*Value_Text{15R9} 26|24r27 27|26r25 50r43 683r35
+27E9*Statement_Kind 27|17r23 28|27e61
+27n46*Show_Statement{27E9} 27|662r27
+28E9*Projection_Kind 27|16r23 28|32e27
+29n7*Column_Projection{28E9} 27|531r25 542r35 577r31
+30n7*Star_Projection{28E9} 27|519r35 539r25 569r41 591r31
+31n7*Literal_Projection{28E9} 27|532r25 580r31
+32n7*Function_Projection{28E9} 27|533r25 551r38 582r31
+33E9*Function_Kind 27|15r23 28|37e20
+34n7*Current_Database_Function{33E9} 27|535r30 585r39
+35n7*Current_User_Function{33E9} 27|536r30 586r39
+36n7*Version_Function{33E9} 27|537r30 587r39
+37n7*Now_Function{33E9} 27|538r30 552r50 590r39
+38E9*Comparison_Operator 27|14r23 28|47e19
+39n7*Equal_To{38E9} 27|499r19 688r70
+40n7*Not_Equal_To{38E9} 27|500r19
+41n7*Less_Than{38E9} 27|501r19
+42n7*Less_Or_Equal{38E9} 27|502r19
+43n7*Greater_Than{38E9} 27|503r19
+44n7*Greater_Or_Equal{38E9} 27|504r19
+45n7*Like_Match{38E9} 27|485r38
+46n7*Is_Null{38E9} 27|482r35
+47n7*Is_Not_Null{38E9} 27|483r38
+49R9*Projection 27|515r56 567r33 28|55e14
+50e7*Kind{28E9} 27|519r24 530r29 542r24 551r27 569r30 576r35
+51r7*Name{24R12} 27|531r90 543r72 546r72 578r84
+52r7*Literal{25R12} 27|581r77
+53e7*Function_Id{33E9} 27|534r36 552r32 584r45
+54r7*Alias{24R12} 27|528r29
+56A9*Projection_Array(49R9)<integer>
+58R9*Predicate 27|469r62 28|62e14
+59r7*Column{24R12} 27|471r77 479r64 686r69
+60e7*Operator{38E9} 27|482r20 483r23 485r23 498r30 688r55
+61r7*Value{25R12} 27|486r74 489r48 495r68 496r71 690r63
+63A9*Predicate_Array(58R9)<integer>
+65R9*Query 26|43r27 27|511r21 656r27 28|78e14
+66e7*Kind{27E9} 27|662r16
+67a7*Projections{56A9} 27|567m58 603r38
+68i7*Projection_Count{integer} 27|565r45 602r31
+69r7*Table_Name{24R12} 27|605r30 678r34 679r40 699r50
+70a7*Predicates{63A9} 27|612r58 686r50 688r36 690r44
+71i7*Predicate_Count{integer} 27|610r47 685r40
+72r7*Order_Column{24R12} 27|703r34 704r41
+73b7*Order_Descending{boolean} 27|704r62
+74b7*Has_Limit{boolean} 27|706r26
+75i7*Limit{integer} 27|706r47
+77r7*Show_Name{24R12} 27|663r47 665r66
+X 29 pgish_state.ads
+5K9*Pgish_State 26|2w6 41r24 42r17 47r25 27|20r26 654r24 655r17 29|137e16
+7N4*Maximum_Sessions 27|302r50
+16R9*Configuration 27|113r31 29|23e14
+17r7*Host{10R12} 27|130r50
+18i7*Port{integer} 27|131r51
+19r7*Repository_Path{12R12} 27|132r50
+20r7*Task_Mode{10R12} 27|129r50
+21b7*TLS_Enabled{boolean} 27|305r67
+22i7*Started_At{2|42I9} 27|115r65 137r50
+26r7*Hash{10R12} 27|256r62
+27r7*Short_Hash{10R12} 27|257r62
+28r7*Author{11R12} 27|258r62
+29r7*Committed_At{10R12} 27|259r62
+30r7*Subject{11R12} 27|260r62
+32A9*Commit_Array(25R9)<integer> 27|244r23
+34R9*Session_Snapshot 26|42r29 27|510r23 655r29 29|43e14
+35i7*Session_Id{natural} 27|227r64
+36r7*User_Name{10R12} 27|228r63 586r83
+37r7*Database_Name{10R12} 27|229r63 585r87
+38r7*Application_Name{10R12} 27|230r63
+39i7*Query_Count{natural} 27|231r64
+40i7*Connected_At{2|42I9} 27|232r63
+41r7*State{10R12} 27|233r63
+42r7*Current_Query{11R12} 27|235r47 237r57
+44A9*Session_Array(34R9)<integer> 27|212r24
+47R9*Server_State 26|41r36 47r37 27|112r27 211r34 243r27 281r27 357r34 413r30
+. 654r36 711r30 29|135e14
+51V13*Config{16R9} 27|113s54 305s46
+52V13*Repository_Head{string} 27|134s19 136s32
+53U14*Repository_Commits 27|253s13
+68U14*Sessions 27|224s13
+X 53 s-stausa.ads
+206U14*Initialize 207i<c,__gnat_stack_usage_initialize>22
+265U14*Output_Results 269i<c,__gnat_stack_usage_output_results>22
+

@@ -1,0 +1,6 @@
+  -- line 2: "n | 7"
+  -- line 3: "value | alpha"
+  ok: both expanded field lines carry a separator
+  FAILED: the expanded separators align (n at 3, value at 7)
+  FAILED: psql renders the short name padded to the widest name
+BUG REPRODUCED: 2 failed expectation(s)

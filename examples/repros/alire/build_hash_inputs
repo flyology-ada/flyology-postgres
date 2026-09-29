@@ -1,0 +1,8 @@
+dependency:flyology=0.1.1-dev=3cf1f8e431e0343b4154ab650e51121b9e3441939b55a10702aab1165f04bd0a
+dependency:flyology_postgres=0.1.1-dev=3b185e42b5448c69702104b6afe390246c1be91a4f0154c6db52d59b651e5959
+dependency:flyology_postgres_sql_v18=0.1.1-dev=04d06d0f3dce995e7ce854255903db38b4ac62a4525161928f81852b4cf3c9d5
+dependency:linenoise_ada=1.1.2=25369ec00ad073095506c76079e658939c3de54081cba6cd99a44584f230bfbc
+external:EXAMPLE_REPROS_LIBRARY_TYPE=default
+external:LIBRARY_TYPE=default
+profile:example_repros=DEVELOPMENT
+switches:example_repros=-Og,-fdata-sections,-ffunction-sections,-g,-gnatVa,-gnatW8,-gnatw.X,-gnatwa,-gnaty-d,-gnaty3,-gnatyA,-gnatyB,-gnatyI,-gnatyO,-gnatyS,-gnatya,-gnatyb,-gnatyc,-gnatye,-gnatyf,-gnatyh,-gnatyi,-gnatyk,-gnatyl,-gnatym,-gnatyn,-gnatyp,-gnatyr,-gnatyt,-gnatyu,-gnatyx

@@ -1,0 +1,4 @@
+  -- flyology_sessions still reports 16 session(s) after all peers disconnected
+  FAILED: flyology_sessions lists no session once every peer is gone
+  FAILED: a fresh client is admitted while no live session exists
+BUG REPRODUCED: 2 failed expectation(s)

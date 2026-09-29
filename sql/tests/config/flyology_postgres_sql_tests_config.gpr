@@ -2,7 +2,7 @@
 with "aunit.gpr";
 with "sql.gpr";
 abstract project Flyology_Postgres_Sql_Tests_Config is
-   Crate_Version := "0.1.0-dev";
+   Crate_Version := "0.1.1-dev";
    Crate_Name := "flyology_postgres_sql_tests";
 
    Alire_Host_OS := "macos";

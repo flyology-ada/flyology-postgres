@@ -5,7 +5,7 @@ pragma Style_Checks (Off);
 package Flyology_Postgres_Sql_Tests_Config is
    pragma Pure;
 
-   Crate_Version : constant String := "0.1.0-dev";
+   Crate_Version : constant String := "0.1.1-dev";
    Crate_Name : constant String := "flyology_postgres_sql_tests";
 
    Alire_Host_OS : constant String := "macos";

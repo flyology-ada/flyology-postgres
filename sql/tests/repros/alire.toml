@@ -1,0 +1,26 @@
+name = "sql_repros"
+description = "Bug reproduction programs for Flyology Postgres SQL findings"
+version = "0.0.0"
+
+authors = ["Yurii Rashkovskii"]
+maintainers = ["Yurii Rashkovskii <yrashk@gmail.com>"]
+maintainers-logins = ["yrashk"]
+licenses = "MIT OR Apache-2.0"
+
+project-files = ["sql_repros.gpr"]
+
+[[depends-on]]
+flyology_postgres_sql = "*"
+aunit = "^26.0.0"
+
+[[pins]]
+flyology_postgres_sql = { path = "../.." }
+
+[environment.'case(os)'.macos]
+FLYOLOGY_POSTGRES_SQL_BACKEND_OS.set = "macos"
+
+[environment.'case(os)'.windows]
+FLYOLOGY_POSTGRES_SQL_BACKEND_OS.set = "windows"
+
+[environment.'case(os)'.'...']
+FLYOLOGY_POSTGRES_SQL_BACKEND_OS.set = "unix"

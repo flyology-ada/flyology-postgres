@@ -1,0 +1,30 @@
+V "GNAT Lib v16"
+A -O0
+A -gnatA
+A --RTS=/Users/yrashk/.local/share/alire/builds/flyology_0.1.1_bd95746d/3cf1f8e431e0343b4154ab650e51121b9e3441939b55a10702aab1165f04bd0a/build/alire-rts/
+A -g
+A -gnat2022
+A -gnata
+A -gnatVa
+A -gnatwa
+A -gnatwJ
+A -gnateDFLYOLOGY_CONNECTION_TEST_HOOKS=False
+A -mmacosx-version-min=26.0.0
+A -mcpu=apple-m1
+A -mlittle-endian
+A -mabi=lp64
+A -fPIC
+P ZX
+
+RN
+RV NO_IMPLEMENTATION_PRAGMAS
+
+U psqlish%s		psqlish.ads		41416a9e NE OO PK
+
+D psqlish.ads		20260820031130 41416a9e psqlish%s
+D system.ads		20260901211353 8a611ac3 system%s
+G a e
+X 1 psqlish.ads
+1K9*Psqlish 3l5 3e12
+2a4*Version{string}
+

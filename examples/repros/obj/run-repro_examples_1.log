@@ -1,0 +1,6 @@
+  ok: SELECT name FROM flyology_settings returns 6 rows (got 6)
+  -- unexpected ADA.STRINGS.PATTERN_ERROR : a-strsea.adb:300
+  FAILED: SELECT name FROM flyology_settings WHERE name LIKE '%' must not raise
+  -- unexpected ADA.STRINGS.PATTERN_ERROR : a-strsea.adb:300
+  FAILED: SELECT name FROM flyology_settings WHERE name LIKE '%%' must not raise
+BUG REPRODUCED: 2 failed expectation(s)

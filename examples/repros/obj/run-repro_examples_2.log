@@ -1,0 +1,6 @@
+  ok: LIKE 'maximum%' selects the four maximum_* settings (got 4)
+  -- NOT LIKE parsed; stored operator is LIKE_MATCH
+  -- NOT LIKE 'maximum%' returned 4 row(s); first = maximum_query_length
+  FAILED: NOT LIKE 'maximum%' selects authentication and tls (got 4)
+  FAILED: first NOT LIKE row is 'authentication'
+BUG REPRODUCED: 2 failed expectation(s)

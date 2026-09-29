@@ -1,0 +1,2 @@
+last_build_profile = "aunit=RELEASE,flyology=RELEASE,flyology_allocators=RELEASE,flyology_postgres=RELEASE,flyology_postgres_sql=RELEASE,flyology_postgres_sql_core=RELEASE,flyology_postgres_sql_v14=RELEASE,flyology_postgres_sql_v15=RELEASE,flyology_postgres_sql_v16=RELEASE,flyology_postgres_sql_v17=RELEASE,flyology_postgres_sql_v18=RELEASE,gnat_native=RELEASE,hmac_ada=RELEASE,sql_repros=DEVELOPMENT,system_random=RELEASE"
+

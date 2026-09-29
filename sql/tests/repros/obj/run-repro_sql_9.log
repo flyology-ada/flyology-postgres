@@ -1,0 +1,41 @@
+  -- POSTGRESQL_14 grammar error after 2-byte character native @ 16 [syntax error at or near "1"]
+  -- POSTGRESQL_14 grammar error after 2-byte character oracle @ 15 [syntax error at or near "1"]
+  FAILED: POSTGRESQL_14: grammar error after 2-byte character cursor matches the C oracle
+  -- POSTGRESQL_14 scanner error after 2-byte character native @ 14 [unterminated quoted string at or near "'x"]
+  -- POSTGRESQL_14 scanner error after 2-byte character oracle @ 13 [unterminated quoted string at or near "'x"]
+  FAILED: POSTGRESQL_14: scanner error after 2-byte character cursor matches the C oracle
+  ok: POSTGRESQL_14: control ASCII grammar cursor matches
+  ok: POSTGRESQL_14: control ASCII scanner cursor matches
+  -- POSTGRESQL_15 grammar error after 2-byte character native @ 16 [syntax error at or near "1"]
+  -- POSTGRESQL_15 grammar error after 2-byte character oracle @ 15 [syntax error at or near "1"]
+  FAILED: POSTGRESQL_15: grammar error after 2-byte character cursor matches the C oracle
+  -- POSTGRESQL_15 scanner error after 2-byte character native @ 14 [unterminated quoted string at or near "'x"]
+  -- POSTGRESQL_15 scanner error after 2-byte character oracle @ 13 [unterminated quoted string at or near "'x"]
+  FAILED: POSTGRESQL_15: scanner error after 2-byte character cursor matches the C oracle
+  ok: POSTGRESQL_15: control ASCII grammar cursor matches
+  ok: POSTGRESQL_15: control ASCII scanner cursor matches
+  -- POSTGRESQL_16 grammar error after 2-byte character native @ 16 [syntax error at or near "1"]
+  -- POSTGRESQL_16 grammar error after 2-byte character oracle @ 15 [syntax error at or near "1"]
+  FAILED: POSTGRESQL_16: grammar error after 2-byte character cursor matches the C oracle
+  -- POSTGRESQL_16 scanner error after 2-byte character native @ 14 [unterminated quoted string at or near "'x"]
+  -- POSTGRESQL_16 scanner error after 2-byte character oracle @ 13 [unterminated quoted string at or near "'x"]
+  FAILED: POSTGRESQL_16: scanner error after 2-byte character cursor matches the C oracle
+  ok: POSTGRESQL_16: control ASCII grammar cursor matches
+  ok: POSTGRESQL_16: control ASCII scanner cursor matches
+  -- POSTGRESQL_17 grammar error after 2-byte character native @ 16 [syntax error at or near "1"]
+  -- POSTGRESQL_17 grammar error after 2-byte character oracle @ 15 [syntax error at or near "1"]
+  FAILED: POSTGRESQL_17: grammar error after 2-byte character cursor matches the C oracle
+  -- POSTGRESQL_17 scanner error after 2-byte character native @ 14 [unterminated quoted string at or near "'x"]
+  -- POSTGRESQL_17 scanner error after 2-byte character oracle @ 13 [unterminated quoted string at or near "'x"]
+  FAILED: POSTGRESQL_17: scanner error after 2-byte character cursor matches the C oracle
+  ok: POSTGRESQL_17: control ASCII grammar cursor matches
+  ok: POSTGRESQL_17: control ASCII scanner cursor matches
+  -- POSTGRESQL_18 grammar error after 2-byte character native @ 16 [syntax error at or near "1"]
+  -- POSTGRESQL_18 grammar error after 2-byte character oracle @ 15 [syntax error at or near "1"]
+  FAILED: POSTGRESQL_18: grammar error after 2-byte character cursor matches the C oracle
+  -- POSTGRESQL_18 scanner error after 2-byte character native @ 14 [unterminated quoted string at or near "'x"]
+  -- POSTGRESQL_18 scanner error after 2-byte character oracle @ 13 [unterminated quoted string at or near "'x"]
+  FAILED: POSTGRESQL_18: scanner error after 2-byte character cursor matches the C oracle
+  ok: POSTGRESQL_18: control ASCII grammar cursor matches
+  ok: POSTGRESQL_18: control ASCII scanner cursor matches
+BUG REPRODUCED: 10 failed expectation(s)

@@ -1,0 +1,823 @@
+V "GNAT Lib v16"
+A -O0
+A -gnatA
+A --RTS=/Users/yrashk/.local/share/alire/builds/flyology_0.1.1_bd95746d/3cf1f8e431e0343b4154ab650e51121b9e3441939b55a10702aab1165f04bd0a/build/alire-rts/
+A -g
+A -gnat2022
+A -gnata
+A -gnatVa
+A -gnatwa
+A -gnatwJ
+A -gnateDFLYOLOGY_CONNECTION_TEST_HOOKS=False
+A -mmacosx-version-min=26.0.0
+A -mcpu=apple-m1
+A -mlittle-endian
+A -mabi=lp64
+A -fPIC
+P SS ZX
+
+RN
+RV NO_DISPATCHING_CALLS
+RV NO_ENUMERATION_MAPS
+RV NO_EXCEPTION_HANDLERS
+RV NO_EXCEPTION_PROPAGATION
+RV NO_EXCEPTIONS
+RV NO_IMPLICIT_CONDITIONALS
+RV NO_LOCAL_ALLOCATORS
+RV NO_NESTED_FINALIZATION
+RV NO_SECONDARY_STACK
+RV NO_STANDARD_STORAGE_POOLS
+RV NO_DEFAULT_INITIALIZATION
+RV NO_DYNAMIC_SIZED_OBJECTS
+RV NO_IMPLEMENTATION_PRAGMAS
+RV NO_IMPLICIT_LOOPS
+RV NO_ELABORATION_CODE
+RV NO_OBSOLESCENT_FEATURES
+
+U psqlish.display%b	psqlish-display.adb	d4b9ac6c OO PK
+W ada%s			ada.ads			ada.ali
+W ada.characters%s	a-charac.ads		a-charac.ali
+W ada.characters.latin_1%s  a-chlat1.ads	a-chlat1.ali
+Z ada.exceptions%s	a-except.adb		a-except.ali
+W ada.strings%s		a-string.ads		a-string.ali
+Z ada.strings.text_buffers%s  a-sttebu.adb	a-sttebu.ali
+W ada.strings.unbounded%s  a-strunb.adb		a-strunb.ali
+Z ada.tags%s		a-tags.adb		a-tags.ali
+W psqlish%s		psqlish.ads		psqlish.ali
+Z system%s		system.ads		system.ali
+Z system.concat_2%s	s-conca2.adb		s-conca2.ali
+Z system.concat_3%s	s-conca3.adb		s-conca3.ali
+Z system.concat_4%s	s-conca4.adb		s-conca4.ali
+Z system.concat_5%s	s-conca5.adb		s-conca5.ali
+Z system.finalization_primitives%s  s-finpri.adb  s-finpri.ali
+Z system.img_int%s	s-imgint.ads		s-imgint.ali
+Z system.return_stack%s	s-retsta.ads		s-retsta.ali
+Z system.secondary_stack%s  s-secsta.adb	s-secsta.ali
+Z system.soft_links%s	s-soflin.adb		s-soflin.ali
+Z system.standard_library%s  s-stalib.adb	s-stalib.ali
+
+U psqlish.display%s	psqlish-display.ads	8e52f1cc EE OO PF PK
+W ada%s			ada.ads			ada.ali
+W ada.containers%s	a-contai.ads		a-contai.ali
+Z ada.containers.generic_array_sort%s
+Z ada.containers.helpers%s  a-conhel.adb	a-conhel.ali
+W ada.containers.vectors%s
+Z ada.exceptions%s	a-except.adb		a-except.ali
+Z ada.finalization%s	a-finali.ads		a-finali.ali
+Z ada.iterator_interfaces%s
+Z ada.streams%s		a-stream.adb		a-stream.ali
+W ada.strings%s		a-string.ads		a-string.ali
+Z ada.strings.text_buffers%s  a-sttebu.adb	a-sttebu.ali
+W ada.strings.unbounded%s  a-strunb.adb		a-strunb.ali
+Z ada.tags%s		a-tags.adb		a-tags.ali
+Z ada.unchecked_deallocation%s
+W psqlish%s		psqlish.ads		psqlish.ali
+Z system%s		system.ads		system.ali
+Z system.assertions%s	s-assert.adb		s-assert.ali
+Z system.finalization_primitives%s  s-finpri.adb  s-finpri.ali
+Z system.pool_global%s	s-pooglo.adb		s-pooglo.ali
+Z system.put_images%s	s-putima.adb		s-putima.ali
+Z system.return_stack%s	s-retsta.ads		s-retsta.ali
+Z system.secondary_stack%s  s-secsta.adb	s-secsta.ali
+Z system.soft_links%s	s-soflin.adb		s-soflin.ali
+Z system.standard_library%s  s-stalib.adb	s-stalib.ali
+Z system.storage_elements%s  s-stoele.ads	s-stoele.ali
+Z system.storage_pools%s  s-stopoo.adb		s-stopoo.ali
+Z system.storage_pools.subpools%s  s-stposu.adb	s-stposu.ali
+Z system.stream_attributes%s  s-stratt.adb	s-stratt.ali
+Z system.strings.stream_ops%s  s-ststop.adb	s-ststop.ali
+Z system.wch_stw%s	s-wchstw.adb		s-wchstw.ali
+
+D ada.ads		20260901211354 76789da1 ada%s
+D a-assert.ads		20260901211354 ba465f5c ada.assertions%s
+D a-charac.ads		20260901211354 2d3ec45b ada.characters%s
+D a-chlat1.ads		20260901211354 e0d72e76 ada.characters.latin_1%s
+D a-contai.ads		20260901211354 61e5e089 ada.containers%s
+D a-cgarso.ads		20260901211354 9129bfa8 ada.containers.generic_array_sort%s
+D a-conhel.ads		20260901211354 46fe1ce3 ada.containers.helpers%s
+D a-conhel.adb		20260901211354 854d323e ada.containers.helpers%b
+D a-convec.ads		20260901211354 cb0f314a ada.containers.vectors%s
+D a-convec.adb		20260901211354 b2ed0168 ada.containers.vectors%b
+D a-except.ads		20260901211354 8699d7ff ada.exceptions%s
+D a-finali.ads		20260901211354 099c16e4 ada.finalization%s
+D a-iteint.ads		20260901211354 49a8bee2 ada.iterator_interfaces%s
+D a-stream.ads		20260901211354 cb01a8f8 ada.streams%s
+D a-string.ads		20260901211354 90ac6797 ada.strings%s
+D a-strmap.ads		20260901211354 f7e6ca10 ada.strings.maps%s
+D a-strsea.ads		20260901211354 18c3c634 ada.strings.search%s
+D a-sttebu.ads		20260901211354 f1ad67a2 ada.strings.text_buffers%s
+D a-strunb.ads		20260901211354 8d6ccba7 ada.strings.unbounded%s
+D a-stuten.ads		20260901211354 c6ced0ae ada.strings.utf_encoding%s
+D a-tags.ads		20260901211354 2dbf449c ada.tags%s
+D a-unccon.ads		20260901211354 0e9b276f ada.unchecked_conversion%s
+D a-uncdea.ads		20260901211354 c3a8ac65 ada.unchecked_deallocation%s
+D interfac.ads		20260901211354 9111f9c1 interfaces%s
+D i-c.ads		20260901211354 dbdd3be7 interfaces.c%s
+D psqlish.ads		20260820031130 41416a9e psqlish%s
+D psqlish-display.ads	20260807121425 897061bf psqlish.display%s
+D psqlish-display.adb	20260807121425 30722802 psqlish.display%b
+D system.ads		20260901211353 8a611ac3 system%s
+D s-assert.ads		20260901211354 9c4520c7 system.assertions%s
+D s-atocou.ads		20260901211354 dc18efc3 system.atomic_counters%s
+D s-atocou.adb		20260901211354 6fe685de system.atomic_counters%b
+D s-atopri.ads		20260901211354 e19c1d89 system.atomic_primitives%s
+D s-conca2.ads		20260901211354 b5fb73f7 system.concat_2%s
+D s-conca3.ads		20260901211354 8a7a19a2 system.concat_3%s
+D s-conca4.ads		20260901211354 33f85f3e system.concat_4%s
+D s-conca5.ads		20260901211354 4099d1db system.concat_5%s
+D s-exctab.ads		20260901211354 91bef6ef system.exception_table%s
+D s-finpri.ads		20260901211354 5970d55a system.finalization_primitives%s
+D s-finroo.ads		20260901211354 0a7c3ed4 system.finalization_root%s
+D s-imagei.ads		20260901211354 11a376a2 system.image_i%s
+D s-imgint.ads		20260901211354 86836590 system.img_int%s
+D s-memory.ads		20260901211354 18949c1a system.memory%s
+D s-oscons.ads		20260901211354 42ad9981 system.os_constants%s
+D s-oslock.ads		20260901211354 bcc789d2 system.os_locks%s
+D s-parame.ads		20260901211354 a1aeab5c system.parameters%s
+D s-pooglo.ads		20260901211354 91708d21 system.pool_global%s
+D s-putima.ads		20260901211353 1b989439 system.put_images%s
+D s-retsta.ads		20260901211353 0f6b06cb system.return_stack%s
+D s-secsta.ads		20260901211354 578279f5 system.secondary_stack%s
+D s-soflin.ads		20260901211354 5d88fdea system.soft_links%s
+D s-stache.ads		20260901211354 0b81c1fe system.stack_checking%s
+D s-stalib.ads		20260901211354 1c9580f6 system.standard_library%s
+D s-stalib.adb		20260901211354 eb464a47 system.standard_library%b
+D s-stoele.ads		20260901211354 ccded4e8 system.storage_elements%s
+D s-stopoo.ads		20260901211354 45459446 system.storage_pools%s
+D s-stposu.ads		20260901211354 f8e797ef system.storage_pools.subpools%s
+D s-stratt.ads		20260901211354 80b8dafb system.stream_attributes%s
+D s-string.ads		20260901211353 582aac7d system.strings%s
+D s-ststop.ads		20260901211354 c569db7c system.strings.stream_ops%s
+D s-traent.ads		20260901211354 c81cbf8c system.traceback_entries%s
+D s-unstyp.ads		20260901211354 fa2a7f59 system.unsigned_types%s
+D s-wchcon.ads		20260901211354 d9032363 system.wch_con%s
+D s-wchstw.ads		20260901211354 2d112c01 system.wch_stw%s
+G a e
+G c Z s s [display_limitsIP psqlish__display 6 9 none]
+G c Z s b [text_cell psqlish__display 18 13 none]
+G c Z s b [binary_cell psqlish__display 20 13 none]
+G c Z s b [null_cell psqlish__display 22 13 none]
+G c Z s b [make_column psqlish__display 27 13 none]
+G c Z s b [configure_limits psqlish__display 34 14 none]
+G c Z s b [set_expanded psqlish__display 36 14 none]
+G c Z s b [expanded psqlish__display 37 13 none]
+G c Z s b [set_null_text psqlish__display 38 14 none]
+G c Z s b [null_text psqlish__display 39 13 none]
+G c Z s b [begin_result psqlish__display 41 14 none]
+G c Z s b [try_add_row psqlish__display 43 13 none]
+G c Z s b [add_row psqlish__display 47 14 none]
+G c Z s b [finish_result psqlish__display 51 13 none]
+G c Z s s [columnDI psqlish__display 66 9 none]
+G c Z s s [columnDA psqlish__display 66 9 none]
+G c Z s s [columnDF psqlish__display 66 9 none]
+G c Z s s [columnIP psqlish__display 66 9 none]
+G c Z s s [has_element psqlish__display__column_vectors 115 13 71_4]
+G c Z s s [empty psqlish__display__column_vectors 125 13 71_4]
+G c Z s s [Oeq psqlish__display__column_vectors 127 24 71_4]
+G c Z s s [to_vector psqlish__display__column_vectors 136 13 71_4]
+G c Z s s [to_vector psqlish__display__column_vectors 139 13 71_4]
+G c Z s s [Oconcat psqlish__display__column_vectors 145 13 71_4]
+G c Z s s [Oconcat psqlish__display__column_vectors 149 13 71_4]
+G c Z s s [Oconcat psqlish__display__column_vectors 153 13 71_4]
+G c Z s s [Oconcat psqlish__display__column_vectors 157 13 71_4]
+G c Z s s [capacity psqlish__display__column_vectors 161 13 71_4]
+G c Z s s [reserve_capacity psqlish__display__column_vectors 164 14 71_4]
+G c Z s s [length psqlish__display__column_vectors 175 13 71_4]
+G c Z s s [set_length psqlish__display__column_vectors 178 14 71_4]
+G c Z s s [is_empty psqlish__display__column_vectors 187 13 71_4]
+G c Z s s [clear psqlish__display__column_vectors 190 14 71_4]
+G c Z s s [to_cursor psqlish__display__column_vectors 194 13 71_4]
+G c Z s s [to_index psqlish__display__column_vectors 201 13 71_4]
+G c Z s s [element psqlish__display__column_vectors 206 13 71_4]
+G c Z s s [element psqlish__display__column_vectors 213 13 71_4]
+G c Z s s [replace_element psqlish__display__column_vectors 217 14 71_4]
+G c Z s s [replace_element psqlish__display__column_vectors 228 14 71_4]
+G c Z s s [query_element psqlish__display__column_vectors 239 14 71_4]
+G c Z s s [query_element psqlish__display__column_vectors 250 14 71_4]
+G c Z s s [update_element psqlish__display__column_vectors 259 14 71_4]
+G c Z s s [update_element psqlish__display__column_vectors 276 14 71_4]
+G c Z s s [constant_reference psqlish__display__column_vectors 303 13 71_4]
+G c Z s s [reference psqlish__display__column_vectors 308 13 71_4]
+G c Z s s [constant_reference psqlish__display__column_vectors 313 13 71_4]
+G c Z s s [reference psqlish__display__column_vectors 318 13 71_4]
+G c Z s s [assign psqlish__display__column_vectors 323 14 71_4]
+G c Z s s [copy psqlish__display__column_vectors 325 13 71_4]
+G c Z s s [move psqlish__display__column_vectors 327 14 71_4]
+G c Z s s [new_vector psqlish__display__column_vectors 333 13 71_4]
+G c Z s s [insert_vector psqlish__display__column_vectors 337 14 71_4]
+G c Z s s [insert_vector psqlish__display__column_vectors 361 14 71_4]
+G c Z s s [insert_vector psqlish__display__column_vectors 378 14 71_4]
+G c Z s s [insert psqlish__display__column_vectors 396 14 71_4]
+G c Z s s [insert psqlish__display__column_vectors 404 14 71_4]
+G c Z s s [insert psqlish__display__column_vectors 412 14 71_4]
+G c Z s s [insert psqlish__display__column_vectors 421 14 71_4]
+G c Z s s [insert psqlish__display__column_vectors 438 14 71_4]
+G c Z s s [prepend_vector psqlish__display__column_vectors 449 14 71_4]
+G c Z s s [prepend psqlish__display__column_vectors 459 14 71_4]
+G c Z s s [append_vector psqlish__display__column_vectors 466 14 71_4]
+G c Z s s [append psqlish__display__column_vectors 476 14 71_4]
+G c Z s s [append psqlish__display__column_vectors 483 14 71_4]
+G c Z s s [insert_space psqlish__display__column_vectors 486 14 71_4]
+G c Z s s [insert_space psqlish__display__column_vectors 503 14 71_4]
+G c Z s s [delete psqlish__display__column_vectors 514 14 71_4]
+G c Z s s [delete psqlish__display__column_vectors 524 14 71_4]
+G c Z s s [delete_first psqlish__display__column_vectors 533 14 71_4]
+G c Z s s [delete_last psqlish__display__column_vectors 538 14 71_4]
+G c Z s s [reverse_elements psqlish__display__column_vectors 546 14 71_4]
+G c Z s s [swap psqlish__display__column_vectors 549 14 71_4]
+G c Z s s [swap psqlish__display__column_vectors 554 14 71_4]
+G c Z s s [first_index psqlish__display__column_vectors 560 13 71_4]
+G c Z s s [first psqlish__display__column_vectors 563 13 71_4]
+G c Z s s [first_element psqlish__display__column_vectors 567 13 71_4]
+G c Z s s [last_index psqlish__display__column_vectors 570 13 71_4]
+G c Z s s [last psqlish__display__column_vectors 574 13 71_4]
+G c Z s s [last_element psqlish__display__column_vectors 578 13 71_4]
+G c Z s s [next psqlish__display__column_vectors 581 13 71_4]
+G c Z s s [next psqlish__display__column_vectors 587 14 71_4]
+G c Z s s [previous psqlish__display__column_vectors 590 13 71_4]
+G c Z s s [previous psqlish__display__column_vectors 596 14 71_4]
+G c Z s s [find_index psqlish__display__column_vectors 599 13 71_4]
+G c Z s s [find psqlish__display__column_vectors 609 13 71_4]
+G c Z s s [reverse_find_index psqlish__display__column_vectors 623 13 71_4]
+G c Z s s [reverse_find psqlish__display__column_vectors 635 13 71_4]
+G c Z s s [contains psqlish__display__column_vectors 649 13 71_4]
+G c Z s s [iterate psqlish__display__column_vectors 654 14 71_4]
+G c Z s s [reverse_iterate psqlish__display__column_vectors 662 14 71_4]
+G c Z s s [iterate psqlish__display__column_vectors 669 13 71_4]
+G c Z s s [iterate psqlish__display__column_vectors 672 13 71_4]
+G c Z s s [adjust psqlish__display__column_vectors__implementation 90 28 726_4_71_4]
+G c Z s s [finalize psqlish__display__column_vectors__implementation 93 28 726_4_71_4]
+G c Z s s [zero_counts psqlish__display__column_vectors__implementation 96 17 726_4_71_4]
+G c Z s s [busy psqlish__display__column_vectors__implementation 100 17 726_4_71_4]
+G c Z s s [unbusy psqlish__display__column_vectors__implementation 104 17 726_4_71_4]
+G c Z s s [lock psqlish__display__column_vectors__implementation 108 17 726_4_71_4]
+G c Z s s [unlock psqlish__display__column_vectors__implementation 112 17 726_4_71_4]
+G c Z s s [tc_check psqlish__display__column_vectors__implementation 116 17 726_4_71_4]
+G c Z s s [te_check psqlish__display__column_vectors__implementation 120 17 726_4_71_4]
+G c Z s s [is_busy psqlish__display__column_vectors__implementation 136 16 726_4_71_4]
+G c Z s s [is_locked psqlish__display__column_vectors__implementation 140 16 726_4_71_4]
+G c Z s s [initialize psqlish__display__column_vectors__implementation 161 28 726_4_71_4]
+G c Z s s [finalize psqlish__display__column_vectors__implementation 162 28 726_4_71_4]
+G c Z s s [initialize psqlish__display__column_vectors__implementation 167 28 726_4_71_4]
+G c Z s s [finalize psqlish__display__column_vectors__implementation 168 28 726_4_71_4]
+G c Z s s [reference_control_typeDA psqlish__display__column_vectors__implementation 84 12 726_4_71_4]
+G c Z s s [reference_control_typeDF psqlish__display__column_vectors__implementation 84 12 726_4_71_4]
+G c Z s s [reference_control_typeIP psqlish__display__column_vectors__implementation 84 12 726_4_71_4]
+G c Z s s [with_busyDF psqlish__display__column_vectors__implementation 158 12 726_4_71_4]
+G c Z s s [with_busyIP psqlish__display__column_vectors__implementation 158 12 726_4_71_4]
+G c Z s s [with_lockDF psqlish__display__column_vectors__implementation 164 12 726_4_71_4]
+G c Z s s [with_lockIP psqlish__display__column_vectors__implementation 164 12 726_4_71_4]
+G c Z s s [put_image psqlish__display__column_vectors 747 14 71_4]
+G c Z s s [adjust psqlish__display__column_vectors 750 25 71_4]
+G c Z s s [finalize psqlish__display__column_vectors 751 25 71_4]
+G c Z s s [write psqlish__display__column_vectors 753 14 71_4]
+G c Z s s [read psqlish__display__column_vectors 759 14 71_4]
+G c Z s s [read psqlish__display__column_vectors 773 14 71_4]
+G c Z s s [write psqlish__display__column_vectors 779 14 71_4]
+G c Z s s [write psqlish__display__column_vectors 798 14 71_4]
+G c Z s s [read psqlish__display__column_vectors 804 14 71_4]
+G c Z s s [write psqlish__display__column_vectors 820 14 71_4]
+G c Z s s [read psqlish__display__column_vectors 826 14 71_4]
+G c Z s s [pseudo_reference psqlish__display__column_vectors 840 13 71_4]
+G c Z s s [get_element_access psqlish__display__column_vectors 849 13 71_4]
+G c Z s s [cursorIP psqlish__display__column_vectors 768 9 71_4]
+G c Z s s [vectorDA psqlish__display__column_vectors 741 9 71_4]
+G c Z s s [vectorDF psqlish__display__column_vectors 741 9 71_4]
+G c Z s s [vectorIP psqlish__display__column_vectors 741 9 71_4]
+G c Z s s [finalize psqlish__display__column_vectors 865 25 71_4]
+G c Z s s [first psqlish__display__column_vectors 867 24 71_4]
+G c Z s s [last psqlish__display__column_vectors 868 24 71_4]
+G c Z s s [next psqlish__display__column_vectors 870 24 71_4]
+G c Z s s [previous psqlish__display__column_vectors 874 24 71_4]
+G c Z s s [constant_reference_typeDI psqlish__display__column_vectors 788 9 71_4]
+G c Z s s [constant_reference_typeDA psqlish__display__column_vectors 788 9 71_4]
+G c Z s s [constant_reference_typeDF psqlish__display__column_vectors 788 9 71_4]
+G c Z s s [constant_reference_typeIP psqlish__display__column_vectors 788 9 71_4]
+G c Z s s [reference_typeDI psqlish__display__column_vectors 810 9 71_4]
+G c Z s s [reference_typeDA psqlish__display__column_vectors 810 9 71_4]
+G c Z s s [reference_typeDF psqlish__display__column_vectors 810 9 71_4]
+G c Z s s [reference_typeIP psqlish__display__column_vectors 810 9 71_4]
+G c Z s s [elements_arrayIP psqlish__display__column_vectors 729 9 71_4]
+G c Z s s [elements_arrayDI psqlish__display__column_vectors 729 9 71_4]
+G c Z s s [elements_arrayDA psqlish__display__column_vectors 729 9 71_4]
+G c Z s s [elements_arrayDF psqlish__display__column_vectors 729 9 71_4]
+G c Z s s [elements_typeDI psqlish__display__column_vectors 732 9 71_4]
+G c Z s s [elements_typeDF psqlish__display__column_vectors 732 9 71_4]
+G c Z s s [elements_typeIP psqlish__display__column_vectors 732 9 71_4]
+G c Z s s [iteratorDF psqlish__display__column_vectors 857 9 71_4]
+G c Z s s [iteratorIP psqlish__display__column_vectors 857 9 71_4]
+G c Z s s [free psqlish__display__column_vectors 44 14 71_4]
+G c Z s s [append_slow_path psqlish__display__column_vectors 47 14 71_4]
+G c Z s s [cellDI psqlish__display 59 9 none]
+G c Z s s [cellDA psqlish__display 59 9 none]
+G c Z s s [cellDF psqlish__display 59 9 none]
+G c Z s s [cellIP psqlish__display 59 9 none]
+G c Z s s [has_element psqlish__display__cell_vectors 115 13 73_4]
+G c Z s s [empty psqlish__display__cell_vectors 125 13 73_4]
+G c Z s s [Oeq psqlish__display__cell_vectors 127 24 73_4]
+G c Z s s [to_vector psqlish__display__cell_vectors 136 13 73_4]
+G c Z s s [to_vector psqlish__display__cell_vectors 139 13 73_4]
+G c Z s s [Oconcat psqlish__display__cell_vectors 145 13 73_4]
+G c Z s s [Oconcat psqlish__display__cell_vectors 149 13 73_4]
+G c Z s s [Oconcat psqlish__display__cell_vectors 153 13 73_4]
+G c Z s s [Oconcat psqlish__display__cell_vectors 157 13 73_4]
+G c Z s s [capacity psqlish__display__cell_vectors 161 13 73_4]
+G c Z s s [reserve_capacity psqlish__display__cell_vectors 164 14 73_4]
+G c Z s s [length psqlish__display__cell_vectors 175 13 73_4]
+G c Z s s [set_length psqlish__display__cell_vectors 178 14 73_4]
+G c Z s s [is_empty psqlish__display__cell_vectors 187 13 73_4]
+G c Z s s [clear psqlish__display__cell_vectors 190 14 73_4]
+G c Z s s [to_cursor psqlish__display__cell_vectors 194 13 73_4]
+G c Z s s [to_index psqlish__display__cell_vectors 201 13 73_4]
+G c Z s s [element psqlish__display__cell_vectors 206 13 73_4]
+G c Z s s [element psqlish__display__cell_vectors 213 13 73_4]
+G c Z s s [replace_element psqlish__display__cell_vectors 217 14 73_4]
+G c Z s s [replace_element psqlish__display__cell_vectors 228 14 73_4]
+G c Z s s [query_element psqlish__display__cell_vectors 239 14 73_4]
+G c Z s s [query_element psqlish__display__cell_vectors 250 14 73_4]
+G c Z s s [update_element psqlish__display__cell_vectors 259 14 73_4]
+G c Z s s [update_element psqlish__display__cell_vectors 276 14 73_4]
+G c Z s s [constant_reference psqlish__display__cell_vectors 303 13 73_4]
+G c Z s s [reference psqlish__display__cell_vectors 308 13 73_4]
+G c Z s s [constant_reference psqlish__display__cell_vectors 313 13 73_4]
+G c Z s s [reference psqlish__display__cell_vectors 318 13 73_4]
+G c Z s s [assign psqlish__display__cell_vectors 323 14 73_4]
+G c Z s s [copy psqlish__display__cell_vectors 325 13 73_4]
+G c Z s s [move psqlish__display__cell_vectors 327 14 73_4]
+G c Z s s [new_vector psqlish__display__cell_vectors 333 13 73_4]
+G c Z s s [insert_vector psqlish__display__cell_vectors 337 14 73_4]
+G c Z s s [insert_vector psqlish__display__cell_vectors 361 14 73_4]
+G c Z s s [insert_vector psqlish__display__cell_vectors 378 14 73_4]
+G c Z s s [insert psqlish__display__cell_vectors 396 14 73_4]
+G c Z s s [insert psqlish__display__cell_vectors 404 14 73_4]
+G c Z s s [insert psqlish__display__cell_vectors 412 14 73_4]
+G c Z s s [insert psqlish__display__cell_vectors 421 14 73_4]
+G c Z s s [insert psqlish__display__cell_vectors 438 14 73_4]
+G c Z s s [prepend_vector psqlish__display__cell_vectors 449 14 73_4]
+G c Z s s [prepend psqlish__display__cell_vectors 459 14 73_4]
+G c Z s s [append_vector psqlish__display__cell_vectors 466 14 73_4]
+G c Z s s [append psqlish__display__cell_vectors 476 14 73_4]
+G c Z s s [append psqlish__display__cell_vectors 483 14 73_4]
+G c Z s s [insert_space psqlish__display__cell_vectors 486 14 73_4]
+G c Z s s [insert_space psqlish__display__cell_vectors 503 14 73_4]
+G c Z s s [delete psqlish__display__cell_vectors 514 14 73_4]
+G c Z s s [delete psqlish__display__cell_vectors 524 14 73_4]
+G c Z s s [delete_first psqlish__display__cell_vectors 533 14 73_4]
+G c Z s s [delete_last psqlish__display__cell_vectors 538 14 73_4]
+G c Z s s [reverse_elements psqlish__display__cell_vectors 546 14 73_4]
+G c Z s s [swap psqlish__display__cell_vectors 549 14 73_4]
+G c Z s s [swap psqlish__display__cell_vectors 554 14 73_4]
+G c Z s s [first_index psqlish__display__cell_vectors 560 13 73_4]
+G c Z s s [first psqlish__display__cell_vectors 563 13 73_4]
+G c Z s s [first_element psqlish__display__cell_vectors 567 13 73_4]
+G c Z s s [last_index psqlish__display__cell_vectors 570 13 73_4]
+G c Z s s [last psqlish__display__cell_vectors 574 13 73_4]
+G c Z s s [last_element psqlish__display__cell_vectors 578 13 73_4]
+G c Z s s [next psqlish__display__cell_vectors 581 13 73_4]
+G c Z s s [next psqlish__display__cell_vectors 587 14 73_4]
+G c Z s s [previous psqlish__display__cell_vectors 590 13 73_4]
+G c Z s s [previous psqlish__display__cell_vectors 596 14 73_4]
+G c Z s s [find_index psqlish__display__cell_vectors 599 13 73_4]
+G c Z s s [find psqlish__display__cell_vectors 609 13 73_4]
+G c Z s s [reverse_find_index psqlish__display__cell_vectors 623 13 73_4]
+G c Z s s [reverse_find psqlish__display__cell_vectors 635 13 73_4]
+G c Z s s [contains psqlish__display__cell_vectors 649 13 73_4]
+G c Z s s [iterate psqlish__display__cell_vectors 654 14 73_4]
+G c Z s s [reverse_iterate psqlish__display__cell_vectors 662 14 73_4]
+G c Z s s [iterate psqlish__display__cell_vectors 669 13 73_4]
+G c Z s s [iterate psqlish__display__cell_vectors 672 13 73_4]
+G c Z s s [adjust psqlish__display__cell_vectors__implementation 90 28 726_4_73_4]
+G c Z s s [finalize psqlish__display__cell_vectors__implementation 93 28 726_4_73_4]
+G c Z s s [zero_counts psqlish__display__cell_vectors__implementation 96 17 726_4_73_4]
+G c Z s s [busy psqlish__display__cell_vectors__implementation 100 17 726_4_73_4]
+G c Z s s [unbusy psqlish__display__cell_vectors__implementation 104 17 726_4_73_4]
+G c Z s s [lock psqlish__display__cell_vectors__implementation 108 17 726_4_73_4]
+G c Z s s [unlock psqlish__display__cell_vectors__implementation 112 17 726_4_73_4]
+G c Z s s [tc_check psqlish__display__cell_vectors__implementation 116 17 726_4_73_4]
+G c Z s s [te_check psqlish__display__cell_vectors__implementation 120 17 726_4_73_4]
+G c Z s s [is_busy psqlish__display__cell_vectors__implementation 136 16 726_4_73_4]
+G c Z s s [is_locked psqlish__display__cell_vectors__implementation 140 16 726_4_73_4]
+G c Z s s [initialize psqlish__display__cell_vectors__implementation 161 28 726_4_73_4]
+G c Z s s [finalize psqlish__display__cell_vectors__implementation 162 28 726_4_73_4]
+G c Z s s [initialize psqlish__display__cell_vectors__implementation 167 28 726_4_73_4]
+G c Z s s [finalize psqlish__display__cell_vectors__implementation 168 28 726_4_73_4]
+G c Z s s [reference_control_typeDA psqlish__display__cell_vectors__implementation 84 12 726_4_73_4]
+G c Z s s [reference_control_typeDF psqlish__display__cell_vectors__implementation 84 12 726_4_73_4]
+G c Z s s [reference_control_typeIP psqlish__display__cell_vectors__implementation 84 12 726_4_73_4]
+G c Z s s [with_busyDF psqlish__display__cell_vectors__implementation 158 12 726_4_73_4]
+G c Z s s [with_busyIP psqlish__display__cell_vectors__implementation 158 12 726_4_73_4]
+G c Z s s [with_lockDF psqlish__display__cell_vectors__implementation 164 12 726_4_73_4]
+G c Z s s [with_lockIP psqlish__display__cell_vectors__implementation 164 12 726_4_73_4]
+G c Z s s [put_image psqlish__display__cell_vectors 747 14 73_4]
+G c Z s s [adjust psqlish__display__cell_vectors 750 25 73_4]
+G c Z s s [finalize psqlish__display__cell_vectors 751 25 73_4]
+G c Z s s [write psqlish__display__cell_vectors 753 14 73_4]
+G c Z s s [read psqlish__display__cell_vectors 759 14 73_4]
+G c Z s s [read psqlish__display__cell_vectors 773 14 73_4]
+G c Z s s [write psqlish__display__cell_vectors 779 14 73_4]
+G c Z s s [write psqlish__display__cell_vectors 798 14 73_4]
+G c Z s s [read psqlish__display__cell_vectors 804 14 73_4]
+G c Z s s [write psqlish__display__cell_vectors 820 14 73_4]
+G c Z s s [read psqlish__display__cell_vectors 826 14 73_4]
+G c Z s s [pseudo_reference psqlish__display__cell_vectors 840 13 73_4]
+G c Z s s [get_element_access psqlish__display__cell_vectors 849 13 73_4]
+G c Z s s [cursorIP psqlish__display__cell_vectors 768 9 73_4]
+G c Z s s [vectorDA psqlish__display__cell_vectors 741 9 73_4]
+G c Z s s [vectorDF psqlish__display__cell_vectors 741 9 73_4]
+G c Z s s [vectorIP psqlish__display__cell_vectors 741 9 73_4]
+G c Z s s [finalize psqlish__display__cell_vectors 865 25 73_4]
+G c Z s s [first psqlish__display__cell_vectors 867 24 73_4]
+G c Z s s [last psqlish__display__cell_vectors 868 24 73_4]
+G c Z s s [next psqlish__display__cell_vectors 870 24 73_4]
+G c Z s s [previous psqlish__display__cell_vectors 874 24 73_4]
+G c Z s s [constant_reference_typeDI psqlish__display__cell_vectors 788 9 73_4]
+G c Z s s [constant_reference_typeDA psqlish__display__cell_vectors 788 9 73_4]
+G c Z s s [constant_reference_typeDF psqlish__display__cell_vectors 788 9 73_4]
+G c Z s s [constant_reference_typeIP psqlish__display__cell_vectors 788 9 73_4]
+G c Z s s [reference_typeDI psqlish__display__cell_vectors 810 9 73_4]
+G c Z s s [reference_typeDA psqlish__display__cell_vectors 810 9 73_4]
+G c Z s s [reference_typeDF psqlish__display__cell_vectors 810 9 73_4]
+G c Z s s [reference_typeIP psqlish__display__cell_vectors 810 9 73_4]
+G c Z s s [elements_arrayIP psqlish__display__cell_vectors 729 9 73_4]
+G c Z s s [elements_arrayDI psqlish__display__cell_vectors 729 9 73_4]
+G c Z s s [elements_arrayDA psqlish__display__cell_vectors 729 9 73_4]
+G c Z s s [elements_arrayDF psqlish__display__cell_vectors 729 9 73_4]
+G c Z s s [elements_typeDI psqlish__display__cell_vectors 732 9 73_4]
+G c Z s s [elements_typeDF psqlish__display__cell_vectors 732 9 73_4]
+G c Z s s [elements_typeIP psqlish__display__cell_vectors 732 9 73_4]
+G c Z s s [iteratorDF psqlish__display__cell_vectors 857 9 73_4]
+G c Z s s [iteratorIP psqlish__display__cell_vectors 857 9 73_4]
+G c Z s s [free psqlish__display__cell_vectors 44 14 73_4]
+G c Z s s [append_slow_path psqlish__display__cell_vectors 47 14 73_4]
+G c Z s s [rowDI psqlish__display 76 9 none]
+G c Z s s [rowDA psqlish__display 76 9 none]
+G c Z s s [rowDF psqlish__display 76 9 none]
+G c Z s s [rowIP psqlish__display 76 9 none]
+G c Z s s [has_element psqlish__display__row_vectors 115 13 79_4]
+G c Z s s [empty psqlish__display__row_vectors 125 13 79_4]
+G c Z s s [Oeq psqlish__display__row_vectors 127 24 79_4]
+G c Z s s [to_vector psqlish__display__row_vectors 136 13 79_4]
+G c Z s s [to_vector psqlish__display__row_vectors 139 13 79_4]
+G c Z s s [Oconcat psqlish__display__row_vectors 145 13 79_4]
+G c Z s s [Oconcat psqlish__display__row_vectors 149 13 79_4]
+G c Z s s [Oconcat psqlish__display__row_vectors 153 13 79_4]
+G c Z s s [Oconcat psqlish__display__row_vectors 157 13 79_4]
+G c Z s s [capacity psqlish__display__row_vectors 161 13 79_4]
+G c Z s s [reserve_capacity psqlish__display__row_vectors 164 14 79_4]
+G c Z s s [length psqlish__display__row_vectors 175 13 79_4]
+G c Z s s [set_length psqlish__display__row_vectors 178 14 79_4]
+G c Z s s [is_empty psqlish__display__row_vectors 187 13 79_4]
+G c Z s s [clear psqlish__display__row_vectors 190 14 79_4]
+G c Z s s [to_cursor psqlish__display__row_vectors 194 13 79_4]
+G c Z s s [to_index psqlish__display__row_vectors 201 13 79_4]
+G c Z s s [element psqlish__display__row_vectors 206 13 79_4]
+G c Z s s [element psqlish__display__row_vectors 213 13 79_4]
+G c Z s s [replace_element psqlish__display__row_vectors 217 14 79_4]
+G c Z s s [replace_element psqlish__display__row_vectors 228 14 79_4]
+G c Z s s [query_element psqlish__display__row_vectors 239 14 79_4]
+G c Z s s [query_element psqlish__display__row_vectors 250 14 79_4]
+G c Z s s [update_element psqlish__display__row_vectors 259 14 79_4]
+G c Z s s [update_element psqlish__display__row_vectors 276 14 79_4]
+G c Z s s [constant_reference psqlish__display__row_vectors 303 13 79_4]
+G c Z s s [reference psqlish__display__row_vectors 308 13 79_4]
+G c Z s s [constant_reference psqlish__display__row_vectors 313 13 79_4]
+G c Z s s [reference psqlish__display__row_vectors 318 13 79_4]
+G c Z s s [assign psqlish__display__row_vectors 323 14 79_4]
+G c Z s s [copy psqlish__display__row_vectors 325 13 79_4]
+G c Z s s [move psqlish__display__row_vectors 327 14 79_4]
+G c Z s s [new_vector psqlish__display__row_vectors 333 13 79_4]
+G c Z s s [insert_vector psqlish__display__row_vectors 337 14 79_4]
+G c Z s s [insert_vector psqlish__display__row_vectors 361 14 79_4]
+G c Z s s [insert_vector psqlish__display__row_vectors 378 14 79_4]
+G c Z s s [insert psqlish__display__row_vectors 396 14 79_4]
+G c Z s s [insert psqlish__display__row_vectors 404 14 79_4]
+G c Z s s [insert psqlish__display__row_vectors 412 14 79_4]
+G c Z s s [insert psqlish__display__row_vectors 421 14 79_4]
+G c Z s s [insert psqlish__display__row_vectors 438 14 79_4]
+G c Z s s [prepend_vector psqlish__display__row_vectors 449 14 79_4]
+G c Z s s [prepend psqlish__display__row_vectors 459 14 79_4]
+G c Z s s [append_vector psqlish__display__row_vectors 466 14 79_4]
+G c Z s s [append psqlish__display__row_vectors 476 14 79_4]
+G c Z s s [append psqlish__display__row_vectors 483 14 79_4]
+G c Z s s [insert_space psqlish__display__row_vectors 486 14 79_4]
+G c Z s s [insert_space psqlish__display__row_vectors 503 14 79_4]
+G c Z s s [delete psqlish__display__row_vectors 514 14 79_4]
+G c Z s s [delete psqlish__display__row_vectors 524 14 79_4]
+G c Z s s [delete_first psqlish__display__row_vectors 533 14 79_4]
+G c Z s s [delete_last psqlish__display__row_vectors 538 14 79_4]
+G c Z s s [reverse_elements psqlish__display__row_vectors 546 14 79_4]
+G c Z s s [swap psqlish__display__row_vectors 549 14 79_4]
+G c Z s s [swap psqlish__display__row_vectors 554 14 79_4]
+G c Z s s [first_index psqlish__display__row_vectors 560 13 79_4]
+G c Z s s [first psqlish__display__row_vectors 563 13 79_4]
+G c Z s s [first_element psqlish__display__row_vectors 567 13 79_4]
+G c Z s s [last_index psqlish__display__row_vectors 570 13 79_4]
+G c Z s s [last psqlish__display__row_vectors 574 13 79_4]
+G c Z s s [last_element psqlish__display__row_vectors 578 13 79_4]
+G c Z s s [next psqlish__display__row_vectors 581 13 79_4]
+G c Z s s [next psqlish__display__row_vectors 587 14 79_4]
+G c Z s s [previous psqlish__display__row_vectors 590 13 79_4]
+G c Z s s [previous psqlish__display__row_vectors 596 14 79_4]
+G c Z s s [find_index psqlish__display__row_vectors 599 13 79_4]
+G c Z s s [find psqlish__display__row_vectors 609 13 79_4]
+G c Z s s [reverse_find_index psqlish__display__row_vectors 623 13 79_4]
+G c Z s s [reverse_find psqlish__display__row_vectors 635 13 79_4]
+G c Z s s [contains psqlish__display__row_vectors 649 13 79_4]
+G c Z s s [iterate psqlish__display__row_vectors 654 14 79_4]
+G c Z s s [reverse_iterate psqlish__display__row_vectors 662 14 79_4]
+G c Z s s [iterate psqlish__display__row_vectors 669 13 79_4]
+G c Z s s [iterate psqlish__display__row_vectors 672 13 79_4]
+G c Z s s [adjust psqlish__display__row_vectors__implementation 90 28 726_4_79_4]
+G c Z s s [finalize psqlish__display__row_vectors__implementation 93 28 726_4_79_4]
+G c Z s s [zero_counts psqlish__display__row_vectors__implementation 96 17 726_4_79_4]
+G c Z s s [busy psqlish__display__row_vectors__implementation 100 17 726_4_79_4]
+G c Z s s [unbusy psqlish__display__row_vectors__implementation 104 17 726_4_79_4]
+G c Z s s [lock psqlish__display__row_vectors__implementation 108 17 726_4_79_4]
+G c Z s s [unlock psqlish__display__row_vectors__implementation 112 17 726_4_79_4]
+G c Z s s [tc_check psqlish__display__row_vectors__implementation 116 17 726_4_79_4]
+G c Z s s [te_check psqlish__display__row_vectors__implementation 120 17 726_4_79_4]
+G c Z s s [is_busy psqlish__display__row_vectors__implementation 136 16 726_4_79_4]
+G c Z s s [is_locked psqlish__display__row_vectors__implementation 140 16 726_4_79_4]
+G c Z s s [initialize psqlish__display__row_vectors__implementation 161 28 726_4_79_4]
+G c Z s s [finalize psqlish__display__row_vectors__implementation 162 28 726_4_79_4]
+G c Z s s [initialize psqlish__display__row_vectors__implementation 167 28 726_4_79_4]
+G c Z s s [finalize psqlish__display__row_vectors__implementation 168 28 726_4_79_4]
+G c Z s s [reference_control_typeDA psqlish__display__row_vectors__implementation 84 12 726_4_79_4]
+G c Z s s [reference_control_typeDF psqlish__display__row_vectors__implementation 84 12 726_4_79_4]
+G c Z s s [reference_control_typeIP psqlish__display__row_vectors__implementation 84 12 726_4_79_4]
+G c Z s s [with_busyDF psqlish__display__row_vectors__implementation 158 12 726_4_79_4]
+G c Z s s [with_busyIP psqlish__display__row_vectors__implementation 158 12 726_4_79_4]
+G c Z s s [with_lockDF psqlish__display__row_vectors__implementation 164 12 726_4_79_4]
+G c Z s s [with_lockIP psqlish__display__row_vectors__implementation 164 12 726_4_79_4]
+G c Z s s [put_image psqlish__display__row_vectors 747 14 79_4]
+G c Z s s [adjust psqlish__display__row_vectors 750 25 79_4]
+G c Z s s [finalize psqlish__display__row_vectors 751 25 79_4]
+G c Z s s [write psqlish__display__row_vectors 753 14 79_4]
+G c Z s s [read psqlish__display__row_vectors 759 14 79_4]
+G c Z s s [read psqlish__display__row_vectors 773 14 79_4]
+G c Z s s [write psqlish__display__row_vectors 779 14 79_4]
+G c Z s s [write psqlish__display__row_vectors 798 14 79_4]
+G c Z s s [read psqlish__display__row_vectors 804 14 79_4]
+G c Z s s [write psqlish__display__row_vectors 820 14 79_4]
+G c Z s s [read psqlish__display__row_vectors 826 14 79_4]
+G c Z s s [pseudo_reference psqlish__display__row_vectors 840 13 79_4]
+G c Z s s [get_element_access psqlish__display__row_vectors 849 13 79_4]
+G c Z s s [cursorIP psqlish__display__row_vectors 768 9 79_4]
+G c Z s s [vectorDA psqlish__display__row_vectors 741 9 79_4]
+G c Z s s [vectorDF psqlish__display__row_vectors 741 9 79_4]
+G c Z s s [vectorIP psqlish__display__row_vectors 741 9 79_4]
+G c Z s s [finalize psqlish__display__row_vectors 865 25 79_4]
+G c Z s s [first psqlish__display__row_vectors 867 24 79_4]
+G c Z s s [last psqlish__display__row_vectors 868 24 79_4]
+G c Z s s [next psqlish__display__row_vectors 870 24 79_4]
+G c Z s s [previous psqlish__display__row_vectors 874 24 79_4]
+G c Z s s [constant_reference_typeDI psqlish__display__row_vectors 788 9 79_4]
+G c Z s s [constant_reference_typeDA psqlish__display__row_vectors 788 9 79_4]
+G c Z s s [constant_reference_typeDF psqlish__display__row_vectors 788 9 79_4]
+G c Z s s [constant_reference_typeIP psqlish__display__row_vectors 788 9 79_4]
+G c Z s s [reference_typeDI psqlish__display__row_vectors 810 9 79_4]
+G c Z s s [reference_typeDA psqlish__display__row_vectors 810 9 79_4]
+G c Z s s [reference_typeDF psqlish__display__row_vectors 810 9 79_4]
+G c Z s s [reference_typeIP psqlish__display__row_vectors 810 9 79_4]
+G c Z s s [elements_arrayIP psqlish__display__row_vectors 729 9 79_4]
+G c Z s s [elements_arrayDI psqlish__display__row_vectors 729 9 79_4]
+G c Z s s [elements_arrayDA psqlish__display__row_vectors 729 9 79_4]
+G c Z s s [elements_arrayDF psqlish__display__row_vectors 729 9 79_4]
+G c Z s s [elements_typeDI psqlish__display__row_vectors 732 9 79_4]
+G c Z s s [elements_typeDF psqlish__display__row_vectors 732 9 79_4]
+G c Z s s [elements_typeIP psqlish__display__row_vectors 732 9 79_4]
+G c Z s s [iteratorDF psqlish__display__row_vectors 857 9 79_4]
+G c Z s s [iteratorIP psqlish__display__row_vectors 857 9 79_4]
+G c Z s s [free psqlish__display__row_vectors 44 14 79_4]
+G c Z s s [append_slow_path psqlish__display__row_vectors 47 14 79_4]
+G c Z s s [cell_arrayIP psqlish__display 24 9 none]
+G c Z s s [cell_arrayDI psqlish__display 24 9 none]
+G c Z s s [cell_arrayDA psqlish__display 24 9 none]
+G c Z s s [cell_arrayDF psqlish__display 24 9 none]
+G c Z s s [column_arrayIP psqlish__display 31 9 none]
+G c Z s s [column_arrayDI psqlish__display 31 9 none]
+G c Z s s [column_arrayDA psqlish__display 31 9 none]
+G c Z s s [column_arrayDF psqlish__display 31 9 none]
+G c Z s s [result_stateDA psqlish__display 82 9 none]
+G c Z s s [result_stateDF psqlish__display 82 9 none]
+G c Z s s [result_stateDI psqlish__display 82 9 none]
+G c Z s s [result_stateIP psqlish__display 82 9 none]
+G c Z b b [hex_digit psqlish__display 6 13 none]
+G c Z b b [limit psqlish__display 11 13 none]
+G c Z b b [reset_result psqlish__display 158 14 none]
+G c Z b b [spaces psqlish__display 218 13 none]
+G c Z b b [dashes psqlish__display 221 13 none]
+G c Z b b [image psqlish__display 224 13 none]
+G c Z b b [is_numeric psqlish__display 230 13 none]
+G c Z b b [cell_text psqlish__display 264 13 none]
+X 1 ada.ads
+18K9*Ada 22e8 27|1r6 2r6 57r8 71r34 73r32 79r31 28|1r6 2r6 2r33 33r18 35r18
+. 37r18
+X 3 a-charac.ads
+16K13*Characters 18e19 28|1r10 33r22 35r22 37r22
+X 4 a-chlat1.ads
+16K24*Latin_1 294e27 28|1w21 33r33 35r33 37r33
+32e4*HT{character} 28|37r41
+33e4*LF{character} 28|33r41
+36e4*CR{character} 28|35r41
+X 5 a-contai.ads
+16K13*Containers 28e19 27|1r10 71r38 73r36 79r35
+22I9*Count_Type<integer>
+X 9 a-convec.ads
+62I9 Index_Type 27|72r7 74r7 80r7
+63+9 Element_Type 27|72r31 74r31 80r31
+74k24*Vectors 878e27 27|1w21 71r49 73r47 79r46
+91R9*Vector<12|43R9> 27|77r29[73] 83r40[71] 84r37[79]
+175V13*Length{5|22I9} 28|183s49[27|71] 192s29[27|79] 289s64[27|71] 328s57[27|79]
+187V13*Is_Empty{boolean} 28|134s27[27|71] 134s58[27|79] 283s26[27|71]
+190U14*Clear 28|160s20[27|71] 161s17[27|79]
+206V13*Element{27|26R9} 28|305s55[27|71] 310s64[27|73] 335s51[27|71] 337s44[27|79]
+. 337s71[27|73] 354s51[27|71] 372s47[27|73]
+483U14*Append 28|173s23[27|71] 200s27[27|73] 205s17[27|79]
+X 13 a-iteint.ads
+24h9 Forward_Iterator
+32h9 Reversible_Iterator<24R9[9|119]>
+X 15 a-string.ads
+16K13*Strings 35e16 27|2r10 57r12 28|2r10 2r37
+X 19 a-strunb.ads
+91K21*Unbounded 1641e26 27|2w18 57r20 28|2w18 2r45
+105R9*Unbounded_String<12|43R9> 1620e15 27|62r20 67r16 91r25 28|15r16 83r17
+. 273r16 295r24 349r28 367r33
+109r4*Null_Unbounded_String{105R9} 28|117r22
+111V13*Length{natural} 28|87s13 174s55 189s18 190s18 305s34
+122V13*To_Unbounded_String{105R9} 27|91s45 28|77s24 83s37 103s24 128s23 151s26
+. 295s44 349s48 367s53
+135V13*To_String{string} 28|57s39 66s14 101s39 156s7 266s12 267s12 301s23
+. 335s27 354s27 362s25 386s28 411s38
+159U14*Append 28|22s13 277s10 298s19 299s19 356s25 380s31 382s31
+168U14*Append 28|95s13 96s13 278s10
+X 26 psqlish.ads
+1K9*Psqlish 3e12 27|4r9 94r5 28|4r14 418r5
+X 27 psqlish-display.ads
+4K17*Display 26|1k9 27|59E9 94l13 94e20 28|4b22 418l13 418t20
+6R9*Display_Limits 10e14 12r32 35r44 89r25 28|132r44
+7i7*Buffered_Rows{positive} 13m7 28|192r52
+8i7*Result_Bytes{positive} 14m7 28|193r36 194r36
+9i7*Cell_Width{positive} 15m7 28|152r36 403r48
+12r4*Unbounded_Limits{6R9} 89r43
+17R9*Cell 19r73 21r73 22r30 24r52 59c9 64e14 74r47 28|70r73 82r73 114r30
+. 264r53 310r39 371r45
+18V13*Text_Cell{17R9} 19>7 19>23 28|69b13 79l8 79t17
+19a7 Value{string} 28|70b7 72r45
+19i23 Maximum_Width{positive} 28|70b23 72r52
+20V13*Binary_Cell{17R9} 21>7 21>23 28|81b13 112l8 112t19
+21a7 Value{string} 28|82b7 86r19
+21i23 Maximum_Width{positive} 28|82b23 87r32 87r61
+22V13*Null_Cell{17R9} 28|114b13
+24A9*Cell_Array(17R9)<integer> 44r44 47r60 28|179r44 210r60
+26R9*Column 30r57 31r54 66c9 69e14 72r47 28|123r57
+27V13*Make_Column{26R9} 28>7 29>7 30>7 28|120b13 129l8 129t19
+28a7 Name{string} 28|121b7 125r45
+29b7 Binary{boolean} 28|122b7 128r61
+30i7 Maximum_Width{positive} 28|123b7 125r51
+31A9*Column_Array(26R9)<integer> 42r45 28|169r45
+33R9*Result_State 34p14 35r21 36p14 36r42 37p13 37r30 38p14 38r43 39p13 39r31
+. 41p14 42r21 43p13 44r21 47p14 47r37 51p13 52r28 82c9 92e14 28|132r21 140r42
+. 145r30 148r43 155r31 158r42 169r21 179r21 210r37 264r31 270r28
+34U14*Configure_Limits 35=7 35>35 28|131b14 138l8 138t24
+35r7 Item{33R9} 28|132b7 134r14 134r48 137m7
+35r35 Limits{6R9} 28|132b35 137r22
+36U14*Set_Expanded 36=28 36>56 28|140b14 143l8 143t20
+36r28 Item{33R9} 28|140b28 142m7
+36b56 Enabled{boolean} 28|140b56 142r27
+37V13*Expanded{boolean} 37>23 28|145b13
+37r23 Item{33R9} 28|146r7
+38U14*Set_Null_Text 38=29 38>57 28|148b14 153l8 153t21
+38r29 Item{33R9} 28|148b29 151m7 152r24
+38a57 Value{string} 28|148b57 152r17
+39V13*Null_Text{string} 39>24 28|155b13
+39r24 Item{33R9} 28|156r18
+41U14*Begin_Result 42=7 42>35 28|168b14 176l8 176t20
+42r7 Item{33R9} 28|169b7 171m21 173m10 173r10 174m10 174r33
+42a35 Columns{31A9} 28|169b35 172r20
+43V13*Try_Add_Row{boolean} 44=7 44>35 28|178b13 208l8 208t19 212s14
+44r7 Item{33R9} 28|179b7 183r36 189r26 192r19 192r40 193r24 194r24 194r50
+. 198m7 198r26 202m13 202r37 205m7 205r7 206m7 206r30
+44a35 Values{24A9} 28|179b35 183r10 186r20 199r20
+47U14*Add_Row 47=23 47>51 28|210b14 216l8 216t15
+47r23 Item{33R9} 28|210b23 212m27 212r27 213m10 213r29 214m10 214r31
+47a51 Values{24A9} 28|210b51 212r33
+51V13*Finish_Result{string} 52=7 53>7 54>7 28|269b13 416l8 416t21
+52r7 Item{33R9} 28|270b7 283r13 289r51 305r42 307r30 311r60 327r16 328r47
+. 335r38 337r28 337r34 354r38 365r33 373r65 392r29 393r20 394r16 396r43 399r16
+. 401r43 403r36 413m24
+53a7 Command_Tag{string} 28|271b7 284r13 285r19 405r16 406r22
+54b7 Empty_Query{boolean} 28|272b7 281r10
+60b7*Null_Value{boolean} 28|75m10 108m10 115m8 188r22 265r16 315r35 378r49
+61b7*Binary{boolean} 28|76m10 109m10 116m8 318r46
+62r7*Value{19|105R9} 28|77m10 110m10 117m8 190r32 267r29
+63b7*Truncated{boolean} 28|78m10 111m10 118m8 201r19
+67r7*Name{19|105R9} 28|128m15 174r69 305r71 335r67 354r67
+68b7*Binary{boolean} 28|128m51
+71K12 Column_Vectors[9|74] 83r25
+73K12 Cell_Vectors[9|74] 77r16
+76R9 Row 78e14 80r47 28|181r19
+77r7*Values{9|91R9[73]} 28|200m20 310r57 337r64 372r40
+79K12 Row_Vectors[9|74] 84r25
+83r7*Columns{9|91R9[71]} 28|134r19 160m12 173m15 183r41 283r18 289r56 305r47
+. 335r43 354r43
+84r7*Rows{9|91R9[79]} 28|134r53 161m12 192r24 205m12 307r35 328r52 337r39
+. 365r38
+85i7*Total_Rows{natural} 28|162m12 198m12 198r31 213m15 213r34 392r34 393r25
+86i7*Buffered_Bytes{natural} 28|163m12 174m15 174r38 194r55 206m12 206r35
+87i7*Omitted_Rows{natural} 28|164m12 214m15 214r36 394r21 396r48
+88i7*Truncated_Cells{natural} 28|165m12 202m18 202r42 399r21 401r48
+89r7*Limits{6R9} 28|137m12 152r29 192r45 193r29 194r29 403r41
+90b7*Is_Expanded{boolean} 28|142m12 146r12 327r21
+91r7*Null_Value{19|105R9} 28|151m12 156r23 189r31 266r28
+X 28 psqlish-display.adb
+6V13 Hex_Digit{character} 6b13 6>24 48s28 49s28 95s30 96s30
+6i24 Value{natural} 7r10 8r49 9r49
+11V13 Limit{string} 11b13 12>7 13>7 14<7 67l8 67t13 72s38 125s38 152s10
+12a7 Value{string} 30r19
+13i7 Maximum_Width{positive} 20r21 20r50
+14b7 Was_Truncated{boolean} 25m13 29m7 31r20 55r10
+15r7 Result{19|105R9} 22m21 22r21 57r50 66r25
+16i7 Used{natural} 20r13 23m13 23r21
+18U17 Append_Piece 18b17 18>31 27l11 27t23 34s16 36s16 38s16 46s19 52s16
+18a31 Piece{string} 20r65 22r29 23r28
+30e11 Byte=30:19{character} 32r15 44r61 52r36
+44i19 Code{natural} 48r39 49r39
+57a13 Text{string} 59r16 60r23 60r29 60r43
+71b7 Truncated{boolean} 72m67 72r67 78r24
+72a7 Text{string} 77r45
+83r7 Encoded{19|105R9} 87r21 95m21 95r21 96m21 96r21 101r50 103m13 110r24
+84b7 Truncated{boolean} 89m13 99r10 111r24
+86e11 Byte=86:19{character} 93r55
+93i13 Code{natural} 95r41 96r41
+101a13 Text{string} 104r16 104r22 104r36
+124b7 Truncated{boolean} 125m66 125r66 126r28
+125a7 Text{string} 128r44
+149b7 Truncated{boolean} 152m48 152r48
+158U14 Reset_Result 158b14 158=28 166l8 166t20 171s7 413s10
+158r28 Item{27|33R9} 160m7 160r7 161m7 161r7 162m7 163m7 164m7 165m7
+172r11 Value=172:20{27|26R9} 173r31 174r63
+180i7 Size{natural} 187m10 187r18 193r17 206r52
+181r7 Value_Row{27|76R9} 200m10 200r10 205r25
+186r11 Value=186:20{27|17R9} 188r16 190r26
+199r11 Value=199:20{27|17R9} 200r35 201r13
+218V13 Spaces{string} 218b13 218>21 341s35 358s41 375s30
+218i21 Count{natural} 219r12
+221V13 Dashes{string} 221b13 221>21 221>38 298s34 331s24
+221i21 Count{natural} 222r12
+221e38 Fill{character} 222r21
+224V13 Image{string} 224b13 224>20 228l8 228t13 392s22
+224i20 Value{natural} 225r47
+225a7 Raw{string} 227r14 227r19 227r36
+230V13 Is_Numeric{boolean} 230b13 230>25 262l8 262t18 318s62
+230a25 Value{string} 236r10 239r20 241r40 247r33 248r33
+231b7 Saw_Digit{boolean} 244m16 253r44 261r14
+232b7 Saw_Dot{boolean} 251r41 252m16
+233b7 Saw_Exp{boolean} 251r62 253r67 254m16
+234b7 Need_Exp_Digit{boolean} 245m16 255m16 261r37
+239i11 Index{integer} 241r47 247r25 248r40
+241e13 Ch{character} 243r16 246r20 246r37 251r19 253r19
+264V13 Cell_Text{string} 264b13 264>24 264>45 311s49 336s52 373s54
+264r24 Item{27|33R9} 266r23
+264r45 Value{27|17R9} 265r10 267r23
+273r7 Output{19|105R9} 277m18 277r18 278m18 278r18 411r49
+275U17 Line 275b17 275>23 279l11 279t15 282s10 285s13 329s19 340s25 347s16
+. 362s19 364s16 386s22 389s16 391s13 395s16 400s16 406s16
+275a23 Text{string} 277r26
+289i13 Count{positive} 290r34 291r35 292r37 304r31 308r34 332r37 351r37 369r40
+290a13 Widths(natural) 297r29 305m16 313m22 314r37 341r43 358r49 375r38
+291a13 Numeric(boolean) 317m25 317r44 323r26 324m16 324r35 377r31
+292a13 Saw_Value(boolean) 316m25 324r60
+294V22 Border{string} 294b22 294>30 302l17 302t23 347s22 364s22 389s22
+294e30 Fill{character} 298r53
+295r16 Value{19|105R9} 298m27 298r27 299m27 299r27 301r34
+297i20 Width=297:29{natural} 298r42
+304i17 Index{integer} 305r24 305r64
+307r17 Value_Row{27|76R9} 310r47
+308i20 Index{integer} 310r73 313r30 314r45 316r36 317r34 317r53
+310r22 Value{27|17R9} 311r66 315r29 318r40
+311a22 Text{string} 314r53 318r74
+323i17 Index{integer} 324r25 324r44 324r71
+328i20 Row_Index{integer} 330r52 331r48 337r53
+332i23 Index{integer} 335r60 338r31 341r51
+334a25 Name{string} 341r28 341r60
+336a25 Value{string} 342r38
+349r19 Header{19|105R9} 357m28 357r28 362r36
+351i23 Index{integer} 354r60 358r57
+353a25 Name{string} 358r34 358r66
+365r20 Value_Row{27|76R9} 372r30
+367r22 Row_Text{19|105R9} 380m39 380r39 382m39 382r39 386r39
+369i26 Index{integer} 372r56 375r46 377r40
+371r28 Value{27|17R9} 373r71 378r43
+373a28 Text{string} 375r55 380r65 382r55
+374a28 Padding{string} 380r55 382r62
+411a10 Result{string} 414r17
+X 29 system.ads
+67M9*Address
+X 43 s-memory.ads
+51V13*Alloc{29|67M9} 101i<c,__gnat_malloc>22
+66U14*Free 102i<c,__gnat_free>22
+74V13*Realloc{29|67M9} 103i<c,__gnat_realloc>22
+X 54 s-stalib.adb
+87U14 Break_Start 88i<c,__gnat_break_start>22
+

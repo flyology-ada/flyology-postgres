@@ -1,0 +1,13 @@
+  -- POSTGRESQL_17 native-vs-C: [root.stmts[ 1].stmt.SelectStmt.targetList[ 1].ResTarget.val.A_Const.sval.sval: text differs (native='avb', C='ab')]
+  FAILED: POSTGRESQL_17: E'a\vb' matches the C oracle
+  FAILED: POSTGRESQL_17: E'a\vb' is not the same tree as 'avb'
+  -- POSTGRESQL_18 native-vs-C: [root.stmts[ 1].stmt.SelectStmt.targetList[ 1].ResTarget.val.A_Const.sval.sval: text differs (native='avb', C='ab')]
+  FAILED: POSTGRESQL_18: E'a\vb' matches the C oracle
+  FAILED: POSTGRESQL_18: E'a\vb' is not the same tree as 'avb'
+  ok: POSTGRESQL_14: E'a\vb' matches the C oracle (control)
+  ok: POSTGRESQL_14: E'a\vb' equals 'avb' before v17 (control)
+  ok: POSTGRESQL_15: E'a\vb' matches the C oracle (control)
+  ok: POSTGRESQL_15: E'a\vb' equals 'avb' before v17 (control)
+  ok: POSTGRESQL_16: E'a\vb' matches the C oracle (control)
+  ok: POSTGRESQL_16: E'a\vb' equals 'avb' before v17 (control)
+BUG REPRODUCED: 4 failed expectation(s)

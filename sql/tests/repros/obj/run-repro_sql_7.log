@@ -1,0 +1,83 @@
+  -- POSTGRESQL_14 SELECT 1 LIMIT 1, 2
+  --     native: [LIMIT #,# syntax is not supported] @ 20
+  --     oracle: [LIMIT #,# syntax is not supported] @ 10
+  ok: POSTGRESQL_14: SELECT 1 LIMIT 1, 2 message matches the C oracle
+  FAILED: POSTGRESQL_14: SELECT 1 LIMIT 1, 2 cursor matches the C oracle
+  -- POSTGRESQL_15 SELECT 1 LIMIT 1, 2
+  --     native: [LIMIT #,# syntax is not supported] @ 20
+  --     oracle: [LIMIT #,# syntax is not supported] @ 10
+  ok: POSTGRESQL_15: SELECT 1 LIMIT 1, 2 message matches the C oracle
+  FAILED: POSTGRESQL_15: SELECT 1 LIMIT 1, 2 cursor matches the C oracle
+  -- POSTGRESQL_16 SELECT 1 LIMIT 1, 2
+  --     native: [LIMIT #,# syntax is not supported] @ 20
+  --     oracle: [LIMIT #,# syntax is not supported] @ 10
+  ok: POSTGRESQL_16: SELECT 1 LIMIT 1, 2 message matches the C oracle
+  FAILED: POSTGRESQL_16: SELECT 1 LIMIT 1, 2 cursor matches the C oracle
+  -- POSTGRESQL_17 SELECT 1 LIMIT 1, 2
+  --     native: [LIMIT #,# syntax is not supported] @ 20
+  --     oracle: [LIMIT #,# syntax is not supported] @ 10
+  ok: POSTGRESQL_17: SELECT 1 LIMIT 1, 2 message matches the C oracle
+  FAILED: POSTGRESQL_17: SELECT 1 LIMIT 1, 2 cursor matches the C oracle
+  -- POSTGRESQL_18 SELECT 1 LIMIT 1, 2
+  --     native: [LIMIT #,# syntax is not supported] @ 20
+  --     oracle: [LIMIT #,# syntax is not supported] @ 10
+  ok: POSTGRESQL_18: SELECT 1 LIMIT 1, 2 message matches the C oracle
+  FAILED: POSTGRESQL_18: SELECT 1 LIMIT 1, 2 cursor matches the C oracle
+  -- POSTGRESQL_14 CREATE TABLE t (a int, CHECK (a > 0) DEFERRABLE)
+  --     native: [%s constraints cannot be marked DEFERRABLE] @ 48
+  --     oracle: [CHECK constraints cannot be marked DEFERRABLE] @ 0
+  FAILED: POSTGRESQL_14: CREATE TABLE t (a int, CHECK (a > 0) DEFERRABLE) message matches the C oracle
+  FAILED: POSTGRESQL_14: CREATE TABLE t (a int, CHECK (a > 0) DEFERRABLE) cursor matches the C oracle
+  -- POSTGRESQL_15 CREATE TABLE t (a int, CHECK (a > 0) DEFERRABLE)
+  --     native: [%s constraints cannot be marked DEFERRABLE] @ 48
+  --     oracle: [CHECK constraints cannot be marked DEFERRABLE] @ 0
+  FAILED: POSTGRESQL_15: CREATE TABLE t (a int, CHECK (a > 0) DEFERRABLE) message matches the C oracle
+  FAILED: POSTGRESQL_15: CREATE TABLE t (a int, CHECK (a > 0) DEFERRABLE) cursor matches the C oracle
+  -- POSTGRESQL_16 CREATE TABLE t (a int, CHECK (a > 0) DEFERRABLE)
+  --     native: [%s constraints cannot be marked DEFERRABLE] @ 48
+  --     oracle: [CHECK constraints cannot be marked DEFERRABLE] @ 0
+  FAILED: POSTGRESQL_16: CREATE TABLE t (a int, CHECK (a > 0) DEFERRABLE) message matches the C oracle
+  FAILED: POSTGRESQL_16: CREATE TABLE t (a int, CHECK (a > 0) DEFERRABLE) cursor matches the C oracle
+  -- POSTGRESQL_17 CREATE TABLE t (a int, CHECK (a > 0) DEFERRABLE)
+  --     native: [%s constraints cannot be marked DEFERRABLE] @ 48
+  --     oracle: [CHECK constraints cannot be marked DEFERRABLE] @ 0
+  FAILED: POSTGRESQL_17: CREATE TABLE t (a int, CHECK (a > 0) DEFERRABLE) message matches the C oracle
+  FAILED: POSTGRESQL_17: CREATE TABLE t (a int, CHECK (a > 0) DEFERRABLE) cursor matches the C oracle
+  -- POSTGRESQL_18 CREATE TABLE t (a int, CHECK (a > 0) DEFERRABLE)
+  --     native: [%s constraints cannot be marked DEFERRABLE] @ 48
+  --     oracle: [CHECK constraints cannot be marked DEFERRABLE] @ 38
+  FAILED: POSTGRESQL_18: CREATE TABLE t (a int, CHECK (a > 0) DEFERRABLE) message matches the C oracle
+  FAILED: POSTGRESQL_18: CREATE TABLE t (a int, CHECK (a > 0) DEFERRABLE) cursor matches the C oracle
+  -- POSTGRESQL_14 CREATE ROLE r WITH foo
+  --     native: [unrecognized role option "%s"] @ 20
+  --     oracle: [unrecognized role option "foo"] @ 20
+  FAILED: POSTGRESQL_14: CREATE ROLE r WITH foo message matches the C oracle
+  -- POSTGRESQL_15 CREATE ROLE r WITH foo
+  --     native: [unrecognized role option "%s"] @ 20
+  --     oracle: [unrecognized role option "foo"] @ 20
+  FAILED: POSTGRESQL_15: CREATE ROLE r WITH foo message matches the C oracle
+  -- POSTGRESQL_16 CREATE ROLE r WITH foo
+  --     native: [unrecognized role option "%s"] @ 20
+  --     oracle: [unrecognized role option "foo"] @ 20
+  FAILED: POSTGRESQL_16: CREATE ROLE r WITH foo message matches the C oracle
+  -- POSTGRESQL_17 CREATE ROLE r WITH foo
+  --     native: [unrecognized role option "%s"] @ 20
+  --     oracle: [unrecognized role option "foo"] @ 20
+  FAILED: POSTGRESQL_17: CREATE ROLE r WITH foo message matches the C oracle
+  -- POSTGRESQL_18 CREATE ROLE r WITH foo
+  --     native: [unrecognized role option "%s"] @ 20
+  --     oracle: [unrecognized role option "foo"] @ 20
+  FAILED: POSTGRESQL_18: CREATE ROLE r WITH foo message matches the C oracle
+  -- POSTGRESQL_16 SELECT JSON_OBJECT('a': 1 RETURNING text FORMAT JSON ENCODING foo)
+  --     native: [unrecognized JSON encoding: %s] @ 63
+  --     oracle: [unrecognized JSON encoding: foo] @ 0
+  FAILED: POSTGRESQL_16: SELECT JSON_OBJECT('a': 1 RETURNING text FORMAT JSON ENCODING foo) message matches the C oracle
+  -- POSTGRESQL_17 SELECT JSON_OBJECT('a': 1 RETURNING text FORMAT JSON ENCODING foo)
+  --     native: [unrecognized JSON encoding: %s] @ 63
+  --     oracle: [unrecognized JSON encoding: foo] @ 0
+  FAILED: POSTGRESQL_17: SELECT JSON_OBJECT('a': 1 RETURNING text FORMAT JSON ENCODING foo) message matches the C oracle
+  -- POSTGRESQL_18 SELECT JSON_OBJECT('a': 1 RETURNING text FORMAT JSON ENCODING foo)
+  --     native: [unrecognized JSON encoding: %s] @ 63
+  --     oracle: [unrecognized JSON encoding: foo] @ 63
+  FAILED: POSTGRESQL_18: SELECT JSON_OBJECT('a': 1 RETURNING text FORMAT JSON ENCODING foo) message matches the C oracle
+BUG REPRODUCED: 23 failed expectation(s)

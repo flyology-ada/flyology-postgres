@@ -1,0 +1,218 @@
+V "GNAT Lib v16"
+M P W=b
+A -O0
+A -gnatA
+A --RTS=/Users/yrashk/.local/share/alire/builds/flyology_0.1.1_bd95746d/3cf1f8e431e0343b4154ab650e51121b9e3441939b55a10702aab1165f04bd0a/build/alire-rts/
+A -g
+A -gnat2022
+A -gnata
+A -gnatVa
+A -gnatwa
+A -gnatwJ
+A -gnateDFLYOLOGY_CONNECTION_TEST_HOOKS=False
+A -mmacosx-version-min=26.0.0
+A -mcpu=apple-m1
+A -mlittle-endian
+A -mabi=lp64
+A -fPIC
+P SS ZX
+
+RN
+RV NO_EXCEPTION_HANDLERS
+RV NO_EXCEPTION_PROPAGATION
+RV NO_EXCEPTIONS
+RV NO_IMPLICIT_CONDITIONALS
+RV NO_LOCAL_ALLOCATORS
+RV NO_NESTED_FINALIZATION
+RV NO_SECONDARY_STACK
+RV NO_STANDARD_STORAGE_POOLS
+RV NO_DEFAULT_INITIALIZATION
+RV NO_DYNAMIC_SIZED_OBJECTS
+RV NO_IMPLEMENTATION_PRAGMAS
+RV NO_IMPLICIT_LOOPS
+
+U repro_examples_4%b	repro_examples_4.adb	ffe74dfb NE OO SU
+W ada%s			ada.ads			ada.ali
+W ada.exceptions%s	a-except.adb		a-except.ali
+Z ada.strings.text_buffers%s  a-sttebu.adb	a-sttebu.ali
+W example_repro_support%s  example_repro_support.adb  example_repro_support.ali
+W flyology%s		flyology.ads		flyology.ali
+W flyology.postgres%s	flyology-postgres.ads	flyology-postgres.ali
+W flyology.postgres.protocol%s  flyology-postgres-protocol.adb  flyology-postgres-protocol.ali
+W psqlish%s		psqlish.ads		psqlish.ali
+W psqlish.display%s	psqlish-display.adb	psqlish-display.ali
+Z system%s		system.ads		system.ali
+Z system.concat_2%s	s-conca2.adb		s-conca2.ali
+Z system.concat_3%s	s-conca3.adb		s-conca3.ali
+Z system.concat_4%s	s-conca4.adb		s-conca4.ali
+Z system.finalization_primitives%s  s-finpri.adb  s-finpri.ali
+Z system.secondary_stack%s  s-secsta.adb	s-secsta.ali
+Z system.soft_links%s	s-soflin.adb		s-soflin.ali
+Z system.standard_library%s  s-stalib.adb	s-stalib.ali
+Z system.storage_elements%s  s-stoele.ads	s-stoele.ali
+
+D ada.ads		20260901211354 76789da1 ada%s
+D a-charac.ads		20260901211354 2d3ec45b ada.characters%s
+D a-chlat1.ads		20260901211354 e0d72e76 ada.characters.latin_1%s
+D a-contai.ads		20260901211354 61e5e089 ada.containers%s
+D a-conhel.ads		20260901211354 46fe1ce3 ada.containers.helpers%s
+D a-convec.ads		20260901211354 cb0f314a ada.containers.vectors%s
+D a-except.ads		20260901211354 8699d7ff ada.exceptions%s
+D a-finali.ads		20260901211354 099c16e4 ada.finalization%s
+D a-iteint.ads		20260901211354 49a8bee2 ada.iterator_interfaces%s
+D a-stream.ads		20260901211354 cb01a8f8 ada.streams%s
+D a-string.ads		20260901211354 90ac6797 ada.strings%s
+D a-strmap.ads		20260901211354 f7e6ca10 ada.strings.maps%s
+D a-strsea.ads		20260901211354 18c3c634 ada.strings.search%s
+D a-sttebu.ads		20260901211354 f1ad67a2 ada.strings.text_buffers%s
+D a-strunb.ads		20260901211354 8d6ccba7 ada.strings.unbounded%s
+D a-stuten.ads		20260901211354 c6ced0ae ada.strings.utf_encoding%s
+D a-tags.ads		20260901211354 2dbf449c ada.tags%s
+D a-unccon.ads		20260901211354 0e9b276f ada.unchecked_conversion%s
+D a-uncdea.ads		20260901211354 c3a8ac65 ada.unchecked_deallocation%s
+D example_repro_support.ads  20260905004420 6f9acea2 example_repro_support%s
+D flyology.ads		20260901211211 3ef168e6 flyology%s
+D flyology-bytes.ads	20260901211211 442a39a2 flyology.bytes%s
+D flyology-postgres.ads	20260807121426 acc81f2f flyology.postgres%s
+D flyology-postgres-protocol.ads  20260807121426 9cf02b2e flyology.postgres.protocol%s
+D interfac.ads		20260901211354 9111f9c1 interfaces%s
+D i-c.ads		20260901211354 dbdd3be7 interfaces.c%s
+D psqlish.ads		20260820031130 41416a9e psqlish%s
+D psqlish-display.ads	20260807121425 897061bf psqlish.display%s
+D repro_examples_4.adb	20260905005051 03641e37 repro_examples_4%b
+D system.ads		20260901211353 8a611ac3 system%s
+D s-atocou.ads		20260901211354 dc18efc3 system.atomic_counters%s
+D s-conca2.ads		20260901211354 b5fb73f7 system.concat_2%s
+D s-conca3.ads		20260901211354 8a7a19a2 system.concat_3%s
+D s-conca4.ads		20260901211354 33f85f3e system.concat_4%s
+D s-exctab.ads		20260901211354 91bef6ef system.exception_table%s
+D s-finpri.ads		20260901211354 5970d55a system.finalization_primitives%s
+D s-finroo.ads		20260901211354 0a7c3ed4 system.finalization_root%s
+D s-memory.ads		20260901211354 18949c1a system.memory%s
+D s-oscons.ads		20260901211354 42ad9981 system.os_constants%s
+D s-oslock.ads		20260901211354 bcc789d2 system.os_locks%s
+D s-parame.ads		20260901211354 a1aeab5c system.parameters%s
+D s-pooglo.ads		20260901211354 91708d21 system.pool_global%s
+D s-putima.ads		20260901211353 1b989439 system.put_images%s
+D s-retsta.ads		20260901211353 0f6b06cb system.return_stack%s
+D s-secsta.ads		20260901211354 578279f5 system.secondary_stack%s
+D s-soflin.ads		20260901211354 5d88fdea system.soft_links%s
+D s-stache.ads		20260901211354 0b81c1fe system.stack_checking%s
+D s-stalib.ads		20260901211354 1c9580f6 system.standard_library%s
+D s-stalib.adb		20260901211354 eb464a47 system.standard_library%b
+D s-stoele.ads		20260901211354 ccded4e8 system.storage_elements%s
+D s-stopoo.ads		20260901211354 45459446 system.storage_pools%s
+D s-stratt.ads		20260901211354 80b8dafb system.stream_attributes%s
+D s-string.ads		20260901211353 582aac7d system.strings%s
+D s-ststop.ads		20260901211354 c569db7c system.strings.stream_ops%s
+D s-tasinf.ads		20260901211354 801abd01 system.task_info%s
+D s-traent.ads		20260901211354 c81cbf8c system.traceback_entries%s
+D s-unstyp.ads		20260901211354 fa2a7f59 system.unsigned_types%s
+D s-wchcon.ads		20260901211354 d9032363 system.wch_con%s
+D s-wchstw.ads		20260901211354 2d112c01 system.wch_stw%s
+G a e
+G c Z b b [repro_examples_4 standard 23 11 none]
+G r c none [repro_examples_4 standard 23 11 none] [make_message flyology__postgres__protocol 72 13 none]
+G r c none [repro_examples_4 standard 23 11 none] [decode_backend flyology__postgres__protocol 487 13 none]
+G r c none [repro_examples_4 standard 23 11 none] [description flyology__postgres__protocol 497 13 none]
+G r c none [repro_examples_4 standard 23 11 none] [row_data flyology__postgres__protocol 502 13 none]
+G r c none [repro_examples_4 standard 23 11 none] [response_kind flyology__postgres__protocol 493 13 none]
+G r c none [repro_examples_4 standard 23 11 none] [check example_repro_support 7 14 none]
+G r c none [repro_examples_4 standard 23 11 none] [field_count flyology__postgres__protocol 370 13 none]
+G r c none [repro_examples_4 standard 23 11 none] [column_count flyology__postgres__protocol 414 13 none]
+G r c none [repro_examples_4 standard 23 11 none] [make_column psqlish__display 27 13 none]
+G r k column [repro_examples_4 standard 23 11 none] [columnDF psqlish__display 66 9 none]
+G r j column [repro_examples_4 standard 23 11 none] [columnDA psqlish__display 66 9 none]
+G r c none [repro_examples_4 standard 23 11 none] [note example_repro_support 10 14 none]
+G r c none [repro_examples_4 standard 23 11 none] [null_cell psqlish__display 22 13 none]
+G r k cell [repro_examples_4 standard 23 11 none] [cellDF psqlish__display 59 9 none]
+G r j cell [repro_examples_4 standard 23 11 none] [cellDA psqlish__display 59 9 none]
+G r s result_state [repro_examples_4 standard 23 11 none] [result_stateIP psqlish__display 82 9 none]
+G r l result_state [repro_examples_4 standard 23 11 none] [result_stateDI psqlish__display 82 9 none]
+G r k result_state [repro_examples_4 standard 23 11 none] [result_stateDF psqlish__display 82 9 none]
+G r c none [repro_examples_4 standard 23 11 none] [begin_result psqlish__display 41 14 none]
+G r c none [repro_examples_4 standard 23 11 none] [add_row psqlish__display 47 14 none]
+G r c none [repro_examples_4 standard 23 11 none] [finish_result psqlish__display 51 13 none]
+G r c none [repro_examples_4 standard 23 11 none] [finish example_repro_support 13 14 none]
+X 1 ada.ads
+18K9*Ada 22e8 29|18r6 67r18 68r18 86r18 87r18 109r18
+X 7 a-except.ads
+44K13*Exceptions 309e19 29|18w10 67r22 68r22 86r22 87r22 109r22
+62V13*Exception_Name{string} 29|67s33 86s33 109s33
+84V13*Exception_Message{string} 29|68s33 87s33
+X 9 a-iteint.ads
+24h9 Forward_Iterator
+32h9 Reversible_Iterator<24R9[6|119]>
+X 10 a-stream.ads
+42M9*Stream_Element
+54A9*Stream_Element_Array(42M9)<44I9>
+X 20 example_repro_support.ads
+1K9*Example_Repro_Support 16e26 29|21w6 21r33
+7U14*Check 29|46s4 49s4 51s4 70s4 89s4 111s4
+10U14*Note 29|66s10 85s10 102s10 108s10
+13U14*Finish 29|113s4
+X 21 flyology.ads
+11K9*Flyology 33e13 29|19r6 24r29
+X 23 flyology-postgres.ads
+2K18*Postgres 23e22 29|19r15 24r38
+X 24 flyology-postgres-protocol.ads
+7K27*Protocol 826e31 29|19w24 24r47
+17A12*Byte_Array{10|54A9}<10|44I9> 29|29r36 31r37
+72V13*Make_Message{69R9} 29|34s40 36s40
+251E9*Backend_Message_Kind 271e24 29|26r22
+252n7*Row_Description_Response{251E9} 29|47r22
+368R9*Row_Description 725e14 29|38r36
+370V13*Field_Count{natural} 29|49s20 57s50
+412R9*Data_Row 740e14 29|40r28
+414V13*Column_Count{natural} 29|51s20 76s49
+483R9*Backend_Message 817e14 29|33r34 35r35
+487V13*Decode_Backend{483R9} 29|34s15 36s15
+493V13*Response_Kind{251E9} 29|46s20
+497V13*Description{368R9} 29|39s15
+502V13*Row_Data{412R9} 29|40s49
+X 27 psqlish.ads
+1K9*Psqlish 3e12 29|20r6 25r28
+X 28 psqlish-display.ads
+4K17*Display 94e20 29|20w14 25r36
+22V13*Null_Cell{17R9} 29|78s31 80s32 98s31
+24A9*Cell_Array(17R9)<integer> 29|77r27 97r35
+27V13*Make_Column{26R9} 29|59s31 61s33 96s31
+31A9*Column_Array(26R9)<integer> 29|58r28 95r35
+33R9*Result_State 92e14 29|94r26
+41U14*Begin_Result 29|100s18
+47U14*Add_Row 29|101s18
+51V13*Finish_Result{string} 29|103s26
+X 29 repro_examples_4.adb
+23U11*Repro_Examples_4 23b11 114l5 114t21
+24K12 Protocol=24:47 26r13 29r27 31r28 33r25 34r6 34r31 35r26 36r6 36r31
+. 38r27 39r6 40r19 40r40 46r11 47r13 49r11 51r11 57r41 76r40
+25K12 Display=25:36 58r20 59r23 61r25 77r19 78r23 80r24 94r18 95r27 96r23
+. 97r27 98r23 100r10 101r10 103r18
+29a4 Zero_Fields{10|54A9} 34r59
+31a4 Zero_Columns{10|54A9} 36r59
+33r4 Row_Event{24|483R9} 39r28 46r35
+35r4 Data_Event{24|483R9} 40r59
+38r4 Description{24|368R9} 49r33 57r63
+40r4 Row{24|412R9} 51r34 76r63
+42b4 Description_Failed{boolean} 65m10 70r15
+43b4 Row_Failed{boolean} 84m10 89r15
+44b4 Display_Failed{boolean} 107m10 111r15
+57i10 Count{positive} 58r47
+58a10 Columns{28|31A9} 61m10
+64r12 Error{7|53R9} 67r49 68r52
+76i10 Count{positive} 77r44
+77a10 Values{28|24A9} 80m10
+83r12 Error{7|53R9} 86r49 87r52
+94r10 View{28|33R9} 100m32 100r32 101m27 101r27 103m41 103r41
+95a10 Empty{28|31A9} 100r38
+97a10 None{28|24A9} 101r33
+106r12 Error{7|53R9} 109r49
+X 30 system.ads
+67M9*Address
+X 38 s-memory.ads
+51V13*Alloc{30|67M9} 101i<c,__gnat_malloc>22
+66U14*Free 102i<c,__gnat_free>22
+74V13*Realloc{30|67M9} 103i<c,__gnat_realloc>22
+X 49 s-stalib.adb
+87U14 Break_Start 88i<c,__gnat_break_start>22
+

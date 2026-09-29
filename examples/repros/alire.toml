@@ -1,0 +1,20 @@
+name = "example_repros"
+description = "Bug reproduction programs for Flyology Postgres example findings"
+version = "0.0.0"
+
+authors = ["Yurii Rashkovskii"]
+maintainers = ["Yurii Rashkovskii <yrashk@gmail.com>"]
+maintainers-logins = ["yrashk"]
+licenses = "MIT OR Apache-2.0"
+
+project-files = ["example_repros.gpr"]
+
+[[depends-on]]
+flyology_postgres = "*"
+flyology_postgres_sql_v18 = "*"
+flyology = "~0.1.1-dev"
+linenoise_ada = "^1.1.2"
+
+[[pins]]
+flyology_postgres = { path = "../.." }
+flyology_postgres_sql_v18 = { path = "../../sql/v18" }

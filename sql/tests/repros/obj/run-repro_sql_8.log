@@ -1,0 +1,95 @@
+  -- POSTGRESQL_14 native: [invalid Unicode escape value at or near "\U002FFFFF'"] @ 17
+  -- POSTGRESQL_14 oracle: [invalid Unicode escape value at or near "\U002FFFFF"] @ 17
+  FAILED: POSTGRESQL_14: message matches the C oracle for <<SELECT E'wrong: \U002FFFFF'>>
+  -- POSTGRESQL_15 native: [invalid Unicode escape value at or near "\U002FFFFF'"] @ 17
+  -- POSTGRESQL_15 oracle: [invalid Unicode escape value at or near "\U002FFFFF"] @ 17
+  FAILED: POSTGRESQL_15: message matches the C oracle for <<SELECT E'wrong: \U002FFFFF'>>
+  -- POSTGRESQL_16 native: [invalid Unicode escape value at or near "\U002FFFFF'"] @ 17
+  -- POSTGRESQL_16 oracle: [invalid Unicode escape value at or near "\U002FFFFF"] @ 17
+  FAILED: POSTGRESQL_16: message matches the C oracle for <<SELECT E'wrong: \U002FFFFF'>>
+  -- POSTGRESQL_17 native: [invalid Unicode escape value at or near "\U002FFFFF'"] @ 17
+  -- POSTGRESQL_17 oracle: [invalid Unicode escape value at or near "\U002FFFFF"] @ 17
+  FAILED: POSTGRESQL_17: message matches the C oracle for <<SELECT E'wrong: \U002FFFFF'>>
+  -- POSTGRESQL_18 native: [invalid Unicode escape value at or near "\U002FFFFF'"] @ 17
+  -- POSTGRESQL_18 oracle: [invalid Unicode escape value at or near "\U002FFFFF"] @ 17
+  FAILED: POSTGRESQL_18: message matches the C oracle for <<SELECT E'wrong: \U002FFFFF'>>
+  -- POSTGRESQL_14 native: [parameter number too large at or near "$12345678901, 1"] @ 8
+  -- POSTGRESQL_14 oracle: [] @ 0
+  FAILED: POSTGRESQL_14: message matches the C oracle for <<SELECT $12345678901, 1>>
+  -- POSTGRESQL_15 native: [parameter number too large at or near "$12345678901, 1"] @ 8
+  -- POSTGRESQL_15 oracle: [] @ 0
+  FAILED: POSTGRESQL_15: message matches the C oracle for <<SELECT $12345678901, 1>>
+  -- POSTGRESQL_16 native: [parameter number too large at or near "$12345678901, 1"] @ 8
+  -- POSTGRESQL_16 oracle: [] @ 0
+  FAILED: POSTGRESQL_16: message matches the C oracle for <<SELECT $12345678901, 1>>
+  -- POSTGRESQL_17 native: [parameter number too large at or near "$12345678901, 1"] @ 8
+  -- POSTGRESQL_17 oracle: [] @ 0
+  FAILED: POSTGRESQL_17: message matches the C oracle for <<SELECT $12345678901, 1>>
+  -- POSTGRESQL_18 native: [parameter number too large at or near "$12345678901, 1"] @ 8
+  -- POSTGRESQL_18 oracle: [parameter number too large at or near "$12345678901"] @ 8
+  FAILED: POSTGRESQL_18: message matches the C oracle for <<SELECT $12345678901, 1>>
+  -- POSTGRESQL_16 native: [trailing junk after numeric literal at or near "1x, 2"] @ 8
+  -- POSTGRESQL_16 oracle: [trailing junk after numeric literal at or near "1x"] @ 8
+  FAILED: POSTGRESQL_16: message matches the C oracle for <<SELECT 1x, 2>>
+  -- POSTGRESQL_17 native: [trailing junk after numeric literal at or near "1x, 2"] @ 8
+  -- POSTGRESQL_17 oracle: [trailing junk after numeric literal at or near "1x"] @ 8
+  FAILED: POSTGRESQL_17: message matches the C oracle for <<SELECT 1x, 2>>
+  -- POSTGRESQL_18 native: [trailing junk after numeric literal at or near "1x, 2"] @ 8
+  -- POSTGRESQL_18 oracle: [trailing junk after numeric literal at or near "1x"] @ 8
+  FAILED: POSTGRESQL_18: message matches the C oracle for <<SELECT 1x, 2>>
+  -- POSTGRESQL_14 native: [invalid Unicode escape at or near "\061'"] @ 11
+  -- POSTGRESQL_14 oracle: [invalid Unicode escape] @ 11
+  FAILED: POSTGRESQL_14: message matches the C oracle for <<SELECT U&'\061'>>
+  -- POSTGRESQL_14 native: [zero-length delimited identifier at or near """] @ 9
+  -- POSTGRESQL_14 oracle: [zero-length delimited identifier at or near """"] @ 8
+  FAILED: POSTGRESQL_14: message matches the C oracle for <<SELECT "">>
+  FAILED: POSTGRESQL_14: cursor matches the C oracle for <<SELECT "">>
+  -- POSTGRESQL_14 native: [syntax error at or near "U&'t'"] @ 15
+  -- POSTGRESQL_14 oracle: [syntax error at or near "U&'t' UESCAPE '!'"] @ 15
+  FAILED: POSTGRESQL_14: message matches the C oracle for <<SELECT * FROM U&'t' UESCAPE '!'>>
+  -- POSTGRESQL_15 native: [invalid Unicode escape at or near "\061'"] @ 11
+  -- POSTGRESQL_15 oracle: [invalid Unicode escape] @ 11
+  FAILED: POSTGRESQL_15: message matches the C oracle for <<SELECT U&'\061'>>
+  -- POSTGRESQL_15 native: [zero-length delimited identifier at or near """] @ 9
+  -- POSTGRESQL_15 oracle: [zero-length delimited identifier at or near """"] @ 8
+  FAILED: POSTGRESQL_15: message matches the C oracle for <<SELECT "">>
+  FAILED: POSTGRESQL_15: cursor matches the C oracle for <<SELECT "">>
+  -- POSTGRESQL_15 native: [syntax error at or near "U&'t'"] @ 15
+  -- POSTGRESQL_15 oracle: [syntax error at or near "U&'t' UESCAPE '!'"] @ 15
+  FAILED: POSTGRESQL_15: message matches the C oracle for <<SELECT * FROM U&'t' UESCAPE '!'>>
+  -- POSTGRESQL_16 native: [invalid Unicode escape at or near "\061'"] @ 11
+  -- POSTGRESQL_16 oracle: [invalid Unicode escape] @ 11
+  FAILED: POSTGRESQL_16: message matches the C oracle for <<SELECT U&'\061'>>
+  -- POSTGRESQL_16 native: [zero-length delimited identifier at or near """] @ 9
+  -- POSTGRESQL_16 oracle: [zero-length delimited identifier at or near """"] @ 8
+  FAILED: POSTGRESQL_16: message matches the C oracle for <<SELECT "">>
+  FAILED: POSTGRESQL_16: cursor matches the C oracle for <<SELECT "">>
+  -- POSTGRESQL_16 native: [syntax error at or near "U&'t'"] @ 15
+  -- POSTGRESQL_16 oracle: [syntax error at or near "U&'t' UESCAPE '!'"] @ 15
+  FAILED: POSTGRESQL_16: message matches the C oracle for <<SELECT * FROM U&'t' UESCAPE '!'>>
+  -- POSTGRESQL_17 native: [invalid Unicode escape at or near "\061'"] @ 11
+  -- POSTGRESQL_17 oracle: [invalid Unicode escape] @ 11
+  FAILED: POSTGRESQL_17: message matches the C oracle for <<SELECT U&'\061'>>
+  -- POSTGRESQL_17 native: [zero-length delimited identifier at or near """] @ 9
+  -- POSTGRESQL_17 oracle: [zero-length delimited identifier at or near """"] @ 8
+  FAILED: POSTGRESQL_17: message matches the C oracle for <<SELECT "">>
+  FAILED: POSTGRESQL_17: cursor matches the C oracle for <<SELECT "">>
+  -- POSTGRESQL_17 native: [syntax error at or near "U&'t'"] @ 15
+  -- POSTGRESQL_17 oracle: [syntax error at or near "U&'t' UESCAPE '!'"] @ 15
+  FAILED: POSTGRESQL_17: message matches the C oracle for <<SELECT * FROM U&'t' UESCAPE '!'>>
+  -- POSTGRESQL_18 native: [invalid Unicode escape at or near "\061'"] @ 11
+  -- POSTGRESQL_18 oracle: [invalid Unicode escape] @ 11
+  FAILED: POSTGRESQL_18: message matches the C oracle for <<SELECT U&'\061'>>
+  -- POSTGRESQL_18 native: [zero-length delimited identifier at or near """] @ 9
+  -- POSTGRESQL_18 oracle: [zero-length delimited identifier at or near """"] @ 8
+  FAILED: POSTGRESQL_18: message matches the C oracle for <<SELECT "">>
+  FAILED: POSTGRESQL_18: cursor matches the C oracle for <<SELECT "">>
+  -- POSTGRESQL_18 native: [syntax error at or near "U&'t'"] @ 15
+  -- POSTGRESQL_18 oracle: [syntax error at or near "U&'t' UESCAPE '!'"] @ 15
+  FAILED: POSTGRESQL_18: message matches the C oracle for <<SELECT * FROM U&'t' UESCAPE '!'>>
+  ok: POSTGRESQL_14: control unterminated literal matches
+  ok: POSTGRESQL_15: control unterminated literal matches
+  ok: POSTGRESQL_16: control unterminated literal matches
+  ok: POSTGRESQL_17: control unterminated literal matches
+  ok: POSTGRESQL_18: control unterminated literal matches
+BUG REPRODUCED: 33 failed expectation(s)
